@@ -31,14 +31,12 @@
 [rubygems-maint-policy]: https://github.com/ruby/rubygems/blob/b1ab33a3d52310a84d16b193991af07f5a6a07c0/doc/rubygems/POLICIES.md?plain=1#L187-L196
 [policy-fail]: https://www.reddit.com/r/ruby/comments/1ove9vp/rubycentral_hates_this_one_fact/
 
-[![Galtzo FLOSS Logo by Aboling0, CC BY-SA 4.0][🖼️galtzo-i]][🖼️galtzo-discord] [![ruby-lang Logo, Yukihiro Matsumoto, Ruby Visual Identity Team, CC BY-SA 2.5][🖼️ruby-lang-i]][🖼️ruby-lang] [![prism-merge Logo by Aboling0, CC BY-SA 4.0][🖼️prism-merge-i]][🖼️prism-merge]
+[![Galtzo FLOSS Logo by Aboling0, CC BY-SA 4.0][🖼️galtzo-i]][🖼️galtzo-discord] [![ruby-lang Logo, Yukihiro Matsumoto, Ruby Visual Identity Team, CC BY-SA 2.5][🖼️ruby-lang-i]][🖼️ruby-lang]
 
 [🖼️galtzo-i]: https://logos.galtzo.com/assets/images/galtzo-floss/avatar-192px.svg
 [🖼️galtzo-discord]: https://discord.gg/3qme4XHNKN
 [🖼️ruby-lang-i]: https://logos.galtzo.com/assets/images/ruby-lang/avatar-192px.svg
 [🖼️ruby-lang]: https://www.ruby-lang.org/
-[🖼️prism-merge-i]: https://logos.galtzo.com/assets/images/kettle-rb/prism-merge/avatar-192px.svg
-[🖼️prism-merge]: https://github.com/kettle-rb/prism-merge
 
 # 🍕 Prism::Merge
 
@@ -54,7 +52,31 @@
 
 ## 🌻 Synopsis
 
+Prism::Merge is a standalone Ruby module that intelligently merges two versions of a Ruby file using Prism AST analysis. It's like a smart "git merge" specifically designed for Ruby code.
 
+### Key Features
+
+- **AST-Aware**: Uses Prism parser to understand Ruby structure
+- **Intelligent**: Matches nodes by structural signatures
+- **Comment-Preserving**: Comments are properly attached to relevant nodes and/or placement
+- **Freeze Block Support**: Respects `kettle-dev:freeze` markers for template merge control
+- **Full Provenance**: Tracks origin of every line
+- **Customizable**: Supports custom signature generators
+- **Standalone**: No dependencies other than `prism`
+
+### Example
+
+```ruby
+require "prism/merge"
+
+template = File.read("template.rb")
+destination = File.read("destination.rb")
+
+merger = Prism::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.rb", result)
+```
 
 ## 💡 Info you can shake a stick at
 
@@ -169,11 +191,317 @@ NOTE: Be prepared to track down certs for signed gems and add them the same way 
 
 ## ⚙️ Configuration
 
+Prism::Merge works out of the box with zero configuration, but offers customization options for advanced use cases.
 
+### Custom Signature Generator
+
+By default, Prism::Merge uses intelligent structural signatures to match nodes:
+- **Conditionals** (`if`/`unless`) are matched by their condition only
+- **Assignments** (constants, variables) are matched by their name only  
+- **Other nodes** are matched by class and full source code
+
+You can provide a custom signature generator to control matching behavior:
+
+```ruby
+signature_generator = lambda do |node|
+  case node
+  when Prism::CallNode
+    # Match method calls by name only, ignoring arguments
+    [:call, node.name]
+  when Prism::DefNode
+    # Match method definitions by name and parameters
+    [:def, node.name, node.parameters&.slice]
+  when Prism::ClassNode
+    # Match classes by name
+    [:class, node.constant_path.slice]
+  else
+    # Default matching
+    [node.class.name.split("::").last.to_sym, node.slice]
+  end
+end
+
+merger = Prism::Merge::SmartMerger.new(
+  template_content,
+  destination_content,
+  signature_generator: signature_generator
+)
+```
+
+### Freeze Blocks
+
+Protect sections in the destination file from being overwritten by the template using freeze markers:
+
+```ruby
+# In your destination.rb file
+# kettle-dev:freeze
+gem "custom-gem", path: "../custom"
+# Add any custom configuration you want to preserve
+# kettle-dev:unfreeze
+```
+
+Freeze blocks are **always preserved** from the destination file during merge, regardless of template content.
+
+### Integration with Existing Systems
+
+If you're integrating with an existing system that has its own signature logic:
+
+```ruby
+# Use your existing signature function
+my_signature_func = ->(node) { MySystem.calculate_signature(node) }
+
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  signature_generator: my_signature_func
+)
+```
 
 ## 🔧 Basic Usage
 
+### Simple Merge
 
+The most basic usage merges two Ruby files:
+
+```ruby
+require "prism/merge"
+
+template = File.read("template.rb")
+destination = File.read("destination.rb")
+
+merger = Prism::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.rb", result)
+```
+
+### Understanding the Merge
+
+Prism::Merge intelligently combines files by:
+
+1. **Finding Anchors**: Identifies matching sections between files
+2. **Detecting Boundaries**: Locates areas where files differ
+3. **Resolving Conflicts**: Uses structural signatures to merge differences
+4. **Preserving Context**: Maintains comments and freeze blocks
+
+Example:
+
+```ruby
+# template.rb
+VERSION = "2.0.0"
+
+def greet(name)
+  puts "Hello, #{name}!"
+end
+
+# destination.rb  
+VERSION = "1.0.0"
+
+def greet(name)
+  puts "Hello, #{name}!"
+end
+
+def custom_method
+  # This is destination-only
+end
+
+# After merge:
+# - VERSION from template (2.0.0) replaces destination (1.0.0)
+# - greet method matches, template version kept
+# - custom_method is preserved (destination-only)
+```
+
+### With Debug Information
+
+Get detailed information about merge decisions:
+
+```ruby
+merger = Prism::Merge::SmartMerger.new(template, destination)
+debug_result = merger.merge_with_debug
+
+puts debug_result[:content]      # Final merged content
+puts debug_result[:statistics]   # Decision counts
+puts debug_result[:debug]        # Line-by-line provenance
+```
+
+The debug output shows:
+
+```ruby
+debug_result[:statistics]
+# => {
+#   kept_template: 42,        # Lines from template (no conflict)
+#   kept_destination: 8,      # Lines from destination (no conflict)
+#   replaced: 5,              # Template replaced matching destination
+#   appended: 3,              # Destination-only content added
+#   freeze_block: 2           # Lines from freeze blocks
+# }
+```
+
+### Error Handling
+
+Prism::Merge raises exceptions when files have syntax errors:
+
+```ruby
+begin
+  merger = Prism::Merge::SmartMerger.new(template, destination)
+  result = merger.merge
+rescue Prism::Merge::TemplateParseError => e
+  puts "Template has syntax errors"
+  puts "Content: #{e.content}"
+  puts "Parse errors: #{e.parse_result.errors}"
+rescue Prism::Merge::DestinationParseError => e
+  puts "Destination has syntax errors"
+  puts "Content: #{e.content}"
+  puts "Parse errors: #{e.parse_result.errors}"
+end
+```
+
+### Validating Before Merge
+
+Check if files are valid before attempting a merge:
+
+```ruby
+template_analysis = Prism::Merge::FileAnalysis.new(template_content)
+dest_analysis = Prism::Merge::FileAnalysis.new(dest_content)
+
+if template_analysis.valid? && dest_analysis.valid?
+  merger = Prism::Merge::SmartMerger.new(template_content, dest_content)
+  result = merger.merge
+else
+  puts "Files have syntax errors" unless template_analysis.valid?
+  puts "Cannot merge"
+end
+```
+
+### Working with Freeze Blocks
+
+Protect custom sections from template updates:
+
+```ruby
+# destination.rb
+class MyApp
+  # kettle-dev:freeze
+  CUSTOM_CONFIG = {
+    api_key: ENV.fetch("API_KEY"),
+    endpoint: "https://custom.example.com"
+  }
+  # kettle-dev:unfreeze
+  
+  VERSION = "1.0.0"
+end
+
+# template.rb
+class MyApp
+  CUSTOM_CONFIG = {}  # Template wants to reset this
+  
+  VERSION = "2.0.0"
+end
+
+# After merge, CUSTOM_CONFIG keeps destination values
+# but VERSION is updated to 2.0.0
+```
+
+### Advanced: Inspect Merge Components
+
+For debugging or understanding the merge process:
+
+```ruby
+# Analyze files separately
+template_analysis = Prism::Merge::FileAnalysis.new(template)
+dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+puts "Template statements: #{template_analysis.statements.length}"
+puts "Template freeze blocks: #{template_analysis.freeze_blocks.length}"
+
+# See what anchors and boundaries are found
+aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
+boundaries = aligner.align
+
+puts "Anchors (matching sections): #{aligner.anchors.length}"
+aligner.anchors.each do |anchor|
+  puts "  Lines #{anchor.template_start}-#{anchor.template_end} match"
+end
+
+puts "Boundaries (differences): #{boundaries.length}"
+boundaries.each do |boundary|
+  puts "  Template #{boundary.template_range} vs Dest #{boundary.dest_range}"
+end
+```
+
+### Integration Example
+
+Use Prism::Merge in your own templating system:
+
+```ruby
+class MyTemplateEngine
+  def merge_ruby_file(template_path, destination_path)
+    template = File.read(template_path)
+    destination = File.exist?(destination_path) ? File.read(destination_path) : ""
+    
+    merger = Prism::Merge::SmartMerger.new(template, destination)
+    merged_content = merger.merge
+    
+    File.write(destination_path, merged_content)
+    
+    # Return statistics for reporting
+    debug_result = merger.merge_with_debug
+    debug_result[:statistics]
+  rescue Prism::Merge::Error => e
+    puts "Merge failed: #{e.message}"
+    # Fall back to template only
+    File.write(destination_path, template)
+    nil
+  end
+end
+```
+
+### Testing Your Merges
+
+Example RSpec test:
+
+```ruby
+require "prism/merge"
+
+RSpec.describe "Ruby file merging" do
+  it "updates VERSION from template" do
+    template = <<~RUBY
+      VERSION = "2.0.0"
+      def hello; end
+    RUBY
+    
+    destination = <<~RUBY
+      VERSION = "1.0.0"
+      def hello; end
+      def custom; end
+    RUBY
+    
+    merger = Prism::Merge::SmartMerger.new(template, destination)
+    result = merger.merge
+    
+    # Template version wins
+    expect(result).to include('VERSION = "2.0.0"')
+    # Destination-only method preserved
+    expect(result).to include("def custom")
+  end
+  
+  it "preserves freeze blocks" do
+    template = <<~RUBY
+      CONFIG = {}
+    RUBY
+    
+    destination = <<~RUBY
+      # kettle-dev:freeze
+      CONFIG = { key: "secret" }
+      # kettle-dev:unfreeze
+    RUBY
+    
+    merger = Prism::Merge::SmartMerger.new(template, destination)
+    result = merger.merge
+    
+    # Freeze block content preserved
+    expect(result).to include('CONFIG = { key: "secret" }')
+  end
+end
+```
 
 ## 🦷 FLOSS Funding
 
