@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.description = "🍕 TODO: Write a longer description or delete this line."
   spec.homepage = "https://github.com/kettle-rb/prism-merge"
   spec.licenses = ["MIT"]
-  spec.required_ruby_version = ">= 3.2.0"
+  spec.required_ruby_version = ">= 2.7.0"
 
   # Linux distros often package gems and securely certify them independent
   #   of the official RubyGem certification process. Allowed via ENV["SKIP_GEM_SIGNING"]
@@ -114,7 +114,7 @@ Gem::Specification.new do |spec|
   #       and preferably a modular one (see gemfiles/modular/*.gemfile).
 
   # Dev, Test, & Release Tasks
-  spec.add_development_dependency("kettle-dev", "~> 1.1")                           # ruby >= 2.3.0
+  spec.add_development_dependency("kettle-dev", "~> 1.1.60")                           # ruby >= 2.3.0
 
   # Security
   spec.add_development_dependency("bundler-audit", "~> 0.9.2")                      # ruby >= 2.0.0
