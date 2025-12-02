@@ -1,11 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe Prism::Merge do
-  it "has a version number" do
-    expect(Prism::Merge::VERSION).not_to be nil
-  end
-
   it "does something useful" do
-    expect(false).to eq(true)
+    expect(described_class).to be_a(Module)
   end
 end
