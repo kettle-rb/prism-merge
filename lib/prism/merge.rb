@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
+# External gems
 require "prism"
+require "version_gem"
 
+# This gem
 require_relative "merge/version"
 
 # Prism::Merge provides a generic Ruby file smart merge system using Prism AST analysis.
@@ -44,4 +47,8 @@ module Prism
     autoload :ConflictResolver, "prism/merge/conflict_resolver"
     autoload :SmartMerger, "prism/merge/smart_merger"
   end
+end
+
+Prism::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end
