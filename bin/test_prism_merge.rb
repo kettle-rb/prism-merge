@@ -3,7 +3,7 @@
 
 # Simple test to verify PrismMerge loads and works
 
-require_relative "../lib/prism/merge"
+require "prism/merge"
 
 puts "=== Testing PrismMerge ==="
 puts
@@ -48,10 +48,8 @@ begin
 
   puts
   puts "✓ All tests passed!"
-
 rescue StandardError => e
   puts "✗ Error: #{e.class}: #{e.message}"
   puts e.backtrace.first(5).join("\n")
-  exit 1
+  exit(1)
 end
-

@@ -23,11 +23,11 @@ module Prism
   module Merge
     # Base error class for Prism::Merge
     class Error < StandardError; end
-    
+
     # Raised when the template/destination file has parsing errors
     class ParseError < Error
       attr_reader :content, :parse_result
-      
+
       def initialize(message, content:, parse_result:)
         super(message)
         @content = content

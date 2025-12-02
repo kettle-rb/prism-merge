@@ -137,16 +137,16 @@ module Prism
             meta[:decision].to_s.ljust(20),
           ]
 
-          if meta[:template_line]
-            parts << "T:#{meta[:template_line]}".ljust(8)
+          parts << if meta[:template_line]
+            "T:#{meta[:template_line]}".ljust(8)
           else
-            parts << " " * 8
+            " " * 8
           end
 
-          if meta[:dest_line]
-            parts << "D:#{meta[:dest_line]}".ljust(8)
+          parts << if meta[:dest_line]
+            "D:#{meta[:dest_line]}".ljust(8)
           else
-            parts << " " * 8
+            " " * 8
           end
 
           parts << "| #{line[0..60]}"

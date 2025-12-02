@@ -184,4 +184,3 @@ RSpec.describe Prism::Merge::FileAligner do
     end
   end
 end
-

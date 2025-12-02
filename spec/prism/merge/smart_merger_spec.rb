@@ -50,8 +50,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         result = merger.merge
 
         # Count freeze markers
-        freeze_count = result.scan(/# kettle-dev:freeze/).length
-        unfreeze_count = result.scan(/# kettle-dev:unfreeze/).length
+        freeze_count = result.scan("# kettle-dev:freeze").length
+        unfreeze_count = result.scan("# kettle-dev:unfreeze").length
 
         expect(freeze_count).to eq(1)
         expect(unfreeze_count).to eq(1)
@@ -112,7 +112,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include('puts "Debug mode enabled"')
 
         # Should not duplicate the conditional
-        if_count = result.scan(/if ENV\["DEBUG"\]/).length
+        if_count = result.scan('if ENV["DEBUG"]').length
         expect(if_count).to eq(1)
       end
     end
@@ -144,7 +144,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include('AUTHOR = "John Doe"')
 
         # Should not duplicate VERSION
-        version_count = result.scan(/VERSION = /).length
+        version_count = result.scan("VERSION = ").length
         expect(version_count).to eq(1)
       end
     end
@@ -242,7 +242,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         dest = "def hello; end"
 
         merger = described_class.new(template, dest)
-        
+
         expect { merger.merge }.to raise_error(Prism::Merge::TemplateParseError) do |error|
           expect(error.content).to eq(template)
           expect(error.parse_result).not_to be_nil
@@ -254,7 +254,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         dest = "this is not valid ruby {{"
 
         merger = described_class.new(template, dest)
-        
+
         expect { merger.merge }.to raise_error(Prism::Merge::DestinationParseError) do |error|
           expect(error.content).to eq(dest)
           expect(error.parse_result).not_to be_nil
@@ -288,4 +288,3 @@ RSpec.describe Prism::Merge::SmartMerger do
     end
   end
 end
-

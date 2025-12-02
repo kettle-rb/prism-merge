@@ -150,4 +150,3 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 end
-

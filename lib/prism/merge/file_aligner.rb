@@ -69,7 +69,7 @@ module Prism
             1,
             @dest_analysis.lines.length,
             :exact_match,
-            @template_analysis.lines.length
+            @template_analysis.lines.length,
           )
           return
         end
@@ -100,7 +100,7 @@ module Prism
         map = {}
         # Keywords that are too generic to use as anchors on their own
         generic_keywords = %w[end else elsif when rescue ensure]
-        
+
         # Get line numbers covered by statement nodes - these shouldn't be matched line-by-line
         statement_lines = Set.new
         analysis.statements.each do |stmt|
@@ -108,7 +108,7 @@ module Prism
             statement_lines << line_num
           end
         end
-        
+
         analysis.lines.each_with_index do |line, idx|
           line_num = idx + 1
           normalized = line.strip
@@ -170,8 +170,7 @@ module Prism
 
           # Check if this extends the current sequence
           if t_line == current_end_t + 1 && d_line == current_end_d + 1
-            current_end_t = t_line
-            current_end_d = d_line
+            # Sequence continues
           else
             # Save current anchor if it's substantial (at least 1 line)
             if current_end_t - current_start_t >= 0
@@ -181,16 +180,16 @@ module Prism
                 current_start_d,
                 current_end_d,
                 :exact_match,
-                current_end_t - current_start_t + 1
+                current_end_t - current_start_t + 1,
               )
             end
 
             # Start new sequence
             current_start_t = t_line
             current_start_d = d_line
-            current_end_t = t_line
-            current_end_d = d_line
           end
+          current_end_t = t_line
+          current_end_d = d_line
         end
 
         # Don't forget the last anchor
@@ -201,7 +200,7 @@ module Prism
             current_start_d,
             current_end_d,
             :exact_match,
-            current_end_t - current_start_t + 1
+            current_end_t - current_start_t + 1,
           )
         end
 
@@ -237,7 +236,7 @@ module Prism
                 line_range.begin,
                 line_range.end,
                 :freeze_block,
-                100 # High score for freeze blocks
+                100, # High score for freeze blocks
               )
             end
           end
@@ -253,7 +252,7 @@ module Prism
             1..@template_analysis.lines.length,
             1..@dest_analysis.lines.length,
             nil,
-            nil
+            nil,
           )
           return
         end
@@ -261,8 +260,8 @@ module Prism
         # Boundary before first anchor
         first_anchor = @anchors.first
         if first_anchor.template_start > 1 || first_anchor.dest_start > 1
-          template_range = first_anchor.template_start > 1 ? (1..first_anchor.template_start - 1) : nil
-          dest_range = first_anchor.dest_start > 1 ? (1..first_anchor.dest_start - 1) : nil
+          template_range = (first_anchor.template_start > 1) ? (1..first_anchor.template_start - 1) : nil
+          dest_range = (first_anchor.dest_start > 1) ? (1..first_anchor.dest_start - 1) : nil
 
           if template_range || dest_range
             @boundaries << Boundary.new(template_range, dest_range, nil, first_anchor)
@@ -276,8 +275,8 @@ module Prism
           dest_gap_start = prev_anchor.dest_end + 1
           dest_gap_end = next_anchor.dest_start - 1
 
-          template_range = template_gap_end >= template_gap_start ? (template_gap_start..template_gap_end) : nil
-          dest_range = dest_gap_end >= dest_gap_start ? (dest_gap_start..dest_gap_end) : nil
+          template_range = (template_gap_end >= template_gap_start) ? (template_gap_start..template_gap_end) : nil
+          dest_range = (dest_gap_end >= dest_gap_start) ? (dest_gap_start..dest_gap_end) : nil
 
           if template_range || dest_range
             @boundaries << Boundary.new(template_range, dest_range, prev_anchor, next_anchor)

@@ -15,4 +15,3 @@ class Calculator
     a * b
   end
 end
-

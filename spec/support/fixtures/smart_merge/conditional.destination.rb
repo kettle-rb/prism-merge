@@ -9,4 +9,3 @@ end
 def process_data(data)
   data.map(&:upcase)
 end
-

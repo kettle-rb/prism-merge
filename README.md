@@ -199,7 +199,7 @@ Prism::Merge works out of the box with zero configuration, but offers customizat
 
 By default, Prism::Merge uses intelligent structural signatures to match nodes:
 - **Conditionals** (`if`/`unless`) are matched by their condition only
-- **Assignments** (constants, variables) are matched by their name only  
+- **Assignments** (constants, variables) are matched by their name only
 - **Other nodes** are matched by class and full source code
 
 You can provide a custom signature generator to control matching behavior:
@@ -225,7 +225,7 @@ end
 merger = Prism::Merge::SmartMerger.new(
   template_content,
   destination_content,
-  signature_generator: signature_generator
+  signature_generator: signature_generator,
 )
 ```
 
@@ -254,7 +254,7 @@ my_signature_func = ->(node) { MySystem.calculate_signature(node) }
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  signature_generator: my_signature_func
+  signature_generator: my_signature_func,
 )
 ```
 
@@ -295,7 +295,7 @@ def greet(name)
   puts "Hello, #{name}!"
 end
 
-# destination.rb  
+# destination.rb
 VERSION = "1.0.0"
 
 def greet(name)
@@ -384,17 +384,17 @@ class MyApp
   # kettle-dev:freeze
   CUSTOM_CONFIG = {
     api_key: ENV.fetch("API_KEY"),
-    endpoint: "https://custom.example.com"
+    endpoint: "https://custom.example.com",
   }
   # kettle-dev:unfreeze
-  
+
   VERSION = "1.0.0"
 end
 
 # template.rb
 class MyApp
   CUSTOM_CONFIG = {}  # Template wants to reset this
-  
+
   VERSION = "2.0.0"
 end
 
@@ -438,12 +438,12 @@ class MyTemplateEngine
   def merge_ruby_file(template_path, destination_path)
     template = File.read(template_path)
     destination = File.exist?(destination_path) ? File.read(destination_path) : ""
-    
+
     merger = Prism::Merge::SmartMerger.new(template, destination)
     merged_content = merger.merge
-    
+
     File.write(destination_path, merged_content)
-    
+
     # Return statistics for reporting
     debug_result = merger.merge_with_debug
     debug_result[:statistics]
@@ -463,44 +463,44 @@ Example RSpec test:
 ```ruby
 require "prism/merge"
 
-RSpec.describe "Ruby file merging" do
+RSpec.describe("Ruby file merging") do
   it "updates VERSION from template" do
     template = <<~RUBY
       VERSION = "2.0.0"
       def hello; end
     RUBY
-    
+
     destination = <<~RUBY
       VERSION = "1.0.0"
       def hello; end
       def custom; end
     RUBY
-    
+
     merger = Prism::Merge::SmartMerger.new(template, destination)
     result = merger.merge
-    
+
     # Template version wins
-    expect(result).to include('VERSION = "2.0.0"')
+    expect(result).to(include('VERSION = "2.0.0"'))
     # Destination-only method preserved
-    expect(result).to include("def custom")
+    expect(result).to(include("def custom"))
   end
-  
+
   it "preserves freeze blocks" do
     template = <<~RUBY
       CONFIG = {}
     RUBY
-    
+
     destination = <<~RUBY
       # kettle-dev:freeze
       CONFIG = { key: "secret" }
       # kettle-dev:unfreeze
     RUBY
-    
+
     merger = Prism::Merge::SmartMerger.new(template, destination)
     result = merger.merge
-    
+
     # Freeze block content preserved
-    expect(result).to include('CONFIG = { key: "secret" }')
+    expect(result).to(include('CONFIG = { key: "secret" }'))
   end
 end
 ```

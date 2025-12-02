@@ -104,7 +104,7 @@ module Prism
       # @param index [Integer] Statement index
       # @return [Array, nil] Signature array
       def signature_at(index)
-        return nil unless index >= 0 && index < statements.length
+        return if index < 0 || index >= statements.length
         generate_signature(statements[index])
       end
 
@@ -137,7 +137,7 @@ module Prism
       # @param line_num [Integer] 1-based line number
       # @return [String, nil]
       def normalized_line(line_num)
-        return nil if line_num < 1 || line_num > lines.length
+        return if line_num < 1 || line_num > lines.length
         lines[line_num - 1].strip
       end
 
@@ -145,7 +145,7 @@ module Prism
       # @param line_num [Integer] 1-based line number
       # @return [String, nil]
       def line_at(line_num)
-        return nil if line_num < 1 || line_num > lines.length
+        return if line_num < 1 || line_num > lines.length
         lines[line_num - 1]
       end
 
@@ -209,10 +209,10 @@ module Prism
         # (no blank lines between the comment and the statement)
         adjacent_comments = []
         expected_line = end_line - 1
-        
-        candidates.reverse.each do |comment|
+
+        candidates.reverse_each do |comment|
           comment_line = comment.location.start_line
-          
+
           # Only include if this comment is immediately adjacent (no gaps)
           if comment_line == expected_line
             adjacent_comments.unshift(comment)
@@ -222,7 +222,7 @@ module Prism
             break
           end
         end
-        
+
         adjacent_comments
       end
 
@@ -250,7 +250,7 @@ module Prism
       # Default signature generation
       def default_signature(node)
         return [:nil] unless node
-        
+
         # For conditional nodes, signature should be based on the condition only,
         # not the body, so conditionals with same condition but different bodies
         # are recognized as matching
@@ -258,13 +258,13 @@ module Prism
         when Prism::IfNode, Prism::UnlessNode
           condition_slice = node.predicate&.slice || ""
           [node.class.name.split("::").last.to_sym, condition_slice]
-        when Prism::ConstantWriteNode, Prism::GlobalVariableWriteNode, 
+        when Prism::ConstantWriteNode, Prism::GlobalVariableWriteNode,
              Prism::InstanceVariableWriteNode, Prism::ClassVariableWriteNode,
              Prism::LocalVariableWriteNode
           # For variable/constant assignments, signature based on name only,
           # not the value, so assignments with same name but different values
           # are recognized as matching
-          name = node.respond_to?(:name) ? node.name.to_s : node.slice.split('=').first.strip
+          name = node.respond_to?(:name) ? node.name.to_s : node.slice.split("=").first.strip
           [node.class.name.split("::").last.to_sym, name]
         else
           [node.class.name.split("::").last.to_sym, node.slice]

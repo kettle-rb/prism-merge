@@ -49,7 +49,7 @@ module Prism
       private
 
       def extract_boundary_content(analysis, line_range)
-        return { lines: [], nodes: [], has_freeze_block: false, line_range: nil } unless line_range
+        return {lines: [], nodes: [], has_freeze_block: false, line_range: nil} unless line_range
 
         lines = []
         line_range.each do |line_num|
@@ -85,23 +85,23 @@ module Prism
           content[:lines],
           decision: decision,
           source: source,
-          start_line: start_line
+          start_line: start_line,
         )
       end
 
       def merge_boundary_content(template_content, dest_content, _boundary, result)
         # Strategy: Process template content in order, replacing matched nodes with template version
         # and appending dest-only nodes at the end
-        
+
         template_nodes = template_content[:nodes]
         dest_nodes = dest_content[:nodes]
 
         # Build signature map for destination nodes
         dest_sig_map = build_signature_map(dest_nodes)
-        
+
         # Track which dest nodes have been matched
         matched_dest_indices = Set.new
-        
+
         # Build a set of line numbers that are covered by leading comments of nodes
         # so we don't duplicate them when processing non-node lines
         leading_comment_lines = Set.new
@@ -116,10 +116,10 @@ module Prism
         return unless template_line_range
 
         current_line = template_line_range.begin
-        
+
         template_nodes.sort_by { |n| n[:line_range].begin }.each do |t_node_info|
           node_start = t_node_info[:line_range].begin
-          
+
           # Add any non-node lines before this node (excluding leading comment lines)
           while current_line < node_start
             if template_line_range.cover?(current_line) && !leading_comment_lines.include?(current_line)
@@ -127,12 +127,12 @@ module Prism
               result.add_line(
                 line.chomp,
                 decision: MergeResult::DECISION_KEPT_TEMPLATE,
-                template_line: current_line
+                template_line: current_line,
               )
             end
             current_line += 1
           end
-          
+
           # Add the node (template version, possibly replacing dest version)
           sig = t_node_info[:signature]
           if dest_sig_map[sig]
@@ -141,9 +141,9 @@ module Prism
               t_node_info,
               decision: MergeResult::DECISION_REPLACED,
               source: :template,
-              source_analysis: @template_analysis
+              source_analysis: @template_analysis,
             )
-            
+
             # Mark matching dest nodes as processed
             dest_sig_map[sig].each do |d_node_info|
               matched_dest_indices << d_node_info[:index]
@@ -154,13 +154,13 @@ module Prism
               t_node_info,
               decision: MergeResult::DECISION_KEPT_TEMPLATE,
               source: :template,
-              source_analysis: @template_analysis
+              source_analysis: @template_analysis,
             )
           end
-          
+
           current_line = t_node_info[:line_range].end + 1
         end
-        
+
         # Add any remaining template lines after the last node
         while current_line <= template_line_range.end
           if !leading_comment_lines.include?(current_line)
@@ -168,21 +168,21 @@ module Prism
             result.add_line(
               line.chomp,
               decision: MergeResult::DECISION_KEPT_TEMPLATE,
-              template_line: current_line
+              template_line: current_line,
             )
           end
           current_line += 1
         end
-        
+
         # Add dest-only nodes (nodes that weren't matched)
         dest_nodes.each do |d_node_info|
           next if matched_dest_indices.include?(d_node_info[:index])
-          
+
           result.add_node(
             d_node_info,
             decision: MergeResult::DECISION_APPENDED,
             source: :destination,
-            source_analysis: @dest_analysis
+            source_analysis: @dest_analysis,
           )
         end
       end
@@ -214,7 +214,7 @@ module Prism
           result.add_line(
             line.chomp,
             decision: MergeResult::DECISION_APPENDED,
-            dest_line: line_num
+            dest_line: line_num,
           )
         end
       end

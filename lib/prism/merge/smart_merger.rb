@@ -28,7 +28,7 @@ module Prism
           raise Prism::Merge::TemplateParseError.new(
             "Template file has parsing errors",
             content: @template_content,
-            parse_result: @template_analysis.parse_result
+            parse_result: @template_analysis.parse_result,
           )
         end
 
@@ -36,7 +36,7 @@ module Prism
           raise Prism::Merge::DestinationParseError.new(
             "Destination file has parsing errors",
             content: @dest_content,
-            parse_result: @dest_analysis.parse_result
+            parse_result: @dest_analysis.parse_result,
           )
         end
 
@@ -81,7 +81,7 @@ module Prism
 
         # Add all anchors and boundaries sorted by position
         @aligner.anchors.each do |anchor|
-          timeline << { type: :anchor, anchor: anchor, sort_key: [anchor.template_start, 0] }
+          timeline << {type: :anchor, anchor: anchor, sort_key: [anchor.template_start, 0]}
         end
 
         boundaries.each do |boundary|
@@ -90,7 +90,7 @@ module Prism
           d_start = boundary.dest_range&.begin || 0
           sort_key = [t_start, d_start, 1] # 1 ensures boundaries come after anchors at same position
 
-          timeline << { type: :boundary, boundary: boundary, sort_key: sort_key }
+          timeline << {type: :boundary, boundary: boundary, sort_key: sort_key}
         end
 
         timeline.sort_by! { |item| item[:sort_key] }
@@ -118,7 +118,7 @@ module Prism
           @result.add_line(
             line.chomp,
             decision: MergeResult::DECISION_FREEZE_BLOCK,
-            dest_line: line_num
+            dest_line: line_num,
           )
         end
       end
@@ -129,7 +129,7 @@ module Prism
           @result.add_line(
             line.chomp,
             decision: MergeResult::DECISION_KEPT_TEMPLATE,
-            template_line: line_num
+            template_line: line_num,
           )
         end
       end
