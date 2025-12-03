@@ -11,3 +11,7 @@ RBS:
 
 Layout/IndentationConsistency:
   Exclude: ['*.md']
+
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/integration/*'

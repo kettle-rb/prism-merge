@@ -13,7 +13,7 @@ MAX_RETRIES = 5
 @@class_var = "template"
 
 # Global variable assignment
-$global_var = "template"
+$global_var = "template" # rubocop:disable Style/GlobalVars
 
 # Local variable assignment
 "template"

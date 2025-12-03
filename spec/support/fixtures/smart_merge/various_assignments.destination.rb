@@ -13,7 +13,7 @@ MAX_RETRIES = 3
 @@class_var = "destination"
 
 # Global variable assignment
-$global_var = "destination"
+$global_var = "destination" # rubocop:disable Style/GlobalVars
 
 # Local variable assignment
 

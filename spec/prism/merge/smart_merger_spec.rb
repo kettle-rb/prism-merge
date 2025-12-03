@@ -531,5 +531,536 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include('if ENV["EXTRA_FEATURE"]')
       end
     end
+
+    context "with top-level constants and signature_match_preference" do
+      let(:template_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "2.0.0"
+          NAME = "updated-name"
+          
+          if ENV["DEBUG"]
+            puts "Template debug"
+          end
+        RUBY
+      end
+
+      let(:dest_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+          NAME = "original-name"
+          CUSTOM = "custom-value"
+          
+          if ENV["DEBUG"]
+            puts "Dest debug"
+          end
+        RUBY
+      end
+
+      it "uses template version when signature_match_preference is :template" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          signature_match_preference: :template,
+          add_template_only_nodes: true,
+        )
+
+        result = merger.merge
+        # Template versions should win for matching constants
+        expect(result).to include('VERSION = "2.0.0"')
+        expect(result).to include('NAME = "updated-name"')
+        # Destination-only constant should still be included
+        expect(result).to include('CUSTOM = "custom-value"')
+        # Template version of conditional should win
+        expect(result).to include('puts "Template debug"')
+        expect(result).not_to include('puts "Dest debug"')
+      end
+
+      it "uses destination version when signature_match_preference is :destination (default)" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          signature_match_preference: :destination,
+          add_template_only_nodes: true,
+        )
+
+        result = merger.merge
+        # Destination versions should win for matching constants
+        expect(result).to include('VERSION = "1.0.0"')
+        expect(result).to include('NAME = "original-name"')
+        # Destination-only constant should be included
+        expect(result).to include('CUSTOM = "custom-value"')
+        # Destination version of conditional should win
+        expect(result).to include('puts "Dest debug"')
+        expect(result).not_to include('puts "Template debug"')
+      end
+    end
+
+    context "with add_template_only_nodes option" do
+      let(:template_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          class MyClass
+            def template_only_method
+              "only in template"
+            end
+          
+            def shared_method
+              "shared"
+            end
+          end
+        RUBY
+      end
+
+      let(:dest_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          class MyClass
+            def shared_method
+              "shared"
+            end
+          
+            def dest_only_method
+              "only in dest"
+            end
+          end
+        RUBY
+      end
+
+      it "includes template-only nodes when add_template_only_nodes is true" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          add_template_only_nodes: true,
+        )
+
+        result = merger.merge
+        expect(result).to include("template_only_method")
+        expect(result).to include("shared_method")
+        expect(result).to include("dest_only_method")
+      end
+
+      it "excludes template-only nodes when add_template_only_nodes is false" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          add_template_only_nodes: false,
+        )
+
+        result = merger.merge
+        expect(result).not_to include("template_only_method")
+        expect(result).to include("shared_method")
+        expect(result).to include("dest_only_method")
+      end
+    end
+
+    context "with mix of matched, template-only, and dest-only nodes" do
+      let(:template_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          class ComplexClass
+            def shared_method_1
+              "shared 1"
+            end
+            
+            def template_only
+              "template only"
+            end
+            
+            def shared_method_2
+              "shared 2"
+            end
+          end
+        RUBY
+      end
+
+      let(:dest_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          class ComplexClass
+            def shared_method_1
+              "shared 1 dest"
+            end
+            
+            def dest_only
+              "dest only"
+            end
+            
+            def shared_method_2
+              "shared 2 dest"
+            end
+          end
+        RUBY
+      end
+
+      it "correctly merges with add_template_only_nodes: true" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          add_template_only_nodes: true,
+        )
+
+        result = merger.merge
+
+        # Should have destination versions of shared methods
+        expect(result).to include("shared 1 dest")
+        expect(result).to include("shared 2 dest")
+
+        # Should have both template-only and dest-only
+        expect(result).to include("template_only")
+        expect(result).to include("dest_only")
+      end
+
+      it "correctly merges with add_template_only_nodes: false" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          add_template_only_nodes: false,
+        )
+
+        result = merger.merge
+
+        # Should have destination versions of shared methods
+        expect(result).to include("shared 1 dest")
+        expect(result).to include("shared 2 dest")
+
+        # Should NOT have template-only, but should have dest-only
+        expect(result).not_to include("template_only")
+        expect(result).to include("dest_only")
+      end
+    end
+
+    context "with comments and blank lines around nodes" do
+      let(:template_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          # This is a class comment
+          class MyClass
+            # Method comment
+            def method_a
+              "a"
+            end
+          
+          
+            # Another method
+            def method_b
+              "b"
+            end
+          end
+          
+          
+          # Trailing comment
+        RUBY
+      end
+
+      let(:dest_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          # This is a class comment
+          class MyClass
+            def method_a
+              "a custom"
+            end
+          
+            def method_b
+              "b custom"
+            end
+            
+            def custom_method
+              "custom"
+            end
+          end
+        RUBY
+      end
+
+      it "preserves comments and handles blank lines correctly" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+        )
+
+        result = merger.merge
+
+        expect(result).to include("# This is a class comment")
+        expect(result).to include("method_a")
+        expect(result).to include("method_b")
+        expect(result).to include("custom_method")
+        expect(result).to include("a custom")
+        expect(result).to include("b custom")
+      end
+    end
+
+    context "with standalone comments" do
+      let(:template_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          # Standalone comment
+          
+          VERSION = "1.0.0"
+        RUBY
+      end
+
+      let(:dest_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+        RUBY
+      end
+
+      it "includes standalone comments from template" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+        )
+
+        result = merger.merge
+        expect(result).to include("# Standalone comment")
+      end
+    end
+
+    context "with minimal template content" do
+      let(:template_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+        RUBY
+      end
+
+      let(:dest_code) do
+        <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+        RUBY
+      end
+
+      it "handles empty template range gracefully" do
+        merger = described_class.new(
+          template_code,
+          dest_code,
+        )
+
+        result = merger.merge
+        expect(result).to include('VERSION = "1.0.0"')
+      end
+    end
+
+    context "with destination-only nodes in various positions" do
+      it "appends destination-only nodes that come before template nodes" do
+        template_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          ZETA = "last"
+        RUBY
+
+        dest_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          ALPHA = "first"
+          BETA = "second"
+          ZETA = "last"
+        RUBY
+
+        merger = described_class.new(template_code, dest_code)
+        result = merger.merge
+
+        expect(result).to include('ALPHA = "first"')
+        expect(result).to include('BETA = "second"')
+        expect(result).to include('ZETA = "last"')
+
+        # Check order
+        alpha_pos = result.index("ALPHA")
+        beta_pos = result.index("BETA")
+        zeta_pos = result.index("ZETA")
+        expect(alpha_pos).to be < beta_pos
+        expect(beta_pos).to be < zeta_pos
+      end
+
+      it "preserves destination nodes between matched nodes" do
+        template_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          FIRST = "1"
+          LAST = "3"
+        RUBY
+
+        dest_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          FIRST = "1"
+          MIDDLE = "2"
+          LAST = "3"
+        RUBY
+
+        merger = described_class.new(template_code, dest_code)
+        result = merger.merge
+
+        expect(result).to include('FIRST = "1"')
+        expect(result).to include('MIDDLE = "2"')
+        expect(result).to include('LAST = "3"')
+      end
+
+      it "appends trailing destination-only nodes" do
+        template_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+        RUBY
+
+        dest_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+          
+          # Custom section
+          CUSTOM_A = "a"
+          CUSTOM_B = "b"
+        RUBY
+
+        merger = described_class.new(template_code, dest_code)
+        result = merger.merge
+
+        expect(result).to include('CUSTOM_A = "a"')
+        expect(result).to include('CUSTOM_B = "b"')
+        expect(result).to include("# Custom section")
+      end
+    end
+
+    context "with blank line spacing variations" do
+      it "preserves blank line spacing from destination" do
+        template_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "2.0.0"
+          
+          
+          NAME = "app"
+        RUBY
+
+        dest_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+          
+          NAME = "app"
+        RUBY
+
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          signature_match_preference: :template,
+        )
+
+        result = merger.merge
+        # Should have VERSION from template
+        expect(result).to include('VERSION = "2.0.0"')
+        # Should preserve spacing
+        expect(result).to include("\n\n")
+      end
+
+      it "handles blank lines between dest-only nodes" do
+        template_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+        RUBY
+
+        dest_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+          CUSTOM = "custom"
+          
+          
+          ANOTHER = "another"
+        RUBY
+
+        merger = described_class.new(template_code, dest_code)
+        result = merger.merge
+
+        expect(result).to include('CUSTOM = "custom"')
+        expect(result).to include('ANOTHER = "another"')
+      end
+    end
+
+    context "with conditional statements" do
+      it "uses template version when preference is :template" do
+        template_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          if Rails.env.production?
+            puts "Template production"
+          end
+        RUBY
+
+        dest_code = <<~RUBY
+          # frozen_string_literal: true
+          
+          if Rails.env.production?
+            puts "Dest production"
+          end
+        RUBY
+
+        merger = described_class.new(
+          template_code,
+          dest_code,
+          signature_match_preference: :template,
+        )
+
+        result = merger.merge
+        expect(result).to include('puts "Template production"')
+        expect(result).not_to include('puts "Dest production"')
+      end
+    end
+
+    context "with error handling" do
+      it "raises TemplateParseError for invalid template" do
+        invalid_template = <<~RUBY
+          # frozen_string_literal: true
+          
+          def method
+            # Missing end
+        RUBY
+
+        valid_dest = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+        RUBY
+
+        expect do
+          described_class.new(invalid_template, valid_dest).merge
+        end.to raise_error(Prism::Merge::TemplateParseError)
+      end
+
+      it "raises DestinationParseError for invalid destination" do
+        valid_template = <<~RUBY
+          # frozen_string_literal: true
+          
+          VERSION = "1.0.0"
+        RUBY
+
+        invalid_dest = <<~RUBY
+          # frozen_string_literal: true
+          
+          def method
+            # Missing end
+        RUBY
+
+        expect do
+          described_class.new(valid_template, invalid_dest).merge
+        end.to raise_error(Prism::Merge::DestinationParseError)
+      end
+    end
   end
 end

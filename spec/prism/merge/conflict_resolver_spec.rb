@@ -42,8 +42,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
       expect(resolver.template_analysis).to eq(template_analysis)
       expect(resolver.dest_analysis).to eq(dest_analysis)
-      expect(resolver.signature_match_preference).to eq(:destination)
-      expect(resolver.add_template_only_nodes).to eq(false)
+      expect(resolver.signature_match_preference).to be(:destination)
+      expect(resolver.add_template_only_nodes).to be(false)
     end
 
     it "creates resolver with custom preferences" do
@@ -54,8 +54,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
         add_template_only_nodes: true,
       )
 
-      expect(resolver.signature_match_preference).to eq(:template)
-      expect(resolver.add_template_only_nodes).to eq(true)
+      expect(resolver.signature_match_preference).to be(:template)
+      expect(resolver.add_template_only_nodes).to be(true)
     end
   end
 
@@ -77,7 +77,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         # Find boundary that contains our methods
         boundary = boundaries.find do |b|
-          b.template_range && b.template_range.cover?(5)
+          b.template_range&.cover?(5)
         end
 
         resolver.resolve(boundary, result) if boundary
@@ -109,7 +109,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         boundaries = aligner.align
 
         boundary = boundaries.find do |b|
-          b.template_range && b.template_range.cover?(5)
+          b.template_range&.cover?(5)
         end
 
         resolver.resolve(boundary, result) if boundary
@@ -161,7 +161,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         # Find boundary that contains the freeze block
         freeze_boundary = boundaries.find do |b|
-          b.dest_range && b.dest_range.cover?(3) # Line with freeze marker
+          b.dest_range&.cover?(3) # Line with freeze marker
         end
 
         if freeze_boundary

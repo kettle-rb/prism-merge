@@ -1,21 +1,5 @@
 {
-  "spec/prism/merge/branch_coverage_spec.rb:1123409518": [
-    [5, 16, 17, "RSpec/DescribeClass: The first argument to describe should be the class or module being tested.", 4201859935]
-  ],
-  "spec/prism/merge/conflict_resolver_spec.rb:1829144447": [
-    [46, 51, 2, "RSpec/BeEq: Prefer `be` over `eq`.", 5860785],
-    [58, 51, 2, "RSpec/BeEq: Prefer `be` over `eq`.", 5860785],
-    [80, 11, 46, "Style/SafeNavigation: Use safe navigation (`&.`) instead of checking if an object exists before calling the method.", 3905540301],
-    [112, 11, 46, "Style/SafeNavigation: Use safe navigation (`&.`) instead of checking if an object exists before calling the method.", 3905540301],
-    [164, 11, 38, "Style/SafeNavigation: Use safe navigation (`&.`) instead of checking if an object exists before calling the method.", 3926581771]
-  ],
   "spec/support/fixtures/smart_merge/parse_error.template.rb:115595435": [
     [5, 8, 1, "Lint/Syntax: unterminated string meets end of file\n(Using Ruby 2.7 parser; configure using `TargetRubyVersion` parameter, under `AllCops`)", 177543]
-  ],
-  "spec/support/fixtures/smart_merge/various_assignments.destination.rb:556843355": [
-    [16, 1, 11, "Style/GlobalVars: Do not introduce global variables.", 53846608]
-  ],
-  "spec/support/fixtures/smart_merge/various_assignments.template.rb:2007211940": [
-    [16, 1, 11, "Style/GlobalVars: Do not introduce global variables.", 53846608]
   ]
 }
