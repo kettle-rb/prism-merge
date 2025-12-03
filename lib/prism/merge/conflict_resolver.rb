@@ -71,19 +71,15 @@ module Prism
         @add_template_only_nodes = add_template_only_nodes
       end
 
-      # Resolve a boundary by deciding which content to keep
+      # Resolve a boundary by deciding which content to keep.
+      # If the boundary contains a `kettle-dev:freeze` block, the entire
+      # block from the destination is preserved.
       # @param boundary [FileAligner::Boundary] Boundary to resolve
       # @param result [MergeResult] Result object to populate
       def resolve(boundary, result)
         # Extract content from both sides
         template_content = extract_boundary_content(@template_analysis, boundary.template_range)
         dest_content = extract_boundary_content(@dest_analysis, boundary.dest_range)
-
-        # If destination is in freeze block, always keep destination
-        if boundary.dest_range && dest_content[:has_freeze_block]
-          add_content_to_result(dest_content, result, :destination, MergeResult::DECISION_FREEZE_BLOCK)
-          return
-        end
 
         # If both sides are empty, nothing to do
         return if template_content[:lines].empty? && dest_content[:lines].empty?
@@ -153,11 +149,28 @@ module Prism
         template_nodes = template_content[:nodes]
         dest_nodes = dest_content[:nodes]
 
-        # Build signature map for destination nodes
-        dest_sig_map = build_signature_map(dest_nodes)
-
         # Track which dest nodes have been matched
         matched_dest_indices = Set.new
+
+        # Handle freeze blocks first
+        if dest_content[:has_freeze_block]
+          line_in_freeze = dest_content[:line_range].find { |ln| @dest_analysis.in_freeze_block?(ln) }
+          if line_in_freeze
+            freeze_block = @dest_analysis.freeze_block_at(line_in_freeze)
+            freeze_content = extract_boundary_content(@dest_analysis, freeze_block[:line_range])
+            add_content_to_result(freeze_content, result, :destination, MergeResult::DECISION_FREEZE_BLOCK)
+            
+            # Mark all nodes within the freeze block as matched
+            dest_nodes.each do |d_node_info|
+              if freeze_block[:line_range].cover?(d_node_info[:line_range].begin)
+                matched_dest_indices << d_node_info[:index]
+              end
+            end
+          end
+        end
+        
+        # Build signature map for destination nodes
+        dest_sig_map = build_signature_map(dest_nodes)
 
         # Build a set of line numbers that are covered by leading comments of nodes
         # so we don't duplicate them when processing non-node lines

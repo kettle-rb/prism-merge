@@ -28,6 +28,11 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- `SmartMerger` now correctly handles merge conflicts that involve `kettle-dev:freeze` blocks
+  - Entire freeze block from destination is preserved
+  - Still allows template-only nodes to be added
+  - Resolves an issue where template-only nodes were dropped if destination contained a freeze block
+
 ### Security
 
 ## [1.0.0] - 2025-12-03
