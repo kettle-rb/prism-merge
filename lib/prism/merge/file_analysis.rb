@@ -12,12 +12,12 @@ module Prism
       # Matches comments like: # kettle-dev:freeze
       # Case-insensitive to allow variations like FREEZE or Freeze
       FREEZE_START = /#\s*kettle-dev:freeze/i
-      
+
       # Regex pattern for freeze block end marker.
       # Matches comments like: # kettle-dev:unfreeze
       # Case-insensitive to allow variations like UNFREEZE or Unfreeze
       FREEZE_END = /#\s*kettle-dev:unfreeze/i
-      
+
       # Combined regex pattern for matching complete freeze blocks.
       # Captures content between freeze/unfreeze markers (inclusive).
       # Used to identify sections that should always be preserved from destination.
@@ -287,11 +287,7 @@ module Prism
           # are recognized as matching
           method_name = node.name.to_s
           # Extract just the arguments (not the block)
-          arg_signature = if node.arguments && node.arguments.arguments
-            node.arguments.arguments.map { |arg| arg.slice }.join(", ")
-          else
-            ""
-          end
+          arg_signature = node.arguments&.arguments&.map { |arg| arg.slice }&.join(", ") || ""
           [node.class.name.split("::").last.to_sym, method_name, arg_signature]
         else
           [node.class.name.split("::").last.to_sym, node.slice]

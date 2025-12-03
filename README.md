@@ -204,14 +204,14 @@ Control which version to use when nodes have matching signatures but different c
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  signature_match_preference: :template
+  signature_match_preference: :template,
 )
 
 # Use destination version (for Appraisals, configs with customizations)
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  signature_match_preference: :destination  # This is the default
+  signature_match_preference: :destination,  # This is the default
 )
 ```
 
@@ -236,14 +236,14 @@ Control whether to add nodes that only exist in the template:
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  add_template_only_nodes: true
+  add_template_only_nodes: true,
 )
 
 # Skip template-only nodes (for templates with placeholder content)
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  add_template_only_nodes: false  # This is the default
+  add_template_only_nodes: false,  # This is the default
 )
 ```
 
@@ -269,7 +269,7 @@ merger = Prism::Merge::SmartMerger.new(
   template_content,
   dest_content,
   signature_match_preference: :template,
-  add_template_only_nodes: true
+  add_template_only_nodes: true,
 )
 # Result: VERSION updated to template value, NAME constant added
 
@@ -278,7 +278,7 @@ merger = Prism::Merge::SmartMerger.new(
   template_content,
   dest_content,
   signature_match_preference: :destination,  # default
-  add_template_only_nodes: false             # default
+  add_template_only_nodes: false,             # default
 )
 # Result: Destination gem versions preserved, template-only ruby blocks skipped
 
@@ -287,7 +287,7 @@ merger = Prism::Merge::SmartMerger.new(
   template_content,
   dest_content,
   signature_match_preference: :destination,  # Keep custom values
-  add_template_only_nodes: true              # But add new required configs
+  add_template_only_nodes: true,              # But add new required configs
 )
 # Result: Existing configs keep destination values, new configs added from template
 ```
@@ -296,7 +296,7 @@ merger = Prism::Merge::SmartMerger.new(
 
 By default, Prism::Merge uses intelligent structural signatures to match nodes:
 - **Conditionals** (`if`/`unless`) are matched by their condition only
-- **Assignments** (constants, variables) are matched by their name only  
+- **Assignments** (constants, variables) are matched by their name only
 - **Method calls** are matched by name and arguments (not block body)
 - **Other nodes** are matched by class and full source code
 
@@ -325,7 +325,7 @@ merger = Prism::Merge::SmartMerger.new(
   destination_content,
   signature_generator: signature_generator,
   signature_match_preference: :template,
-  add_template_only_nodes: true
+  add_template_only_nodes: true,
 )
 ```
 

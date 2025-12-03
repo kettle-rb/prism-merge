@@ -38,7 +38,7 @@ module Prism
     class ParseError < Error
       # @return [String] The content that failed to parse
       attr_reader :content
-      
+
       # @return [Prism::ParseResult] The Prism parse result containing error details
       attr_reader :parse_result
 
@@ -65,7 +65,7 @@ module Prism
     #     end
     #   end
     class TemplateParseError < ParseError; end
-    
+
     # Raised when the destination file has syntax errors.
     #
     # @example Handling destination parse errors

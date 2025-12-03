@@ -1,6 +1,265 @@
 module Prism
   module Merge
     VERSION: String
-    # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+    module Version
+      VERSION: String
+    end
+
+    class Error < StandardError
+    end
+
+    class ParseError < Error
+      attr_reader content: String
+      attr_reader parse_result: untyped
+
+      def initialize: (String message, content: String, parse_result: untyped) -> void
+    end
+
+    class TemplateParseError < ParseError
+    end
+
+    class DestinationParseError < ParseError
+    end
+
+    class FileAnalysis
+      FREEZE_START: Regexp
+      FREEZE_END: Regexp
+      FREEZE_BLOCK: Regexp
+
+      type freeze_block = {
+        range: Range[Integer],
+        line_range: Range[Integer],
+        text: String,
+        start_marker: String?
+      }
+
+      type node_info = {
+        node: untyped,
+        index: Integer,
+        leading_comments: Array[untyped],
+        inline_comments: Array[untyped],
+        signature: Array[untyped]?,
+        line_range: Range[Integer]
+      }
+
+      attr_reader content: String
+      attr_reader parse_result: untyped
+      attr_reader lines: Array[String]
+      attr_reader statements: Array[untyped]
+      attr_reader freeze_blocks: Array[freeze_block]
+
+      def initialize: (String content, ?signature_generator: (^(untyped) -> Array[untyped])?) -> void
+
+      def valid?: () -> bool
+
+      def extract_statements: () -> Array[untyped]
+
+      def extract_freeze_blocks: () -> Array[freeze_block]
+
+      def line_to_node_map: () -> Hash[Integer, Array[untyped]]
+
+      def node_to_line_map: () -> Hash[untyped, Range[Integer]]
+
+      def nodes_with_comments: () -> Array[node_info]
+
+      def comment_map: () -> Hash[Integer, Array[untyped]]
+
+      def signature_at: (Integer index) -> Array[untyped]?
+
+      def generate_signature: (untyped node) -> Array[untyped]?
+
+      def in_freeze_block?: (Integer line_num) -> bool
+
+      def freeze_block_at: (Integer line_num) -> freeze_block?
+
+      def normalized_line: (Integer line_num) -> String?
+
+      def line_at: (Integer line_num) -> String?
+
+      private
+
+      def build_line_to_node_map: () -> Hash[Integer, Array[untyped]]
+
+      def build_node_to_line_map: () -> Hash[untyped, Range[Integer]]
+
+      def extract_nodes_with_comments: () -> Array[node_info]
+
+      def find_leading_comments: (untyped current_stmt, untyped? prev_stmt, untyped body_node) -> Array[untyped]
+
+      def inline_comments_for_node: (untyped stmt) -> Array[untyped]
+
+      def build_comment_map: () -> Hash[Integer, Array[untyped]]
+
+      def default_signature: (untyped node) -> Array[untyped]
+    end
+
+    class FileAligner
+      class Anchor < Struct[untyped]
+        attr_accessor template_start: Integer
+        attr_accessor template_end: Integer
+        attr_accessor dest_start: Integer
+        attr_accessor dest_end: Integer
+        attr_accessor match_type: Symbol
+        attr_accessor score: Integer
+
+        def template_range: () -> Range[Integer]
+
+        def dest_range: () -> Range[Integer]
+
+        def length: () -> Integer
+      end
+
+      class Boundary < Struct[untyped]
+        attr_accessor template_range: Range[Integer]?
+        attr_accessor dest_range: Range[Integer]?
+        attr_accessor prev_anchor: Anchor?
+        attr_accessor next_anchor: Anchor?
+
+        def template_lines: () -> Array[Integer]
+
+        def dest_lines: () -> Array[Integer]
+      end
+
+      attr_reader template_analysis: FileAnalysis
+      attr_reader dest_analysis: FileAnalysis
+      attr_reader anchors: Array[Anchor]
+      attr_reader boundaries: Array[Boundary]
+
+      def initialize: (FileAnalysis template_analysis, FileAnalysis dest_analysis) -> void
+
+      def align: () -> Array[Boundary]
+
+      private
+
+      def find_anchors: () -> void
+
+      def build_line_map: (FileAnalysis analysis) -> Hash[Integer, String]
+
+      def find_exact_line_matches: (Hash[Integer, String] template_map, Hash[Integer, String] dest_map) -> Array[Hash[Symbol, untyped]]
+
+      def merge_consecutive_matches: (Array[Hash[Symbol, untyped]] matches) -> Array[Anchor]
+
+      def add_node_signature_anchors: () -> void
+
+      def add_freeze_block_anchors: () -> void
+
+      def compute_boundaries: () -> void
+
+      def ranges_overlap?: (Range[Integer]? range1, Range[Integer]? range2) -> bool
+    end
+
+    class MergeResult
+      DECISION_KEPT_TEMPLATE: Symbol
+      DECISION_KEPT_DEST: Symbol
+      DECISION_APPENDED: Symbol
+      DECISION_REPLACED: Symbol
+      DECISION_FREEZE_BLOCK: Symbol
+
+      type line_metadata = {
+        decision: Symbol,
+        template_line: Integer?,
+        dest_line: Integer?,
+        comment: String?,
+        result_line: Integer
+      }
+
+      attr_reader lines: Array[String]
+      attr_reader line_metadata: Array[line_metadata]
+
+      def initialize: () -> void
+
+      def add_line: (String content, decision: Symbol, ?template_line: Integer?, ?dest_line: Integer?, ?comment: String?) -> void
+
+      def add_lines_from: (Array[String] source_lines, decision: Symbol, source: Symbol, start_line: Integer, ?comment: String?) -> void
+
+      def add_node: (FileAnalysis::node_info node_info, decision: Symbol, source: Symbol, ?source_analysis: FileAnalysis?) -> void
+
+      def to_s: () -> String
+
+      def statistics: () -> Hash[Symbol, Integer]
+
+      def lines_by_decision: (Symbol decision) -> Array[line_metadata]
+
+      def debug_output: () -> String
+    end
+
+    class ConflictResolver
+      type boundary_content = {
+        lines: Array[String],
+        nodes: Array[FileAnalysis::node_info],
+        has_freeze_block: bool,
+        line_range: Range[Integer]?
+      }
+
+      attr_reader template_analysis: FileAnalysis
+      attr_reader dest_analysis: FileAnalysis
+      attr_reader signature_match_preference: Symbol
+      attr_reader add_template_only_nodes: bool
+
+      def initialize: (FileAnalysis template_analysis, FileAnalysis dest_analysis, ?signature_match_preference: Symbol, ?add_template_only_nodes: bool) -> void
+
+      def resolve: (FileAligner::Boundary boundary, MergeResult result) -> void
+
+      private
+
+      def extract_boundary_content: (FileAnalysis analysis, Range[Integer]? line_range) -> boundary_content
+
+      def ranges_overlap?: (Range[Integer] range1, Range[Integer] range2) -> bool
+
+      def add_content_to_result: (boundary_content content, MergeResult result, Symbol source, Symbol decision) -> void
+
+      def merge_boundary_content: (boundary_content template_content, boundary_content dest_content, FileAligner::Boundary boundary, MergeResult result) -> void
+
+      def build_signature_map: (Array[FileAnalysis::node_info] nodes) -> Hash[Array[untyped], Array[FileAnalysis::node_info]]
+
+      def add_line_safe: (MergeResult result, String content, **untyped kwargs) -> void
+
+      def handle_orphan_lines: (boundary_content template_content, boundary_content dest_content, MergeResult result) -> void
+
+      def find_orphan_lines: (FileAnalysis analysis, Range[Integer]? line_range, Array[FileAnalysis::node_info] nodes) -> Array[Integer]
+    end
+
+    class SmartMerger
+      attr_reader template_analysis: FileAnalysis
+      attr_reader dest_analysis: FileAnalysis
+      attr_reader aligner: FileAligner
+      attr_reader resolver: ConflictResolver
+      attr_reader result: MergeResult
+
+      type merge_debug_result = {
+        content: String,
+        debug: String,
+        statistics: Hash[Symbol, Integer]
+      }
+
+      def initialize: (
+        String template_content,
+        String dest_content,
+        ?signature_generator: (^(untyped) -> Array[untyped])?,
+        ?signature_match_preference: Symbol,
+        ?add_template_only_nodes: bool
+      ) -> void
+
+      def merge: () -> String
+
+      def merge_with_debug: () -> merge_debug_result
+
+      private
+
+      def process_merge: (Array[FileAligner::Boundary] boundaries) -> void
+
+      def build_timeline: (Array[FileAligner::Boundary] boundaries) -> Array[Hash[Symbol, untyped]]
+
+      def process_anchor: (FileAligner::Anchor anchor) -> void
+
+      def add_freeze_block_from_dest: (FileAligner::Anchor anchor) -> void
+
+      def add_signature_match_from_dest: (FileAligner::Anchor anchor) -> void
+
+      def add_exact_match_from_template: (FileAligner::Anchor anchor) -> void
+
+      def process_boundary: (FileAligner::Boundary boundary) -> void
+    end
   end
 end

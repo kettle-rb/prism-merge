@@ -97,7 +97,7 @@ module Prism
 
         # Convert matches to anchors, merging consecutive matches
         line_anchors = merge_consecutive_matches(exact_matches)
-        
+
         # Add line anchors that don't overlap with signature anchors
         line_anchors.each do |anchor|
           overlaps = @anchors.any? do |existing|

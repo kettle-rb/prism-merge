@@ -147,7 +147,7 @@ RSpec.describe Prism::Merge::FileAligner do
       end
 
       it "creates boundaries for differences and anchors for matches" do
-        boundaries = aligner.align
+        aligner.align
 
         # Should have anchor for magic comment
         magic_anchor = aligner.anchors.find do |a|

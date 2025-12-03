@@ -46,16 +46,16 @@ module Prism
     class SmartMerger
       # @return [FileAnalysis] Analysis of the template file
       attr_reader :template_analysis
-      
+
       # @return [FileAnalysis] Analysis of the destination file
       attr_reader :dest_analysis
-      
+
       # @return [FileAligner] Aligner for finding matches and differences
       attr_reader :aligner
-      
+
       # @return [ConflictResolver] Resolver for handling conflicting content
       attr_reader :resolver
-      
+
       # @return [MergeResult] Result object tracking merged content
       attr_reader :result
 
@@ -132,9 +132,12 @@ module Prism
         @template_analysis = FileAnalysis.new(template_content, signature_generator: signature_generator)
         @dest_analysis = FileAnalysis.new(dest_content, signature_generator: signature_generator)
         @aligner = FileAligner.new(@template_analysis, @dest_analysis)
-        @resolver = ConflictResolver.new(@template_analysis, @dest_analysis, 
+        @resolver = ConflictResolver.new(
+          @template_analysis,
+          @dest_analysis,
           signature_match_preference: signature_match_preference,
-          add_template_only_nodes: add_template_only_nodes)
+          add_template_only_nodes: add_template_only_nodes,
+        )
         @result = MergeResult.new
       end
 
