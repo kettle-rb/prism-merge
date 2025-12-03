@@ -53,7 +53,7 @@ RSpec.describe "Template Preference Signature Matching" do
       # which includes the method body. Methods with same name/params but
       # different bodies don't match, so they're treated as separate nodes.
       # With add_template_only_nodes: false (default), template-only nodes are skipped.
-      
+
       # Should include dest versions (no match, so dest preserved)
       expect(result).to include("def method_a")
       expect(result).to include("def method_b")
