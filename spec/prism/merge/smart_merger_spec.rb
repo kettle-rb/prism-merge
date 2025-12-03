@@ -204,6 +204,84 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
+    context "with end-of-line comments" do
+      it "adds an end-of-line comment when the code is the same" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "stuff" # this is the stuff
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "stuff"
+        RUBY
+
+        merger = described_class.new(template, dest, signature_match_preference: :template)
+        result = merger.merge
+
+        expect(result).to include('var = "stuff" # this is the stuff')
+      end
+
+      it "adds an end-of-line comment when the code is not the same" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "stuff" # this is the stuff
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "junk"
+        RUBY
+
+        merger = described_class.new(template, dest, signature_match_preference: :template)
+        result = merger.merge
+
+        expect(result).to include('var = "stuff" # this is the stuff')
+      end
+
+      it "changes an end-of-line comment when the code is not the same" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "stuff" # this is the stuff
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "junk" # this is the old
+        RUBY
+
+        merger = described_class.new(template, dest, signature_match_preference: :template)
+        result = merger.merge
+
+        expect(result).to include('var = "stuff" # this is the stuff')
+      end
+
+      it "retains an end-of-line comment when the code is not the same" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "stuff" # this is the stuff
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          var = "junk" # this is the old
+        RUBY
+
+        merger = described_class.new(template, dest, signature_match_preference: :destination)
+        result = merger.merge
+
+        expect(result).to include('var = "junk" # this is the old')
+      end
+    end
+
     context "with freeze blocks" do
       it "always preserves destination freeze blocks" do
         template = <<~RUBY

@@ -28,9 +28,22 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
-- Ruby compatibility documentation
-
 ### Security
+
+## [1.0.2] - 2025-12-03
+
+- TAG: [v1.0.2][1.0.2t]
+- COVERAGE: 95.48% -- 613/642 lines in 7 files
+- BRANCH COVERAGE: 81.39% -- 188/231 branches in 7 files
+- 100.00% documented
+
+### Added
+
+- specs covering existing support for end-of-line comments
+
+### Fixed
+
+- Ruby compatibility documentation
 
 ## [1.0.1] - 2025-12-03
 
@@ -57,7 +70,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/kettle-rb/prism-merge/compare/v1.0.1...v1.0.2
+[1.0.2t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.2
 [1.0.1]: https://github.com/kettle-rb/prism-merge/compare/v1.0.0...v1.0.1
 [1.0.1t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kettle-rb/prism-merge/compare/71fcddaa659cd6e9e94053e67524e5a400423ced...v1.0.0
