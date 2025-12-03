@@ -738,7 +738,9 @@ exist in template:</p>
   
 </h3><div class="docstring">
   <div class="discussion">
-    <p>Resolve a boundary by deciding which content to keep</p>
+    <p>Resolve a boundary by deciding which content to keep.<br />
+If the boundary contains a <code>kettle-dev:freeze</code> block, the entire<br />
+block from the destination is preserved.</p>
 
 
   </div>
@@ -786,8 +788,6 @@ exist in template:</p>
       <pre class="lines">
 
 
-77
-78
 79
 80
 81
@@ -809,25 +809,15 @@ exist in template:</p>
 97
 98
 99
-100
-101
-102
-103
-104</pre>
+100</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/conflict_resolver.rb', line 77</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/conflict_resolver.rb', line 79</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_resolve'>resolve</span><span class='lparen'>(</span><span class='id identifier rubyid_boundary'>boundary</span><span class='comma'>,</span> <span class='id identifier rubyid_result'>result</span><span class='rparen'>)</span>
   <span class='comment'># Extract content from both sides
 </span>  <span class='id identifier rubyid_template_content'>template_content</span> <span class='op'>=</span> <span class='id identifier rubyid_extract_boundary_content'>extract_boundary_content</span><span class='lparen'>(</span><span class='ivar'>@template_analysis</span><span class='comma'>,</span> <span class='id identifier rubyid_boundary'>boundary</span><span class='period'>.</span><span class='id identifier rubyid_template_range'>template_range</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_dest_content'>dest_content</span> <span class='op'>=</span> <span class='id identifier rubyid_extract_boundary_content'>extract_boundary_content</span><span class='lparen'>(</span><span class='ivar'>@dest_analysis</span><span class='comma'>,</span> <span class='id identifier rubyid_boundary'>boundary</span><span class='period'>.</span><span class='id identifier rubyid_dest_range'>dest_range</span><span class='rparen'>)</span>
-
-  <span class='comment'># If destination is in freeze block, always keep destination
-</span>  <span class='kw'>if</span> <span class='id identifier rubyid_boundary'>boundary</span><span class='period'>.</span><span class='id identifier rubyid_dest_range'>dest_range</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_dest_content'>dest_content</span><span class='lbracket'>[</span><span class='symbol'>:has_freeze_block</span><span class='rbracket'>]</span>
-    <span class='id identifier rubyid_add_content_to_result'>add_content_to_result</span><span class='lparen'>(</span><span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='id identifier rubyid_result'>result</span><span class='comma'>,</span> <span class='symbol'>:destination</span><span class='comma'>,</span> <span class='const'><span class='object_link'><a href="MergeResult.html" title="Prism::Merge::MergeResult (class)">MergeResult</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="MergeResult.html#DECISION_FREEZE_BLOCK-constant" title="Prism::Merge::MergeResult::DECISION_FREEZE_BLOCK (constant)">DECISION_FREEZE_BLOCK</a></span></span><span class='rparen'>)</span>
-    <span class='kw'>return</span>
-  <span class='kw'>end</span>
 
   <span class='comment'># If both sides are empty, nothing to do
 </span>  <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_template_content'>template_content</span><span class='lbracket'>[</span><span class='symbol'>:lines</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_empty?'>empty?</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_dest_content'>dest_content</span><span class='lbracket'>[</span><span class='symbol'>:lines</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_empty?'>empty?</span>
@@ -856,7 +846,7 @@ exist in template:</p>
 </div>
 
       <div id="footer">
-  Generated on Wed Dec  3 01:30:26 2025 by
+  Generated on Wed Dec  3 13:56:52 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

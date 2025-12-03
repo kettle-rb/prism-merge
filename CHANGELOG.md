@@ -28,12 +28,21 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+### Security
+
+## [1.0.1] - 2025-12-03
+
+- TAG: [v1.0.1][1.0.1t]
+- COVERAGE: 95.48% -- 613/642 lines in 7 files
+- BRANCH COVERAGE: 81.39% -- 188/231 branches in 7 files
+- 100.00% documented
+
+### Fixed
+
 - `SmartMerger` now correctly handles merge conflicts that involve `kettle-dev:freeze` blocks
   - Entire freeze block from destination is preserved
   - Still allows template-only nodes to be added
   - Resolves an issue where template-only nodes were dropped if destination contained a freeze block
-
-### Security
 
 ## [1.0.0] - 2025-12-03
 
@@ -46,6 +55,8 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/kettle-rb/prism-merge/compare/v1.0.0...v1.0.1
+[1.0.1t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kettle-rb/prism-merge/compare/71fcddaa659cd6e9e94053e67524e5a400423ced...v1.0.0
 [1.0.0t]: https://github.com/kettle-rb/prism-merge/tags/v1.0.0
