@@ -16,7 +16,6 @@ MAX_RETRIES = 3
 $global_var = "destination"
 
 # Local variable assignment
-local_var = "destination"
 
 # Destination-only assignment
 CUSTOM_FLAG = true

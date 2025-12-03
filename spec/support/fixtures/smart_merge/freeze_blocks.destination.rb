@@ -2,13 +2,13 @@
 
 # Standard configuration
 CONFIG = {
-  name: "destination"
+  name: "destination",
 }
 
 # kettle-dev:freeze
 CUSTOM_CONFIG = {
   secret: "destination secret",
-  api_key: "abc123"
+  api_key: "abc123",
 }
 # kettle-dev:unfreeze
 

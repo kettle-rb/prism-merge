@@ -51,7 +51,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         template_analysis,
         dest_analysis,
         signature_match_preference: :template,
-        add_template_only_nodes: true
+        add_template_only_nodes: true,
       )
 
       expect(resolver.signature_match_preference).to eq(:template)
@@ -68,7 +68,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
           template_analysis,
           dest_analysis,
           signature_match_preference: :template,
-          add_template_only_nodes: true
+          add_template_only_nodes: true,
         )
 
         # Create a boundary covering the method definitions (lines 4-11 in template, 4-11 in dest)
@@ -102,7 +102,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
           template_analysis,
           dest_analysis,
           signature_match_preference: :destination,
-          add_template_only_nodes: false
+          add_template_only_nodes: false,
         )
 
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
@@ -172,8 +172,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
           # Destination freeze block should be preserved
           expect(result_text).to include('CUSTOM = "destination"')
           expect(result_text).to include('SECRET = "preserved"')
-          expect(result_text).to include('kettle-dev:freeze')
-          expect(result_text).to include('kettle-dev:unfreeze')
+          expect(result_text).to include("kettle-dev:freeze")
+          expect(result_text).to include("kettle-dev:unfreeze")
         else
           # If freeze block creates an anchor instead, that's also valid behavior
           skip "Freeze block was handled as anchor, not boundary"
@@ -211,7 +211,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         resolver = described_class.new(
           template_analysis,
           dest_analysis,
-          add_template_only_nodes: true
+          add_template_only_nodes: true,
         )
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
         boundaries = aligner.align

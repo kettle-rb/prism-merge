@@ -123,7 +123,7 @@ RSpec.describe Prism::Merge::MergeResult do
 
       # Should include leading comment
       expect(result.lines).to include("# Leading comment")
-      
+
       # Should include method definition
       expect(result.lines.join("\n")).to include("def example")
       expect(result.lines.join("\n")).to include("puts \"hello\"")
@@ -295,14 +295,14 @@ RSpec.describe Prism::Merge::MergeResult do
       expect(output).to include("kept_template")
       expect(output).to include("kept_destination")
       expect(output).to include("appended")
-      
+
       # Should show template line references
       expect(output).to include("T:1")
-      
+
       # Should show destination line references
       expect(output).to include("D:3")
       expect(output).to include("D:10")
-      
+
       # Should include actual line content
       expect(output).to include("frozen_string_literal")
       expect(output).to include("VERSION")

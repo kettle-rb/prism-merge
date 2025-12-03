@@ -2,12 +2,12 @@
 
 # Standard configuration
 CONFIG = {
-  name: "template"
+  name: "template",
 }
 
 # kettle-dev:freeze
 CUSTOM_CONFIG = {
-  secret: "should be preserved"
+  secret: "should be preserved",
 }
 # kettle-dev:unfreeze
 
