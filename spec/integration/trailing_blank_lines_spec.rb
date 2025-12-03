@@ -129,7 +129,8 @@ RSpec.describe "Trailing Blank Line Handling" do
 
       expect(result).to include("method_a")
       expect(result).to include("method_b")
-      expect(result).to include("comment")
+      # Comment is present in the result
+      expect(result).to include("Comment about method_b")
     end
   end
 
