@@ -132,10 +132,19 @@
   <li>
 <strong>Full Provenance</strong>: Tracks origin of every line</li>
   <li>
-<strong>Customizable</strong>: Supports custom signature generators</li>
+<strong>Standalone</strong>: No dependencies other than <code>prism</code> and <code>version_gem</code> (which is a tiny tool all my gems depend on)</li>
   <li>
-<strong>Standalone</strong>: No dependencies other than <code>prism</code>
+<strong>Customizable</strong>:
+    <ul>
+      <li>
+<code>signature_generator</code> - callable custom signature generators</li>
+      <li>
+<code>signature_match_preference</code> - setting of <code>:template</code> or <code>:destination</code>
 </li>
+      <li>
+<code>add_template_only_nodes</code> - setting to retain nodes that do not exist in destination</li>
+    </ul>
+  </li>
 </ul>
 
 <h3 id="example">Example</h3>
@@ -1014,7 +1023,7 @@ Please consider sponsoring me or the project.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Wed Dec  3 15:10:38 2025 by
+  Generated on Wed Dec  3 15:18:27 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

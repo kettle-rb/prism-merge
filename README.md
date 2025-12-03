@@ -63,8 +63,11 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 - **Comment-Preserving**: Comments are properly attached to relevant nodes and/or placement
 - **Freeze Block Support**: Respects `kettle-dev:freeze` markers for template merge control
 - **Full Provenance**: Tracks origin of every line
-- **Customizable**: Supports custom signature generators
-- **Standalone**: No dependencies other than `prism`
+- **Standalone**: No dependencies other than `prism` and `version_gem` (which is a tiny tool all my gems depend on)
+- **Customizable**:
+  - `signature_generator` - callable custom signature generators
+  - `signature_match_preference` - setting of `:template` or `:destination`
+  - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
 
 ### Example
 
