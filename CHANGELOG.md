@@ -30,6 +30,17 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Security
 
-## [0.1.0] - 2025-12-01
+## [1.0.0] - 2025-12-03
+
+- TAG: [v1.0.0][1.0.0t]
+- COVERAGE: 95.44% -- 607/636 lines in 7 files
+- BRANCH COVERAGE: 81.94% -- 186/227 branches in 7 files
+- 100.00% documented
+
+### Added
 
 - Initial release
+
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/kettle-rb/prism-merge/compare/71fcddaa659cd6e9e94053e67524e5a400423ced...v1.0.0
+[1.0.0t]: https://github.com/kettle-rb/prism-merge/tags/v1.0.0
