@@ -23,8 +23,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Peter H. Boling"]
   spec.email = ["peter.boling@gmail.com"]
 
-  spec.summary = "🍕 TODO: Write a short summary, because RubyGems requires one."
-  spec.description = "🍕 TODO: Write a longer description or delete this line."
+  spec.summary = "☯️ Intelligently merge two versions of a Ruby file using Prism AST analysis, useful in templating"
+  spec.description = "☯️ Intelligently merge two versions of a Ruby file using Prism AST analysis, similar to a smart 'git merge' specifically designed for Ruby code."
   spec.homepage = "https://github.com/kettle-rb/prism-merge"
   spec.licenses = ["MIT"]
   spec.required_ruby_version = ">= 2.7.0"
