@@ -28,6 +28,8 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- More fixes to Ruby compatibility documentation (down to Ruby 2.7)
+
 ### Security
 
 ## [1.0.2] - 2025-12-03
