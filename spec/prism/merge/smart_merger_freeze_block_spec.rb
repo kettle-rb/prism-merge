@@ -33,12 +33,12 @@ RSpec.describe Prism::Merge::SmartMerger do
         # kettle-dev:unfreeze
       RUBY
 
-      merger = Prism::Merge::SmartMerger.new(
+      merger = described_class.new(
         src_content,
         dest_content,
         signature_match_preference: :template,
         add_template_only_nodes: true,
-        signature_generator: signature_generator
+        signature_generator: signature_generator,
       )
       result = merger.merge
       puts result
@@ -53,7 +53,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
       # Normalize whitespace and newlines for comparison
       normalized_result = result.gsub(/\s+/, " ").strip
-      normalized_expected = expected_output.gsub(/\s+/, " ").strip
+      expected_output.gsub(/\s+/, " ").strip
 
       expect(normalized_result).to include('gem "foo"')
     end

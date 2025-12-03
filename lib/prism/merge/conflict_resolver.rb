@@ -159,7 +159,7 @@ module Prism
             freeze_block = @dest_analysis.freeze_block_at(line_in_freeze)
             freeze_content = extract_boundary_content(@dest_analysis, freeze_block[:line_range])
             add_content_to_result(freeze_content, result, :destination, MergeResult::DECISION_FREEZE_BLOCK)
-            
+
             # Mark all nodes within the freeze block as matched
             dest_nodes.each do |d_node_info|
               if freeze_block[:line_range].cover?(d_node_info[:line_range].begin)
@@ -168,7 +168,7 @@ module Prism
             end
           end
         end
-        
+
         # Build signature map for destination nodes
         dest_sig_map = build_signature_map(dest_nodes)
 
