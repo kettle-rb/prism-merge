@@ -195,11 +195,109 @@ NOTE: Be prepared to track down certs for signed gems and add them the same way 
 
 Prism::Merge works out of the box with zero configuration, but offers customization options for advanced use cases.
 
+### Signature Match Preference
+
+Control which version to use when nodes have matching signatures but different content:
+
+```ruby
+# Use template version (for version files, configs where template has updates)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  signature_match_preference: :template
+)
+
+# Use destination version (for Appraisals, configs with customizations)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  signature_match_preference: :destination  # This is the default
+)
+```
+
+**When to use each:**
+
+- **`:template`** - Template contains canonical/updated values
+  - Version files (`VERSION = "2.0.0"` should replace `VERSION = "1.0.0"`)
+  - Configuration updates (`API_ENDPOINT` should be updated)
+  - Conditional bodies (`if ENV["DEBUG"]` should use template's implementation)
+
+- **`:destination`** (default) - Destination contains customizations
+  - Appraisals files (destination has project-specific gem versions)
+  - Project-specific configurations
+  - Custom implementations
+
+### Template-Only Nodes
+
+Control whether to add nodes that only exist in the template:
+
+```ruby
+# Add template-only nodes (for merging new features/constants)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true
+)
+
+# Skip template-only nodes (for templates with placeholder content)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: false  # This is the default
+)
+```
+
+**When to use each:**
+
+- **`true`** - Template has new content to add
+  - New constants (`NAME = "myapp"` should be added to destination)
+  - New methods/classes from template
+  - Required configuration options
+
+- **`false`** (default) - Template has placeholder/example content
+  - Appraisals templates with ruby version blocks not in destination
+  - Example configurations that shouldn't be added
+  - Template-only nodes would create unwanted additions
+
+### Combined Configuration
+
+For different merge scenarios:
+
+```ruby
+# Scenario 1: Version file merge (template wins, add new constants)
+merger = Prism::Merge::SmartMerger.new(
+  template_content,
+  dest_content,
+  signature_match_preference: :template,
+  add_template_only_nodes: true
+)
+# Result: VERSION updated to template value, NAME constant added
+
+# Scenario 2: Appraisals merge (destination wins, skip template-only blocks)
+merger = Prism::Merge::SmartMerger.new(
+  template_content,
+  dest_content,
+  signature_match_preference: :destination,  # default
+  add_template_only_nodes: false             # default
+)
+# Result: Destination gem versions preserved, template-only ruby blocks skipped
+
+# Scenario 3: Config merge (mix and match)
+merger = Prism::Merge::SmartMerger.new(
+  template_content,
+  dest_content,
+  signature_match_preference: :destination,  # Keep custom values
+  add_template_only_nodes: true              # But add new required configs
+)
+# Result: Existing configs keep destination values, new configs added from template
+```
+
 ### Custom Signature Generator
 
 By default, Prism::Merge uses intelligent structural signatures to match nodes:
 - **Conditionals** (`if`/`unless`) are matched by their condition only
-- **Assignments** (constants, variables) are matched by their name only
+- **Assignments** (constants, variables) are matched by their name only  
+- **Method calls** are matched by name and arguments (not block body)
 - **Other nodes** are matched by class and full source code
 
 You can provide a custom signature generator to control matching behavior:
@@ -226,6 +324,8 @@ merger = Prism::Merge::SmartMerger.new(
   template_content,
   destination_content,
   signature_generator: signature_generator,
+  signature_match_preference: :template,
+  add_template_only_nodes: true
 )
 ```
 

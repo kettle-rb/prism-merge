@@ -6,12 +6,69 @@ module Prism
   module Merge
     # Resolves conflicts in boundaries between anchors using structural
     # signatures and comment preservation strategies.
+    #
+    # ConflictResolver is responsible for the core merge logic within boundaries
+    # (sections where template and destination differ). It:
+    # - Matches nodes by structural signature
+    # - Decides which version to keep based on preference
+    # - Preserves trailing blank lines for proper spacing
+    # - Handles template-only and destination-only nodes
+    #
+    # @example Basic usage (via SmartMerger)
+    #   resolver = ConflictResolver.new(template_analysis, dest_analysis)
+    #   resolver.resolve(boundary, result)
+    #
+    # @see SmartMerger
+    # @see FileAnalysis
+    # @see MergeResult
     class ConflictResolver
-      attr_reader :template_analysis, :dest_analysis
+      # @return [FileAnalysis] Analysis of the template file
+      attr_reader :template_analysis
+      
+      # @return [FileAnalysis] Analysis of the destination file
+      attr_reader :dest_analysis
+      
+      # @return [Symbol] Preference for signature matches (:template or :destination)
+      attr_reader :signature_match_preference
+      
+      # @return [Boolean] Whether to add template-only nodes
+      attr_reader :add_template_only_nodes
 
-      def initialize(template_analysis, dest_analysis)
+      # Creates a new ConflictResolver for handling merge conflicts.
+      #
+      # @param template_analysis [FileAnalysis] Analyzed template file
+      # @param dest_analysis [FileAnalysis] Analyzed destination file
+      #
+      # @param signature_match_preference [Symbol] Which version to prefer when
+      #   nodes have matching signatures but different content:
+      #   - `:destination` (default) - Keep destination version (customizations)
+      #   - `:template` - Use template version (updates)
+      #
+      # @param add_template_only_nodes [Boolean] Whether to add nodes that only
+      #   exist in template:
+      #   - `false` (default) - Skip template-only nodes
+      #   - `true` - Add template-only nodes to result
+      #
+      # @example Create resolver for Appraisals (destination wins)
+      #   resolver = ConflictResolver.new(
+      #     template_analysis,
+      #     dest_analysis,
+      #     signature_match_preference: :destination,
+      #     add_template_only_nodes: false
+      #   )
+      #
+      # @example Create resolver for version files (template wins)
+      #   resolver = ConflictResolver.new(
+      #     template_analysis,
+      #     dest_analysis,
+      #     signature_match_preference: :template,
+      #     add_template_only_nodes: true
+      #   )
+      def initialize(template_analysis, dest_analysis, signature_match_preference: :destination, add_template_only_nodes: false)
         @template_analysis = template_analysis
         @dest_analysis = dest_analysis
+        @signature_match_preference = signature_match_preference
+        @add_template_only_nodes = add_template_only_nodes
       end
 
       # Resolve a boundary by deciding which content to keep
@@ -165,63 +222,95 @@ module Prism
             current_line = node_start
           end
 
-          # Add the node (prefer destination version when signatures match)
+          # Add the node (use configured preference when signatures match)
           # Include trailing blank lines with the node
           if is_matched
-            # Match found - use destination version (it has the customizations)
-            dest_matches = dest_sig_map[sig]
-            dest_matches.each do |d_node_info|
+            # Match found - use preference to decide which version
+            if @signature_match_preference == :template
+              # Use template version (it's the canonical/updated version)
               result.add_node(
-                d_node_info,
+                t_node_info,
+                decision: MergeResult::DECISION_REPLACED,
+                source: :template,
+                source_analysis: @template_analysis,
+              )
+            else
+              # Use destination version (it has the customizations)
+              dest_matches = dest_sig_map[sig]
+              result.add_node(
+                dest_matches.first,
                 decision: MergeResult::DECISION_REPLACED,
                 source: :destination,
                 source_analysis: @dest_analysis,
               )
-              # Mark matching dest nodes as processed
+            end
+            
+            # Mark matching dest nodes as processed
+            dest_matches = dest_sig_map[sig]
+            dest_matches.each do |d_node_info|
               matched_dest_indices << d_node_info[:index]
+            end
               
-              # Calculate trailing blank lines for this destination node
-              d_node = d_node_info[:node]
-              d_node_end = d_node.location.end_line
-              # Find how many blank lines follow this node in destination
-              d_trailing_blank_end = d_node_end
-              if d_node_info[:index] < dest_nodes.size - 1
-                next_dest_info = dest_nodes[d_node_info[:index] + 1]
-                # Find where next node's content actually starts (first leading comment or node itself)
-                if next_dest_info[:leading_comments].any?
-                  next_content_start = next_dest_info[:leading_comments].first.location.start_line
-                else
-                  next_content_start = next_dest_info[:node].location.start_line
-                end
-                
-                
-                # Find all blank lines between this node end and next node's content
-                (d_node_end + 1...next_content_start).each do |line_num|
-                  line_content = @dest_analysis.line_at(line_num)
-                  if line_content.strip.empty?
-                    d_trailing_blank_end = line_num
-                  else
-                    # Stop at first non-blank line
-                    break
-                  end
-                end
-                
+            # Calculate trailing blank lines from destination to preserve original spacing
+            # Use the first matching dest node to determine blank line spacing
+            d_node_info = dest_matches.first
+            d_node = d_node_info[:node]
+            d_node_end = d_node.location.end_line
+            # Find how many blank lines follow this node in destination
+            d_trailing_blank_end = d_node_end
+            if d_node_info[:index] < dest_nodes.size - 1
+              next_dest_info = dest_nodes[d_node_info[:index] + 1]
+              # Find where next node's content actually starts (first leading comment or node itself)
+              if next_dest_info[:leading_comments].any?
+                next_content_start = next_dest_info[:leading_comments].first.location.start_line
               else
+                next_content_start = next_dest_info[:node].location.start_line
               end
               
-              # Add trailing blank lines from destination (preserving destination spacing)
-              (d_node_end + 1..d_trailing_blank_end).each do |line_num|
-                line = @dest_analysis.line_at(line_num)
-                add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+              
+              # Find all blank lines between this node end and next node's content
+              (d_node_end + 1...next_content_start).each do |line_num|
+                line_content = @dest_analysis.line_at(line_num)
+                if line_content.strip.empty?
+                  d_trailing_blank_end = line_num
+                else
+                  # Stop at first non-blank line
+                  break
+                end
               end
+            end
+            
+            # Add trailing blank lines from destination (preserving destination spacing)
+            (d_node_end + 1..d_trailing_blank_end).each do |line_num|
+              line = @dest_analysis.line_at(line_num)
+              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
             end
             
             in_template_only_sequence = false
             last_added_line = trailing_blank_end
           else
-            # No match - this is a template-only node, skip it AND its trailing blank lines
-            # (Don't add template nodes that don't exist in destination)
-            in_template_only_sequence = true
+            # No match - this is a template-only node
+            if @add_template_only_nodes
+              # Add the template-only node
+              result.add_node(
+                t_node_info,
+                decision: MergeResult::DECISION_KEPT_TEMPLATE,
+                source: :template,
+                source_analysis: @template_analysis,
+              )
+              
+              # Add trailing blank lines from template
+              (node_end + 1..trailing_blank_end).each do |line_num|
+                line = @template_analysis.line_at(line_num)
+                add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_TEMPLATE, template_line: line_num)
+              end
+              
+              in_template_only_sequence = false
+              last_added_line = trailing_blank_end
+            else
+              # Skip template-only nodes (don't add template nodes that don't exist in destination)
+              in_template_only_sequence = true
+            end
           end
 
           current_line = trailing_blank_end + 1

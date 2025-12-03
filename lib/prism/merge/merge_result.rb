@@ -5,11 +5,27 @@ module Prism
     # Represents the merged output with bidirectional links to source lines.
     # Tracks merge decisions and provenance for validation and debugging.
     class MergeResult
-      # Decision types for how each line was merged
+      # Line was kept from template (no conflict or template preferred).
+      # Used when template content is included without modification.
       DECISION_KEPT_TEMPLATE = :kept_template
+      
+      # Line was kept from destination (no conflict or destination preferred).
+      # Used when destination content is included without modification.
       DECISION_KEPT_DEST = :kept_destination
+      
+      # Line was appended from destination (destination-only content).
+      # Used for content that exists only in destination and is added to result.
+      # Common for destination-specific customizations like extra methods or constants.
       DECISION_APPENDED = :appended
+      
+      # Line replaced matching content (signature match with preference applied).
+      # Used when template and destination have nodes with same signature but
+      # different content, and one version replaced the other based on preference.
       DECISION_REPLACED = :replaced
+      
+      # Line from destination freeze block (always preserved).
+      # Used for content within kettle-dev:freeze markers that must be kept
+      # from destination regardless of template content.
       DECISION_FREEZE_BLOCK = :freeze_block
 
       attr_reader :lines, :line_metadata

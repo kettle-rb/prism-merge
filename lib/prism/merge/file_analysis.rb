@@ -8,9 +8,24 @@ module Prism
     # Tracks Prism parse result, line-to-node mapping, comment associations,
     # structural signatures, and sequential anchor lines for merge alignment.
     class FileAnalysis
-      # Freeze block markers
+      # Regex pattern for freeze block start marker.
+      # Matches comments like: # kettle-dev:freeze
+      # Case-insensitive to allow variations like FREEZE or Freeze
       FREEZE_START = /#\s*kettle-dev:freeze/i
+      
+      # Regex pattern for freeze block end marker.
+      # Matches comments like: # kettle-dev:unfreeze
+      # Case-insensitive to allow variations like UNFREEZE or Unfreeze
       FREEZE_END = /#\s*kettle-dev:unfreeze/i
+      
+      # Combined regex pattern for matching complete freeze blocks.
+      # Captures content between freeze/unfreeze markers (inclusive).
+      # Used to identify sections that should always be preserved from destination.
+      #
+      # @example Freeze block in Ruby code
+      #   # kettle-dev:freeze
+      #   CUSTOM_CONFIG = { key: "secret" }
+      #   # kettle-dev:unfreeze
       FREEZE_BLOCK = Regexp.new("(#{FREEZE_START.source}).*?(#{FREEZE_END.source})", Regexp::IGNORECASE | Regexp::MULTILINE)
 
       attr_reader :content, :parse_result, :lines, :statements, :freeze_blocks

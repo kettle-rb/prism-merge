@@ -102,7 +102,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       let(:dest_content) { File.read(dest_path) }
 
       it "updates conditional bodies from template" do
-        merger = described_class.new(template_content, dest_content)
+        merger = described_class.new(template_content, dest_content, signature_match_preference: :template)
         result = merger.merge
 
         # Should have the conditional
@@ -133,7 +133,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           AUTHOR = "John Doe"
         RUBY
 
-        merger = described_class.new(template, dest)
+        merger = described_class.new(template, dest, signature_match_preference: :template, add_template_only_nodes: true)
         result = merger.merge
 
         # Template version should win
@@ -195,7 +195,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           VERSION = "1.0.0" # Current version
         RUBY
 
-        merger = described_class.new(template, dest)
+        merger = described_class.new(template, dest, signature_match_preference: :template)
         result = merger.merge
 
         # Template version and comment should win

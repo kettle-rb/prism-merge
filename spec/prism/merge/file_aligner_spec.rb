@@ -155,12 +155,12 @@ RSpec.describe Prism::Merge::FileAligner do
         end
         expect(magic_anchor).not_to be_nil
 
-        # Should have boundary for VERSION difference
-        version_boundary = boundaries.find do |b|
-          next false unless b.template_range
-          b.template_range.any? { |line_num| template_analysis.line_at(line_num)&.include?("VERSION") }
+        # Should have anchor for VERSION (signature match, even though values differ)
+        version_anchor = aligner.anchors.find do |a|
+          template_analysis.line_at(a.template_start)&.include?("VERSION")
         end
-        expect(version_boundary).not_to be_nil
+        expect(version_anchor).not_to be_nil
+        expect(version_anchor.match_type).to eq(:signature_match)
       end
     end
   end

@@ -10,14 +10,17 @@ module Prism
     class FileAligner
       # Represents a section of matching lines between files
       Anchor = Struct.new(:template_start, :template_end, :dest_start, :dest_end, :match_type, :score) do
+        # @return [Range] Line range in template file covered by this anchor
         def template_range
           template_start..template_end
         end
 
+        # @return [Range] Line range in destination file covered by this anchor
         def dest_range
           dest_start..dest_end
         end
 
+        # @return [Integer] Number of lines covered by this anchor
         def length
           template_end - template_start + 1
         end
@@ -25,11 +28,13 @@ module Prism
 
       # Represents a boundary where files differ
       Boundary = Struct.new(:template_range, :dest_range, :prev_anchor, :next_anchor) do
+        # @return [Array<Integer>] Array of line numbers in template file within this boundary
         def template_lines
           return [] unless template_range
           (template_range.begin..template_range.end).to_a
         end
 
+        # @return [Array<Integer>] Array of line numbers in destination file within this boundary
         def dest_lines
           return [] unless dest_range
           (dest_range.begin..dest_range.end).to_a

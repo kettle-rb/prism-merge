@@ -23,14 +23,28 @@ require_relative "merge/version"
 #   puts debug_result[:debug]
 #   puts debug_result[:statistics]
 module Prism
+  # Smart merge system for Ruby files using Prism AST analysis.
+  # Provides intelligent merging by understanding Ruby code structure
+  # rather than treating files as plain text.
+  #
+  # @see SmartMerger Main entry point for merge operations
+  # @see FileAligner Identifies matching sections and boundaries
+  # @see ConflictResolver Resolves content within boundaries
   module Merge
     # Base error class for Prism::Merge
     class Error < StandardError; end
 
     # Raised when the template/destination file has parsing errors
     class ParseError < Error
-      attr_reader :content, :parse_result
+      # @return [String] The content that failed to parse
+      attr_reader :content
+      
+      # @return [Prism::ParseResult] The Prism parse result containing error details
+      attr_reader :parse_result
 
+      # @param message [String] Error message
+      # @param content [String] The Ruby source that failed to parse
+      # @param parse_result [Prism::ParseResult] Parse result with error information
       def initialize(message, content:, parse_result:)
         super(message)
         @content = content
@@ -38,7 +52,32 @@ module Prism
       end
     end
 
+    # Raised when the template file has syntax errors.
+    #
+    # @example Handling template parse errors
+    #   begin
+    #     merger = SmartMerger.new(template, destination)
+    #     result = merger.merge
+    #   rescue TemplateParseError => e
+    #     puts "Template syntax error: #{e.message}"
+    #     e.parse_result.errors.each do |error|
+    #       puts "  #{error.message}"
+    #     end
+    #   end
     class TemplateParseError < ParseError; end
+    
+    # Raised when the destination file has syntax errors.
+    #
+    # @example Handling destination parse errors
+    #   begin
+    #     merger = SmartMerger.new(template, destination)
+    #     result = merger.merge
+    #   rescue DestinationParseError => e
+    #     puts "Destination syntax error: #{e.message}"
+    #     e.parse_result.errors.each do |error|
+    #       puts "  #{error.message}"
+    #     end
+    #   end
     class DestinationParseError < ParseError; end
 
     autoload :FileAnalysis, "prism/merge/file_analysis"
