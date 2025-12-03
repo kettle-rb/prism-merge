@@ -56,6 +56,9 @@ end
 # External gems that define tasks - add here!
 require "kettle/dev"
 
+desc("spec is a pre-req of test")
+task(:test => :spec)
+
 ### RELEASE TASKS
 # Setup stone_checksums
 begin
