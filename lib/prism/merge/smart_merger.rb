@@ -103,6 +103,9 @@ module Prism
         when :freeze_block
           # Freeze blocks from destination take precedence
           add_freeze_block_from_dest(anchor)
+        when :signature_match
+          # For signature matches (same structure, different content), prefer destination
+          add_signature_match_from_dest(anchor)
         when :exact_match
           # For exact matches, prefer template (it's the source of truth)
           add_exact_match_from_template(anchor)
@@ -118,6 +121,18 @@ module Prism
           @result.add_line(
             line.chomp,
             decision: MergeResult::DECISION_FREEZE_BLOCK,
+            dest_line: line_num,
+          )
+        end
+      end
+
+      def add_signature_match_from_dest(anchor)
+        # For signature matches, use destination version (has customizations)
+        anchor.dest_range.each do |line_num|
+          line = @dest_analysis.line_at(line_num)
+          @result.add_line(
+            line.chomp,
+            decision: MergeResult::DECISION_REPLACED,
             dest_line: line_num,
           )
         end

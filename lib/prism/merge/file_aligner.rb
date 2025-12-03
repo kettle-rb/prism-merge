@@ -75,9 +75,13 @@ module Prism
         end
 
         # Strategy: Find exact line matches and structural matches
-        # 1. Exact line matches (including comments)
-        # 2. Structural node matches (same signature)
+        # 1. Structural node matches (same signature) - FIRST to ensure matching blocks become anchors
+        # 2. Exact line matches (including comments)
         # 3. Freeze blocks (always anchors)
+
+        # Start with node signature-based anchors (highest priority)
+        @anchors = []
+        add_node_signature_anchors
 
         # Build mapping of normalized lines for quick lookup
         template_line_map = build_line_map(@template_analysis)
@@ -87,7 +91,16 @@ module Prism
         exact_matches = find_exact_line_matches(template_line_map, dest_line_map)
 
         # Convert matches to anchors, merging consecutive matches
-        @anchors = merge_consecutive_matches(exact_matches)
+        line_anchors = merge_consecutive_matches(exact_matches)
+        
+        # Add line anchors that don't overlap with signature anchors
+        line_anchors.each do |anchor|
+          overlaps = @anchors.any? do |existing|
+            ranges_overlap?(existing.template_range, anchor.template_range) ||
+              ranges_overlap?(existing.dest_range, anchor.dest_range)
+          end
+          @anchors << anchor unless overlaps
+        end
 
         # Add freeze block anchors
         add_freeze_block_anchors
@@ -207,6 +220,62 @@ module Prism
         anchors
       end
 
+      def add_node_signature_anchors
+        # Match nodes with identical signatures to create anchors
+        # This helps recognize blocks like appraise "name" with different contents as the same
+        template_nodes = @template_analysis.nodes_with_comments
+        dest_nodes = @dest_analysis.nodes_with_comments
+
+        # Build signature map for dest nodes
+        dest_sig_map = {}
+        dest_nodes.each do |node_info|
+          sig = node_info[:signature]
+          next unless sig
+
+          dest_sig_map[sig] ||= []
+          dest_sig_map[sig] << node_info
+        end
+
+        # Track which dest nodes have been matched
+        matched_dest = Set.new
+
+        # Find matching template nodes
+        template_nodes.each do |t_node_info|
+          sig = t_node_info[:signature]
+          next unless sig
+          next unless dest_sig_map[sig]
+
+          # Find first unmatched dest node with this signature
+          d_node_info = dest_sig_map[sig].find { |d| !matched_dest.include?(d[:index]) }
+          next unless d_node_info
+
+          # Create anchor for this matched node (including its leading comments)
+          t_start = t_node_info[:leading_comments].any? ? t_node_info[:leading_comments].first.location.start_line : t_node_info[:line_range].begin
+          t_end = t_node_info[:line_range].end
+          d_start = d_node_info[:leading_comments].any? ? d_node_info[:leading_comments].first.location.start_line : d_node_info[:line_range].begin
+          d_end = d_node_info[:line_range].end
+
+          # Check if this would completely overlap with existing anchors
+          # Only skip if an anchor already covers the EXACT same range
+          overlaps = @anchors.any? do |a|
+            a.template_start == t_start && a.template_end == t_end &&
+              a.dest_start == d_start && a.dest_end == d_end
+          end
+
+          unless overlaps
+            @anchors << Anchor.new(
+              t_start,
+              t_end,
+              d_start,
+              d_end,
+              :signature_match,
+              t_end - t_start + 1,
+            )
+            matched_dest << d_node_info[:index]
+          end
+        end
+      end
+
       def add_freeze_block_anchors
         # Freeze blocks in destination should always be preserved as anchors
         @dest_analysis.freeze_blocks.each do |block|
@@ -296,6 +365,11 @@ module Prism
             @boundaries << Boundary.new(template_range, dest_range, last_anchor, nil)
           end
         end
+      end
+
+      def ranges_overlap?(range1, range2)
+        return false if range1.nil? || range2.nil?
+        range1.begin <= range2.end && range2.begin <= range1.end
       end
     end
   end

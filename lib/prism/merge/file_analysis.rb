@@ -266,6 +266,18 @@ module Prism
           # are recognized as matching
           name = node.respond_to?(:name) ? node.name.to_s : node.slice.split("=").first.strip
           [node.class.name.split("::").last.to_sym, name]
+        when Prism::CallNode
+          # For method calls with blocks, signature based on method name and arguments only,
+          # not the block body, so calls with same name/args but different blocks
+          # are recognized as matching
+          method_name = node.name.to_s
+          # Extract just the arguments (not the block)
+          arg_signature = if node.arguments && node.arguments.arguments
+            node.arguments.arguments.map { |arg| arg.slice }.join(", ")
+          else
+            ""
+          end
+          [node.class.name.split("::").last.to_sym, method_name, arg_signature]
         else
           [node.class.name.split("::").last.to_sym, node.slice]
         end

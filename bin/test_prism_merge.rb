@@ -3,7 +3,10 @@
 
 # Simple test to verify PrismMerge loads and works
 
-require "prism/merge"
+repo_root = File.expand_path("..", __dir__)
+lib_path = File.join(repo_root, "lib")
+$LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
+require "prism-merge"
 
 puts "=== Testing PrismMerge ==="
 puts

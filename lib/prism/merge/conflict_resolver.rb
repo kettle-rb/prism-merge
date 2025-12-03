@@ -93,8 +93,10 @@ module Prism
         # Strategy: Process template content in order, replacing matched nodes with template version
         # and appending dest-only nodes at the end
 
+        
         template_nodes = template_content[:nodes]
         dest_nodes = dest_content[:nodes]
+        
 
         # Build signature map for destination nodes
         dest_sig_map = build_signature_map(dest_nodes)
@@ -116,74 +118,191 @@ module Prism
         return unless template_line_range
 
         current_line = template_line_range.begin
+        # Track if we're in a sequence of template-only nodes
+        in_template_only_sequence = false
+        last_added_line = nil
 
-        template_nodes.sort_by { |n| n[:line_range].begin }.each do |t_node_info|
+        sorted_nodes = template_nodes.sort_by { |n| n[:line_range].begin }
+        
+        sorted_nodes.each_with_index do |t_node_info, idx|
           node_start = t_node_info[:line_range].begin
+          node_end = t_node_info[:line_range].end
 
-          # Add any non-node lines before this node (excluding leading comment lines)
-          while current_line < node_start
-            if template_line_range.cover?(current_line) && !leading_comment_lines.include?(current_line)
-              line = @template_analysis.line_at(current_line)
-              result.add_line(
-                line.chomp,
-                decision: MergeResult::DECISION_KEPT_TEMPLATE,
-                template_line: current_line,
-              )
-            end
-            current_line += 1
-          end
-
-          # Add the node (template version, possibly replacing dest version)
+          # Check if this node will be matched or is template-only
           sig = t_node_info[:signature]
-          if dest_sig_map[sig]
-            # Match found - use template version
-            result.add_node(
-              t_node_info,
-              decision: MergeResult::DECISION_REPLACED,
-              source: :template,
-              source_analysis: @template_analysis,
-            )
+          is_matched = dest_sig_map[sig]&.any?
+          
 
-            # Mark matching dest nodes as processed
-            dest_sig_map[sig].each do |d_node_info|
-              matched_dest_indices << d_node_info[:index]
+          # Calculate the range that includes trailing blank lines up to the next node
+          # This way, blank lines "belong" to the preceding node
+          next_node_start = idx + 1 < sorted_nodes.length ? sorted_nodes[idx + 1][:line_range].begin : template_line_range.end + 1
+          
+          # Find trailing blank lines after this node
+          trailing_blank_end = node_end
+          (node_end + 1...next_node_start).each do |line_num|
+            break if !template_line_range.cover?(line_num)
+            line = @template_analysis.line_at(line_num)
+            break if !line.strip.empty? # Stop at first non-blank line
+            trailing_blank_end = line_num
+          end
+          
+          node_range_with_trailing = node_start..trailing_blank_end
+
+          # Add any non-node, non-blank lines before this node (e.g., comments not attached to nodes)
+          unless in_template_only_sequence && !is_matched
+            while current_line < node_start
+              if template_line_range.cover?(current_line) && !leading_comment_lines.include?(current_line)
+                line = @template_analysis.line_at(current_line)
+                # Only add non-blank lines here (blank lines belong to preceding node)
+                unless line.strip.empty?
+                  add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_TEMPLATE, template_line: current_line)
+                end
+              end
+              current_line += 1
             end
           else
-            # No match - add template node
-            result.add_node(
-              t_node_info,
-              decision: MergeResult::DECISION_KEPT_TEMPLATE,
-              source: :template,
-              source_analysis: @template_analysis,
-            )
+            # Skip lines before template-only nodes in a sequence
+            current_line = node_start
           end
 
-          current_line = t_node_info[:line_range].end + 1
+          # Add the node (prefer destination version when signatures match)
+          # Include trailing blank lines with the node
+          if is_matched
+            # Match found - use destination version (it has the customizations)
+            dest_matches = dest_sig_map[sig]
+            dest_matches.each do |d_node_info|
+              result.add_node(
+                d_node_info,
+                decision: MergeResult::DECISION_REPLACED,
+                source: :destination,
+                source_analysis: @dest_analysis,
+              )
+              # Mark matching dest nodes as processed
+              matched_dest_indices << d_node_info[:index]
+              
+              # Calculate trailing blank lines for this destination node
+              d_node = d_node_info[:node]
+              d_node_end = d_node.location.end_line
+              # Find how many blank lines follow this node in destination
+              d_trailing_blank_end = d_node_end
+              if d_node_info[:index] < dest_nodes.size - 1
+                next_dest_info = dest_nodes[d_node_info[:index] + 1]
+                # Find where next node's content actually starts (first leading comment or node itself)
+                if next_dest_info[:leading_comments].any?
+                  next_content_start = next_dest_info[:leading_comments].first.location.start_line
+                else
+                  next_content_start = next_dest_info[:node].location.start_line
+                end
+                
+                
+                # Find all blank lines between this node end and next node's content
+                (d_node_end + 1...next_content_start).each do |line_num|
+                  line_content = @dest_analysis.line_at(line_num)
+                  if line_content.strip.empty?
+                    d_trailing_blank_end = line_num
+                  else
+                    # Stop at first non-blank line
+                    break
+                  end
+                end
+                
+              else
+              end
+              
+              # Add trailing blank lines from destination (preserving destination spacing)
+              (d_node_end + 1..d_trailing_blank_end).each do |line_num|
+                line = @dest_analysis.line_at(line_num)
+                add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+              end
+            end
+            
+            in_template_only_sequence = false
+            last_added_line = trailing_blank_end
+          else
+            # No match - this is a template-only node, skip it AND its trailing blank lines
+            # (Don't add template nodes that don't exist in destination)
+            in_template_only_sequence = true
+          end
+
+          current_line = trailing_blank_end + 1
         end
 
         # Add any remaining template lines after the last node
-        while current_line <= template_line_range.end
-          if !leading_comment_lines.include?(current_line)
-            line = @template_analysis.line_at(current_line)
-            result.add_line(
-              line.chomp,
-              decision: MergeResult::DECISION_KEPT_TEMPLATE,
-              template_line: current_line,
-            )
+        # But skip if we ended in a template-only sequence
+        unless in_template_only_sequence
+          while current_line <= template_line_range.end
+            if !leading_comment_lines.include?(current_line)
+              line = @template_analysis.line_at(current_line)
+              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_TEMPLATE, template_line: current_line)
+            end
+            current_line += 1
           end
-          current_line += 1
         end
 
         # Add dest-only nodes (nodes that weren't matched)
-        dest_nodes.each do |d_node_info|
-          next if matched_dest_indices.include?(d_node_info[:index])
+        dest_only_nodes = dest_nodes.select { |d| !matched_dest_indices.include?(d[:index]) }
+        
+        unless dest_only_nodes.empty?
+          # Add a blank line before appending dest-only nodes if the result doesn't already end with one
+          if result.lines.any? && !result.lines.last.strip.empty?
+            add_line_safe(result, "", decision: MergeResult::DECISION_KEPT_TEMPLATE)
+          end
 
-          result.add_node(
-            d_node_info,
-            decision: MergeResult::DECISION_APPENDED,
-            source: :destination,
-            source_analysis: @dest_analysis,
-          )
+          dest_only_nodes.each_with_index do |d_node_info, idx|
+            result.add_node(
+              d_node_info,
+              decision: MergeResult::DECISION_APPENDED,
+              source: :destination,
+              source_analysis: @dest_analysis,
+            )
+            
+            # Add trailing blank lines for each dest-only node
+            d_node = d_node_info[:node]
+            d_node_end = d_node.location.end_line
+            d_trailing_blank_end = d_node_end
+            
+            # Find trailing blank lines up to the next node or end of boundary
+            if idx < dest_only_nodes.size - 1
+              # Not the last dest-only node - look for next dest-only node
+              next_dest_info = dest_only_nodes[idx + 1]
+              # Find where next node's content actually starts (first leading comment or node itself)
+              if next_dest_info[:leading_comments].any?
+                next_content_start = next_dest_info[:leading_comments].first.location.start_line
+              else
+                next_content_start = next_dest_info[:node].location.start_line
+              end
+              
+              # Collect blank lines between this node end and next node's content
+              (d_node_end + 1...next_content_start).each do |line_num|
+                line_content = @dest_analysis.line_at(line_num)
+                if line_content.strip.empty?
+                  d_trailing_blank_end = line_num
+                else
+                  break
+                end
+              end
+            else
+              # This is the last dest-only node - look for trailing blanks up to boundary end
+              # Check lines after this node for blank lines
+              boundary_end = dest_content[:line_range].end
+              line_num = d_node_end + 1
+              while line_num <= boundary_end
+                line_content = @dest_analysis.line_at(line_num)
+                if line_content.strip.empty?
+                  d_trailing_blank_end = line_num
+                  line_num += 1
+                else
+                  break
+                end
+              end
+            end
+            
+            # Add trailing blank lines from destination
+            (d_node_end + 1..d_trailing_blank_end).each do |line_num|
+              line = @dest_analysis.line_at(line_num)
+              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+            end
+          end
         end
       end
 
@@ -194,6 +313,16 @@ module Prism
           map[sig] << node_info if sig
         end
         map
+      end
+
+      # Add a line to result but avoid adding multiple consecutive blank lines.
+      def add_line_safe(result, content, **kwargs)
+        if content.strip.empty?
+          # If last line is also blank, skip adding to collapse runs of blank lines
+          return if result.lines.any? && result.lines.last.strip.empty?
+        end
+
+        result.add_line(content, **kwargs)
       end
 
       def handle_orphan_lines(template_content, dest_content, result)
