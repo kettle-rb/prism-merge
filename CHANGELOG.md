@@ -20,6 +20,25 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [1.1.0] - 2025-12-04
+
+- TAG: [v1.1.0][1.1.0t]
+- COVERAGE: 95.65% -- 770/805 lines in 9 files
+- BRANCH COVERAGE: 81.13% -- 245/302 branches in 9 files
+- 100.00% documented
+
+### Added
+
 - Recursive merge support for class and module bodies - nested structures are now merged intelligently
 - Conditional signature matching for `if`/`unless` blocks based on condition expression
 - Freeze block validation for partial/incomplete nodes and freeze blocks inside non-class/module contexts
@@ -41,8 +60,6 @@ Please file a bug if you notice a violation of semantic versioning.
 - Freeze block matching now works correctly with multiple consecutive freeze blocks (matches by index/order)
 - Duplicate freeze blocks from template no longer appear when destination has matching freeze blocks
 - Magic comments at file top no longer prevent node lookup in recursive merges
-
-### Security
 
 ## [1.0.3] - 2025-12-03
 
@@ -99,7 +116,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/kettle-rb/prism-merge/compare/v1.0.3...v1.1.0
+[1.1.0t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.0
 [1.0.3]: https://github.com/kettle-rb/prism-merge/compare/v1.0.2...v1.0.3
 [1.0.3t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.3
 [1.0.2]: https://github.com/kettle-rb/prism-merge/compare/v1.0.1...v1.0.2
