@@ -339,6 +339,142 @@ RSpec.describe Prism::Merge::SmartMerger do
         end
       end
     end
+
+    context "with add_template_only_nodes: false" do
+      context "with comment disagreements between template and destination" do
+        it "uses destination header when template omits header" do
+          template = <<~TPL
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+              if true
+                # Silly comment
+                puts "hello"
+              end
+            end
+          TPL
+          dest = <<~DST
+            # Existing header
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+            end
+          DST
+
+          merger = described_class.new(
+            template,
+            dest,
+            signature_match_preference: :template,
+            add_template_only_nodes: false,
+          )
+          result = merger.merge
+
+          expect(result).to include('appraise "unlocked" do')
+          expect(result).to include('eval_gemfile "a.gemfile"')
+          expect(result).to include("# Existing header")
+          expect(result).not_to include("# Silly comment")
+        end
+
+        it "uses template header when destination present" do
+          template = <<~TPL
+            # New header from template
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+              if true
+                # Silly comment
+                puts "hello"
+              end
+            end
+          TPL
+          dest = <<~DST
+            # Existing header
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+            end
+          DST
+
+          merger = described_class.new(
+            template,
+            dest,
+            signature_match_preference: :template,
+            add_template_only_nodes: false,
+          )
+          result = merger.merge
+
+          expect(result).to include('appraise "unlocked" do')
+          expect(result).to include('eval_gemfile "a.gemfile"')
+          expect(result).to include("# New header from template")
+          expect(result).not_to include("# Existing header")
+          expect(result).not_to include("# Silly comment")
+        end
+      end
+    end
+
+    context "with add_template_only_nodes: true" do
+      context "with comment disagreements between template and destination" do
+        it "uses destination header when template omits header" do
+          template = <<~TPL
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+              if true
+                # Silly comment
+                puts "hello"
+              end
+            end
+          TPL
+          dest = <<~DST
+            # Existing header
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+            end
+          DST
+
+          merger = described_class.new(
+            template,
+            dest,
+            signature_match_preference: :template,
+            add_template_only_nodes: true,
+          )
+          result = merger.merge
+
+          expect(result).to include('appraise "unlocked" do')
+          expect(result).to include('eval_gemfile "a.gemfile"')
+          expect(result).to include("# Existing header")
+          expect(result).to include("# Silly comment")
+        end
+
+        it "uses template header when destination present" do
+          template = <<~TPL
+            # New header from template
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+              if true
+                # Silly comment
+                puts "hello"
+              end
+            end
+          TPL
+          dest = <<~DST
+            # Existing header
+            appraise "unlocked" do
+              eval_gemfile "a.gemfile"
+            end
+          DST
+
+          merger = described_class.new(
+            template,
+            dest,
+            signature_match_preference: :template,
+            add_template_only_nodes: true,
+          )
+          result = merger.merge
+
+          expect(result).to include('appraise "unlocked" do')
+          expect(result).to include('eval_gemfile "a.gemfile"')
+          expect(result).to include("# New header from template")
+          expect(result).not_to include("# Existing header")
+          expect(result).to include("# Silly comment")
+        end
+      end
+    end
   end
 
   describe "#merge_with_debug" do
@@ -510,11 +646,33 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        # Template version should win
+        # Template version should win for matched nodes
         expect(result).to include('config.setting = "template value"')
-        expect(result).not_to include("config.extra")
 
-        # Destination-only call should still be preserved
+        # Destination-only nodes inside recursively merged blocks are preserved
+        expect(result).to include("config.extra")
+
+        # Destination-only top-level call should still be preserved
+        expect(result).to include('cleanup("temp")')
+      end
+
+      it "add_template_only_nodes only affects template-only nodes, not destination-only" do
+        merger = described_class.new(
+          template_content,
+          dest_content,
+          signature_match_preference: :template,
+          add_template_only_nodes: false,
+        )
+        result = merger.merge
+
+        # Template version should win for matched nodes
+        expect(result).to include('config.setting = "template value"')
+
+        # Destination-only nodes are always preserved (they represent user customizations)
+        # add_template_only_nodes only controls TEMPLATE-only nodes
+        expect(result).to include("config.extra")
+
+        # Destination-only top-level call is also preserved
         expect(result).to include('cleanup("temp")')
       end
     end
@@ -1287,6 +1445,638 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         # Should be idempotent
         expect(second_run).to eq(first_run), "Second run should not add more duplicates"
+      end
+    end
+
+    describe "#find_node_at_line" do
+      it "finds a node spanning the given line" do
+        source = <<~RUBY
+          # frozen_string_literal: true
+
+          def hello
+            puts "world"
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge # Run merge to initialize analysis
+
+        # Access private method for testing
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = merger.send(:find_node_at_line, analysis, 4)
+
+        expect(node).to be_a(Prism::DefNode)
+        expect(node.name).to eq(:hello)
+      end
+
+      it "returns nil when no node spans the given line" do
+        source = <<~RUBY
+          # frozen_string_literal: true
+
+          def hello
+            puts "world"
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = merger.send(:find_node_at_line, analysis, 2) # Comment/blank line
+
+        # Line 2 is blank, should not find a statement there
+        # (statements start at line 3)
+        expect(node).to be_nil
+      end
+    end
+
+    describe "#should_merge_recursively?" do
+      it "returns false when template_node is nil" do
+        source = <<~RUBY
+          class Foo; end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        result = merger.send(:should_merge_recursively?, nil, Prism.parse(source).value.statements.body.first)
+        expect(result).to be false
+      end
+
+      it "returns false when dest_node is nil" do
+        source = <<~RUBY
+          class Foo; end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        result = merger.send(:should_merge_recursively?, Prism.parse(source).value.statements.body.first, nil)
+        expect(result).to be false
+      end
+
+      it "returns false when nodes are different types" do
+        class_source = "class Foo; end"
+        module_source = "module Bar; end"
+
+        merger = described_class.new(class_source, module_source)
+        merger.merge
+
+        class_node = Prism.parse(class_source).value.statements.body.first
+        module_node = Prism.parse(module_source).value.statements.body.first
+
+        result = merger.send(:should_merge_recursively?, class_node, module_node)
+        expect(result).to be false
+      end
+
+      it "returns true for matching ClassNode nodes without freeze blocks" do
+        source = <<~RUBY
+          class Foo
+            def bar; end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be true
+      end
+
+      it "returns true for matching ModuleNode nodes" do
+        source = <<~RUBY
+          module Foo
+            def bar; end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be true
+      end
+
+      it "returns true for matching SingletonClassNode nodes" do
+        source = <<~RUBY
+          class << self
+            def bar; end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be true
+      end
+
+      it "returns false for CallNode without blocks" do
+        source = "puts 'hello'"
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns true for CallNode with matching blocks" do
+        source = <<~RUBY
+          describe "test" do
+            it "works" do
+              expect(true).to be true
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be true
+      end
+
+      it "returns true for matching BeginNode with statements" do
+        source = <<~RUBY
+          begin
+            foo
+          rescue
+            bar
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be true
+      end
+
+      it "returns false for BeginNode without statements" do
+        source = <<~RUBY
+          begin
+          rescue
+            bar
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for CaseNode" do
+        source = <<~RUBY
+          case x
+          when 1
+            :one
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for CaseMatchNode" do
+        source = <<~RUBY
+          case x
+          in {a:}
+            a
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for WhileNode" do
+        source = <<~RUBY
+          while true
+            foo
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for UntilNode" do
+        source = <<~RUBY
+          until false
+            foo
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for ForNode" do
+        source = <<~RUBY
+          for i in [1,2,3]
+            puts i
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for LambdaNode" do
+        source = <<~RUBY
+          -> { puts "hi" }
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+
+      it "returns false for DefNode (not recursively merged)" do
+        source = <<~RUBY
+          def hello
+            puts "world"
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:should_merge_recursively?, node, node)
+        expect(result).to be false
+      end
+    end
+
+    describe "#node_contains_freeze_blocks?" do
+      it "returns false when no freeze_token is set" do
+        source = <<~RUBY
+          class Foo
+            # kettle-dev:freeze
+            def bar; end
+            # kettle-dev:unfreeze
+          end
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: nil)
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be false
+      end
+
+      it "returns true when ClassNode contains freeze markers" do
+        source = <<~RUBY
+          class Foo
+            # kettle-dev:freeze
+            def bar; end
+            # kettle-dev:unfreeze
+          end
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: "kettle-dev")
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be true
+      end
+
+      it "returns true when ModuleNode contains freeze markers" do
+        source = <<~RUBY
+          module Foo
+            # kettle-dev:freeze
+            def bar; end
+            # kettle-dev:unfreeze
+          end
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: "kettle-dev")
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be true
+      end
+
+      it "checks SingletonClassNode for freeze markers via comments" do
+        # Use source without freeze blocks to avoid validation errors
+        # Then manually set freeze_token to test comment scanning
+        source = <<~RUBY
+          class << self
+            def bar
+              1
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: nil)
+        merger.merge
+
+        # Now set freeze_token manually to test the comment scanning logic
+        merger.instance_variable_set(:@freeze_token, "kettle-dev")
+
+        node = Prism.parse(source).value.statements.body.first
+        # Should return false since no freeze comments exist in source
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be false
+      end
+
+      it "checks LambdaNode body attribute for content" do
+        # Test that the method correctly identifies LambdaNode as having content
+        source = <<~RUBY
+          myproc = -> {
+            x = 1
+            puts x
+          }
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: nil)
+        merger.merge
+
+        # Manually set freeze_token to test the has_content logic
+        merger.instance_variable_set(:@freeze_token, "kettle-dev")
+
+        node = Prism.parse(source).value.statements.body.first.value
+        # Should return false since no freeze comments exist
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be false
+      end
+
+      it "returns false when IfNode body has no freeze markers" do
+        source = <<~RUBY
+          if condition
+            puts "hello"
+          end
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: "kettle-dev")
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be false
+      end
+
+      it "checks CallNode block attribute for content" do
+        # Test that the method correctly identifies CallNode with block as having content
+        source = <<~RUBY
+          describe "test" do
+            it "works" do
+              expect(true).to be true
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source, freeze_token: nil)
+        merger.merge
+
+        # Manually set freeze_token to test the has_content logic path
+        merger.instance_variable_set(:@freeze_token, "kettle-dev")
+
+        node = Prism.parse(source).value.statements.body.first
+        # Should return false since no freeze comments exist
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be false
+      end
+
+      it "handles nodes without body/statements/block" do
+        source = "x = 1"
+
+        merger = described_class.new(source, source, freeze_token: "kettle-dev")
+        merger.merge
+
+        node = Prism.parse(source).value.statements.body.first
+        result = merger.send(:node_contains_freeze_blocks?, node)
+        expect(result).to be false
+      end
+    end
+
+    describe "#extract_node_body" do
+      it "extracts body from ClassNode" do
+        source = <<~RUBY
+          class Foo
+            def bar
+              1
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("def bar")
+        expect(body).to include("1")
+      end
+
+      it "extracts body from ModuleNode" do
+        source = <<~RUBY
+          module Foo
+            CONST = 1
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("CONST = 1")
+      end
+
+      it "extracts body from SingletonClassNode" do
+        source = <<~RUBY
+          class << self
+            def foo; end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("def foo; end")
+      end
+
+      it "extracts body from BeginNode" do
+        source = <<~RUBY
+          begin
+            foo
+            bar
+          rescue
+            baz
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("foo")
+        expect(body).to include("bar")
+      end
+
+      it "extracts body from CallNode with block" do
+        source = <<~RUBY
+          describe "test" do
+            it "works" do
+              expect(true).to be true
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("it \"works\"")
+      end
+
+      it "extracts body from LambdaNode" do
+        source = <<~RUBY
+          -> {
+            puts "hello"
+            puts "world"
+          }
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("puts \"hello\"")
+      end
+
+      it "returns empty string for CaseNode" do
+        source = <<~RUBY
+          case x
+          when 1
+            :one
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to eq("")
+      end
+
+      it "returns empty string for node with empty body" do
+        source = "class Foo; end"
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to eq("")
+      end
+
+      it "returns empty string for node without statements (nil)" do
+        source = "x = 1"
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to eq("")
+      end
+
+      it "handles ParenthesesNode" do
+        source = <<~RUBY
+          (
+            puts "inside"
+            puts "parens"
+          )
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("puts \"inside\"")
+      end
+
+      it "uses respond_to? fallback for unknown node types" do
+        source = <<~RUBY
+          for i in [1, 2, 3]
+            puts i
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        merger.merge
+
+        analysis = merger.instance_variable_get(:@template_analysis)
+        node = Prism.parse(source).value.statements.body.first
+
+        # ForNode has .statements, should work via fallback
+        body = merger.send(:extract_node_body, node, analysis)
+        expect(body).to include("puts i")
       end
     end
   end

@@ -118,17 +118,28 @@ module Prism
           fully_contained = node_start >= @start_line && node_end <= @end_line
 
           # Check if node completely encompasses the freeze block
-          # This is only valid for ClassNode/ModuleNode (freeze blocks at class/module body level)
-          # For other nodes (methods, etc.), this is invalid
+          # This is valid for nodes that define a body scope where freeze blocks make sense:
+          # - ClassNode, ModuleNode, SingletonClassNode (class/module definitions)
+          # - CallNode with blocks (like RSpec describe/context blocks)
+          # - DefNode (method definitions)
+          # - LambdaNode (lambda/proc definitions)
           encompasses = node_start < @start_line && node_end > @end_line
-          valid_encompass = encompasses && (node.is_a?(Prism::ClassNode) || node.is_a?(Prism::ModuleNode))
+          valid_encompass = encompasses && (
+            node.is_a?(Prism::ClassNode) ||
+            node.is_a?(Prism::ModuleNode) ||
+            node.is_a?(Prism::SingletonClassNode) ||
+            node.is_a?(Prism::DefNode) ||
+            node.is_a?(Prism::LambdaNode) ||
+            (node.is_a?(Prism::CallNode) && node.block) ||
+            (node.is_a?(Prism::LocalVariableWriteNode) && node.value.is_a?(Prism::LambdaNode))
+          )
 
           # Check if node partially overlaps (invalid - unclosed/incomplete structure)
           partially_overlaps = !fully_contained && !encompasses &&
             ((node_start < @start_line && node_end >= @start_line) ||
              (node_start <= @end_line && node_end > @end_line))
 
-          # Invalid if: partial overlap OR if a non-class/module node encompasses the freeze block
+          # Invalid if: partial overlap OR if an unsupported node type encompasses the freeze block
           if partially_overlaps || (encompasses && !valid_encompass)
             unclosed << node
           end

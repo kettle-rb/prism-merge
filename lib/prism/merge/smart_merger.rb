@@ -270,9 +270,25 @@ module Prism
         end
 
         boundaries.each do |boundary|
-          # Sort boundaries by their starting position
-          t_start = boundary.template_range&.begin || 0
-          d_start = boundary.dest_range&.begin || 0
+          # Sort boundaries by their position relative to anchors
+          # - Boundaries before first anchor: use their position (or 0 if no template range)
+          # - Boundaries between anchors: use template position
+          # - Boundaries after last anchor: use Float::INFINITY to place at end
+
+          if boundary.prev_anchor.nil? && boundary.next_anchor
+            # Before first anchor - place at beginning
+            t_start = boundary.template_range&.begin || 0
+            d_start = boundary.dest_range&.begin || 0
+          elsif boundary.prev_anchor && boundary.next_anchor.nil?
+            # After last anchor - place at end
+            t_start = Float::INFINITY
+            d_start = boundary.dest_range&.begin || Float::INFINITY
+          else
+            # Between anchors or no anchors at all
+            t_start = boundary.template_range&.begin || boundary.prev_anchor&.template_end&.+(1) || 0
+            d_start = boundary.dest_range&.begin || 0
+          end
+
           sort_key = [t_start, d_start, 1] # 1 ensures boundaries come after anchors at same position
 
           timeline << {type: :boundary, boundary: boundary, sort_key: sort_key}
@@ -386,9 +402,10 @@ module Prism
 
       # Determines if two matching nodes should be recursively merged.
       #
-      # Recursive merge is performed for matching class/module definitions to intelligently
-      # combine their body contents (nested methods, constants, etc.). This allows template
-      # updates to class internals to be merged with destination customizations.
+      # Recursive merge is performed for matching class/module definitions and
+      # CallNodes with blocks to intelligently combine their body contents
+      # (nested methods, constants, etc.). This allows template updates to
+      # internals to be merged with destination customizations.
       #
       # @param template_node [Prism::Node, nil] Node from template file
       # @param dest_node [Prism::Node, nil] Node from destination file
@@ -396,15 +413,40 @@ module Prism
       #
       # @note Recursive merge is NOT performed for:
       #   - Conditional nodes (if/unless) - treated as atomic units
-      #   - Classes/modules containing freeze blocks - frozen content would be lost
+      #   - Classes/modules/blocks containing freeze blocks - frozen content would be lost
       #   - Nodes of different types
       def should_merge_recursively?(template_node, dest_node)
         return false unless template_node && dest_node
 
-        is_class_or_module = (template_node.is_a?(Prism::ClassNode) && dest_node.is_a?(Prism::ClassNode)) ||
-          (template_node.is_a?(Prism::ModuleNode) && dest_node.is_a?(Prism::ModuleNode))
+        # Both nodes must be the same type
+        return false unless template_node.class == dest_node.class
 
-        return false unless is_class_or_module
+        # Determine if this node type supports recursive merging
+        can_merge_recursively = case template_node
+        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
+          # Class/module definitions - merge their body contents
+          true
+        when Prism::CallNode
+          # Only merge if both have blocks
+          template_node.block && dest_node.block
+        when Prism::BeginNode
+          # begin/rescue/ensure blocks - merge statements
+          template_node.statements && dest_node.statements
+        when Prism::CaseNode, Prism::CaseMatchNode
+          # Case statements could potentially merge conditions, but this is complex
+          # For now, treat as atomic unless both have same structure
+          false
+        when Prism::WhileNode, Prism::UntilNode, Prism::ForNode
+          # Loops - could merge body, but usually should be atomic
+          false
+        when Prism::LambdaNode
+          # Lambdas - could merge body, but typically atomic
+          false
+        else
+          false
+        end
+
+        return false unless can_merge_recursively
 
         # Don't recursively merge if either node contains freeze blocks
         # (they would be lost in the nested merge since we pass freeze_token: nil)
@@ -421,7 +463,26 @@ module Prism
       # @api private
       def node_contains_freeze_blocks?(node)
         return false unless @freeze_token
-        return false unless node.body
+
+        # Check if node has nested content that could contain freeze blocks
+        # Different node types store content in different attributes
+        has_content = case node
+        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode,
+             Prism::LambdaNode, Prism::ParenthesesNode
+          node.body
+        when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode,
+             Prism::ForNode, Prism::BeginNode
+          node.statements
+        when Prism::CallNode, Prism::SuperNode, Prism::ForwardingSuperNode
+          node.block
+        else
+          # Fallback for any other nodes
+          node.respond_to?(:body) && node.body ||
+            node.respond_to?(:statements) && node.statements ||
+            node.respond_to?(:block) && node.block
+        end
+
+        return false unless has_content
 
         # Check if any comments in the node's range contain freeze markers
         freeze_pattern = /#\s*#{Regexp.escape(@freeze_token)}:(freeze|unfreeze)/i
@@ -438,14 +499,14 @@ module Prism
         end
       end
 
-      # Recursively merges the body of matching class or module nodes.
+      # Recursively merges the body of matching class, module, or call-with-block nodes.
       #
-      # This method extracts the body content (everything between the class/module
+      # This method extracts the body content (everything between the opening
       # declaration and the closing 'end'), creates a new nested SmartMerger to merge
-      # those bodies, and then reassembles the complete class/module with the merged body.
+      # those bodies, and then reassembles the complete node with the merged body.
       #
-      # @param template_node [Prism::ClassNode, Prism::ModuleNode] Class/module from template
-      # @param dest_node [Prism::ClassNode, Prism::ModuleNode] Class/module from destination
+      # @param template_node [Prism::ClassNode, Prism::ModuleNode, Prism::CallNode] Node from template
+      # @param dest_node [Prism::ClassNode, Prism::ModuleNode, Prism::CallNode] Node from destination
       # @param anchor [FileAligner::Anchor] The anchor representing this match
       #
       # @note The nested merger is configured with:
@@ -469,23 +530,39 @@ module Prism
         )
         merged_body = body_merger.merge.rstrip
 
-        # Add the opening line (class/module declaration) with leading comments
-        source_analysis = (@signature_match_preference == :template) ? @template_analysis : @dest_analysis
-        source_node = (@signature_match_preference == :template) ? template_node : dest_node
-        source_anchor_start = (@signature_match_preference == :template) ? anchor.template_start : anchor.dest_start
+        # Determine leading comments handling:
+        # - If template has leading comments, use template's based on signature_match_preference
+        # - If template has NO leading comments but destination does, preserve destination's
+        template_has_leading = anchor.template_start < template_node.location.start_line
+        dest_has_leading = anchor.dest_start < dest_node.location.start_line
 
-        # Add leading comments
-        (source_anchor_start...source_node.location.start_line).each do |line_num|
-          line = source_analysis.line_at(line_num)
-          @result.add_line(
-            line.chomp,
-            decision: MergeResult::DECISION_REPLACED,
-            template_line: ((@signature_match_preference == :template) ? line_num : nil),
-            dest_line: ((@signature_match_preference == :destination) ? line_num : nil),
-          )
+        if template_has_leading && @signature_match_preference == :template
+          # Use template's leading comments
+          (anchor.template_start...template_node.location.start_line).each do |line_num|
+            line = @template_analysis.line_at(line_num)
+            @result.add_line(
+              line.chomp,
+              decision: MergeResult::DECISION_REPLACED,
+              template_line: line_num,
+            )
+          end
+        elsif dest_has_leading
+          # Preserve destination's leading comments (either because preference is :destination,
+          # or because template has none)
+          (anchor.dest_start...dest_node.location.start_line).each do |line_num|
+            line = @dest_analysis.line_at(line_num)
+            @result.add_line(
+              line.chomp,
+              decision: MergeResult::DECISION_KEPT_DEST,
+              dest_line: line_num,
+            )
+          end
         end
 
-        # Add the class/module opening line
+        # Add the opening line (based on signature_match_preference)
+        source_analysis = (@signature_match_preference == :template) ? @template_analysis : @dest_analysis
+        source_node = (@signature_match_preference == :template) ? template_node : dest_node
+
         opening_line = source_analysis.line_at(source_node.location.start_line)
         @result.add_line(
           opening_line.chomp,
@@ -526,14 +603,40 @@ module Prism
       # @note Handles different node types:
       #   - ClassNode/ModuleNode: Uses node.body (StatementsNode)
       #   - IfNode/UnlessNode: Uses node.statements (StatementsNode)
+      #   - CallNode with block: Uses node.block.body (StatementsNode)
       #
       # @api private
       def extract_node_body(node, analysis)
         # Get the statements node based on node type
-        statements_node = if node.is_a?(Prism::ClassNode) || node.is_a?(Prism::ModuleNode)
+        # Different node types store their body/statements in different attributes
+        statements_node = case node
+        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode, Prism::LambdaNode
+          # These use .body which returns a StatementsNode
           node.body
-        elsif node.is_a?(Prism::IfNode) || node.is_a?(Prism::UnlessNode)
+        when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode, Prism::ForNode
+          # These use .statements
           node.statements
+        when Prism::CallNode
+          # CallNode stores body inside block.body
+          node.block&.body
+        when Prism::BeginNode
+          # BeginNode uses .statements for the main body
+          node.statements
+        when Prism::CaseNode, Prism::CaseMatchNode
+          # Case nodes have conditions (WhenNode/InNode array), not a simple body
+          # Return nil for now - these need special handling
+          nil
+        when Prism::ParenthesesNode
+          node.body
+        else
+          # Try common patterns
+          if node.respond_to?(:body)
+            node.body
+          elsif node.respond_to?(:statements)
+            node.statements
+          elsif node.respond_to?(:block) && node.block
+            node.block.body
+          end
         end
 
         return "" unless statements_node&.is_a?(Prism::StatementsNode)

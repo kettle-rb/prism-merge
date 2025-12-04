@@ -178,13 +178,13 @@ RSpec.describe "FreezeNode Edge Cases" do
         RUBY
       end
 
-      it "raises an error because freeze block is inside another node" do
+      it "allows freeze blocks inside method bodies" do
         # The method_one node spans lines 3-8, and the freeze block is lines 4-6
-        # This means the freeze block is NOT fully containing the method, but rather
-        # the method contains the freeze block, which is invalid
+        # This is valid because DefNode is allowed to contain freeze blocks
+        # (freeze blocks can protect portions of method implementations)
         expect {
           Prism::Merge::FileAnalysis.new(dest_code)
-        }.to raise_error(Prism::Merge::FreezeNode::InvalidStructureError, /incomplete nodes/)
+        }.not_to raise_error
       end
     end
   end
