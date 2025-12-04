@@ -5,7 +5,7 @@ module Prism
     # Version information for Prism::Merge
     module Version
       # Current version of the prism-merge gem
-      VERSION = "1.1.0"
+      VERSION = "1.1.1"
     end
     VERSION = Version::VERSION # traditional location
   end

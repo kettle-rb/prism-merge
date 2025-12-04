@@ -20,6 +20,25 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [1.1.1] - 2025-12-04
+
+- TAG: [v1.1.1][1.1.1t]
+- COVERAGE: 96.62% -- 857/887 lines in 9 files
+- BRANCH COVERAGE: 82.75% -- 331/400 branches in 9 files
+- 100.00% documented
+
+### Added
+
 - Documented comparison of this tool, git-merge, and IDE "Smart Merge" in README.md
 - Comprehensive node signature support for all Prism node types with nested content:
   - `SingletonClassNode` - singleton class definitions (`class << self`)
@@ -45,15 +64,9 @@ Please file a bug if you notice a violation of semantic versioning.
 - Added README documentation comparing Prism::Merge algorithm to git merge and IDE smart merge strategies
 - Added RBS type definitions for `FreezeNode` class
 
-### Deprecated
-
-### Removed
-
 ### Fixed
 
 - Documentation of freeze blocks, and configuration to customize the freeze token
-
-### Security
 
 ## [1.1.0] - 2025-12-04
 
@@ -141,7 +154,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/kettle-rb/prism-merge/compare/v1.1.0...v1.1.1
+[1.1.1t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.1
 [1.1.0]: https://github.com/kettle-rb/prism-merge/compare/v1.0.3...v1.1.0
 [1.1.0t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.0
 [1.0.3]: https://github.com/kettle-rb/prism-merge/compare/v1.0.2...v1.0.3
