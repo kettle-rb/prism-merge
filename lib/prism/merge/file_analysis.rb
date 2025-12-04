@@ -322,15 +322,118 @@ module Prism
         end
       end
 
-      # Generate default signature for a node
+      # Generate default structural signature for a Prism node.
+      #
+      # Signatures are used to match nodes between template and destination files.
+      # Nodes with identical signatures are considered "the same" for merge purposes.
+      #
       # @param node [Prism::Node] Node to generate signature for
-      # @return [Array] Signature array [type, name, params, ...]
+      # @return [Array] Signature array with format [:type, identifier, ...]
+      #
+      # @note Supported node types and their signature formats:
+      #
+      #   **Method/Class Definitions:**
+      #   - `DefNode` → `[:def, name, [param_names]]`
+      #   - `ClassNode` → `[:class, constant_path]`
+      #   - `ModuleNode` → `[:module, constant_path]`
+      #   - `SingletonClassNode` → `[:singleton_class, expression]`
+      #
+      #   **Constants:**
+      #   - `ConstantWriteNode` → `[:const, name]`
+      #   - `ConstantPathWriteNode` → `[:const, target]`
+      #
+      #   **Conditionals:**
+      #   - `IfNode` → `[:if, condition_source]`
+      #   - `UnlessNode` → `[:unless, condition_source]`
+      #
+      #   **Case Statements:**
+      #   - `CaseNode` → `[:case, predicate]`
+      #   - `CaseMatchNode` → `[:case_match, predicate]`
+      #
+      #   **Loops:**
+      #   - `WhileNode` → `[:while, condition]`
+      #   - `UntilNode` → `[:until, condition]`
+      #   - `ForNode` → `[:for, index, collection]`
+      #
+      #   **Exception Handling:**
+      #   - `BeginNode` → `[:begin, first_statement_preview]`
+      #
+      #   **Method Calls:**
+      #   - `CallNode` (regular) → `[:call, method_name, first_arg]`
+      #   - `CallNode` (assignment, e.g., `x.y = z`) → `[:call, :method=, receiver]`
+      #   - `CallNode` (with block) → `[:call_with_block, method_name, first_arg_or_receiver]`
+      #
+      #   **Super Calls:**
+      #   - `SuperNode` → `[:super, :with_block | :no_block]`
+      #   - `ForwardingSuperNode` → `[:forwarding_super, :with_block | :no_block]`
+      #
+      #   **Lambdas:**
+      #   - `LambdaNode` → `[:lambda, parameters_source]`
+      #
+      #   **Special Blocks:**
+      #   - `PreExecutionNode` → `[:pre_execution, line_number]`
+      #   - `PostExecutionNode` → `[:post_execution, line_number]`
+      #
+      #   **Other:**
+      #   - `ParenthesesNode` → `[:parens, first_expression_preview]`
+      #   - `EmbeddedStatementsNode` → `[:embedded, statements_source]`
+      #   - `FreezeNode` → Uses FreezeNode#signature
+      #   - Unknown nodes → `[:other, class_name, line_number]`
+      #
+      # @example Method definition signature
+      #   # def greet(name, greeting: "Hello")
+      #   compute_node_signature(def_node)
+      #   # => [:def, :greet, [:name, :greeting]]
+      #
+      # @example Assignment method call signature
+      #   # config.setting = "value"
+      #   compute_node_signature(call_node)
+      #   # => [:call, :setting=, "config"]
+      #
+      # @example Block method call signature
+      #   # appraise "ruby-3.3" do ... end
+      #   compute_node_signature(call_node)
+      #   # => [:call_with_block, :appraise, "ruby-3.3"]
+      #
+      # @api private
       def compute_node_signature(node)
         # IMPORTANT: Do NOT call node.signature - Prism nodes have their own signature method
         # that returns [node_type_symbol, source_text] which is not what we want for matching.
         # We need our own signature format: [:type_symbol, identifier, params]
+        #
+        # Node types with nested content (from Prism) that we may encounter:
+        # - BeginNode: statements, rescue_clause, else_clause, ensure_clause
+        # - BlockNode: body (handled via parent CallNode)
+        # - CallNode: block
+        # - CaseMatchNode: else_clause, conditions, consequent
+        # - CaseNode: else_clause, conditions, consequent
+        # - ClassNode: body
+        # - DefNode: body
+        # - ElseNode: statements (handled via parent)
+        # - EmbeddedStatementsNode: statements
+        # - EnsureNode: statements (handled via parent BeginNode)
+        # - ForNode: statements
+        # - ForwardingSuperNode: block
+        # - IfNode: statements, consequent
+        # - InNode: statements (handled via parent CaseMatchNode)
+        # - IndexAndWriteNode, IndexOperatorWriteNode, IndexOrWriteNode: block
+        # - LambdaNode: body
+        # - ModuleNode: body
+        # - ParenthesesNode: body
+        # - PostExecutionNode: statements (END { })
+        # - PreExecutionNode: statements (BEGIN { })
+        # - ProgramNode: statements (top-level)
+        # - RescueNode: statements, consequent (handled via parent BeginNode)
+        # - SingletonClassNode: body
+        # - StatementsNode: body
+        # - SuperNode: block
+        # - UnlessNode: statements, else_clause, consequent
+        # - UntilNode: statements
+        # - WhenNode: statements, conditions (handled via parent CaseNode)
+        # - WhileNode: statements
 
         case node
+        # === Method definitions ===
         when Prism::DefNode
           # Extract parameter names from ParametersNode
           params = if node.parameters
@@ -347,21 +450,148 @@ module Prism
             []
           end
           [:def, node.name, params]
+
+        # === Class/Module definitions ===
         when Prism::ClassNode
           [:class, node.constant_path.slice]
         when Prism::ModuleNode
           [:module, node.constant_path.slice]
+        when Prism::SingletonClassNode
+          # class << self or class << expr
+          expr = begin
+            node.expression.slice
+          rescue
+            "self"
+          end
+          [:singleton_class, expr]
+
+        # === Constants ===
         when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode
           [:const, node.name || node.target.slice]
+
+        # === Conditionals ===
         when Prism::IfNode, Prism::UnlessNode
           # Conditionals match by their condition expression
           condition_source = node.predicate.slice
           [node.is_a?(Prism::IfNode) ? :if : :unless, condition_source]
+
+        # === Case/Switch statements ===
+        when Prism::CaseNode
+          # case expr; when ... end - match by the expression being switched on
+          predicate = node.predicate&.slice || ""
+          [:case, predicate]
+        when Prism::CaseMatchNode
+          # case expr; in ... end (pattern matching) - match by the expression
+          predicate = node.predicate&.slice || ""
+          [:case_match, predicate]
+
+        # === Loops ===
+        when Prism::WhileNode
+          [:while, node.predicate.slice]
+        when Prism::UntilNode
+          [:until, node.predicate.slice]
+        when Prism::ForNode
+          # for i in collection - match by index and collection
+          index = node.index.slice
+          collection = node.collection.slice
+          [:for, index, collection]
+
+        # === Exception handling ===
+        when Prism::BeginNode
+          # begin/rescue/ensure blocks - unique by position within parent
+          # Since these don't have a natural identifier, use first statement
+          first_stmt = node.statements&.body&.first&.slice&.[](0, 30) || ""
+          [:begin, first_stmt]
+
+        # === Method calls ===
+        when Prism::CallNode
+          # Method calls match by name and context
+          # For assignment methods (ending in =), match by receiver + method name only
+          # For other calls, include first argument as identifier (e.g., appraise "name")
+          method_name = node.name.to_s
+          receiver = node.receiver&.slice
+
+          if method_name.end_with?("=")
+            # Assignment method: config.setting = "value"
+            # Match by receiver and method name, NOT the value being assigned
+            if node.block
+              [:call_with_block, node.name, receiver]
+            else
+              [:call, node.name, receiver]
+            end
+          else
+            # Regular method call: appraise "unlocked" do ... end
+            # Match by method name and first argument (which identifies the call)
+            first_arg = extract_first_argument_value(node)
+            if node.block
+              [:call_with_block, node.name, first_arg]
+            else
+              [:call, node.name, first_arg]
+            end
+          end
+
+        # === Super calls ===
+        when Prism::SuperNode
+          [:super, node.block ? :with_block : :no_block]
+        when Prism::ForwardingSuperNode
+          [:forwarding_super, node.block ? :with_block : :no_block]
+
+        # === Lambdas ===
+        when Prism::LambdaNode
+          # Lambdas don't have names, but we can identify by parameter signature
+          params = if node.parameters
+            node.parameters.slice
+          else
+            ""
+          end
+          [:lambda, params]
+
+        # === Special blocks ===
+        when Prism::PreExecutionNode
+          # BEGIN { } blocks
+          [:pre_execution, node.location.start_line]
+        when Prism::PostExecutionNode
+          # END { } blocks
+          [:post_execution, node.location.start_line]
+
+        # === Parenthesized expressions ===
+        when Prism::ParenthesesNode
+          # Usually transparent, but if it appears at top level, identify by content
+          first_expr = node.body&.body&.first&.slice&.[](0, 30) || ""
+          [:parens, first_expr]
+
+        # === Embedded statements (string interpolation) ===
+        when Prism::EmbeddedStatementsNode
+          [:embedded, node.statements&.slice || ""]
+
+        # === FreezeNode (our custom wrapper) ===
         when FreezeNode
           # FreezeNode has its own signature method with normalized content
           node.signature
+
         else
+          # Fallback: use class name and line number
+          # Nodes that reach here may not merge well across files
           [:other, node.class.name, node.location.start_line]
+        end
+      end
+
+      # Extract the value of the first argument from a CallNode for signature matching.
+      # Returns the unescaped string value for StringNode, or the slice for other node types.
+      #
+      # @param node [Prism::CallNode] The call node to extract argument from
+      # @return [String, nil] The first argument value, or nil if no arguments
+      def extract_first_argument_value(node)
+        return unless node.arguments&.arguments&.any?
+
+        first_arg = node.arguments.arguments.first
+        case first_arg
+        when Prism::StringNode
+          first_arg.unescaped
+        when Prism::SymbolNode
+          first_arg.unescaped.to_sym
+        else
+          first_arg.slice
         end
       end
     end

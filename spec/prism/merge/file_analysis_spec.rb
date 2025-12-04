@@ -397,4 +397,296 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(analysis.freeze_block_at(1)).to be_nil
     end
   end
+
+  describe "#compute_node_signature" do
+    # Test node signature generation for various node types
+    # These tests cover lines 461-562 in file_analysis.rb
+
+    it "generates signature for SingletonClassNode" do
+      code = <<~RUBY
+        class << self
+          def foo; end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:singleton_class, "self"])
+    end
+
+    it "generates signature for CaseNode" do
+      code = <<~RUBY
+        case x
+        when 1 then :one
+        when 2 then :two
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:case, "x"])
+    end
+
+    it "generates signature for CaseMatchNode (pattern matching)" do
+      code = <<~RUBY
+        case x
+        in Integer then :int
+        in String then :str
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:case_match, "x"])
+    end
+
+    it "generates signature for WhileNode" do
+      code = <<~RUBY
+        while condition
+          do_something
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:while, "condition"])
+    end
+
+    it "generates signature for UntilNode" do
+      code = <<~RUBY
+        until done
+          work
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:until, "done"])
+    end
+
+    it "generates signature for ForNode" do
+      code = <<~RUBY
+        for i in collection
+          process(i)
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:for, "i", "collection"])
+    end
+
+    it "generates signature for BeginNode" do
+      code = <<~RUBY
+        begin
+          risky_operation
+        rescue => e
+          handle(e)
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig.first).to eq(:begin)
+      expect(sig.last).to include("risky_operation")
+    end
+
+    it "generates signature for SuperNode with block" do
+      code = <<~RUBY
+        class Child < Parent
+          def method
+            super(arg) { |x| x }
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      class_node = analysis.statements.first
+      method_node = class_node.body.body.first
+      super_node = method_node.body.body.first
+
+      sig = analysis.send(:compute_node_signature, super_node)
+      expect(sig).to eq([:super, :with_block])
+    end
+
+    it "generates signature for ForwardingSuperNode with block" do
+      code = <<~RUBY
+        class Child < Parent
+          def method
+            super { |x| x }
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      class_node = analysis.statements.first
+      method_node = class_node.body.body.first
+      super_node = method_node.body.body.first
+
+      sig = analysis.send(:compute_node_signature, super_node)
+      expect(sig).to eq([:forwarding_super, :with_block])
+    end
+
+    it "generates signature for SuperNode without block" do
+      code = <<~RUBY
+        class Child < Parent
+          def method
+            super(arg)
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      class_node = analysis.statements.first
+      method_node = class_node.body.body.first
+      super_node = method_node.body.body.first
+
+      sig = analysis.send(:compute_node_signature, super_node)
+      expect(sig).to eq([:super, :no_block])
+    end
+
+    it "generates signature for ForwardingSuperNode" do
+      code = <<~RUBY
+        class Child < Parent
+          def method(...)
+            super
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      class_node = analysis.statements.first
+      method_node = class_node.body.body.first
+      super_node = method_node.body.body.first
+
+      sig = analysis.send(:compute_node_signature, super_node)
+      expect(sig).to eq([:forwarding_super, :no_block])
+    end
+
+    it "generates signature for LambdaNode with parameters" do
+      code = <<~RUBY
+        my_lambda = ->(x, y) { x + y }
+      RUBY
+
+      analysis = described_class.new(code)
+      # The lambda is inside the assignment
+      assign_node = analysis.statements.first
+      lambda_node = assign_node.value
+
+      sig = analysis.send(:compute_node_signature, lambda_node)
+      expect(sig.first).to eq(:lambda)
+      expect(sig.last).to include("x")
+    end
+
+    it "generates signature for LambdaNode without parameters" do
+      code = <<~RUBY
+        my_lambda = -> { 42 }
+      RUBY
+
+      analysis = described_class.new(code)
+      assign_node = analysis.statements.first
+      lambda_node = assign_node.value
+
+      sig = analysis.send(:compute_node_signature, lambda_node)
+      expect(sig).to eq([:lambda, ""])
+    end
+
+    it "generates signature for PreExecutionNode (BEGIN block)" do
+      code = <<~RUBY
+        BEGIN { puts "startup" }
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig.first).to eq(:pre_execution)
+      expect(sig.last).to eq(1) # line number
+    end
+
+    it "generates signature for PostExecutionNode (END block)" do
+      code = <<~RUBY
+        END { puts "cleanup" }
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig.first).to eq(:post_execution)
+      expect(sig.last).to eq(1) # line number
+    end
+
+    it "generates signature for ParenthesesNode" do
+      code = <<~RUBY
+        (complex_expression + other)
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig.first).to eq(:parens)
+    end
+
+    it "generates fallback signature for unknown node types" do
+      # Use a node type that doesn't have explicit handling
+      code = <<~RUBY
+        alias new_name old_name
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig.first).to eq(:other)
+    end
+
+    it "extracts symbol arguments from CallNode" do
+      code = <<~RUBY
+        method_call(:symbol_arg)
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:call, :method_call, :symbol_arg])
+    end
+  end
+
+  describe "#attach_comments_safely!" do
+    # This tests line 149-154 (JRuby compatibility path)
+    # We can't easily test the JRuby path on MRI, but we can verify the normal path works
+
+    it "attaches comments successfully on standard Ruby" do
+      code = <<~RUBY
+        # Comment
+        def foo; end
+      RUBY
+
+      # Should not raise
+      analysis = described_class.new(code)
+      expect(analysis.valid?).to be true
+    end
+  end
+
+  describe "#extract_and_integrate_all_nodes" do
+    # Tests lines 163-169 for edge cases
+
+    it "handles nil body from parse result" do
+      # Empty file
+      analysis = described_class.new("")
+      expect(analysis.statements).to eq([])
+    end
+
+    it "handles single statement (non-StatementsNode body)" do
+      # A file with just an expression
+      code = "42"
+      analysis = described_class.new(code)
+      expect(analysis.statements).not_to be_empty
+    end
+  end
 end

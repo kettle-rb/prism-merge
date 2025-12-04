@@ -81,6 +81,64 @@ end
 class DestinationParseError &lt; ParseError
 end
 
+# Wrapper to represent freeze blocks as first-class nodes.
+# Freeze blocks can be placed inside:
+# - ClassNode, ModuleNode, SingletonClassNode (class/module definitions)
+# - DefNode (method definitions)
+# - LambdaNode (lambda/proc definitions)
+# - CallNode with blocks (e.g., RSpec describe/context blocks)
+class FreezeNode
+  class InvalidStructureError &lt; StandardError
+    attr_reader start_line: Integer?
+    attr_reader end_line: Integer?
+    attr_reader unclosed_nodes: Array[untyped]
+
+    def initialize: (String message, ?start_line: Integer?, ?end_line: Integer?, ?unclosed_nodes: Array[untyped]) -&gt; void
+  end
+
+  class Location
+    attr_reader start_line: Integer
+    attr_reader end_line: Integer
+
+    def initialize: (Integer start_line, Integer end_line) -&gt; void
+  end
+
+  attr_reader start_line: Integer
+  attr_reader end_line: Integer
+  attr_reader content: String
+  attr_reader nodes: Array[untyped]
+  attr_reader start_marker: String?
+  attr_reader end_marker: String?
+
+  def initialize: (
+    start_line: Integer,
+    end_line: Integer,
+    analysis: FileAnalysis,
+    ?nodes: Array[untyped],
+    ?overlapping_nodes: Array[untyped]?,
+    ?start_marker: String?,
+    ?end_marker: String?
+  ) -&gt; void
+
+  def location: () -&gt; Location
+
+  def signature: () -&gt; Array[Symbol | Integer]
+
+  def line_range: () -&gt; Range[Integer]
+
+  def contains_line?: (Integer line_num) -&gt; bool
+
+  def overlaps?: (untyped other) -&gt; bool
+
+  def to_s: () -&gt; String
+
+  def inspect: () -&gt; String
+
+  private
+
+  def validate_structure!: () -&gt; void
+end
+
 class FileAnalysis
   FREEZE_START: Regexp
   FREEZE_END: Regexp
@@ -151,6 +209,33 @@ class FileAnalysis
   def build_comment_map: () -&gt; Hash[Integer, Array[untyped]]
 
   def default_signature: (untyped node) -&gt; Array[untyped]
+
+  # Compute structural signature for node matching
+  # Returns signature arrays like:
+  #   [:def, Symbol, Array[Symbol]]           - method definitions
+  #   [:class, String]                        - class definitions
+  #   [:module, String]                       - module definitions
+  #   [:singleton_class, String]              - singleton class definitions
+  #   [:const, Symbol | String]               - constant assignments
+  #   [:if, String] | [:unless, String]       - conditionals
+  #   [:case, String] | [:case_match, String] - case statements
+  #   [:while, String] | [:until, String]     - while/until loops
+  #   [:for, String, String]                  - for loops
+  #   [:begin, String]                        - begin blocks
+  #   [:call, Symbol, String?]                - method calls
+  #   [:call_with_block, Symbol, String?]     - method calls with blocks
+  #   [:super, Symbol]                        - super calls
+  #   [:forwarding_super, Symbol]             - forwarding super calls
+  #   [:lambda, String]                       - lambda expressions
+  #   [:pre_execution, Integer]               - BEGIN blocks
+  #   [:post_execution, Integer]              - END blocks
+  #   [:parens, String]                       - parenthesized expressions
+  #   [:embedded, String]                     - embedded statements
+  #   [:other, String, Integer]               - fallback for unknown nodes
+  def compute_node_signature: (untyped node) -&gt; Array[untyped]
+
+  # Extract first argument value from a CallNode
+  def extract_first_argument_value: (untyped node) -&gt; (String | Symbol | nil)
 end
 
 class FileAligner
@@ -319,12 +404,31 @@ class SmartMerger
   def add_exact_match_from_template: (FileAligner::Anchor anchor) -&gt; void
 
   def process_boundary: (FileAligner::Boundary boundary) -&gt; void
+
+  # Find a node that overlaps with a line range
+  def find_node_in_range: (FileAnalysis analysis, Integer start_line, Integer end_line) -&gt; untyped?
+
+  # Find a node at a specific line (deprecated)
+  def find_node_at_line: (FileAnalysis analysis, Integer line_num) -&gt; untyped?
+
+  # Determine if two matching nodes should be recursively merged
+  # Returns true for ClassNode, ModuleNode, SingletonClassNode, CallNode with blocks, BeginNode
+  def should_merge_recursively?: (untyped? template_node, untyped? dest_node) -&gt; bool
+
+  # Check if a node&#39;s body contains freeze block markers
+  def node_contains_freeze_blocks?: (untyped node) -&gt; bool
+
+  # Recursively merge the body of matching class, module, or call-with-block nodes
+  def merge_node_body_recursively: (untyped template_node, untyped dest_node, FileAligner::Anchor anchor) -&gt; void
+
+  # Extract the body content of a node (without declaration and closing &#39;end&#39;)
+  def extract_node_body: (untyped node, FileAnalysis analysis) -&gt; String
 end   end end
 </code></pre>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 05:33:05 2025 by
+  Generated on Thu Dec  4 15:32:42 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

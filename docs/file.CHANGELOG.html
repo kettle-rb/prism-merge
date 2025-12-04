@@ -72,7 +72,53 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="added">Added</h3>
 
+<ul>
+  <li>Documented comparison of this tool, git-merge, and IDE “Smart Merge” in README.md</li>
+  <li>Comprehensive node signature support for all Prism node types with nested content:
+    <ul>
+      <li>
+<code>SingletonClassNode</code> - singleton class definitions (<code>class &lt;&lt; self</code>)</li>
+      <li>
+<code>CaseNode</code> / <code>CaseMatchNode</code> - case statements and pattern matching</li>
+      <li>
+<code>WhileNode</code> / <code>UntilNode</code> / <code>ForNode</code> - loop constructs</li>
+      <li>
+<code>BeginNode</code> - exception handling blocks</li>
+      <li>
+<code>SuperNode</code> / <code>ForwardingSuperNode</code> - super calls with blocks</li>
+      <li>
+<code>LambdaNode</code> - lambda expressions</li>
+      <li>
+<code>PreExecutionNode</code> / <code>PostExecutionNode</code> - BEGIN/END blocks</li>
+      <li>
+<code>ParenthesesNode</code> / <code>EmbeddedStatementsNode</code> - parenthesized expressions</li>
+    </ul>
+  </li>
+  <li>Smart signature matching for assignment method calls (<code>config.setting = value</code>) now matches by receiver and method name, not by value, enabling proper merging of configuration blocks</li>
+</ul>
+
 <h3 id="changed">Changed</h3>
+
+<ul>
+  <li>Improved boundary ordering in merge timeline - destination-only content appearing after all template content now correctly appears at the end of merged output (was incorrectly appearing at the beginning)</li>
+  <li>Extended recursive merge support to handle <code>SingletonClassNode</code> and <code>BeginNode</code> in addition to existing <code>ClassNode</code>, <code>ModuleNode</code>, and <code>CallNode</code> types</li>
+  <li>
+<strong>Freeze block validation expanded</strong> - freeze blocks can now be placed inside more container node types:
+    <ul>
+      <li>
+<code>SingletonClassNode</code> (<code>class &lt;&lt; self ... end</code>)</li>
+      <li>
+<code>DefNode</code> (method definitions)</li>
+      <li>
+<code>LambdaNode</code> (lambda/proc definitions)</li>
+      <li>
+<code>CallNode</code> with blocks (e.g., RSpec <code>describe</code>/<code>context</code> blocks)</li>
+      <li>This allows protecting portions of method implementations or DSL block contents</li>
+    </ul>
+  </li>
+  <li>Added README documentation comparing Prism::Merge algorithm to git merge and IDE smart merge strategies</li>
+  <li>Added RBS type definitions for <code>FreezeNode</code> class</li>
+</ul>
 
 <h3 id="deprecated">Deprecated</h3>
 
@@ -220,7 +266,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 05:33:05 2025 by
+  Generated on Thu Dec  4 15:32:42 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

@@ -517,17 +517,137 @@ merger = Prism::Merge::SmartMerger.new(
 
 <h3 id="custom-signature-generator">Custom Signature Generator</h3>
 
-<p>By default, Prism::Merge uses intelligent structural signatures to match nodes:</p>
+<p>By default, Prism::Merge uses intelligent structural signatures to match nodes. The signature determines how nodes are matched between template and destination files.</p>
+
+<h4 id="default-signature-matching">Default Signature Matching</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Node Type</th>
+      <th>Signature Format</th>
+      <th>Matching Behavior</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>DefNode</code></td>
+      <td><code>[:def, name, params]</code></td>
+      <td>Methods match by name and parameter names</td>
+    </tr>
+    <tr>
+      <td><code>ClassNode</code></td>
+      <td><code>[:class, name]</code></td>
+      <td>Classes match by name</td>
+    </tr>
+    <tr>
+      <td><code>ModuleNode</code></td>
+      <td><code>[:module, name]</code></td>
+      <td>Modules match by name</td>
+    </tr>
+    <tr>
+      <td><code>SingletonClassNode</code></td>
+      <td><code>[:singleton_class, expr]</code></td>
+      <td>Singleton classes match by expression (<code>class &lt;&lt; self</code>)</td>
+    </tr>
+    <tr>
+      <td><code>ConstantWriteNode</code></td>
+      <td><code>[:const, name]</code></td>
+      <td>Constants match by name only (not value)</td>
+    </tr>
+    <tr>
+      <td>
+<code>IfNode</code> / <code>UnlessNode</code>
+</td>
+      <td><code>[:if, condition]</code></td>
+      <td>Conditionals match by condition expression</td>
+    </tr>
+    <tr>
+      <td><code>CaseNode</code></td>
+      <td><code>[:case, predicate]</code></td>
+      <td>Case statements match by the expression being switched</td>
+    </tr>
+    <tr>
+      <td><code>CaseMatchNode</code></td>
+      <td><code>[:case_match, predicate]</code></td>
+      <td>Pattern matching cases match by expression</td>
+    </tr>
+    <tr>
+      <td>
+<code>WhileNode</code> / <code>UntilNode</code>
+</td>
+      <td><code>[:while, condition]</code></td>
+      <td>Loops match by condition</td>
+    </tr>
+    <tr>
+      <td><code>ForNode</code></td>
+      <td><code>[:for, index, collection]</code></td>
+      <td>For loops match by index variable and collection</td>
+    </tr>
+    <tr>
+      <td><code>BeginNode</code></td>
+      <td><code>[:begin, first_stmt]</code></td>
+      <td>Begin blocks match by first statement (partial)</td>
+    </tr>
+    <tr>
+      <td>
+<code>CallNode</code> (regular)</td>
+      <td><code>[:call, name, first_arg]</code></td>
+      <td>Method calls match by name and first argument</td>
+    </tr>
+    <tr>
+      <td>
+<code>CallNode</code> (assignment)</td>
+      <td><code>[:call, :method=, receiver]</code></td>
+      <td>Assignment calls (<code>x.y = z</code>) match by receiver, not value</td>
+    </tr>
+    <tr>
+      <td>
+<code>CallNode</code> (with block)</td>
+      <td><code>[:call_with_block, name, first_arg]</code></td>
+      <td>Block calls match by name and first argument</td>
+    </tr>
+    <tr>
+      <td><code>SuperNode</code></td>
+      <td><code>[:super, :with_block]</code></td>
+      <td>Super calls match by presence of block</td>
+    </tr>
+    <tr>
+      <td><code>LambdaNode</code></td>
+      <td><code>[:lambda, params]</code></td>
+      <td>Lambdas match by parameter signature</td>
+    </tr>
+    <tr>
+      <td><code>PreExecutionNode</code></td>
+      <td><code>[:pre_execution, line]</code></td>
+      <td>BEGIN blocks match by line number</td>
+    </tr>
+    <tr>
+      <td><code>PostExecutionNode</code></td>
+      <td><code>[:post_execution, line]</code></td>
+      <td>END blocks match by line number</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="recursive-merge-support">Recursive Merge Support</h4>
+
+<p>The following node types support <strong>recursive body merging</strong>, where nested content is intelligently combined:</p>
+
 <ul>
   <li>
-<strong>Conditionals</strong> (<code>if</code>/<code>unless</code>) are matched by their condition only</li>
+<code>ClassNode</code> - class bodies are recursively merged</li>
   <li>
-<strong>Assignments</strong> (constants, variables) are matched by their name only</li>
+<code>ModuleNode</code> - module bodies are recursively merged</li>
   <li>
-<strong>Method calls</strong> are matched by name and arguments (not block body)</li>
+<code>SingletonClassNode</code> - singleton class bodies are recursively merged</li>
   <li>
-<strong>Other nodes</strong> are matched by class and full source code</li>
+<code>CallNode</code> with block - block bodies are recursively merged (e.g., <code>configure do ... end</code>)</li>
+  <li>
+<code>BeginNode</code> - begin/rescue/ensure blocks are recursively merged</li>
 </ul>
+
+<h4 id="custom-signature-generator-1">Custom Signature Generator</h4>
 
 <p>You can provide a custom signature generator to control matching behavior:</p>
 
@@ -576,11 +696,21 @@ gem &quot;custom-gem&quot;, path: &quot;../custom&quot;
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  freeze_token: &quot;kettle-dev&quot;  # Now uses # kettle-dev:freeze / # kettle-dev:unfreeze
+  freeze_token: &quot;kettle-dev&quot;,  # Now uses # kettle-dev:freeze / # kettle-dev:unfreeze
 )
 </code></pre>
 
-<p>Freeze blocks are <strong>always preserved</strong> from the destination file during merge, regardless of template content. They must be at class/module body level - freeze blocks inside methods are not allowed.</p>
+<p>Freeze blocks are <strong>always preserved</strong> from the destination file during merge, regardless of template content. They can be placed inside:</p>
+
+<ul>
+  <li>Class and module bodies (<code>class Foo ... end</code>, <code>module Bar ... end</code>)</li>
+  <li>Singleton class bodies (<code>class &lt;&lt; self ... end</code>)</li>
+  <li>Method definitions (<code>def method_name ... end</code>)</li>
+  <li>Lambda/proc bodies (<code>-&gt; { ... }</code>)</li>
+  <li>Block-based DSLs (e.g., RSpec <code>describe</code>/<code>context</code> blocks)</li>
+</ul>
+
+<p>This allows you to protect entire methods, portions of method implementations, or sections within DSL blocks.</p>
 
 <h3 id="integration-with-existing-systems">Integration with Existing Systems</h3>
 
@@ -653,6 +783,137 @@ end
 # - greet method matches, template version kept
 # - custom_method is preserved (destination-only)
 </code></pre>
+
+<h3 id="how-prismmerge-compares-to-other-merge-strategies">How Prism::Merge Compares to Other Merge Strategies</h3>
+
+<p>Prism::Merge uses a <strong>single-pass, AST-aware</strong> algorithm that differs fundamentally from line-based merge tools like <code>git merge</code> and IDE smart merges:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Aspect</th>
+      <th>Git Merge (3-way)</th>
+      <th>IDE Smart Merge</th>
+      <th>Prism::Merge</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Input</strong></td>
+      <td>3 files (base, ours, theirs)</td>
+      <td>2-3 files</td>
+      <td>2 files (template, destination)</td>
+    </tr>
+    <tr>
+      <td><strong>Unit of comparison</strong></td>
+      <td>Lines of text</td>
+      <td>Lines + some syntax awareness</td>
+      <td>AST nodes (Ruby structures)</td>
+    </tr>
+    <tr>
+      <td><strong>Passes</strong></td>
+      <td>Multi-pass (LCS algorithm)</td>
+      <td>Multi-pass</td>
+      <td>Single-pass with anchors</td>
+    </tr>
+    <tr>
+      <td><strong>Conflict handling</strong></td>
+      <td>Manual resolution with markers (<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>)</td>
+      <td>Interactive resolution</td>
+      <td>Automatic via signature matching</td>
+    </tr>
+    <tr>
+      <td><strong>Language awareness</strong></td>
+      <td>None (text-only)</td>
+      <td>Basic (indentation, brackets)</td>
+      <td>Full Ruby AST understanding</td>
+    </tr>
+    <tr>
+      <td><strong>Comment handling</strong></td>
+      <td>Treated as text</td>
+      <td>Treated as text</td>
+      <td>Attached to relevant nodes</td>
+    </tr>
+    <tr>
+      <td><strong>Structural matching</strong></td>
+      <td>Line equality only</td>
+      <td>Line + heuristics</td>
+      <td>Node signatures (type + identifier)</td>
+    </tr>
+    <tr>
+      <td><strong>Recursive merge</strong></td>
+      <td>No</td>
+      <td>Sometimes</td>
+      <td>Yes (class/module bodies)</td>
+    </tr>
+    <tr>
+      <td><strong>Freeze blocks</strong></td>
+      <td>No</td>
+      <td>No</td>
+      <td>Yes (preserve destination sections)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="key-differences-explained">Key Differences Explained</h4>
+
+<p><strong>Git Merge (3-way merge):</strong></p>
+<ul>
+  <li>Requires a common ancestor (base) to detect changes from each side</li>
+  <li>Uses Longest Common Subsequence (LCS) algorithm in multiple passes</li>
+  <li>Produces conflict markers when both sides modify the same lines</li>
+  <li>Language-agnostic: treats Ruby, Python, and prose identically</li>
+</ul>
+
+<p><strong>IDE Smart Merge:</strong></p>
+<ul>
+  <li>Often uses 3-way merge as foundation</li>
+  <li>Adds heuristics for common patterns (moved blocks, reformatting)</li>
+  <li>May understand basic syntax for better conflict detection</li>
+  <li>Still fundamentally line-based with enhancements</li>
+</ul>
+
+<p><strong>Prism::Merge:</strong></p>
+<ul>
+  <li>Uses 2 files: template (source of truth) and destination (customized version)</li>
+  <li>Single-pass algorithm that builds a timeline of anchors (matches) and boundaries (differences)</li>
+  <li>Matches by <strong>structural signature</strong> (e.g., <code>[:def, :method_name]</code>), not line content</li>
+  <li>Automatically resolves conflicts based on configurable preference</li>
+  <li>Never produces conflict markers - always produces valid, runnable Ruby</li>
+</ul>
+
+<h4 id="when-to-use-each">When to Use Each</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Scenario</th>
+      <th>Best Tool</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Merging git branches with divergent changes</td>
+      <td>Git Merge</td>
+    </tr>
+    <tr>
+      <td>Resolving complex conflicts interactively</td>
+      <td>IDE Smart Merge</td>
+    </tr>
+    <tr>
+      <td>Updating project files from a template</td>
+      <td><strong>Prism::Merge</strong></td>
+    </tr>
+    <tr>
+      <td>Maintaining customizations across template updates</td>
+      <td><strong>Prism::Merge</strong></td>
+    </tr>
+    <tr>
+      <td>Merging non-Ruby files</td>
+      <td>Git Merge / IDE</td>
+    </tr>
+  </tbody>
+</table>
 
 <h3 id="with-debug-information">With Debug Information</h3>
 
@@ -741,9 +1002,9 @@ result = merger.merge
 
 # Or use a custom freeze token if your project uses a different convention
 merger = Prism::Merge::SmartMerger.new(
-  template, 
+  template,
   destination,
-  freeze_token: &quot;kettle-dev&quot;  # for kettle-dev projects
+  freeze_token: &quot;kettle-dev&quot;,  # for kettle-dev projects
 )
 result = merger.merge
 
@@ -848,7 +1109,7 @@ RSpec.describe(&quot;Ruby file merging&quot;) do
     # Freeze block content preserved
     expect(result).to(include(&#39;CONFIG = { key: &quot;secret&quot; }&#39;))
   end
-  
+
   it &quot;works with custom freeze tokens&quot; do
     template = &lt;&lt;~RUBY
       CONFIG = {}
@@ -861,9 +1122,9 @@ RSpec.describe(&quot;Ruby file merging&quot;) do
     RUBY
 
     merger = Prism::Merge::SmartMerger.new(
-      template, 
+      template,
       destination,
-      freeze_token: &quot;my-app&quot;  # Match your project&#39;s freeze token
+      freeze_token: &quot;my-app&quot;,  # Match your project&#39;s freeze token
     )
     result = merger.merge
 
@@ -1073,7 +1334,7 @@ Please consider sponsoring me or the project.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 05:33:05 2025 by
+  Generated on Thu Dec  4 15:32:42 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

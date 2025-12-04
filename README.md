@@ -300,11 +300,42 @@ merger = Prism::Merge::SmartMerger.new(
 
 ### Custom Signature Generator
 
-By default, Prism::Merge uses intelligent structural signatures to match nodes:
-- **Conditionals** (`if`/`unless`) are matched by their condition only
-- **Assignments** (constants, variables) are matched by their name only
-- **Method calls** are matched by name and arguments (not block body)
-- **Other nodes** are matched by class and full source code
+By default, Prism::Merge uses intelligent structural signatures to match nodes. The signature determines how nodes are matched between template and destination files.
+
+#### Default Signature Matching
+
+| Node Type | Signature Format | Matching Behavior |
+|-----------|-----------------|-------------------|
+| `DefNode` | `[:def, name, params]` | Methods match by name and parameter names |
+| `ClassNode` | `[:class, name]` | Classes match by name |
+| `ModuleNode` | `[:module, name]` | Modules match by name |
+| `SingletonClassNode` | `[:singleton_class, expr]` | Singleton classes match by expression (`class << self`) |
+| `ConstantWriteNode` | `[:const, name]` | Constants match by name only (not value) |
+| `IfNode` / `UnlessNode` | `[:if, condition]` | Conditionals match by condition expression |
+| `CaseNode` | `[:case, predicate]` | Case statements match by the expression being switched |
+| `CaseMatchNode` | `[:case_match, predicate]` | Pattern matching cases match by expression |
+| `WhileNode` / `UntilNode` | `[:while, condition]` | Loops match by condition |
+| `ForNode` | `[:for, index, collection]` | For loops match by index variable and collection |
+| `BeginNode` | `[:begin, first_stmt]` | Begin blocks match by first statement (partial) |
+| `CallNode` (regular) | `[:call, name, first_arg]` | Method calls match by name and first argument |
+| `CallNode` (assignment) | `[:call, :method=, receiver]` | Assignment calls (`x.y = z`) match by receiver, not value |
+| `CallNode` (with block) | `[:call_with_block, name, first_arg]` | Block calls match by name and first argument |
+| `SuperNode` | `[:super, :with_block]` | Super calls match by presence of block |
+| `LambdaNode` | `[:lambda, params]` | Lambdas match by parameter signature |
+| `PreExecutionNode` | `[:pre_execution, line]` | BEGIN blocks match by line number |
+| `PostExecutionNode` | `[:post_execution, line]` | END blocks match by line number |
+
+#### Recursive Merge Support
+
+The following node types support **recursive body merging**, where nested content is intelligently combined:
+
+- `ClassNode` - class bodies are recursively merged
+- `ModuleNode` - module bodies are recursively merged
+- `SingletonClassNode` - singleton class bodies are recursively merged
+- `CallNode` with block - block bodies are recursively merged (e.g., `configure do ... end`)
+- `BeginNode` - begin/rescue/ensure blocks are recursively merged
+
+#### Custom Signature Generator
 
 You can provide a custom signature generator to control matching behavior:
 
@@ -360,7 +391,15 @@ merger = Prism::Merge::SmartMerger.new(
 )
 ```
 
-Freeze blocks are **always preserved** from the destination file during merge, regardless of template content. They must be at class/module body level - freeze blocks inside methods are not allowed.
+Freeze blocks are **always preserved** from the destination file during merge, regardless of template content. They can be placed inside:
+
+- Class and module bodies (`class Foo ... end`, `module Bar ... end`)
+- Singleton class bodies (`class << self ... end`)
+- Method definitions (`def method_name ... end`)
+- Lambda/proc bodies (`-> { ... }`)
+- Block-based DSLs (e.g., RSpec `describe`/`context` blocks)
+
+This allows you to protect entire methods, portions of method implementations, or sections within DSL blocks.
 
 ### Integration with Existing Systems
 
@@ -430,6 +469,53 @@ end
 # - greet method matches, template version kept
 # - custom_method is preserved (destination-only)
 ```
+
+### How Prism::Merge Compares to Other Merge Strategies
+
+Prism::Merge uses a **single-pass, AST-aware** algorithm that differs fundamentally from line-based merge tools like `git merge` and IDE smart merges:
+
+| Aspect | Git Merge (3-way) | IDE Smart Merge | Prism::Merge |
+|--------|-------------------|-----------------|--------------|
+| **Input** | 3 files (base, ours, theirs) | 2-3 files | 2 files (template, destination) |
+| **Unit of comparison** | Lines of text | Lines + some syntax awareness | AST nodes (Ruby structures) |
+| **Passes** | Multi-pass (LCS algorithm) | Multi-pass | Single-pass with anchors |
+| **Conflict handling** | Manual resolution with markers (`<<<<<<<`) | Interactive resolution | Automatic via signature matching |
+| **Language awareness** | None (text-only) | Basic (indentation, brackets) | Full Ruby AST understanding |
+| **Comment handling** | Treated as text | Treated as text | Attached to relevant nodes |
+| **Structural matching** | Line equality only | Line + heuristics | Node signatures (type + identifier) |
+| **Recursive merge** | No | Sometimes | Yes (class/module bodies) |
+| **Freeze blocks** | No | No | Yes (preserve destination sections) |
+
+#### Key Differences Explained
+
+**Git Merge (3-way merge):**
+- Requires a common ancestor (base) to detect changes from each side
+- Uses Longest Common Subsequence (LCS) algorithm in multiple passes
+- Produces conflict markers when both sides modify the same lines
+- Language-agnostic: treats Ruby, Python, and prose identically
+
+**IDE Smart Merge:**
+- Often uses 3-way merge as foundation
+- Adds heuristics for common patterns (moved blocks, reformatting)
+- May understand basic syntax for better conflict detection
+- Still fundamentally line-based with enhancements
+
+**Prism::Merge:**
+- Uses 2 files: template (source of truth) and destination (customized version)
+- Single-pass algorithm that builds a timeline of anchors (matches) and boundaries (differences)
+- Matches by **structural signature** (e.g., `[:def, :method_name]`), not line content
+- Automatically resolves conflicts based on configurable preference
+- Never produces conflict markers - always produces valid, runnable Ruby
+
+#### When to Use Each
+
+| Scenario | Best Tool |
+|----------|-----------|
+| Merging git branches with divergent changes | Git Merge |
+| Resolving complex conflicts interactively | IDE Smart Merge |
+| Updating project files from a template | **Prism::Merge** |
+| Maintaining customizations across template updates | **Prism::Merge** |
+| Merging non-Ruby files | Git Merge / IDE |
 
 ### With Debug Information
 
