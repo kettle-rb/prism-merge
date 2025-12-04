@@ -129,8 +129,8 @@ RSpec.describe "Trailing Blank Line Handling" do
 
       expect(result).to include("method_a")
       expect(result).to include("method_b")
-      # Comment is present in the result
-      expect(result).to include("Comment about method_b")
+      # With destination preference, destination's comment should be used
+      expect(result).to include("Different comment about method_b")
     end
   end
 

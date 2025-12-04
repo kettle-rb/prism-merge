@@ -453,7 +453,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       let(:dest_content) { File.read(dest_path) }
 
       it "always preserves destination freeze block content" do
-        merger = described_class.new(template_content, dest_content)
+        merger = described_class.new(template_content, dest_content, freeze_token: "kettle-dev")
         result = merger.merge
 
         # Freeze block from destination should be preserved
@@ -470,6 +470,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           template_content,
           dest_content,
           signature_match_preference: :template,
+          freeze_token: "kettle-dev",
         )
         result = merger.merge
 
@@ -896,10 +897,11 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
       end
 
-      it "includes standalone comments from template" do
+      it "includes standalone comments from template when using template preference" do
         merger = described_class.new(
           template_code,
           dest_code,
+          signature_match_preference: :template,  # Use template version to get its comments
         )
 
         result = merger.merge
@@ -1138,6 +1140,153 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect do
           described_class.new(valid_template, invalid_dest).merge
         end.to raise_error(Prism::Merge::DestinationParseError)
+      end
+    end
+
+    context "with frozen_string_literal comments" do
+      it "removes duplicated" do
+        # When running kettle-dev-setup --allowed=true --force
+        # it uses --force to set allow_replace: true
+        # This means it uses :replace strategy
+
+        # Starting state: file with 4 frozen_string_literal comments, and 2 duplicate chunks of comments
+        starting_dest = <<~GEMFILE
+          # frozen_string_literal: true
+          # frozen_string_literal: true
+          # frozen_string_literal: true
+          # frozen_string_literal: true
+
+          # We run code coverage on the latest version of Ruby only.
+
+          # Coverage
+          # See gemspec
+          # To retain during kettle-dev templating:
+          #     kettle-dev:freeze
+          #     # ... your code
+          #     kettle-dev:unfreeze
+
+          # We run code coverage on the latest version of Ruby only.
+
+          # Coverage
+          # To retain during kettle-dev templating:
+          #     kettle-dev:freeze
+          #     # ... your code
+          #     kettle-dev:unfreeze
+        GEMFILE
+
+        # Template source is simple
+        template = <<~GEMFILE
+          # frozen_string_literal: true
+
+          # We run code coverage on the latest version of Ruby only.
+
+          # Coverage
+        GEMFILE
+
+        # First run
+        merger = described_class.new(
+          template,
+          starting_dest,
+          signature_match_preference: :template,
+        )
+
+        first_run = merger.merge
+
+        frozen_count = first_run.scan("# frozen_string_literal: true").count
+        expect(frozen_count).to eq(1), "First run should deduplicate to 1 frozen_string_literal, got #{frozen_count}\nResult:\n#{first_run}"
+
+        coverage_count = first_run.scan("# Coverage").count
+        expect(coverage_count).to eq(2), "First run should maintain 2 '# Coverage' strings, got #{coverage_count}\nResult:\n#{first_run}"
+
+        # Second run (simulating running kettle-dev-setup again)
+        merger = described_class.new(
+          template,
+          starting_dest,
+          signature_match_preference: :template,
+        )
+
+        second_run = merger.merge
+
+        frozen_count_2 = second_run.scan("# frozen_string_literal: true").count
+        expect(frozen_count_2).to eq(1), "Second run should maintain 1 frozen_string_literal, got #{frozen_count_2}\nResult:\n#{second_run}"
+
+        coverage_count_2 = second_run.scan("# Coverage").count
+        expect(coverage_count_2).to eq(2), "Second run should maintain 2 '# Coverage' strings, got #{coverage_count_2}\nResult:\n#{second_run}"
+
+        # Should be idempotent
+        expect(second_run).to eq(first_run), "Second run should not add more duplicates"
+      end
+    end
+
+    context "with duplicated non-magic comments" do
+      it "does not remove" do
+        # When running kettle-dev-setup --allowed=true --force
+        # it uses --force to set allow_replace: true
+        # This means it uses :replace strategy
+
+        # Starting state: file with 4 frozen_string_literal comments, and 2 duplicate chunks of comments
+        starting_dest = <<~GEMFILE
+          # frozen_string_literal: true
+
+          # We run code coverage on the latest version of Ruby only.
+
+          # Coverage
+          # See gemspec
+          # To retain during kettle-dev templating:
+          #     kettle-dev:freeze
+          #     # ... your code
+          #     kettle-dev:unfreeze
+
+          # We run code coverage on the latest version of Ruby only.
+
+          # Coverage
+          # To retain during kettle-dev templating:
+          #     kettle-dev:freeze
+          #     # ... your code
+          #     kettle-dev:unfreeze
+        GEMFILE
+
+        # Template source is simple
+        template = <<~GEMFILE
+          # frozen_string_literal: true
+
+          # We run code coverage on the latest version of Ruby only.
+
+          # Coverage
+        GEMFILE
+
+        # First run
+        merger = described_class.new(
+          template,
+          starting_dest,
+          signature_match_preference: :template,
+        )
+
+        first_run = merger.merge
+
+        frozen_count = first_run.scan("# frozen_string_literal: true").count
+        expect(frozen_count).to eq(1), "First run should deduplicate to 1 frozen_string_literal, got #{frozen_count}\nResult:\n#{first_run}"
+
+        coverage_count = first_run.scan("# Coverage").count
+        expect(coverage_count).to eq(2), "First run should maintain 2 '# Coverage' strings, got #{coverage_count}\nResult:\n#{first_run}"
+
+        # Second run (simulating running kettle-dev-setup again)
+        merger = described_class.new(
+          template,
+          starting_dest,
+          signature_match_preference: :template,
+        )
+
+        second_run = merger.merge
+
+        frozen_count_2 = second_run.scan("# frozen_string_literal: true").count
+        expect(frozen_count_2).to eq(1), "Second run should maintain 1 frozen_string_literal, got #{frozen_count_2}\nResult:\n#{second_run}"
+
+        coverage_count_2 = second_run.scan("# Coverage").count
+        expect(coverage_count_2).to eq(2), "Second run should maintain 2 '# Coverage' strings, got #{coverage_count_2}\nResult:\n#{second_run}"
+
+        # Should be idempotent
+        expect(second_run).to eq(first_run), "Second run should not add more duplicates"
       end
     end
   end

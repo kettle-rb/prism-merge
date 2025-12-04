@@ -72,13 +72,34 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="added">Added</h3>
 
+<ul>
+  <li>Recursive merge support for class and module bodies - nested structures are now merged intelligently</li>
+  <li>Conditional signature matching for <code>if</code>/<code>unless</code> blocks based on condition expression</li>
+  <li>Freeze block validation for partial/incomplete nodes and freeze blocks inside non-class/module contexts</li>
+  <li>Freeze blocks now match by position/order when both files have multiple freeze blocks</li>
+  <li>
+<code>add_template_only_nodes</code> option now properly respected in recursive merges and boundary processing</li>
+  <li>more specs</li>
+</ul>
+
 <h3 id="changed">Changed</h3>
 
-<h3 id="deprecated">Deprecated</h3>
-
-<h3 id="removed">Removed</h3>
+<ul>
+  <li>Migrated to Prism v1.6.0 native comment attachment (removed custom comment association logic)</li>
+  <li>Simplified FileAnalysis implementation using Prism’s built-in features</li>
+  <li>Improved node lookup to handle anchors with leading comments (e.g., magic comments)</li>
+</ul>
 
 <h3 id="fixed">Fixed</h3>
+
+<ul>
+  <li>Template-only nodes are now correctly excluded in all contexts when <code>add_template_only_nodes: false</code>
+</li>
+  <li>Freeze blocks inside methods now properly raise InvalidStructureError (only class/module-level freeze blocks allowed)</li>
+  <li>Freeze block matching now works correctly with multiple consecutive freeze blocks (matches by index/order)</li>
+  <li>Duplicate freeze blocks from template no longer appear when destination has matching freeze blocks</li>
+  <li>Magic comments at file top no longer prevent node lookup in recursive merges</li>
+</ul>
 
 <h3 id="security">Security</h3>
 
@@ -172,7 +193,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Wed Dec  3 15:20:15 2025 by
+  Generated on Thu Dec  4 04:51:31 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

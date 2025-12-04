@@ -60,6 +60,7 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 
 - **AST-Aware**: Uses Prism parser to understand Ruby structure
 - **Intelligent**: Matches nodes by structural signatures
+- **Recursive Merge**: Automatically merges class and module bodies recursively, intelligently combining nested methods and constants
 - **Comment-Preserving**: Comments are properly attached to relevant nodes and/or placement
 - **Freeze Block Support**: Respects `kettle-dev:freeze` markers for template merge control
 - **Full Provenance**: Tracks origin of every line

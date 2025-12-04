@@ -90,6 +90,10 @@ RSpec.describe Prism::Merge::FileAligner do
     end
 
     context "with freeze blocks" do
+      # Use kettle-dev as freeze token to match the markers in test data
+      let(:template_analysis) { Prism::Merge::FileAnalysis.new(template_content, freeze_token: "kettle-dev") }
+      let(:dest_analysis) { Prism::Merge::FileAnalysis.new(dest_content, freeze_token: "kettle-dev") }
+
       let(:template_content) do
         <<~RUBY
           gem "rails"
@@ -149,18 +153,25 @@ RSpec.describe Prism::Merge::FileAligner do
       it "creates boundaries for differences and anchors for matches" do
         aligner.align
 
-        # Should have anchor for magic comment
-        magic_anchor = aligner.anchors.find do |a|
-          template_analysis.line_at(a.template_start)&.include?("frozen_string_literal")
-        end
-        expect(magic_anchor).not_to be_nil
-
-        # Should have anchor for VERSION (signature match, even though values differ)
+        # Should have anchor for VERSION (with magic comment as leading comment)
+        # Magic comments are attached to the first statement by Prism
         version_anchor = aligner.anchors.find do |a|
-          template_analysis.line_at(a.template_start)&.include?("VERSION")
+          # Check if any line in the anchor range contains VERSION
+          (a.template_start..a.template_end).any? do |line_num|
+            template_analysis.line_at(line_num)&.include?("VERSION")
+          end
         end
         expect(version_anchor).not_to be_nil
         expect(version_anchor.match_type).to eq(:signature_match)
+        # The anchor should include the magic comment (line 1) and VERSION (line 3)
+        expect(version_anchor.template_start).to eq(1) # magic comment attached as leading comment
+        expect(version_anchor.template_end).to eq(3)   # VERSION constant
+
+        # Should have anchor for hello method
+        hello_anchor = aligner.anchors.find do |a|
+          template_analysis.line_at(a.template_start)&.include?("def hello")
+        end
+        expect(hello_anchor).not_to be_nil
       end
     end
   end

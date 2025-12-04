@@ -90,11 +90,11 @@ RSpec.describe "Template Preference Signature Matching" do
       )
       result = merger.merge
 
-      # NOTE: Current DefNode signature includes method body, so these don't match
-      # even though they have identical method signatures (name + parameters).
-      # Without a match, destination version is kept (default behavior).
+      # With FileAnalysis, DefNode signatures are based on name + parameters only,
+      # not the body. So these methods match, and template preference is respected.
       expect(result).to include("def complex_method")
-      expect(result).to include("dest implementation with custom behavior")
+      expect(result).to include("template implementation")
+      expect(result).not_to include("dest implementation with custom behavior")
     end
   end
 

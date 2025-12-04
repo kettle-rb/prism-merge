@@ -81,8 +81,8 @@ RSpec.describe Prism::Merge::FileAligner do
           # kettle-dev:unfreeze
         RUBY
 
-        template_analysis = Prism::Merge::FileAnalysis.new(template_content)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_content)
+        template_analysis = Prism::Merge::FileAnalysis.new(template_content, freeze_token: "kettle-dev")
+        dest_analysis = Prism::Merge::FileAnalysis.new(dest_content, freeze_token: "kettle-dev")
 
         aligner = described_class.new(template_analysis, dest_analysis)
         boundaries = aligner.align

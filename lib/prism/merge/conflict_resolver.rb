@@ -91,7 +91,10 @@ module Prism
         end
 
         if dest_content[:lines].empty?
-          add_content_to_result(template_content, result, :template, MergeResult::DECISION_KEPT_TEMPLATE)
+          # Only add template-only content if the flag allows it
+          if @add_template_only_nodes
+            add_content_to_result(template_content, result, :template, MergeResult::DECISION_KEPT_TEMPLATE)
+          end
           return
         end
 
@@ -143,8 +146,8 @@ module Prism
       end
 
       def merge_boundary_content(template_content, dest_content, _boundary, result)
-        # Strategy: Process template content in order, replacing matched nodes with template version
-        # and appending dest-only nodes at the end
+        # Strategy: Process nodes in order using signature matching.
+        # FreezeNodes from destination are always preferred to preserve customizations.
 
         template_nodes = template_content[:nodes]
         dest_nodes = dest_content[:nodes]
@@ -152,25 +155,34 @@ module Prism
         # Track which dest nodes have been matched
         matched_dest_indices = Set.new
 
-        # Handle freeze blocks first
-        if dest_content[:has_freeze_block]
-          line_in_freeze = dest_content[:line_range].find { |ln| @dest_analysis.in_freeze_block?(ln) }
-          if line_in_freeze
-            freeze_block = @dest_analysis.freeze_block_at(line_in_freeze)
-            freeze_content = extract_boundary_content(@dest_analysis, freeze_block[:line_range])
-            add_content_to_result(freeze_content, result, :destination, MergeResult::DECISION_FREEZE_BLOCK)
+        # Check if there are any FreezeNodes in destination - they always win
+        dest_freeze_nodes = dest_nodes.select { |n| n[:node].is_a?(FreezeNode) }
 
-            # Mark all nodes within the freeze block as matched
-            dest_nodes.each do |d_node_info|
-              if freeze_block[:line_range].cover?(d_node_info[:line_range].begin)
-                matched_dest_indices << d_node_info[:index]
+        if dest_freeze_nodes.any?
+          # Add all destination freeze blocks as-is
+          dest_freeze_nodes.each do |freeze_node_info|
+            result.add_node(
+              freeze_node_info,
+              decision: MergeResult::DECISION_FREEZE_BLOCK,
+              source: :destination,
+              source_analysis: @dest_analysis,
+            )
+            matched_dest_indices << freeze_node_info[:index]
+
+            # Mark any template nodes within this freeze block range as processed
+            freeze_range = freeze_node_info[:line_range]
+            template_nodes.each do |t_node_info|
+              if freeze_range.cover?(t_node_info[:line_range].begin) &&
+                  freeze_range.cover?(t_node_info[:line_range].end)
+                # Template node is inside freeze block, skip it
+                # (we'll handle this by checking if it overlaps with a freeze block)
               end
             end
           end
         end
 
-        # Build signature map for destination nodes
-        dest_sig_map = build_signature_map(dest_nodes)
+        # Build signature map for destination nodes (excluding already-matched freeze nodes)
+        dest_sig_map = build_signature_map(dest_nodes.reject { |n| matched_dest_indices.include?(n[:index]) })
 
         # Build a set of line numbers that are covered by leading comments of nodes
         # so we don't duplicate them when processing non-node lines
@@ -188,13 +200,24 @@ module Prism
         current_line = template_line_range.begin
         # Track if we're in a sequence of template-only nodes
         in_template_only_sequence = false
-        last_added_line = nil
 
         sorted_nodes = template_nodes.sort_by { |n| n[:line_range].begin }
 
         sorted_nodes.each_with_index do |t_node_info, idx|
           node_start = t_node_info[:line_range].begin
           node_end = t_node_info[:line_range].end
+
+          # Skip template nodes that overlap with destination freeze blocks
+          overlaps_freeze = dest_freeze_nodes.any? do |freeze_info|
+            freeze_range = freeze_info[:line_range]
+            node_start.between?(freeze_range.begin, freeze_range.end) ||
+              node_end.between?(freeze_range.begin, freeze_range.end)
+          end
+
+          if overlaps_freeze
+            current_line = node_end + 1
+            next
+          end
 
           # Check if this node will be matched or is template-only
           sig = t_node_info[:signature]
@@ -213,11 +236,9 @@ module Prism
             trailing_blank_end = line_num
           end
 
-          node_start..trailing_blank_end
-
           # Add any non-node, non-blank lines before this node (e.g., comments not attached to nodes)
-          if in_template_only_sequence && !is_matched
-            # Skip lines before template-only nodes in a sequence
+          if (in_template_only_sequence && !is_matched) || (!is_matched && !@add_template_only_nodes)
+            # Skip lines before template-only nodes in a sequence OR when add_template_only_nodes is false
             current_line = node_start
           else
             while current_line < node_start
@@ -296,7 +317,6 @@ module Prism
             end
 
             in_template_only_sequence = false
-            last_added_line = trailing_blank_end
           elsif @add_template_only_nodes
             # No match - this is a template-only node
             result.add_node(
@@ -313,7 +333,6 @@ module Prism
             end
 
             in_template_only_sequence = false
-            last_added_line = trailing_blank_end
           # Add the template-only node
           else
             # Skip template-only nodes (don't add template nodes that don't exist in destination)
@@ -422,12 +441,25 @@ module Prism
       end
 
       def handle_orphan_lines(template_content, dest_content, result)
+        # With CommentNodes integrated into statements, there should be far fewer orphan lines
+        # Orphan lines are now only truly standalone content like blank lines or
+        # inline content not attached to nodes.
+
         # Find lines that aren't part of any node (pure comments, blank lines)
         template_orphans = find_orphan_lines(@template_analysis, template_content[:line_range], template_content[:nodes])
         dest_orphans = find_orphan_lines(@dest_analysis, dest_content[:line_range], dest_content[:nodes])
 
-        # For simplicity, prefer template orphans but add unique dest orphans
-        # This could be enhanced with more sophisticated comment merging
+        # Add template orphans first
+        template_orphans.each do |line_num|
+          line = @template_analysis.line_at(line_num)
+          result.add_line(
+            line.chomp,
+            decision: MergeResult::DECISION_KEPT_TEMPLATE,
+            template_line: line_num,
+          )
+        end
+
+        # Then add unique destination orphans (ones not in template)
         template_orphan_content = Set.new(template_orphans.map { |ln| @template_analysis.normalized_line(ln) })
 
         dest_orphans.each do |line_num|

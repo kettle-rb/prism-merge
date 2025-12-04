@@ -80,6 +80,8 @@ module Prism
     #   end
     class DestinationParseError < ParseError; end
 
+    autoload :DebugLogger, "prism/merge/debug_logger"
+    autoload :FreezeNode, "prism/merge/freeze_node"
     autoload :FileAnalysis, "prism/merge/file_analysis"
     autoload :MergeResult, "prism/merge/merge_result"
     autoload :FileAligner, "prism/merge/file_aligner"
