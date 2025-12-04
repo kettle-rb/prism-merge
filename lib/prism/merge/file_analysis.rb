@@ -45,7 +45,8 @@ module Prism
         @parse_result = Prism.parse(source)
 
         # Use Prism's native comment attachment
-        @parse_result.attach_comments!
+        # On JRuby, the Comments class may not be loaded yet, so we need to require it
+        attach_comments_safely!
 
         # Extract and validate structure
         @statements = extract_and_integrate_all_nodes
@@ -138,6 +139,21 @@ module Prism
       end
 
       private
+
+      # Safely attach comments to nodes, handling JRuby compatibility issues
+      # On JRuby, the Prism::ParseResult::Comments class may not be autoloaded,
+      # so we need to explicitly require it
+      def attach_comments_safely!
+        @parse_result.attach_comments!
+      rescue NameError => e
+        if e.message.include?("Comments")
+          # On JRuby, the Comments class needs to be explicitly required
+          require "prism/parse_result/comments"
+          @parse_result.attach_comments!
+        else
+          raise
+        end
+      end
 
       # Extract all nodes: freeze blocks + statements outside freeze blocks
       # @return [Array<Prism::Node, FreezeNode>]
