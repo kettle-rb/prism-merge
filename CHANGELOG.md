@@ -25,6 +25,7 @@ Please file a bug if you notice a violation of semantic versioning.
 - Freeze block validation for partial/incomplete nodes and freeze blocks inside non-class/module contexts
 - Freeze blocks now match by position/order when both files have multiple freeze blocks
 - `add_template_only_nodes` option now properly respected in recursive merges and boundary processing
+- `DebugLogger`, controlled by `ENV["PRISM_MERGE_DEBUG"]` set to true or false
 - more specs
 
 ### Changed

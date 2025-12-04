@@ -104,7 +104,10 @@
     <p>Orchestrates the smart merge process using FileAnalysis, FileAligner,<br />
 ConflictResolver, and MergeResult to merge two Ruby files intelligently.</p>
 
-<p>SmartMerger provides flexible configuration for different merge scenarios:</p>
+<p>SmartMerger provides flexible configuration for different merge scenarios.<br />
+When matching class or module definitions are found in both files, the merger<br />
+automatically performs recursive merging of their bodies, intelligently combining<br />
+nested methods, constants, and other definitions.</p>
 
 
   </div>
@@ -337,7 +340,7 @@ ConflictResolver, and MergeResult to merge two Ruby files intelligently.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false)  &#x21d2; SmartMerger </a>
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN)  &#x21d2; SmartMerger </a>
     
 
     
@@ -414,7 +417,7 @@ ConflictResolver, and MergeResult to merge two Ruby files intelligently.</p>
     <div class="method_details first">
   <h3 class="signature first" id="initialize-instance_method">
   
-    #<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false)  &#x21d2; <tt><span class='object_link'><a href="" title="Prism::Merge::SmartMerger (class)">SmartMerger</a></span></tt> 
+    #<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN)  &#x21d2; <tt><span class='object_link'><a href="" title="Prism::Merge::SmartMerger (class)">SmartMerger</a></span></tt> 
   
 
   
@@ -529,7 +532,7 @@ ConflictResolver, and MergeResult to merge two Ruby files intelligently.</p>
         <div class='inline'><p>Optional proc to generate custom node signatures.<br />
 The proc receives a Prism node and should return an array representing its signature.<br />
 Nodes with identical signatures are considered matches during merge.<br />
-Default: Uses <span class='object_link'>FileAnalysis#default_signature</span> which matches:</p>
+Default: Uses FileAnalysis#default_signature which matches:</p>
 <ul>
   <li>Conditionals by condition only (not body)</li>
   <li>Assignments by name only (not value)</li>
@@ -587,6 +590,25 @@ Use when template has new required constants/methods to add.</li>
       
     </li>
   
+    <li>
+      
+        <span class='name'>freeze_token</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>FileAnalysis::DEFAULT_FREEZE_TOKEN</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'><p>Token to use for freeze block markers.<br />
+Default: “prism-merge” (looks for # prism-merge:freeze / # prism-merge:unfreeze)<br />
+Freeze blocks preserve destination content unchanged during merge.</p>
+</div>
+      
+    </li>
+  
 </ul>
 
 <p class="tag_title">Raises:</p>
@@ -626,13 +648,6 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-127
-128
-129
-130
-131
-132
-133
 134
 135
 136
@@ -641,18 +656,27 @@ Use when template has new required constants/methods to add.</li>
 139
 140
 141
-142</pre>
+142
+143
+144
+145
+146
+147
+148
+149
+150</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 127</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 134</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>signature_match_preference:</span> <span class='symbol'>:destination</span><span class='comma'>,</span> <span class='label'>add_template_only_nodes:</span> <span class='kw'>false</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>signature_match_preference:</span> <span class='symbol'>:destination</span><span class='comma'>,</span> <span class='label'>add_template_only_nodes:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="FileAnalysis.html#DEFAULT_FREEZE_TOKEN-constant" title="Prism::Merge::FileAnalysis::DEFAULT_FREEZE_TOKEN (constant)">DEFAULT_FREEZE_TOKEN</a></span></span><span class='rparen'>)</span>
   <span class='ivar'>@template_content</span> <span class='op'>=</span> <span class='id identifier rubyid_template_content'>template_content</span>
   <span class='ivar'>@dest_content</span> <span class='op'>=</span> <span class='id identifier rubyid_dest_content'>dest_content</span>
   <span class='ivar'>@signature_match_preference</span> <span class='op'>=</span> <span class='id identifier rubyid_signature_match_preference'>signature_match_preference</span>
   <span class='ivar'>@add_template_only_nodes</span> <span class='op'>=</span> <span class='id identifier rubyid_add_template_only_nodes'>add_template_only_nodes</span>
-  <span class='ivar'>@template_analysis</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAnalysis.html#initialize-instance_method" title="Prism::Merge::FileAnalysis#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='id identifier rubyid_signature_generator'>signature_generator</span><span class='rparen'>)</span>
-  <span class='ivar'>@dest_analysis</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAnalysis.html#initialize-instance_method" title="Prism::Merge::FileAnalysis#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='id identifier rubyid_signature_generator'>signature_generator</span><span class='rparen'>)</span>
+  <span class='ivar'>@freeze_token</span> <span class='op'>=</span> <span class='id identifier rubyid_freeze_token'>freeze_token</span>
+  <span class='ivar'>@template_analysis</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAnalysis.html#initialize-instance_method" title="Prism::Merge::FileAnalysis#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='id identifier rubyid_signature_generator'>signature_generator</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='id identifier rubyid_freeze_token'>freeze_token</span><span class='rparen'>)</span>
+  <span class='ivar'>@dest_analysis</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAnalysis.html#initialize-instance_method" title="Prism::Merge::FileAnalysis#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='id identifier rubyid_signature_generator'>signature_generator</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='id identifier rubyid_freeze_token'>freeze_token</span><span class='rparen'>)</span>
   <span class='ivar'>@aligner</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAligner.html" title="Prism::Merge::FileAligner (class)">FileAligner</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAligner.html#initialize-instance_method" title="Prism::Merge::FileAligner#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='ivar'>@template_analysis</span><span class='comma'>,</span> <span class='ivar'>@dest_analysis</span><span class='rparen'>)</span>
   <span class='ivar'>@resolver</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="ConflictResolver.html" title="Prism::Merge::ConflictResolver (class)">ConflictResolver</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="ConflictResolver.html#initialize-instance_method" title="Prism::Merge::ConflictResolver#initialize (method)">new</a></span></span><span class='lparen'>(</span>
     <span class='ivar'>@template_analysis</span><span class='comma'>,</span>
@@ -716,12 +740,12 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-54
-55
-56</pre>
+57
+58
+59</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 54</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 57</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_aligner'>aligner</span>
   <span class='ivar'>@aligner</span>
@@ -775,12 +799,12 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-51
-52
-53</pre>
+54
+55
+56</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 51</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 54</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_dest_analysis'>dest_analysis</span>
   <span class='ivar'>@dest_analysis</span>
@@ -834,12 +858,12 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-57
-58
-59</pre>
+60
+61
+62</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 57</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 60</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_resolver'>resolver</span>
   <span class='ivar'>@resolver</span>
@@ -893,12 +917,12 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-60
-61
-62</pre>
+63
+64
+65</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 60</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 63</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_result'>result</span>
   <span class='ivar'>@result</span>
@@ -952,12 +976,12 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-48
-49
-50</pre>
+51
+52
+53</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 48</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 51</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_template_analysis'>template_analysis</span>
   <span class='ivar'>@template_analysis</span>
@@ -1091,14 +1115,6 @@ Use when template has new required constants/methods to add.</li>
       <pre class="lines">
 
 
-175
-176
-177
-178
-179
-180
-181
-182
 183
 184
 185
@@ -1117,10 +1133,18 @@ Use when template has new required constants/methods to add.</li>
 198
 199
 200
-201</pre>
+201
+202
+203
+204
+205
+206
+207
+208
+209</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 175</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 183</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge'>merge</span>
   <span class='comment'># Handle invalid files
@@ -1243,17 +1267,17 @@ useful for debugging, testing, and understanding merge behavior.</p>
       <pre class="lines">
 
 
-232
-233
-234
-235
-236
-237
-238
-239</pre>
+240
+241
+242
+243
+244
+245
+246
+247</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 232</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 240</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge_with_debug'>merge_with_debug</span>
   <span class='id identifier rubyid_content'>content</span> <span class='op'>=</span> <span class='id identifier rubyid_merge'>merge</span>
@@ -1273,7 +1297,7 @@ useful for debugging, testing, and understanding merge behavior.</p>
 </div>
 
       <div id="footer">
-  Generated on Wed Dec  3 15:20:15 2025 by
+  Generated on Thu Dec  4 04:51:31 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

@@ -200,7 +200,6 @@ module Prism
         current_line = template_line_range.begin
         # Track if we're in a sequence of template-only nodes
         in_template_only_sequence = false
-        last_added_line = nil
 
         sorted_nodes = template_nodes.sort_by { |n| n[:line_range].begin }
 
@@ -236,8 +235,6 @@ module Prism
             break if !line.strip.empty? # Stop at first non-blank line
             trailing_blank_end = line_num
           end
-
-          node_start..trailing_blank_end
 
           # Add any non-node, non-blank lines before this node (e.g., comments not attached to nodes)
           if (in_template_only_sequence && !is_matched) || (!is_matched && !@add_template_only_nodes)
@@ -320,7 +317,6 @@ module Prism
             end
 
             in_template_only_sequence = false
-            last_added_line = trailing_blank_end
           elsif @add_template_only_nodes
             # No match - this is a template-only node
             result.add_node(
@@ -337,7 +333,6 @@ module Prism
             end
 
             in_template_only_sequence = false
-            last_added_line = trailing_blank_end
           # Add the template-only node
           else
             # Skip template-only nodes (don't add template nodes that don't exist in destination)

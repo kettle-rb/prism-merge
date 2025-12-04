@@ -38,12 +38,10 @@ module Prism
       # @param freeze_token [String] Token for freeze block markers (default: "prism-merge")
       # @param signature_generator [Proc, nil] Custom signature generator
       def initialize(source, freeze_token: DEFAULT_FREEZE_TOKEN, signature_generator: nil)
-        puts "INIT: signature_generator = #{signature_generator.inspect}" if ENV["DEBUG"]
         @source = source
         @lines = source.lines
         @freeze_token = freeze_token
         @signature_generator = signature_generator
-        puts "INIT: @signature_generator set to: #{@signature_generator.inspect}" if ENV["DEBUG"]
         @parse_result = Prism.parse(source)
 
         # Use Prism's native comment attachment
@@ -51,6 +49,12 @@ module Prism
 
         # Extract and validate structure
         @statements = extract_and_integrate_all_nodes
+
+        DebugLogger.debug("FileAnalysis initialized", {
+          signature_generator: signature_generator ? "custom" : "default",
+          statements_count: @statements.size,
+          freeze_blocks: freeze_blocks.size,
+        }) if defined?(DebugLogger)
       end
 
       # Check if parse was successful
@@ -88,13 +92,18 @@ module Prism
       # @param node [Prism::Node] Node to generate signature for
       # @return [Array, nil] Signature array
       def generate_signature(node)
-        puts "DEBUG: @signature_generator = #{@signature_generator.inspect}" if ENV["DEBUG"]
         result = if @signature_generator
           @signature_generator.call(node)
         else
           compute_node_signature(node)
         end
-        puts "DEBUG: #{@signature_generator ? "Custom generator" : "compute_node_signature"} returned: #{result.inspect}" if ENV["DEBUG"]
+
+        DebugLogger.debug("Generated signature", {
+          node_type: node.class.name.split("::").last,
+          signature: result,
+          generator: @signature_generator ? "custom" : "default",
+        }) if defined?(DebugLogger) && result
+
         result
       end
 
@@ -301,15 +310,12 @@ module Prism
       # @param node [Prism::Node] Node to generate signature for
       # @return [Array] Signature array [type, name, params, ...]
       def compute_node_signature(node)
-        puts "INSIDE compute_node_signature, node class: #{node.class}"
-
         # IMPORTANT: Do NOT call node.signature - Prism nodes have their own signature method
         # that returns [node_type_symbol, source_text] which is not what we want for matching.
         # We need our own signature format: [:type_symbol, identifier, params]
 
-        result = case node
+        case node
         when Prism::DefNode
-          puts "  -> Matched DefNode"
           # Extract parameter names from ParametersNode
           params = if node.parameters
             param_names = []
@@ -326,10 +332,8 @@ module Prism
           end
           [:def, node.name, params]
         when Prism::ClassNode
-          puts "  -> Matched ClassNode"
           [:class, node.constant_path.slice]
         when Prism::ModuleNode
-          puts "  -> Matched ModuleNode"
           [:module, node.constant_path.slice]
         when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode
           [:const, node.name || node.target.slice]
@@ -341,12 +345,8 @@ module Prism
           # FreezeNode has its own signature method with normalized content
           node.signature
         else
-          puts "  -> Matched ELSE: #{node.class.name}"
           [:other, node.class.name, node.location.start_line]
         end
-
-        puts "  -> Returning: #{result.inspect}"
-        result
       end
     end
   end
