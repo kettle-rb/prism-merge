@@ -52,20 +52,15 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "detects and preserves destination freeze blocks" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
+        # Use SmartMerger for proper integration test
+        merger = Prism::Merge::SmartMerger.new(
+          template_code,
+          dest_code,
+          freeze_token: "kettle-dev",
+        )
 
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
+        output = merger.merge
 
-        resolver = Prism::Merge::ConflictResolver.new(template_analysis, dest_analysis)
-        result = Prism::Merge::MergeResult.new
-
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
-        end
-
-        output = result.to_s
         expect(output).to include("kettle-dev:freeze")
         expect(output).to include('FROZEN_CONST = "dest"')
         expect(output).to include('EXTRA_CONST = "dest only"')
@@ -97,7 +92,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "handles freeze block at file start" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('VERSION = "2.0.0"')
@@ -136,7 +131,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "handles freeze block at file end" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('FINAL = "dest"')
@@ -171,7 +166,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "preserves multi-line frozen constructs from destination" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('key: "dest"')
@@ -209,7 +204,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       it "handles unmatched freeze markers gracefully" do
         # Should not crash with unmatched markers
         expect {
-          merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+          merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
           merger.merge
         }.not_to raise_error
       end
@@ -236,7 +231,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "handles freeze without unfreeze" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         # Should still handle the freeze block
@@ -273,7 +268,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "handles empty freeze block in template" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('CONST = "added in dest"')
@@ -316,7 +311,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "preserves destination class definitions in freeze block" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include("dest - custom")
@@ -351,7 +346,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "preserves destination module definitions in freeze block" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('VERSION = "2.0"')
@@ -384,7 +379,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "preserves destination method calls in freeze block" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('require "dest_lib"')
@@ -436,7 +431,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "handles multiple separate freeze blocks" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('FIRST = "dest_1"')
@@ -474,7 +469,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "handles adjacent freeze blocks correctly" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include('FIRST = "dest"')
@@ -530,7 +525,7 @@ RSpec.describe "Advanced Freeze Block Coverage" do
       end
 
       it "correctly handles freeze block between matched methods" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
         result = merger.merge
 
         expect(result).to include("before_method")

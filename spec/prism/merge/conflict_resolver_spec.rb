@@ -64,25 +64,16 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
     context "with template-only nodes and add_template_only_nodes: true" do
       it "adds template-only nodes to result" do
-        resolver = described_class.new(
-          template_analysis,
-          dest_analysis,
+        # Use SmartMerger instead of calling resolver directly
+        # because signature matching is handled at the SmartMerger level
+        merger = Prism::Merge::SmartMerger.new(
+          template_content,
+          dest_content,
           signature_match_preference: :template,
           add_template_only_nodes: true,
         )
 
-        # Create a boundary covering the method definitions (lines 4-11 in template, 4-11 in dest)
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        # Find boundary that contains our methods
-        boundary = boundaries.find do |b|
-          b.template_range&.cover?(5)
-        end
-
-        resolver.resolve(boundary, result) if boundary
-
-        result_text = result.to_s
+        result_text = merger.merge
 
         # Should include template-only method
         expect(result_text).to include("def template_method")
@@ -98,23 +89,15 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
     context "with template-only nodes and add_template_only_nodes: false" do
       it "skips template-only nodes" do
-        resolver = described_class.new(
-          template_analysis,
-          dest_analysis,
+        # Use SmartMerger instead of calling resolver directly
+        merger = Prism::Merge::SmartMerger.new(
+          template_content,
+          dest_content,
           signature_match_preference: :destination,
           add_template_only_nodes: false,
         )
 
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        boundary = boundaries.find do |b|
-          b.template_range&.cover?(5)
-        end
-
-        resolver.resolve(boundary, result) if boundary
-
-        result_text = result.to_s
+        result_text = merger.merge
 
         # Should NOT include template-only method
         expect(result_text).not_to include("def template_method")
@@ -150,34 +133,21 @@ RSpec.describe Prism::Merge::ConflictResolver do
         RUBY
       end
 
-      it "preserves freeze block content from destination when in boundary" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_with_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_with_freeze_in_boundary)
+      it "preserves freeze block content from destination" do
+        # Use SmartMerger for integration test
+        merger = Prism::Merge::SmartMerger.new(
+          template_with_code,
+          dest_with_freeze_in_boundary,
+          freeze_token: "kettle-dev",
+        )
 
-        resolver = described_class.new(template_analysis, dest_analysis)
+        result_text = merger.merge
 
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        # Find boundary that contains the freeze block
-        freeze_boundary = boundaries.find do |b|
-          b.dest_range&.cover?(3) # Line with freeze marker
-        end
-
-        if freeze_boundary
-          resolver.resolve(freeze_boundary, result)
-
-          result_text = result.to_s
-
-          # Destination freeze block should be preserved
-          expect(result_text).to include('CUSTOM = "destination"')
-          expect(result_text).to include('SECRET = "preserved"')
-          expect(result_text).to include("kettle-dev:freeze")
-          expect(result_text).to include("kettle-dev:unfreeze")
-        else
-          # If freeze block creates an anchor instead, that's also valid behavior
-          skip "Freeze block was handled as anchor, not boundary"
-        end
+        # Destination freeze block should be preserved
+        expect(result_text).to include('CUSTOM = "destination"')
+        expect(result_text).to include('SECRET = "preserved"')
+        expect(result_text).to include("kettle-dev:freeze")
+        expect(result_text).to include("kettle-dev:unfreeze")
       end
     end
 

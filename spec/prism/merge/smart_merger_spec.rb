@@ -453,7 +453,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       let(:dest_content) { File.read(dest_path) }
 
       it "always preserves destination freeze block content" do
-        merger = described_class.new(template_content, dest_content)
+        merger = described_class.new(template_content, dest_content, freeze_token: "kettle-dev")
         result = merger.merge
 
         # Freeze block from destination should be preserved
@@ -470,6 +470,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           template_content,
           dest_content,
           signature_match_preference: :template,
+          freeze_token: "kettle-dev",
         )
         result = merger.merge
 
@@ -896,10 +897,11 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
       end
 
-      it "includes standalone comments from template" do
+      it "includes standalone comments from template when using template preference" do
         merger = described_class.new(
           template_code,
           dest_code,
+          signature_match_preference: :template,  # Use template version to get its comments
         )
 
         result = merger.merge

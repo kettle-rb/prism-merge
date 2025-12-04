@@ -283,20 +283,21 @@ module Prism
 
       def add_freeze_block_anchors
         # Freeze blocks in destination should always be preserved as anchors
-        @dest_analysis.freeze_blocks.each do |block|
-          line_range = block[:line_range]
+        # Match freeze blocks by their index/order in the file
+        @dest_analysis.freeze_blocks.each_with_index do |freeze_node, index|
+          line_range = freeze_node.start_line..freeze_node.end_line
 
-          # Check if there's a corresponding freeze block in template
-          template_block = @template_analysis.freeze_blocks.find do |tb|
-            tb[:start_marker] == block[:start_marker]
-          end
+          # Check if there's a corresponding freeze block in template at the same index
+          template_freeze = @template_analysis.freeze_blocks[index]
 
-          if template_block
+          if template_freeze
+            template_range = template_freeze.start_line..template_freeze.end_line
+
             # Check if there's already an anchor covering this range
             # (from exact line matches)
             existing_anchor = @anchors.find do |a|
-              a.template_start <= template_block[:line_range].begin &&
-                a.template_end >= template_block[:line_range].end &&
+              a.template_start <= template_range.begin &&
+                a.template_end >= template_range.end &&
                 a.dest_start <= line_range.begin &&
                 a.dest_end >= line_range.end
             end
@@ -305,8 +306,8 @@ module Prism
             unless existing_anchor
               # Both files have this freeze block - create anchor
               @anchors << Anchor.new(
-                template_block[:line_range].begin,
-                template_block[:line_range].end,
+                template_range.begin,
+                template_range.end,
                 line_range.begin,
                 line_range.end,
                 :freeze_block,

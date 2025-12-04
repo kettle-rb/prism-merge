@@ -32,7 +32,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
     end
 
     it "merges successfully when destination lacks freeze markers" do
-      merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       # When template has freeze but dest doesn't, the freeze block behavior depends on implementation
@@ -71,7 +71,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
     end
 
     it "preserves destination freeze block" do
-      merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       expect(result).to include("kettle-dev:freeze")
@@ -106,7 +106,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
     end
 
     it "preserves destination freeze block content" do
-      merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       expect(result).to include('FIRST = "dest"')
@@ -159,7 +159,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
     end
 
     it "handles freeze blocks within modules and classes" do
-      merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       expect(result).to include('CONST = "dest"')
@@ -201,7 +201,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
     end
 
     it "preserves destination freeze block even with only comments in template" do
-      merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       expect(result).to include("Different comment")

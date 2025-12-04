@@ -101,8 +101,15 @@ RSpec.describe "Signature Matching" do
       dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
 
       # Both should be analyzed successfully
-      expect(template_analysis.statements.size).to eq(1)
-      expect(dest_analysis.statements.size).to eq(1)
+      # Note: Magic comments (like frozen_string_literal) are NOT converted to CommentNodes
+      expect(template_analysis.statements.size).to eq(1) # Just the DefNode
+      expect(dest_analysis.statements.size).to eq(1)     # Just the DefNode
+
+      # Verify the DefNode is present
+      def_nodes_template = template_analysis.statements.select { |s| s.is_a?(Prism::DefNode) }
+      def_nodes_dest = dest_analysis.statements.select { |s| s.is_a?(Prism::DefNode) }
+      expect(def_nodes_template.size).to eq(1)
+      expect(def_nodes_dest.size).to eq(1)
 
       merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
       result = merger.merge

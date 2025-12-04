@@ -4,6 +4,35 @@ RSpec.describe Prism::Merge::ConflictResolver do
   describe "orphan line handling" do
     let(:result) { Prism::Merge::MergeResult.new }
 
+    # Helper method to add anchor content before resolving boundaries
+    # ConflictResolver tests need anchor content added first since they test in isolation
+    def resolve_with_anchors(template_analysis, dest_analysis, resolver, aligner, result)
+      boundaries = aligner.align
+
+      # Add anchor content (matching nodes) to result
+      # For signature matches, prefer template to preserve comments
+      aligner.anchors.each do |anchor|
+        if anchor.match_type == :signature_match
+          # Use template range to preserve leading comments
+          anchor.template_range.each do |line_num|
+            line = template_analysis.line_at(line_num)
+            result.add_line(line.chomp, decision: :kept_template, template_line: line_num)
+          end
+        else
+          # For exact matches, use destination
+          anchor.dest_range.each do |line_num|
+            line = dest_analysis.line_at(line_num)
+            result.add_line(line.chomp, decision: :kept_destination, dest_line: line_num)
+          end
+        end
+      end
+
+      # Resolve boundaries (content between matching nodes)
+      boundaries.each do |boundary|
+        resolver.resolve(boundary, result)
+      end
+    end
+
     context "with orphan lines (comments and blank lines between nodes)" do
       it "handles orphan comments in template" do
         template_content = <<~RUBY
@@ -33,11 +62,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         resolver = described_class.new(template_analysis, dest_analysis, add_template_only_nodes: true)
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
 
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
-        end
+        resolve_with_anchors(template_analysis, dest_analysis, resolver, aligner, result)
 
         result_text = result.to_s
 
@@ -73,11 +99,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         resolver = described_class.new(template_analysis, dest_analysis)
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
 
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
-        end
+        resolve_with_anchors(template_analysis, dest_analysis, resolver, aligner, result)
 
         result_text = result.to_s
 
@@ -108,11 +131,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         resolver = described_class.new(template_analysis, dest_analysis, add_template_only_nodes: true)
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
 
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
-        end
+        resolve_with_anchors(template_analysis, dest_analysis, resolver, aligner, result)
 
         result_text = result.to_s
 
@@ -145,11 +165,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         resolver = described_class.new(template_analysis, dest_analysis, add_template_only_nodes: true)
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
 
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
-        end
+        resolve_with_anchors(template_analysis, dest_analysis, resolver, aligner, result)
 
         result_text = result.to_s
 
@@ -185,11 +202,8 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
         resolver = described_class.new(template_analysis, dest_analysis, add_template_only_nodes: true)
         aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
 
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
-        end
+        resolve_with_anchors(template_analysis, dest_analysis, resolver, aligner, result)
 
         result_text = result.to_s
 

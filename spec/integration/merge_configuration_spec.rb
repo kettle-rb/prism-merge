@@ -135,6 +135,7 @@ RSpec.describe "Merge Configuration Options" do
         dest_code,
         add_template_only_nodes: true,
         signature_match_preference: :destination,
+        freeze_token: "kettle-dev",
       )
       result = merger.merge
 

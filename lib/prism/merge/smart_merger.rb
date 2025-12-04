@@ -5,7 +5,10 @@ module Prism
     # Orchestrates the smart merge process using FileAnalysis, FileAligner,
     # ConflictResolver, and MergeResult to merge two Ruby files intelligently.
     #
-    # SmartMerger provides flexible configuration for different merge scenarios:
+    # SmartMerger provides flexible configuration for different merge scenarios.
+    # When matching class or module definitions are found in both files, the merger
+    # automatically performs recursive merging of their bodies, intelligently combining
+    # nested methods, constants, and other definitions.
     #
     # @example Basic merge (destination customizations preserved)
     #   merger = SmartMerger.new(template_content, dest_content)
@@ -86,6 +89,10 @@ module Prism
       #   - `true` - Add template-only nodes to result.
       #     Use when template has new required constants/methods to add.
       #
+      # @param freeze_token [String] Token to use for freeze block markers.
+      #   Default: "prism-merge" (looks for # prism-merge:freeze / # prism-merge:unfreeze)
+      #   Freeze blocks preserve destination content unchanged during merge.
+      #
       # @raise [TemplateParseError] If template has syntax errors
       # @raise [DestinationParseError] If destination has syntax errors
       #
@@ -124,13 +131,14 @@ module Prism
       #     destination,
       #     signature_generator: sig_gen
       #   )
-      def initialize(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false)
+      def initialize(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN)
         @template_content = template_content
         @dest_content = dest_content
         @signature_match_preference = signature_match_preference
         @add_template_only_nodes = add_template_only_nodes
-        @template_analysis = FileAnalysis.new(template_content, signature_generator: signature_generator)
-        @dest_analysis = FileAnalysis.new(dest_content, signature_generator: signature_generator)
+        @freeze_token = freeze_token
+        @template_analysis = FileAnalysis.new(template_content, signature_generator: signature_generator, freeze_token: freeze_token)
+        @dest_analysis = FileAnalysis.new(dest_content, signature_generator: signature_generator, freeze_token: freeze_token)
         @aligner = FileAligner.new(@template_analysis, @dest_analysis)
         @resolver = ConflictResolver.new(
           @template_analysis,
@@ -304,8 +312,15 @@ module Prism
       end
 
       def add_signature_match_from_dest(anchor)
-        # For signature matches, use the configured preference
-        if @signature_match_preference == :template
+        # Find the nodes corresponding to this anchor
+        # Look for nodes that overlap with the anchor range (not just at start line)
+        template_node = find_node_in_range(@template_analysis, anchor.template_start, anchor.template_end)
+        dest_node = find_node_in_range(@dest_analysis, anchor.dest_start, anchor.dest_end)
+
+        # Check if this is a class or module that should be recursively merged
+        if should_merge_recursively?(template_node, dest_node)
+          merge_node_body_recursively(template_node, dest_node, anchor)
+        elsif @signature_match_preference == :template
           # Use template version (for updates/canonical values)
           anchor.template_range.each do |line_num|
             line = @template_analysis.line_at(line_num)
@@ -341,6 +356,201 @@ module Prism
 
       def process_boundary(boundary)
         @resolver.resolve(boundary, @result)
+      end
+
+      # Find a node that overlaps with the given line range.
+      # This handles cases where anchors include leading comments (e.g., magic comments).
+      #
+      # @param analysis [FileAnalysis] The file analysis to search
+      # @param start_line [Integer] Start line of the range
+      # @param end_line [Integer] End line of the range
+      # @return [Prism::Node, nil] The first node that overlaps with the range, or nil if none found
+      def find_node_in_range(analysis, start_line, end_line)
+        # Find a node that overlaps with the range
+        analysis.statements.find do |stmt|
+          # Check if node overlaps with the range
+          stmt.location.start_line <= end_line && stmt.location.end_line >= start_line
+        end
+      end
+
+      # Find the node at a specific line in the analysis (deprecated - use find_node_in_range)
+      # @deprecated Use {#find_node_in_range} instead for better handling of leading comments
+      # @param analysis [FileAnalysis] The file analysis to search
+      # @param line_num [Integer] The line number to find a node at
+      # @return [Prism::Node, nil] The node at that line, or nil if none found
+      def find_node_at_line(analysis, line_num)
+        analysis.statements.find do |stmt|
+          line_num.between?(stmt.location.start_line, stmt.location.end_line)
+        end
+      end
+
+      # Determines if two matching nodes should be recursively merged.
+      #
+      # Recursive merge is performed for matching class/module definitions to intelligently
+      # combine their body contents (nested methods, constants, etc.). This allows template
+      # updates to class internals to be merged with destination customizations.
+      #
+      # @param template_node [Prism::Node, nil] Node from template file
+      # @param dest_node [Prism::Node, nil] Node from destination file
+      # @return [Boolean] true if nodes should be recursively merged
+      #
+      # @note Recursive merge is NOT performed for:
+      #   - Conditional nodes (if/unless) - treated as atomic units
+      #   - Classes/modules containing freeze blocks - frozen content would be lost
+      #   - Nodes of different types
+      def should_merge_recursively?(template_node, dest_node)
+        return false unless template_node && dest_node
+
+        is_class_or_module = (template_node.is_a?(Prism::ClassNode) && dest_node.is_a?(Prism::ClassNode)) ||
+          (template_node.is_a?(Prism::ModuleNode) && dest_node.is_a?(Prism::ModuleNode))
+
+        return false unless is_class_or_module
+
+        # Don't recursively merge if either node contains freeze blocks
+        # (they would be lost in the nested merge since we pass freeze_token: nil)
+        return false if node_contains_freeze_blocks?(template_node)
+        return false if node_contains_freeze_blocks?(dest_node)
+
+        true
+      end
+
+      # Check if a node's body contains freeze block markers.
+      #
+      # @param node [Prism::Node] The node to check
+      # @return [Boolean] true if the node's body contains freeze block comments
+      # @api private
+      def node_contains_freeze_blocks?(node)
+        return false unless @freeze_token
+        return false unless node.body
+
+        # Check if any comments in the node's range contain freeze markers
+        freeze_pattern = /#\s*#{Regexp.escape(@freeze_token)}:(freeze|unfreeze)/i
+
+        node_start = node.location.start_line
+        node_end = node.location.end_line
+
+        @template_analysis.parse_result.comments.any? do |comment|
+          comment_line = comment.location.start_line
+          comment_line > node_start && comment_line < node_end && comment.slice.match?(freeze_pattern)
+        end || @dest_analysis.parse_result.comments.any? do |comment|
+          comment_line = comment.location.start_line
+          comment_line > node_start && comment_line < node_end && comment.slice.match?(freeze_pattern)
+        end
+      end
+
+      # Recursively merges the body of matching class or module nodes.
+      #
+      # This method extracts the body content (everything between the class/module
+      # declaration and the closing 'end'), creates a new nested SmartMerger to merge
+      # those bodies, and then reassembles the complete class/module with the merged body.
+      #
+      # @param template_node [Prism::ClassNode, Prism::ModuleNode] Class/module from template
+      # @param dest_node [Prism::ClassNode, Prism::ModuleNode] Class/module from destination
+      # @param anchor [FileAligner::Anchor] The anchor representing this match
+      #
+      # @note The nested merger is configured with:
+      #   - Same signature_generator, signature_match_preference, and add_template_only_nodes
+      #   - freeze_token: nil (freeze blocks not processed in nested context)
+      #
+      # @api private
+      def merge_node_body_recursively(template_node, dest_node, anchor)
+        # Extract the body source for both nodes
+        template_body = extract_node_body(template_node, @template_analysis)
+        dest_body = extract_node_body(dest_node, @dest_analysis)
+
+        # Recursively merge the bodies
+        body_merger = SmartMerger.new(
+          template_body,
+          dest_body,
+          signature_generator: @template_analysis.instance_variable_get(:@signature_generator),
+          signature_match_preference: @signature_match_preference,
+          add_template_only_nodes: @add_template_only_nodes,
+          freeze_token: nil,  # Don't process freeze blocks in nested context
+        )
+        merged_body = body_merger.merge.rstrip
+
+        # Add the opening line (class/module declaration) with leading comments
+        source_analysis = (@signature_match_preference == :template) ? @template_analysis : @dest_analysis
+        source_node = (@signature_match_preference == :template) ? template_node : dest_node
+        source_anchor_start = (@signature_match_preference == :template) ? anchor.template_start : anchor.dest_start
+
+        # Add leading comments
+        (source_anchor_start...source_node.location.start_line).each do |line_num|
+          line = source_analysis.line_at(line_num)
+          @result.add_line(
+            line.chomp,
+            decision: MergeResult::DECISION_REPLACED,
+            template_line: ((@signature_match_preference == :template) ? line_num : nil),
+            dest_line: ((@signature_match_preference == :destination) ? line_num : nil),
+          )
+        end
+
+        # Add the class/module opening line
+        opening_line = source_analysis.line_at(source_node.location.start_line)
+        @result.add_line(
+          opening_line.chomp,
+          decision: MergeResult::DECISION_REPLACED,
+          template_line: ((@signature_match_preference == :template) ? source_node.location.start_line : nil),
+          dest_line: ((@signature_match_preference == :destination) ? source_node.location.start_line : nil),
+        )
+
+        # Add the merged body (indented appropriately)
+        merged_body.lines.each do |line|
+          @result.add_line(
+            line.chomp,
+            decision: MergeResult::DECISION_REPLACED,
+            template_line: nil,
+            dest_line: nil,
+          )
+        end
+
+        # Add the closing 'end'
+        end_line = source_analysis.line_at(source_node.location.end_line)
+        @result.add_line(
+          end_line.chomp,
+          decision: MergeResult::DECISION_REPLACED,
+          template_line: ((@signature_match_preference == :template) ? source_node.location.end_line : nil),
+          dest_line: ((@signature_match_preference == :destination) ? source_node.location.end_line : nil),
+        )
+      end
+
+      # Extracts the body content of a node (without declaration and closing 'end').
+      #
+      # For class/module nodes, extracts content between the declaration line and the
+      # closing 'end'. For conditional nodes, extracts the statements within the condition.
+      #
+      # @param node [Prism::Node] The node to extract body from
+      # @param analysis [FileAnalysis] The file analysis containing the node
+      # @return [String] The extracted body content
+      #
+      # @note Handles different node types:
+      #   - ClassNode/ModuleNode: Uses node.body (StatementsNode)
+      #   - IfNode/UnlessNode: Uses node.statements (StatementsNode)
+      #
+      # @api private
+      def extract_node_body(node, analysis)
+        # Get the statements node based on node type
+        statements_node = if node.is_a?(Prism::ClassNode) || node.is_a?(Prism::ModuleNode)
+          node.body
+        elsif node.is_a?(Prism::IfNode) || node.is_a?(Prism::UnlessNode)
+          node.statements
+        end
+
+        return "" unless statements_node&.is_a?(Prism::StatementsNode)
+
+        body_statements = statements_node.body
+        return "" if body_statements.empty?
+
+        # Get the line range of the body (between opening line and end)
+        first_stmt_line = body_statements.first.location.start_line
+        last_stmt_line = body_statements.last.location.end_line
+
+        # Extract the source lines for the body
+        lines = []
+        (first_stmt_line..last_stmt_line).each do |line_num|
+          lines << analysis.line_at(line_num).chomp
+        end
+        lines.join("\n") + "\n"
       end
     end
   end

@@ -35,7 +35,7 @@ RSpec.describe "MergeResult Decision Types" do
     end
 
     it "tracks freeze block decisions" do
-      merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       expect(result).to include('FROZEN = "dest"')

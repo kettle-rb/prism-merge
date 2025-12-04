@@ -20,15 +20,26 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- Recursive merge support for class and module bodies - nested structures are now merged intelligently
+- Conditional signature matching for `if`/`unless` blocks based on condition expression
+- Freeze block validation for partial/incomplete nodes and freeze blocks inside non-class/module contexts
+- Freeze blocks now match by position/order when both files have multiple freeze blocks
+- `add_template_only_nodes` option now properly respected in recursive merges and boundary processing
 - more specs
 
 ### Changed
 
-### Deprecated
-
-### Removed
+- Migrated to Prism v1.6.0 native comment attachment (removed custom comment association logic)
+- Simplified FileAnalysis implementation using Prism's built-in features
+- Improved node lookup to handle anchors with leading comments (e.g., magic comments)
 
 ### Fixed
+
+- Template-only nodes are now correctly excluded in all contexts when `add_template_only_nodes: false`
+- Freeze blocks inside methods now properly raise InvalidStructureError (only class/module-level freeze blocks allowed)
+- Freeze block matching now works correctly with multiple consecutive freeze blocks (matches by index/order)
+- Duplicate freeze blocks from template no longer appear when destination has matching freeze blocks
+- Magic comments at file top no longer prevent node lookup in recursive merges
 
 ### Security
 

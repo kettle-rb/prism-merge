@@ -272,6 +272,7 @@ RSpec.describe "Multi-component integration" do
         template_code,
         dest_code,
         add_template_only_nodes: true,
+        freeze_token: "kettle-dev",
       )
 
       result = merger.merge
@@ -316,6 +317,7 @@ RSpec.describe "Multi-component integration" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
+          freeze_token: "kettle-dev",
         )
 
         result = merger.merge
