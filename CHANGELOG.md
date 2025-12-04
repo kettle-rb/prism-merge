@@ -28,6 +28,8 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- Documentation of freeze blocks, and configuration to customize the freeze token
+
 ### Security
 
 ## [1.1.0] - 2025-12-04

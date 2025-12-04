@@ -62,13 +62,14 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 - **Intelligent**: Matches nodes by structural signatures
 - **Recursive Merge**: Automatically merges class and module bodies recursively, intelligently combining nested methods and constants
 - **Comment-Preserving**: Comments are properly attached to relevant nodes and/or placement
-- **Freeze Block Support**: Respects `kettle-dev:freeze` markers for template merge control
+- **Freeze Block Support**: Respects freeze markers (default: `prism-merge:freeze` / `prism-merge:unfreeze`) for template merge control - customizable to match your project's conventions
 - **Full Provenance**: Tracks origin of every line
 - **Standalone**: No dependencies other than `prism` and `version_gem` (which is a tiny tool all my gems depend on)
 - **Customizable**:
   - `signature_generator` - callable custom signature generators
   - `signature_match_preference` - setting of `:template` or `:destination`
   - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
+  - `freeze_token` - customize freeze block markers (default: `"prism-merge"`)
 
 ### Example
 
@@ -336,17 +337,30 @@ merger = Prism::Merge::SmartMerger.new(
 
 ### Freeze Blocks
 
-Protect sections in the destination file from being overwritten by the template using freeze markers:
+Protect sections in the destination file from being overwritten by the template using freeze markers.
+
+By default, Prism::Merge uses `prism-merge` as the freeze token:
 
 ```ruby
 # In your destination.rb file
-# kettle-dev:freeze
+# prism-merge:freeze
 gem "custom-gem", path: "../custom"
 # Add any custom configuration you want to preserve
-# kettle-dev:unfreeze
+# prism-merge:unfreeze
 ```
 
-Freeze blocks are **always preserved** from the destination file during merge, regardless of template content.
+You can customize the freeze token to match your project's conventions:
+
+```ruby
+# Use a custom freeze token (e.g., for kettle-dev projects)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  freeze_token: "kettle-dev",  # Now uses # kettle-dev:freeze / # kettle-dev:unfreeze
+)
+```
+
+Freeze blocks are **always preserved** from the destination file during merge, regardless of template content. They must be at class/module body level - freeze blocks inside methods are not allowed.
 
 ### Integration with Existing Systems
 
@@ -486,12 +500,12 @@ Protect custom sections from template updates:
 ```ruby
 # destination.rb
 class MyApp
-  # kettle-dev:freeze
+  # prism-merge:freeze
   CUSTOM_CONFIG = {
     api_key: ENV.fetch("API_KEY"),
     endpoint: "https://custom.example.com",
   }
-  # kettle-dev:unfreeze
+  # prism-merge:unfreeze
 
   VERSION = "1.0.0"
 end
@@ -502,6 +516,18 @@ class MyApp
 
   VERSION = "2.0.0"
 end
+
+# Merge with default freeze token
+merger = Prism::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+# Or use a custom freeze token if your project uses a different convention
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  freeze_token: "kettle-dev",  # for kettle-dev projects
+)
+result = merger.merge
 
 # After merge, CUSTOM_CONFIG keeps destination values
 # but VERSION is updated to 2.0.0
@@ -596,12 +622,34 @@ RSpec.describe("Ruby file merging") do
     RUBY
 
     destination = <<~RUBY
-      # kettle-dev:freeze
+      # prism-merge:freeze
       CONFIG = { key: "secret" }
-      # kettle-dev:unfreeze
+      # prism-merge:unfreeze
     RUBY
 
     merger = Prism::Merge::SmartMerger.new(template, destination)
+    result = merger.merge
+
+    # Freeze block content preserved
+    expect(result).to(include('CONFIG = { key: "secret" }'))
+  end
+
+  it "works with custom freeze tokens" do
+    template = <<~RUBY
+      CONFIG = {}
+    RUBY
+
+    destination = <<~RUBY
+      # my-app:freeze
+      CONFIG = { key: "secret" }
+      # my-app:unfreeze
+    RUBY
+
+    merger = Prism::Merge::SmartMerger.new(
+      template,
+      destination,
+      freeze_token: "my-app",  # Match your project's freeze token
+    )
     result = merger.merge
 
     # Freeze block content preserved
