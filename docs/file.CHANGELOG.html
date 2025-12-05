@@ -80,6 +80,17 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="fixed">Fixed</h3>
 
+<ul>
+  <li>
+<strong>Fixed duplicate content when freeze blocks precede nodes with leading comments</strong>: When a freeze block appeared before a node that had leading comments attached from earlier in the file, the merge would output duplicate content. Fixed by:
+    <ul>
+      <li>Filtering out comments inside freeze blocks from being attached as leading comments to subsequent nodes</li>
+      <li>Not including leading comments in anchor ranges when other nodes exist between the comments and the node</li>
+      <li>Extending <code>extract_node_body</code> to include content after the last statement up to the closing line, ensuring freeze blocks at the end of block bodies are preserved</li>
+    </ul>
+  </li>
+</ul>
+
 <h3 id="security">Security</h3>
 
 <h2 id="115---2025-12-04">
@@ -408,7 +419,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 23:45:40 2025 by
+  Generated on Fri Dec  5 02:35:51 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

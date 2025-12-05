@@ -305,4 +305,101 @@ RSpec.describe "Freeze Block Detection and Handling" do
       expect(result.scan("# kettle-dev:unfreeze").count).to eq(1)
     end
   end
+
+  # Regression test for top-level freeze blocks with magic comments
+  # Previously, Prism attached ALL comments before a node as leading comments,
+  # including comments inside freeze blocks. This caused duplicate content when
+  # anchors overlapped (freeze block anchor + node anchor with leading comments).
+  describe "with top-level freeze blocks and magic comments (regression)" do
+    let(:template_code) do
+      <<~RUBY
+        # coding: utf-8
+        # frozen_string_literal: true
+
+        # kettle-dev:freeze
+        # Freeze block comment
+        # kettle-dev:unfreeze
+
+        gem_version =
+          if RUBY_VERSION >= "3.1"
+            "new"
+          else
+            "old"
+          end
+
+        Gem::Specification.new do |spec|
+          spec.name = "example"
+          spec.version = gem_version
+        end
+      RUBY
+    end
+
+    let(:dest_code) do
+      <<~RUBY
+        # coding: utf-8
+        # frozen_string_literal: true
+
+        # kettle-dev:freeze
+        # Freeze block comment
+        # kettle-dev:unfreeze
+
+        gem_version =
+          if RUBY_VERSION >= "3.1"
+            "new"
+          else
+            "old"
+          end
+
+        Gem::Specification.new do |spec|
+          spec.name = "example"
+          spec.version = gem_version
+          # kettle-dev:freeze
+          # Custom metadata preserved
+          # kettle-dev:unfreeze
+        end
+      RUBY
+    end
+
+    it "does not duplicate content when freeze blocks precede other nodes" do
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
+      result = merger.merge
+
+      # gem_version assignment should appear exactly once
+      expect(result.scan(/^gem_version =/).count).to eq(1)
+
+      # Gem::Specification.new should appear exactly once
+      expect(result.scan("Gem::Specification.new").count).to eq(1)
+
+      # Magic comments should appear exactly once each
+      expect(result.scan("# coding: utf-8").count).to eq(1)
+      expect(result.scan("# frozen_string_literal: true").count).to eq(1)
+    end
+
+    it "preserves both freeze blocks (top-level and nested)" do
+      merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
+      result = merger.merge
+
+      # Should have 2 freeze blocks total (top-level + nested)
+      expect(result.scan("# kettle-dev:freeze").count).to eq(2)
+      expect(result.scan("# kettle-dev:unfreeze").count).to eq(2)
+
+      # Nested freeze block content should be preserved
+      expect(result).to include("# Custom metadata preserved")
+    end
+
+    it "filters freeze block comments from leading comments of subsequent nodes" do
+      analysis = Prism::Merge::FileAnalysis.new(template_code, freeze_token: "kettle-dev")
+
+      # Find the LocalVariableWriteNode (gem_version assignment)
+      node_info = analysis.nodes_with_comments.find do |n|
+        n[:node].is_a?(Prism::LocalVariableWriteNode)
+      end
+
+      # Leading comments should NOT include lines from the freeze block (4, 5, 6)
+      # Should only include magic comments (lines 1, 2)
+      leading_lines = node_info[:leading_comments].map { |c| c.location.start_line }
+      expect(leading_lines).to eq([1, 2])
+      expect(leading_lines).not_to include(4, 5, 6)
+    end
+  end
 end

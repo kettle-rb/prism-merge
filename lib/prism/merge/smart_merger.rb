@@ -708,7 +708,7 @@ module Prism
 
         # Get the line range of the body
         # Start from line after node opening (to include any leading comments/freeze markers)
-        # For nodes with blocks, the body starts after the block opening
+        # End at the line before the closing `end` (to include trailing comments/freeze markers)
         body_start_line = case node
         when Prism::CallNode
           # Block body starts on line after the `do` or `{`
@@ -720,11 +720,22 @@ module Prism
           body_statements.first.location.start_line
         end
 
-        last_stmt_line = body_statements.last.location.end_line
+        # End line should be the line before the closing keyword (end, }, etc.)
+        # This ensures we capture trailing comments and freeze blocks after the last statement
+        body_end_line = case node
+        when Prism::CallNode
+          # Block ends at the closing `end` or `}`
+          node.block.closing_loc ? node.block.closing_loc.start_line - 1 : body_statements.last.location.end_line
+        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
+          # Body ends at the line before `end`
+          node.end_keyword_loc ? node.end_keyword_loc.start_line - 1 : body_statements.last.location.end_line
+        else
+          body_statements.last.location.end_line
+        end
 
         # Extract the source lines for the body
         lines = []
-        (body_start_line..last_stmt_line).each do |line_num|
+        (body_start_line..body_end_line).each do |line_num|
           lines << analysis.line_at(line_num).chomp
         end
         lines.join("\n") + "\n"
