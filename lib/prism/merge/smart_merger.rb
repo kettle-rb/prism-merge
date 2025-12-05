@@ -424,8 +424,12 @@ module Prism
       #   - Classes/modules/blocks containing freeze blocks - frozen content would be lost
       #   - Nodes of different types
       #   - Blocks whose body contains only literals/expressions with no mergeable statements
+      #   - When max_recursion_depth has been reached (safety valve)
       def should_merge_recursively?(template_node, dest_node)
         return false unless template_node && dest_node
+
+        # Safety valve: stop recursion if max depth reached
+        return false if @current_depth >= @max_recursion_depth
 
         # Both nodes must be the same type
         return false unless template_node.class == dest_node.class

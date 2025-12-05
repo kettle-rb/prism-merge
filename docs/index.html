@@ -515,6 +515,40 @@ merger = Prism::Merge::SmartMerger.new(
 # Result: Existing configs keep destination values, new configs added from template
 </code></pre>
 
+<h3 id="recursion-depth-limit">Recursion Depth Limit</h3>
+
+<p>Prism::Merge automatically detects when block bodies contain only literals or simple expressions (no mergeable statements) and treats them atomically. However, as a safety valve for edge cases, you can limit recursion depth:</p>
+
+<pre class="code language-ruby"><code class="language-ruby"># Limit recursive merging to 3 levels deep
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  max_recursion_depth: 3,
+)
+
+# Disable recursive merging entirely (treat all nodes atomically)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  max_recursion_depth: 0,
+)
+</code></pre>
+
+<p><strong>When to use:</strong></p>
+
+<ul>
+  <li>
+<strong><code>Float::INFINITY</code></strong> (default) - Normal operation, recursion terminates naturally based on content analysis.
+    <ul>
+      <li>NOTE: If you get <code>stack level too deep (SystemStackError)</code>, please file a <a href="https://github.com/kettle-rb/prism-merge/issues">bug</a>!</li>
+    </ul>
+  </li>
+  <li>
+<strong>Finite value</strong> - Safety valve if you encounter edge cases with unexpected deep recursion</li>
+  <li>
+<strong><code>0</code></strong> - Disable recursive merging entirely; all matching nodes are treated atomically</li>
+</ul>
+
 <h3 id="custom-signature-generator">Custom Signature Generator</h3>
 
 <p>By default, Prism::Merge uses intelligent structural signatures to match nodes. The signature determines how nodes are matched between template and destination files.</p>
@@ -1334,7 +1368,7 @@ Please consider sponsoring me or the project.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 17:07:50 2025 by
+  Generated on Thu Dec  4 17:20:40 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

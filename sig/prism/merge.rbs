@@ -357,7 +357,8 @@ module Prism
 
       # Determine if two matching nodes should be recursively merged
       # Returns true for ClassNode, ModuleNode, SingletonClassNode, and CallNode/BeginNode
-      # with blocks that contain mergeable statements
+      # with blocks that contain mergeable statements.
+      # Returns false if max_recursion_depth has been reached (safety valve).
       def should_merge_recursively?: (untyped? template_node, untyped? dest_node) -> bool
 
       # Check if a body (StatementsNode) contains statements that could be merged

@@ -298,6 +298,33 @@ merger = Prism::Merge::SmartMerger.new(
 # Result: Existing configs keep destination values, new configs added from template
 ```
 
+### Recursion Depth Limit
+
+Prism::Merge automatically detects when block bodies contain only literals or simple expressions (no mergeable statements) and treats them atomically. However, as a safety valve for edge cases, you can limit recursion depth:
+
+```ruby
+# Limit recursive merging to 3 levels deep
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  max_recursion_depth: 3,
+)
+
+# Disable recursive merging entirely (treat all nodes atomically)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  max_recursion_depth: 0,
+)
+```
+
+**When to use:**
+
+- **`Float::INFINITY`** (default) - Normal operation, recursion terminates naturally based on content analysis.
+  - NOTE: If you get `stack level too deep (SystemStackError)`, please file a [bug](https://github.com/kettle-rb/prism-merge/issues)!
+- **Finite value** - Safety valve if you encounter edge cases with unexpected deep recursion
+- **`0`** - Disable recursive merging entirely; all matching nodes are treated atomically
+
 ### Custom Signature Generator
 
 By default, Prism::Merge uses intelligent structural signatures to match nodes. The signature determines how nodes are matched between template and destination files.

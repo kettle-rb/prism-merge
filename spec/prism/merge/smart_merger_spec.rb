@@ -2222,6 +2222,83 @@ RSpec.describe Prism::Merge::SmartMerger do
           expect(result.scan('it "').count).to eq(2)
         end
       end
+
+      context "with max_recursion_depth safety valve" do
+        it "stops recursion when max_recursion_depth is reached" do
+          # Deeply nested structure that would normally recurse
+          src = <<~SRC
+            class Outer
+              class Inner
+                def foo
+                  :template
+                end
+              end
+            end
+          SRC
+
+          dest = <<~DEST
+            class Outer
+              class Inner
+                def foo
+                  :destination
+                end
+              end
+            end
+          DEST
+
+          # With max_recursion_depth: 0, no recursive merging should happen at all
+          # The top-level class will be treated atomically based on signature_match_preference
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :destination,
+            max_recursion_depth: 0,
+          )
+          result = merger.merge
+
+          # Since recursion is blocked at depth 0, should use destination atomically
+          expect(result).to include(":destination")
+          expect(result).not_to include(":template")
+        end
+
+        it "allows recursion up to the specified depth" do
+          src = <<~SRC
+            class Outer
+              class Inner
+                def foo
+                  :template
+                end
+              end
+            end
+          SRC
+
+          dest = <<~DEST
+            class Outer
+              class Inner
+                def foo
+                  :destination
+                end
+                def bar
+                  :custom
+                end
+              end
+            end
+          DEST
+
+          # With max_recursion_depth: 2, can recurse into Outer and Inner
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :destination,
+            max_recursion_depth: 2,
+          )
+          result = merger.merge
+
+          # Should preserve destination's custom method since recursion is allowed
+          expect(result).to include("def bar")
+          expect(result).to include(":custom")
+        end
+      end
     end
 
     describe "#body_has_mergeable_statements?" do
