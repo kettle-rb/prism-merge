@@ -89,12 +89,38 @@ module Prism
         generate_signature(statements[index])
       end
 
-      # Generate signature for a node
-      # @param node [Prism::Node] Node to generate signature for
+      # Generate signature for a node.
+      #
+      # If a custom signature_generator is provided, it is called first. The custom
+      # generator can return:
+      # - An array signature (e.g., `[:gem, "foo"]`) - used as the signature
+      # - `nil` - the node gets no signature (won't be matched by signature)
+      # - A `Prism::Node` or `FreezeNode` - falls through to default computation using
+      #   the returned node. This allows the custom generator to optionally modify the
+      #   node before default processing, or simply return the original node unchanged
+      #   for fallthrough.
+      #
+      # @param node [Prism::Node, FreezeNode] Node to generate signature for
       # @return [Array, nil] Signature array
+      #
+      # @example Custom generator with fallthrough
+      #   signature_generator = ->(node) {
+      #     case node
+      #     when Prism::CallNode
+      #       return [:gem, node.arguments.arguments.first.unescaped] if node.name == :gem
+      #     end
+      #     node  # Return original node for default signature computation
+      #   }
       def generate_signature(node)
         result = if @signature_generator
-          @signature_generator.call(node)
+          custom_result = @signature_generator.call(node)
+          if custom_result.is_a?(Prism::Node) || custom_result.is_a?(FreezeNode)
+            # Custom generator returned a node - use default computation on it
+            compute_node_signature(custom_result)
+          else
+            # Custom result is either an array signature or nil
+            custom_result
+          end
         else
           compute_node_signature(node)
         end
@@ -145,6 +171,7 @@ module Prism
       # so we need to explicitly require it
       def attach_comments_safely!
         @parse_result.attach_comments!
+      # :nocov:
       rescue NameError => e
         if e.message.include?("Comments")
           # On JRuby, the Comments class needs to be explicitly required
@@ -153,6 +180,7 @@ module Prism
         else
           raise
         end
+        # :nocov:
       end
 
       # Extract all nodes: freeze blocks + statements outside freeze blocks
@@ -342,6 +370,13 @@ module Prism
       #   - `ConstantWriteNode` → `[:const, name]`
       #   - `ConstantPathWriteNode` → `[:const, target]`
       #
+      #   **Variable Assignments:**
+      #   - `LocalVariableWriteNode` → `[:local_var, name]`
+      #   - `InstanceVariableWriteNode` → `[:ivar, name]`
+      #   - `ClassVariableWriteNode` → `[:cvar, name]`
+      #   - `GlobalVariableWriteNode` → `[:gvar, name]`
+      #   - `MultiWriteNode` → `[:multi_write, [target_names]]`
+      #
       #   **Conditionals:**
       #   - `IfNode` → `[:if, condition_source]`
       #   - `UnlessNode` → `[:unless, condition_source]`
@@ -437,15 +472,25 @@ module Prism
         when Prism::DefNode
           # Extract parameter names from ParametersNode
           params = if node.parameters
-            param_names = []
-            param_names.concat(node.parameters.requireds.map(&:name)) if node.parameters.requireds
-            param_names.concat(node.parameters.optionals.map(&:name)) if node.parameters.optionals
-            param_names << node.parameters.rest.name if node.parameters.rest
-            param_names.concat(node.parameters.posts.map(&:name)) if node.parameters.posts
-            param_names.concat(node.parameters.keywords.map(&:name)) if node.parameters.keywords
-            param_names << node.parameters.keyword_rest.name if node.parameters.keyword_rest
-            param_names << node.parameters.block.name if node.parameters.block
-            param_names
+            # Handle forwarding parameters (def foo(...)) specially
+            if node.parameters.is_a?(Prism::ForwardingParameterNode)
+              [:forwarding]
+            else
+              param_names = []
+              param_names.concat(node.parameters.requireds.map(&:name)) if node.parameters.requireds
+              param_names.concat(node.parameters.optionals.map(&:name)) if node.parameters.optionals
+              param_names << node.parameters.rest.name if node.parameters.rest&.respond_to?(:name)
+              param_names.concat(node.parameters.posts.map(&:name)) if node.parameters.posts
+              param_names.concat(node.parameters.keywords.map(&:name)) if node.parameters.keywords
+              # keyword_rest can be KeywordRestParameterNode (has name) or ForwardingParameterNode (no name)
+              if node.parameters.keyword_rest&.respond_to?(:name)
+                param_names << node.parameters.keyword_rest.name
+              elsif node.parameters.keyword_rest.is_a?(Prism::ForwardingParameterNode)
+                param_names << :forwarding
+              end
+              param_names << node.parameters.block.name if node.parameters.block
+              param_names
+            end
           else
             []
           end
@@ -466,8 +511,37 @@ module Prism
           [:singleton_class, expr]
 
         # === Constants ===
-        when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode
-          [:const, node.name || node.target.slice]
+        when Prism::ConstantWriteNode
+          [:const, node.name]
+        when Prism::ConstantPathWriteNode
+          [:const, node.target.slice]
+
+        # === Variable assignments ===
+        when Prism::LocalVariableWriteNode
+          [:local_var, node.name]
+        when Prism::InstanceVariableWriteNode
+          [:ivar, node.name]
+        when Prism::ClassVariableWriteNode
+          [:cvar, node.name]
+        when Prism::GlobalVariableWriteNode
+          [:gvar, node.name]
+        when Prism::MultiWriteNode
+          # Multiple assignment: a, b = 1, 2
+          targets = node.lefts.map do |target|
+            case target
+            when Prism::LocalVariableTargetNode
+              target.name
+            when Prism::InstanceVariableTargetNode
+              target.name
+            when Prism::ClassVariableTargetNode
+              target.name
+            when Prism::GlobalVariableTargetNode
+              target.name
+            else
+              target.slice
+            end
+          end
+          [:multi_write, targets]
 
         # === Conditionals ===
         when Prism::IfNode, Prism::UnlessNode

@@ -107,7 +107,11 @@ module Prism
       attr_reader statements: Array[untyped]
       attr_reader freeze_blocks: Array[freeze_block]
 
-      def initialize: (String content, ?signature_generator: (^(untyped) -> Array[untyped])?) -> void
+      # Custom signature generator return types:
+      # - Array[untyped]: Used as the node's signature for matching
+      # - nil: Node gets no signature (won't be matched by signature)
+      # - Prism::Node or FreezeNode: Falls through to default signature computation
+      def initialize: (String content, ?signature_generator: (^(untyped) -> (Array[untyped] | untyped | nil))?, ?freeze_token: String?) -> void
 
       def valid?: () -> bool
 
@@ -158,6 +162,11 @@ module Prism
       #   [:module, String]                       - module definitions
       #   [:singleton_class, String]              - singleton class definitions
       #   [:const, Symbol | String]               - constant assignments
+      #   [:local_var, Symbol]                    - local variable assignments
+      #   [:ivar, Symbol]                         - instance variable assignments
+      #   [:cvar, Symbol]                         - class variable assignments
+      #   [:gvar, Symbol]                         - global variable assignments
+      #   [:multi_write, Array[Symbol | String]]  - multiple assignment
       #   [:if, String] | [:unless, String]       - conditionals
       #   [:case, String] | [:case_match, String] - case statements
       #   [:while, String] | [:until, String]     - while/until loops
@@ -318,10 +327,14 @@ module Prism
         statistics: Hash[Symbol, Integer]
       }
 
+      # Custom signature generator return types:
+      # - Array[untyped]: Used as the node's signature for matching
+      # - nil: Node gets no signature (won't be matched by signature)
+      # - Prism::Node or FreezeNode: Falls through to default signature computation
       def initialize: (
         String template_content,
         String dest_content,
-        ?signature_generator: (^(untyped) -> Array[untyped])?,
+        ?signature_generator: (^(untyped) -> (Array[untyped] | untyped | nil))?,
         ?signature_match_preference: Symbol,
         ?add_template_only_nodes: bool,
         ?freeze_token: String?,

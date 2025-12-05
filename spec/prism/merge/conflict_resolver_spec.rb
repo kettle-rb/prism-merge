@@ -210,5 +210,355 @@ RSpec.describe Prism::Merge::ConflictResolver do
         expect { resolver.resolve(boundary, result) }.not_to raise_error
       end
     end
+
+    context "with boundary containing only whitespace" do
+      it "handles resolution when boundary has only blank lines" do
+        template = <<~RUBY
+          def method_a
+            "a"
+          end
+
+
+          def method_b
+            "b"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          def method_a
+            "a"
+          end
+          def method_b
+            "b"
+          end
+        RUBY
+
+        # The extra blank lines in template create a boundary with no nodes
+        merger = Prism::Merge::SmartMerger.new(template, destination)
+        result_text = merger.merge
+
+        # Should successfully merge without errors
+        expect(result_text).to include("def method_a")
+        expect(result_text).to include("def method_b")
+      end
+    end
+
+    context "with empty content lines in boundary" do
+      it "handles boundary where content lines array is empty" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+          def method
+            "template"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          # frozen_string_literal: true
+
+          def method
+            "destination"
+          end
+        RUBY
+
+        merger = Prism::Merge::SmartMerger.new(
+          template,
+          destination,
+          signature_match_preference: :destination,
+        )
+        result_text = merger.merge
+
+        expect(result_text).to include("def method")
+      end
+    end
+
+    context "with signature_match_preference: :template in boundary resolution" do
+      it "uses template version for matched nodes within boundaries" do
+        # This test directly creates a boundary scenario with matching signatures
+        # to test the resolver's :template preference path
+        template = <<~RUBY
+          def method_a
+            "template a"
+          end
+
+          def method_b
+            "template b"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          def method_a
+            "destination a"
+          end
+
+          def method_b
+            "destination b"
+          end
+        RUBY
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+        # Create resolver with :template preference
+        resolver = described_class.new(
+          template_analysis,
+          dest_analysis,
+          signature_match_preference: :template,
+          add_template_only_nodes: true,
+        )
+
+        # Create a boundary that covers both methods
+        # This simulates what would happen if the aligner didn't create anchors
+        boundary = Prism::Merge::FileAligner::Boundary.new(1..7, 1..7, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        resolver.resolve(boundary, result)
+
+        result_text = result.to_s
+
+        # With :template preference, template versions should be used
+        expect(result_text).to include('"template a"')
+        expect(result_text).to include('"template b"')
+        expect(result_text).not_to include('"destination a"')
+        expect(result_text).not_to include('"destination b"')
+      end
+
+      it "handles matched nodes with leading comments using :template preference" do
+        template = <<~RUBY
+          # Comment for method
+          def my_method
+            "template"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          # Different comment
+          def my_method
+            "destination"
+          end
+        RUBY
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+        resolver = described_class.new(
+          template_analysis,
+          dest_analysis,
+          signature_match_preference: :template,
+        )
+
+        boundary = Prism::Merge::FileAligner::Boundary.new(1..4, 1..4, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        resolver.resolve(boundary, result)
+        result_text = result.to_s
+
+        expect(result_text).to include('"template"')
+      end
+    end
+
+    context "with nil template_line_range" do
+      it "handles boundary with nil template range" do
+        # Create a boundary manually with nil template range
+        template = "# frozen_string_literal: true\n"
+        dest = "# frozen_string_literal: true\n\nVERSION = \"1.0\"\n"
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(dest)
+
+        resolver = described_class.new(
+          template_analysis,
+          dest_analysis,
+          add_template_only_nodes: false,
+        )
+
+        # Create boundary with nil template range (destination-only content)
+        boundary = Prism::Merge::FileAligner::Boundary.new(nil, 2..3, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        expect { resolver.resolve(boundary, result) }.not_to raise_error
+      end
+    end
+
+    context "with empty sorted_nodes after processing" do
+      it "handles boundaries where all nodes are filtered out" do
+        # A boundary with only comments (no actual nodes)
+        template = <<~RUBY
+          # Just a comment
+          # Another comment
+        RUBY
+
+        dest = <<~RUBY
+          # Different comment
+        RUBY
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(dest)
+
+        resolver = described_class.new(template_analysis, dest_analysis)
+        boundary = Prism::Merge::FileAligner::Boundary.new(1..2, 1..1, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        expect { resolver.resolve(boundary, result) }.not_to raise_error
+      end
+    end
+
+    context "with freeze block content lines empty" do
+      it "handles freeze blocks with markers but empty content" do
+        template = <<~RUBY
+          gem "rails"
+        RUBY
+
+        dest = <<~RUBY
+          # kettle-dev:freeze
+          # kettle-dev:unfreeze
+          gem "rails"
+        RUBY
+
+        merger = Prism::Merge::SmartMerger.new(
+          template,
+          dest,
+          freeze_token: "kettle-dev",
+        )
+        result_text = merger.merge
+
+        expect(result_text).to include("kettle-dev:freeze")
+        expect(result_text).to include("kettle-dev:unfreeze")
+      end
+    end
+
+    context "with node without signature in boundary" do
+      it "handles nodes that have nil signatures" do
+        # Using expressions that don't generate signatures
+        template = <<~RUBY
+          1 + 2
+          "hello"
+        RUBY
+
+        dest = <<~RUBY
+          3 + 4
+          "world"
+        RUBY
+
+        # Custom generator that returns nil for everything
+        nil_gen = ->(_node) { nil }
+
+        merger = Prism::Merge::SmartMerger.new(
+          template,
+          dest,
+          signature_generator: nil_gen,
+          signature_match_preference: :destination,
+        )
+
+        # Should not error even with nil signatures everywhere
+        expect { merger.merge }.not_to raise_error
+      end
+    end
+
+    context "with add_content_to_result edge cases" do
+      it "handles empty content lines array" do
+        # This tests line 137 - content[:lines].empty? returning true
+        template = "# frozen_string_literal: true\n"
+        dest = "# frozen_string_literal: true\n"
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(dest)
+
+        resolver = described_class.new(template_analysis, dest_analysis)
+
+        # Create a boundary with empty line range (no actual lines)
+        # This will result in empty content[:lines]
+        boundary = Prism::Merge::FileAligner::Boundary.new(2..1, 2..1, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        # Should handle gracefully
+        expect { resolver.resolve(boundary, result) }.not_to raise_error
+      end
+    end
+
+    context "with nodes having leading comments on dest" do
+      it "uses dest node leading comment line for next_content_start" do
+        template = <<~RUBY
+          def method_a
+            "a"
+          end
+
+          def method_b
+            "b"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          def method_a
+            "a dest"
+          end
+
+          # Comment before method_b
+          def method_b
+            "b dest"
+          end
+        RUBY
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+        resolver = described_class.new(
+          template_analysis,
+          dest_analysis,
+          signature_match_preference: :destination,
+        )
+
+        # Process boundary covering all content
+        boundary = Prism::Merge::FileAligner::Boundary.new(1..7, 1..8, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        resolver.resolve(boundary, result)
+        result_text = result.to_s
+
+        # Comment should be preserved
+        expect(result_text).to include("Comment before method_b")
+      end
+    end
+
+    context "with trailing non-blank lines" do
+      it "stops at first non-blank line when finding trailing blanks" do
+        template = <<~RUBY
+          def method_a
+            "a"
+          end
+          # Not a blank line
+          def method_b
+            "b"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          def method_a
+            "a dest"
+          end
+          # Not blank in dest either
+          def method_b
+            "b dest"
+          end
+        RUBY
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+        resolver = described_class.new(
+          template_analysis,
+          dest_analysis,
+          signature_match_preference: :destination,
+        )
+
+        boundary = Prism::Merge::FileAligner::Boundary.new(1..7, 1..7, nil, nil)
+        result = Prism::Merge::MergeResult.new
+
+        resolver.resolve(boundary, result)
+        result_text = result.to_s
+
+        expect(result_text).to include("def method_a")
+        expect(result_text).to include("def method_b")
+      end
+    end
   end
 end

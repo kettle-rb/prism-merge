@@ -168,16 +168,6 @@ module Prism
               source_analysis: @dest_analysis,
             )
             matched_dest_indices << freeze_node_info[:index]
-
-            # Mark any template nodes within this freeze block range as processed
-            freeze_range = freeze_node_info[:line_range]
-            template_nodes.each do |t_node_info|
-              if freeze_range.cover?(t_node_info[:line_range].begin) &&
-                  freeze_range.cover?(t_node_info[:line_range].end)
-                # Template node is inside freeze block, skip it
-                # (we'll handle this by checking if it overlaps with a freeze block)
-              end
-            end
           end
         end
 
@@ -206,18 +196,6 @@ module Prism
         sorted_nodes.each_with_index do |t_node_info, idx|
           node_start = t_node_info[:line_range].begin
           node_end = t_node_info[:line_range].end
-
-          # Skip template nodes that overlap with destination freeze blocks
-          overlaps_freeze = dest_freeze_nodes.any? do |freeze_info|
-            freeze_range = freeze_info[:line_range]
-            node_start.between?(freeze_range.begin, freeze_range.end) ||
-              node_end.between?(freeze_range.begin, freeze_range.end)
-          end
-
-          if overlaps_freeze
-            current_line = node_end + 1
-            next
-          end
 
           # Check if this node will be matched or is template-only
           sig = t_node_info[:signature]

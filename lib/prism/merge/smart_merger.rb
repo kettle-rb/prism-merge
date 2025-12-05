@@ -68,9 +68,17 @@ module Prism
       # @param dest_content [String] Destination Ruby source code
       #
       # @param signature_generator [Proc, nil] Optional proc to generate custom node signatures.
-      #   The proc receives a Prism node and should return an array representing its signature.
+      #   The proc receives a Prism node (or FreezeNode) and should return one of:
+      #   - An array representing the node's signature (e.g., `[:gem, "foo"]`)
+      #   - `nil` to indicate the node should have no signature (won't be matched)
+      #   - A `Prism::Node` or `FreezeNode` to fall through to default signature computation
+      #     using that node. This allows custom generators to only override specific node
+      #     types while delegating others to the built-in logic. Return the original node
+      #     unchanged for simple fallthrough, or return a modified node to influence
+      #     default matching.
+      #
       #   Nodes with identical signatures are considered matches during merge.
-      #   Default: Uses {FileAnalysis#default_signature} which matches:
+      #   Default: Uses {FileAnalysis#compute_node_signature} which matches:
       #   - Conditionals by condition only (not body)
       #   - Assignments by name only (not value)
       #   - Method calls by name and args (not block)
@@ -122,14 +130,17 @@ module Prism
       #     add_template_only_nodes: false
       #   )
       #
-      # @example Custom signature matching
+      # @example Custom signature matching with fallthrough
       #   sig_gen = lambda do |node|
       #     case node
-      #     when Prism::DefNode
-      #       [:method, node.name]
-      #     else
-      #       [node.class.name, node.slice]
+      #     when Prism::CallNode
+      #       # Custom handling for gem calls - match by gem name
+      #       if node.name == :gem
+      #         return [:gem, node.arguments&.arguments&.first&.unescaped]
+      #       end
       #     end
+      #     # Return the node to fall through to default signature computation
+      #     node
       #   end
       #
       #   merger = SmartMerger.new(

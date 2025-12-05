@@ -470,4 +470,103 @@ RSpec.describe Prism::Merge::MergeResult do
       expect(debug).to include("appended")
     end
   end
+
+  describe "#add_node without source_analysis" do
+    let(:result) { described_class.new }
+
+    it "falls back to node.slice when source_analysis is nil" do
+      code = <<~RUBY
+        def test_method
+          "hello"
+        end
+      RUBY
+
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # Call add_node WITHOUT source_analysis to trigger fallback branch
+      result.add_node(node_info, decision: :kept_template, source: :template)
+
+      expect(result.lines).not_to be_empty
+      expect(result.to_s).to include("def test_method")
+    end
+
+    it "handles inline comments in fallback mode" do
+      code = <<~RUBY
+        def method_with_inline
+          "value"
+        end # inline comment
+      RUBY
+
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # Manually add inline comment for testing
+      node_info[:inline_comments] = analysis.parse_result.comments.select do |c|
+        c.location.start_line == node_info[:node].location.end_line
+      end
+
+      result.add_node(node_info, decision: :kept_template, source: :template)
+
+      output = result.to_s
+      expect(output).to include("def method_with_inline")
+    end
+
+    it "adds node from destination source without source_analysis" do
+      code = <<~RUBY
+        def dest_method
+          "destination"
+        end
+      RUBY
+
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      result.add_node(node_info, decision: :kept_destination, source: :destination)
+
+      expect(result.to_s).to include("def dest_method")
+      # Check metadata has dest_line set
+      expect(result.line_metadata.first[:dest_line]).not_to be_nil
+    end
+
+    it "handles leading comments without source_analysis" do
+      code = <<~RUBY
+        # Leading comment
+        def method_with_comment
+          "value"
+        end
+      RUBY
+
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # Ensure we have leading comments
+      expect(node_info[:leading_comments]).not_to be_empty
+
+      result.add_node(node_info, decision: :kept_template, source: :template)
+
+      output = result.to_s
+      expect(output).to include("Leading comment")
+      expect(output).to include("def method_with_comment")
+    end
+
+    it "handles leading comments from destination without source_analysis" do
+      code = <<~RUBY
+        # Dest comment
+        def dest_method
+          "value"
+        end
+      RUBY
+
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      result.add_node(node_info, decision: :kept_destination, source: :destination)
+
+      output = result.to_s
+      expect(output).to include("Dest comment")
+      # Check comment metadata has dest_line
+      expect(result.line_metadata.first[:dest_line]).not_to be_nil
+    end
+  end
 end

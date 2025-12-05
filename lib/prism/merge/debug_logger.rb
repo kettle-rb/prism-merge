@@ -8,7 +8,9 @@ module Prism
     # rubocop:disable ThreadSafety/ClassInstanceVariable
     module DebugLogger
       @logger = nil
+      # :nocov:
       @enabled = ENV.fetch("PRISM_MERGE_DEBUG", "false").casecmp?("true")
+      # :nocov:
 
       class << self
         attr_reader :enabled
@@ -17,7 +19,7 @@ module Prism
         # @param message [String] The message to log
         # @param context [Hash] Optional context information
         def debug(message, context = {})
-          return unless @enabled
+          return unless enabled
 
           if logger_available?
             ensure_logger

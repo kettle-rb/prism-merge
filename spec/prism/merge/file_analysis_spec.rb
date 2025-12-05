@@ -689,4 +689,470 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(analysis.statements).not_to be_empty
     end
   end
+
+  describe "#compute_node_signature with FreezeNode" do
+    it "generates signature for FreezeNode" do
+      code = <<~RUBY
+        # prism-merge:freeze
+        def frozen_method
+          "frozen"
+        end
+        # prism-merge:unfreeze
+      RUBY
+
+      analysis = described_class.new(code)
+      freeze_node = analysis.freeze_blocks.first
+
+      expect(freeze_node).to be_a(Prism::Merge::FreezeNode)
+
+      # The FreezeNode should have a signature
+      node_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::Merge::FreezeNode) }
+      expect(node_info).not_to be_nil
+      expect(node_info[:signature]).not_to be_nil
+    end
+  end
+
+  describe "DefNode with special parameters" do
+    it "handles method with rest parameters" do
+      code = <<~RUBY
+        def method_with_rest(*args)
+          args.join(", ")
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:def, :method_with_rest, [:args]])
+    end
+
+    it "handles method with keyword rest parameters" do
+      code = <<~RUBY
+        def method_with_keyrest(**kwargs)
+          kwargs.inspect
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:def, :method_with_keyrest, [:kwargs]])
+    end
+
+    it "handles method with block parameter" do
+      code = <<~RUBY
+        def method_with_block(&block)
+          block.call
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:def, :method_with_block, [:block]])
+    end
+
+    it "handles method with all parameter types" do
+      code = <<~RUBY
+        def complex_method(req, opt = nil, *rest, key:, key_opt: nil, **keyrest, &blk)
+          [req, opt, rest, key, key_opt, keyrest, blk]
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      sig = node_info[:signature]
+      expect(sig[0]).to eq(:def)
+      expect(sig[1]).to eq(:complex_method)
+      # Parameter names extracted (order: requireds, optionals, rest, posts, keywords, keyword_rest, block)
+      expect(sig[2]).to eq([:req, :opt, :rest, :key, :key_opt, :keyrest, :blk])
+    end
+
+    it "handles method with forwarding parameters" do
+      code = <<~RUBY
+        def forwarding_method(...)
+          other_method(...)
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      sig = node_info[:signature]
+      expect(sig[0]).to eq(:def)
+      expect(sig[1]).to eq(:forwarding_method)
+      expect(sig[2]).to eq([:forwarding])
+    end
+  end
+
+  describe "signature generator returning Prism::Node for fallthrough" do
+    it "falls through to default when generator returns the node" do
+      code = <<~RUBY
+        def my_method
+          "hello"
+        end
+
+        CONSTANT = "value"
+      RUBY
+
+      # Generator that only handles CallNodes, returns node for others
+      selective_generator = lambda do |node|
+        case node
+        when Prism::CallNode
+          [:custom_call, node.name]
+        else
+          # Return the node to fall through to default
+          node
+        end
+      end
+
+      analysis = described_class.new(code, signature_generator: selective_generator)
+
+      # DefNode should have default signature (fallthrough)
+      def_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::DefNode) }
+      expect(def_info[:signature][0]).to eq(:def)
+      expect(def_info[:signature][1]).to eq(:my_method)
+
+      # ConstantWriteNode should have default signature (fallthrough)
+      const_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::ConstantWriteNode) }
+      expect(const_info[:signature]).to eq([:const, :CONSTANT])
+    end
+  end
+
+  describe "#compute_node_signature for rare node types" do
+    it "handles CaseNode without predicate" do
+      code = <<~RUBY
+        case
+        when true
+          "yes"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:case, ""])
+    end
+
+    it "handles CaseMatchNode (pattern matching)" do
+      code = <<~RUBY
+        case [1, 2]
+        in [a, b]
+          a + b
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:case_match)
+      expect(node_info[:signature][1]).to eq("[1, 2]")
+    end
+
+    it "handles WhileNode" do
+      code = <<~RUBY
+        while x < 10
+          x += 1
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:while, "x < 10"])
+    end
+
+    it "handles UntilNode" do
+      code = <<~RUBY
+        until done
+          work
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:until, "done"])
+    end
+
+    it "handles ForNode" do
+      code = <<~RUBY
+        for i in items
+          puts i
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:for, "i", "items"])
+    end
+
+    it "handles BeginNode" do
+      code = <<~RUBY
+        begin
+          risky_operation
+        rescue
+          handle_error
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:begin)
+    end
+
+    it "handles SuperNode without block" do
+      # SuperNode appears inside a method, so we need to test it via a method definition
+      # but we can test the signature computation directly
+      code = <<~RUBY
+        class Child < Parent
+          def foo
+            super(1, 2)
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      # The top-level node is the ClassNode
+      class_info = analysis.nodes_with_comments.first
+      expect(class_info[:signature][0]).to eq(:class)
+    end
+
+    it "handles ForwardingSuperNode" do
+      code = <<~RUBY
+        class Child < Parent
+          def foo(...)
+            super
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      class_info = analysis.nodes_with_comments.first
+      expect(class_info[:signature][0]).to eq(:class)
+    end
+
+    it "handles LambdaNode" do
+      code = <<~RUBY
+        my_lambda = ->(x, y) { x + y }
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # The top-level is a LocalVariableWriteNode (the lambda is assigned to a variable)
+      expect(node_info[:signature][0]).to eq(:local_var)
+      expect(node_info[:signature][1]).to eq(:my_lambda)
+    end
+
+    it "handles PreExecutionNode (BEGIN block)" do
+      code = <<~RUBY
+        BEGIN {
+          puts "startup"
+        }
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:pre_execution)
+    end
+
+    it "handles PostExecutionNode (END block)" do
+      code = <<~RUBY
+        END {
+          puts "cleanup"
+        }
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:post_execution)
+    end
+
+    it "handles assignment method call with block" do
+      code = <<~RUBY
+        config.setting = proc { "value" }
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # This is a CallNode with name ending in =
+      expect(node_info[:signature][0]).to eq(:call)
+      expect(node_info[:signature][1]).to eq(:setting=)
+    end
+
+    it "handles SingletonClassNode" do
+      code = <<~RUBY
+        class << self
+          def singleton_method
+            "hello"
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:singleton_class, "self"])
+    end
+
+    it "handles ModuleNode" do
+      code = <<~RUBY
+        module MyModule
+          CONSTANT = 1
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:module, "MyModule"])
+    end
+
+    it "handles ConstantPathWriteNode" do
+      code = <<~RUBY
+        Outer::Inner::CONST = "value"
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:const, "Outer::Inner::CONST"])
+    end
+
+    it "handles InstanceVariableWriteNode" do
+      # At top level, instance variable writes are statements
+      code = <<~RUBY
+        @instance_var = "value"
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:ivar, :@instance_var])
+    end
+
+    it "handles ClassVariableWriteNode" do
+      code = <<~RUBY
+        @@class_var = "value"
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:cvar, :@@class_var])
+    end
+
+    it "handles GlobalVariableWriteNode" do
+      code = <<~RUBY
+        $global_var = "value"
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:gvar, :$global_var])
+    end
+
+    it "handles MultiWriteNode with local variables" do
+      code = <<~RUBY
+        a, b, c = [1, 2, 3]
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:multi_write)
+      expect(node_info[:signature][1]).to include(:a)
+      expect(node_info[:signature][1]).to include(:b)
+      expect(node_info[:signature][1]).to include(:c)
+    end
+
+    it "handles MultiWriteNode with instance variables" do
+      code = <<~RUBY
+        @a, @b = [1, 2]
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:multi_write)
+      expect(node_info[:signature][1]).to include(:@a)
+      expect(node_info[:signature][1]).to include(:@b)
+    end
+
+    it "handles MultiWriteNode with class variables" do
+      code = <<~RUBY
+        @@a, @@b = [1, 2]
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:multi_write)
+      expect(node_info[:signature][1]).to include(:@@a)
+      expect(node_info[:signature][1]).to include(:@@b)
+    end
+
+    it "handles MultiWriteNode with global variables" do
+      code = <<~RUBY
+        $a, $b = [1, 2]
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:multi_write)
+      expect(node_info[:signature][1]).to include(:$a)
+      expect(node_info[:signature][1]).to include(:$b)
+    end
+
+    it "handles MultiWriteNode with mixed target types" do
+      code = <<~RUBY
+        a, @b, CONST = [1, 2, 3]
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:multi_write)
+      # Local variable
+      expect(node_info[:signature][1]).to include(:a)
+      # Instance variable
+      expect(node_info[:signature][1]).to include(:@b)
+      # Constant (uses slice fallback)
+      expect(node_info[:signature][1].any? { |t| t.to_s.include?("CONST") }).to be true
+    end
+
+    it "handles UnlessNode" do
+      code = <<~RUBY
+        unless condition
+          do_something
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:unless, "condition"])
+    end
+
+    it "falls back to :other for unknown node types" do
+      # We can test this by using a custom generator that returns the node,
+      # and mocking a node type that isn't handled
+      code = "42"
+
+      analysis = described_class.new(code)
+      # IntegerNode is not in the case statement, should fall back to :other
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:other)
+    end
+  end
 end

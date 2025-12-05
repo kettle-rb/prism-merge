@@ -338,6 +338,12 @@ By default, Prism::Merge uses intelligent structural signatures to match nodes. 
 | `ModuleNode` | `[:module, name]` | Modules match by name |
 | `SingletonClassNode` | `[:singleton_class, expr]` | Singleton classes match by expression (`class << self`) |
 | `ConstantWriteNode` | `[:const, name]` | Constants match by name only (not value) |
+| `ConstantPathWriteNode` | `[:const, target]` | Namespaced constants match by full path |
+| `LocalVariableWriteNode` | `[:local_var, name]` | Local variables match by name |
+| `InstanceVariableWriteNode` | `[:ivar, name]` | Instance variables match by name |
+| `ClassVariableWriteNode` | `[:cvar, name]` | Class variables match by name |
+| `GlobalVariableWriteNode` | `[:gvar, name]` | Global variables match by name |
+| `MultiWriteNode` | `[:multi_write, targets]` | Multiple assignment matches by target names |
 | `IfNode` / `UnlessNode` | `[:if, condition]` | Conditionals match by condition expression |
 | `CaseNode` | `[:case, predicate]` | Case statements match by the expression being switched |
 | `CaseMatchNode` | `[:case_match, predicate]` | Pattern matching cases match by expression |
@@ -364,7 +370,15 @@ The following node types support **recursive body merging**, where nested conten
 
 #### Custom Signature Generator
 
-You can provide a custom signature generator to control matching behavior:
+You can provide a custom signature generator to control how nodes are matched between template and destination files. The signature generator is a callable (lambda/proc) that receives a `Prism::Node` (or `FreezeNode`) and returns one of three types of values:
+
+| Return Value | Behavior |
+|--------------|----------|
+| **Array** (e.g., `[:gem, "foo"]`) | Used as the node's signature for matching. Nodes with identical signatures are considered matches. |
+| **`nil`** | The node gets no signature and won't be matched by signature. Useful for nodes you want to skip or handle specially. |
+| **`Prism::Node` or `FreezeNode`** | Falls through to the default signature computation using the returned node. Return the original node unchanged for simple fallthrough, or return a modified node to influence default matching. |
+
+##### Basic Example
 
 ```ruby
 signature_generator = lambda do |node|
@@ -379,10 +393,36 @@ signature_generator = lambda do |node|
     # Match classes by name
     [:class, node.constant_path.slice]
   else
-    # Default matching
-    [node.class.name.split("::").last.to_sym, node.slice]
+    # Default matching - return node to fall through
+    node
   end
 end
+```
+
+##### Fallthrough Example (Recommended Pattern)
+
+The fallthrough pattern allows you to customize only specific node types while delegating everything else to the built-in signature logic:
+
+```ruby
+signature_generator = ->(node) {
+  # Only customize CallNode signatures for specific methods
+  if node.is_a?(Prism::CallNode)
+    # source() calls - match by method name only (there's usually just one)
+    return [:source] if node.name == :source
+
+    # gem() calls - match by gem name (first argument)
+    if node.name == :gem
+      first_arg = node.arguments&.arguments&.first
+      if first_arg.is_a?(Prism::StringNode)
+        return [:gem, first_arg.unescaped]
+      end
+    end
+  end
+
+  # Return the node to fall through to default signature computation
+  # This preserves correct handling for FreezeNodes, classes, modules, etc.
+  node
+}
 
 merger = Prism::Merge::SmartMerger.new(
   template_content,
@@ -391,6 +431,26 @@ merger = Prism::Merge::SmartMerger.new(
   signature_match_preference: :template,
   add_template_only_nodes: true,
 )
+```
+
+##### Why Fallthrough Matters
+
+When you provide a custom signature generator, it's called for **all** node types, including internal types like `FreezeNode`. If your generator returns `nil` for node types it doesn't recognize, those nodes won't be matched properly:
+
+```ruby
+# ❌ Bad: Returns nil for unrecognized nodes
+signature_generator = ->(node) {
+  return unless node.is_a?(Prism::CallNode)  # FreezeNodes get nil!
+  [:call, node.name]
+}
+
+# ✅ Good: Falls through for unrecognized nodes
+signature_generator = ->(node) {
+  if node.is_a?(Prism::CallNode)
+    return [:call, node.name]
+  end
+  node  # FreezeNodes and others use default signatures
+}
 ```
 
 ### Freeze Blocks
