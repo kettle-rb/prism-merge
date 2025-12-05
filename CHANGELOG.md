@@ -28,9 +28,18 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
-- **Fixed indentation loss** when adding nodes to merge result - the `add_node` method was using `node.slice` which loses leading indentation. Now uses `source_analysis.line_at` to get full lines from the source file, preserving original indentation.
-
 ### Security
+
+## [1.1.3] - 2025-12-04
+
+- TAG: [v1.1.3][1.1.3t]
+- COVERAGE: 96.71% -- 881/911 lines in 9 files
+- BRANCH COVERAGE: 82.86% -- 348/420 branches in 9 files
+- 100.00% documented
+
+### Fixed
+
+- **Fixed indentation loss** when adding nodes to merge result - the `add_node` method was using `node.slice` which loses leading indentation. Now uses `source_analysis.line_at` to get full lines from the source file, preserving original indentation.
 
 ## [1.1.2] - 2025-12-04
 
@@ -173,7 +182,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/kettle-rb/prism-merge/compare/v1.1.2...v1.1.3
+[1.1.3t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.3
 [1.1.2]: https://github.com/kettle-rb/prism-merge/compare/v1.1.1...v1.1.2
 [1.1.2t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.2
 [1.1.1]: https://github.com/kettle-rb/prism-merge/compare/v1.1.0...v1.1.1
