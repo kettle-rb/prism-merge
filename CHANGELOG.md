@@ -20,6 +20,25 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [1.1.4] - 2025-12-04
+
+- TAG: [v1.1.4][1.1.4t]
+- COVERAGE: 98.26% -- 902/918 lines in 9 files
+- BRANCH COVERAGE: 87.59% -- 381/435 branches in 9 files
+- 100.00% documented
+
+### Added
+
 - **Custom signature generator fallthrough support**: Custom signature generators can now return a `Prism::Node` or `FreezeNode` to fall through to the default signature computation. This allows custom generators to only override specific node types while delegating others to the built-in logic. Previously, returning `nil` was the only way to skip custom handling, but that prevented proper matching for unhandled node types.
 - **Variable assignment node signatures**: Added signature support for all variable write node types:
   - `LocalVariableWriteNode` → `[:local_var, name]`
@@ -28,10 +47,6 @@ Please file a bug if you notice a violation of semantic versioning.
   - `GlobalVariableWriteNode` → `[:gvar, name]`
   - `MultiWriteNode` → `[:multi_write, [target_names]]`
 
-### Changed
-
-### Deprecated
-
 ### Removed
 
 - Removed pre-prism code in `ConflictResolver` that compared template node line numbers against destination freeze block line numbers (cross-file line comparison makes no sense)
@@ -39,8 +54,6 @@ Please file a bug if you notice a violation of semantic versioning.
 ### Fixed
 
 - **Fixed template-only nodes not being added when destination has freeze blocks**: When `add_template_only_nodes: true`, template nodes with no matching signature in destination were incorrectly skipped if the destination contained freeze blocks. The bug was caused by comparing template node line numbers against destination freeze block line numbers, which is a meaningless cross-file comparison. Template-only nodes are now correctly added regardless of freeze block presence.
-
-### Security
 
 ## [1.1.3] - 2025-12-04
 
@@ -194,7 +207,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.4...HEAD
+[1.1.4]: https://github.com/kettle-rb/prism-merge/compare/v1.1.3...v1.1.4
+[1.1.4t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.4
 [1.1.3]: https://github.com/kettle-rb/prism-merge/compare/v1.1.2...v1.1.3
 [1.1.3t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.3
 [1.1.2]: https://github.com/kettle-rb/prism-merge/compare/v1.1.1...v1.1.2

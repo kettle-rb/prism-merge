@@ -201,12 +201,12 @@ rubocop:disable ThreadSafety/ClassInstanceVariable</p>
       <pre class="lines">
 
 
-14
-15
-16</pre>
+16
+17
+18</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/debug_logger.rb', line 14</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/debug_logger.rb', line 16</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_enabled'>enabled</span>
   <span class='ivar'>@enabled</span>
@@ -284,8 +284,6 @@ rubocop:disable ThreadSafety/ClassInstanceVariable</p>
       <pre class="lines">
 
 
-19
-20
 21
 22
 23
@@ -295,13 +293,15 @@ rubocop:disable ThreadSafety/ClassInstanceVariable</p>
 27
 28
 29
-30</pre>
+30
+31
+32</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/debug_logger.rb', line 19</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/debug_logger.rb', line 21</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='id identifier rubyid_message'>message</span><span class='comma'>,</span> <span class='id identifier rubyid_context'>context</span> <span class='op'>=</span> <span class='lbrace'>{</span><span class='rbrace'>}</span><span class='rparen'>)</span>
-  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='ivar'>@enabled</span>
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_enabled'>enabled</span>
 
   <span class='kw'>if</span> <span class='id identifier rubyid_logger_available?'>logger_available?</span>
     <span class='id identifier rubyid_ensure_logger'>ensure_logger</span>
@@ -322,7 +322,7 @@ rubocop:disable ThreadSafety/ClassInstanceVariable</p>
 </div>
 
       <div id="footer">
-  Generated on Thu Dec  4 18:12:13 2025 by
+  Generated on Thu Dec  4 21:47:19 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

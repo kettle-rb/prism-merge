@@ -1123,12 +1123,12 @@ and the CommentNode class.</p>
       <pre class="lines">
 
 
-121
-122
-123</pre>
+147
+148
+149</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 121</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 147</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_freeze_block_at'>freeze_block_at</span><span class='lparen'>(</span><span class='id identifier rubyid_line_num'>line_num</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_freeze_blocks'>freeze_blocks</span><span class='period'>.</span><span class='id identifier rubyid_find'>find</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_freeze_node'>freeze_node</span><span class='op'>|</span> <span class='id identifier rubyid_freeze_node'>freeze_node</span><span class='period'>.</span><span class='id identifier rubyid_location'>location</span><span class='period'>.</span><span class='id identifier rubyid_cover?'>cover?</span><span class='lparen'>(</span><span class='id identifier rubyid_line_num'>line_num</span><span class='rparen'>)</span> <span class='rbrace'>}</span>
@@ -1202,13 +1202,41 @@ and the CommentNode class.</p>
   
 </h3><div class="docstring">
   <div class="discussion">
-    <p>Generate signature for a node</p>
+    <p>Generate signature for a node.</p>
+
+<p>If a custom signature_generator is provided, it is called first. The custom<br />
+generator can return:</p>
+<ul>
+  <li>An array signature (e.g., <code>[:gem, "foo"]</code>) - used as the signature</li>
+  <li><code>nil</code> - the node gets no signature (won’t be matched by signature)</li>
+  <li>A <code>Prism::Node</code> or <code>FreezeNode</code> - falls through to default computation using<br />
+the returned node. This allows the custom generator to optionally modify the<br />
+node before default processing, or simply return the original node unchanged<br />
+for fallthrough.</li>
+</ul>
 
 
   </div>
 </div>
 <div class="tags">
-  <p class="tag_title">Parameters:</p>
+  
+  <div class="examples">
+    <h4 class="tag_title">Examples:</h4>
+    
+      
+        <h5 class="example_title"><div class='inline'><p>Custom generator with fallthrough</p>
+</div></h5>
+      
+      <pre class="example code"><code><span class='id identifier rubyid_signature_generator'>signature_generator</span> <span class='op'>=</span> <span class='tlambda'>-&gt;</span><span class='lparen'>(</span><span class='id identifier rubyid_node'>node</span><span class='rparen'>)</span> <span class='tlambeg'>{</span>
+  <span class='kw'>case</span> <span class='id identifier rubyid_node'>node</span>
+  <span class='kw'>when</span> <span class='const'><span class='object_link'><a href="../../Prism.html" title="Prism (module)">Prism</a></span></span><span class='op'>::</span><span class='const'>CallNode</span>
+    <span class='kw'>return</span> <span class='lbracket'>[</span><span class='symbol'>:gem</span><span class='comma'>,</span> <span class='id identifier rubyid_node'>node</span><span class='period'>.</span><span class='id identifier rubyid_arguments'>arguments</span><span class='period'>.</span><span class='id identifier rubyid_arguments'>arguments</span><span class='period'>.</span><span class='id identifier rubyid_first'>first</span><span class='period'>.</span><span class='id identifier rubyid_unescaped'>unescaped</span><span class='rbracket'>]</span> <span class='kw'>if</span> <span class='id identifier rubyid_node'>node</span><span class='period'>.</span><span class='id identifier rubyid_name'>name</span> <span class='op'>==</span> <span class='symbol'>:gem</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_node'>node</span>  <span class='comment'># Return original node for default signature computation
+</span><span class='rbrace'>}</span></code></pre>
+    
+  </div>
+<p class="tag_title">Parameters:</p>
 <ul class="param">
   
     <li>
@@ -1216,7 +1244,7 @@ and the CommentNode class.</p>
         <span class='name'>node</span>
       
       
-        <span class='type'>(<tt>Prism::Node</tt>)</span>
+        <span class='type'>(<tt>Prism::Node</tt>, <tt><span class='object_link'><a href="FreezeNode.html" title="Prism::Merge::FreezeNode (class)">FreezeNode</a></span></tt>)</span>
       
       
       
@@ -1252,28 +1280,42 @@ and the CommentNode class.</p>
       <pre class="lines">
 
 
-95
-96
-97
-98
-99
-100
-101
-102
-103
-104
-105
-106
-107
-108
-109</pre>
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 95</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 114</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_generate_signature'>generate_signature</span><span class='lparen'>(</span><span class='id identifier rubyid_node'>node</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ivar'>@signature_generator</span>
-    <span class='ivar'>@signature_generator</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_node'>node</span><span class='rparen'>)</span>
+    <span class='id identifier rubyid_custom_result'>custom_result</span> <span class='op'>=</span> <span class='ivar'>@signature_generator</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_node'>node</span><span class='rparen'>)</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_custom_result'>custom_result</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span><span class='lparen'>(</span><span class='const'><span class='object_link'><a href="../../Prism.html" title="Prism (module)">Prism</a></span></span><span class='op'>::</span><span class='const'>Node</span><span class='rparen'>)</span> <span class='op'>||</span> <span class='id identifier rubyid_custom_result'>custom_result</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span><span class='lparen'>(</span><span class='const'><span class='object_link'><a href="FreezeNode.html" title="Prism::Merge::FreezeNode (class)">FreezeNode</a></span></span><span class='rparen'>)</span>
+      <span class='comment'># Custom generator returned a node - use default computation on it
+</span>      <span class='id identifier rubyid_compute_node_signature'>compute_node_signature</span><span class='lparen'>(</span><span class='id identifier rubyid_custom_result'>custom_result</span><span class='rparen'>)</span>
+    <span class='kw'>else</span>
+      <span class='comment'># Custom result is either an array signature or nil
+</span>      <span class='id identifier rubyid_custom_result'>custom_result</span>
+    <span class='kw'>end</span>
   <span class='kw'>else</span>
     <span class='id identifier rubyid_compute_node_signature'>compute_node_signature</span><span class='lparen'>(</span><span class='id identifier rubyid_node'>node</span><span class='rparen'>)</span>
   <span class='kw'>end</span>
@@ -1348,12 +1390,12 @@ and the CommentNode class.</p>
       <pre class="lines">
 
 
-114
-115
-116</pre>
+140
+141
+142</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 114</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 140</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_in_freeze_block?'>in_freeze_block?</span><span class='lparen'>(</span><span class='id identifier rubyid_line_num'>line_num</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_freeze_blocks'>freeze_blocks</span><span class='period'>.</span><span class='id identifier rubyid_any?'>any?</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_freeze_node'>freeze_node</span><span class='op'>|</span> <span class='id identifier rubyid_freeze_node'>freeze_node</span><span class='period'>.</span><span class='id identifier rubyid_location'>location</span><span class='period'>.</span><span class='id identifier rubyid_cover?'>cover?</span><span class='lparen'>(</span><span class='id identifier rubyid_line_num'>line_num</span><span class='rparen'>)</span> <span class='rbrace'>}</span>
@@ -1420,13 +1462,13 @@ and the CommentNode class.</p>
       <pre class="lines">
 
 
-136
-137
-138
-139</pre>
+162
+163
+164
+165</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 136</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 162</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_line_at'>line_at</span><span class='lparen'>(</span><span class='id identifier rubyid_line_num'>line_num</span><span class='rparen'>)</span>
   <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_line_num'>line_num</span> <span class='op'>&lt;</span> <span class='int'>1</span> <span class='op'>||</span> <span class='id identifier rubyid_line_num'>line_num</span> <span class='op'>&gt;</span> <span class='id identifier rubyid_lines'>lines</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span>
@@ -1552,13 +1594,13 @@ Comments are now accessed via Prism’s native node.location API</p>
       <pre class="lines">
 
 
-128
-129
-130
-131</pre>
+154
+155
+156
+157</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 128</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/file_analysis.rb', line 154</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_normalized_line'>normalized_line</span><span class='lparen'>(</span><span class='id identifier rubyid_line_num'>line_num</span><span class='rparen'>)</span>
   <span class='kw'>return</span> <span class='kw'>if</span> <span class='id identifier rubyid_line_num'>line_num</span> <span class='op'>&lt;</span> <span class='int'>1</span> <span class='op'>||</span> <span class='id identifier rubyid_line_num'>line_num</span> <span class='op'>&gt;</span> <span class='id identifier rubyid_lines'>lines</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span>
@@ -1705,7 +1747,7 @@ Comments are now accessed via Prism’s native node.location API</p>
 </div>
 
       <div id="footer">
-  Generated on Thu Dec  4 18:12:13 2025 by
+  Generated on Thu Dec  4 21:47:19 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

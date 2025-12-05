@@ -207,7 +207,7 @@ File.write(&quot;merged.rb&quot;, result)
     <tr>
       <td>Source</td>
       <td>
-<a href="https://gitlab.com/kettle-rb/prism-merge/"><img src="https://img.shields.io/badge/GitLab-FBA326?style=for-the-badge&amp;logo=Gitlab&amp;logoColor=orange" alt="Source on GitLab.com"></a> <a href="https://codeberg.org/kettle-rb/prism-merge"><img src="https://img.shields.io/badge/CodeBerg-4893CC?style=for-the-badge&amp;logo=CodeBerg&amp;logoColor=blue" alt="Source on CodeBerg.org"></a> <a href="https://github.com/kettle-rb/prism-merge"><img src="https://img.shields.io/badge/GitHub-238636?style=for-the-badge&amp;logo=Github&amp;logoColor=green" alt="Source on Github.com"></a> <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img src="https://img.shields.io/badge/KLOC-0.911-FFDD67.svg?style=for-the-badge&amp;logo=YouTube&amp;logoColor=blue" alt="The best SHA: dQw4w9WgXcQ!"></a>
+<a href="https://gitlab.com/kettle-rb/prism-merge/"><img src="https://img.shields.io/badge/GitLab-FBA326?style=for-the-badge&amp;logo=Gitlab&amp;logoColor=orange" alt="Source on GitLab.com"></a> <a href="https://codeberg.org/kettle-rb/prism-merge"><img src="https://img.shields.io/badge/CodeBerg-4893CC?style=for-the-badge&amp;logo=CodeBerg&amp;logoColor=blue" alt="Source on CodeBerg.org"></a> <a href="https://github.com/kettle-rb/prism-merge"><img src="https://img.shields.io/badge/GitHub-238636?style=for-the-badge&amp;logo=Github&amp;logoColor=green" alt="Source on Github.com"></a> <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img src="https://img.shields.io/badge/KLOC-0.918-FFDD67.svg?style=for-the-badge&amp;logo=YouTube&amp;logoColor=blue" alt="The best SHA: dQw4w9WgXcQ!"></a>
 </td>
     </tr>
     <tr>
@@ -590,6 +590,36 @@ merger = Prism::Merge::SmartMerger.new(
       <td>Constants match by name only (not value)</td>
     </tr>
     <tr>
+      <td><code>ConstantPathWriteNode</code></td>
+      <td><code>[:const, target]</code></td>
+      <td>Namespaced constants match by full path</td>
+    </tr>
+    <tr>
+      <td><code>LocalVariableWriteNode</code></td>
+      <td><code>[:local_var, name]</code></td>
+      <td>Local variables match by name</td>
+    </tr>
+    <tr>
+      <td><code>InstanceVariableWriteNode</code></td>
+      <td><code>[:ivar, name]</code></td>
+      <td>Instance variables match by name</td>
+    </tr>
+    <tr>
+      <td><code>ClassVariableWriteNode</code></td>
+      <td><code>[:cvar, name]</code></td>
+      <td>Class variables match by name</td>
+    </tr>
+    <tr>
+      <td><code>GlobalVariableWriteNode</code></td>
+      <td><code>[:gvar, name]</code></td>
+      <td>Global variables match by name</td>
+    </tr>
+    <tr>
+      <td><code>MultiWriteNode</code></td>
+      <td><code>[:multi_write, targets]</code></td>
+      <td>Multiple assignment matches by target names</td>
+    </tr>
+    <tr>
       <td>
 <code>IfNode</code> / <code>UnlessNode</code>
 </td>
@@ -683,7 +713,33 @@ merger = Prism::Merge::SmartMerger.new(
 
 <h4 id="custom-signature-generator-1">Custom Signature Generator</h4>
 
-<p>You can provide a custom signature generator to control matching behavior:</p>
+<p>You can provide a custom signature generator to control how nodes are matched between template and destination files. The signature generator is a callable (lambda/proc) that receives a <code>Prism::Node</code> (or <code>FreezeNode</code>) and returns one of three types of values:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Return Value</th>
+      <th>Behavior</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<strong>Array</strong> (e.g., <code>[:gem, "foo"]</code>)</td>
+      <td>Used as the node’s signature for matching. Nodes with identical signatures are considered matches.</td>
+    </tr>
+    <tr>
+      <td><strong><code>nil</code></strong></td>
+      <td>The node gets no signature and won’t be matched by signature. Useful for nodes you want to skip or handle specially.</td>
+    </tr>
+    <tr>
+      <td><strong><code>Prism::Node</code> or <code>FreezeNode</code></strong></td>
+      <td>Falls through to the default signature computation using the returned node. Return the original node unchanged for simple fallthrough, or return a modified node to influence default matching.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h5 id="basic-example">Basic Example</h5>
 
 <pre class="code language-ruby"><code class="language-ruby">signature_generator = lambda do |node|
   case node
@@ -697,10 +753,35 @@ merger = Prism::Merge::SmartMerger.new(
     # Match classes by name
     [:class, node.constant_path.slice]
   else
-    # Default matching
-    [node.class.name.split(&quot;::&quot;).last.to_sym, node.slice]
+    # Default matching - return node to fall through
+    node
   end
 end
+</code></pre>
+
+<h5 id="fallthrough-example-recommended-pattern">Fallthrough Example (Recommended Pattern)</h5>
+
+<p>The fallthrough pattern allows you to customize only specific node types while delegating everything else to the built-in signature logic:</p>
+
+<pre class="code language-ruby"><code class="language-ruby">signature_generator = -&gt;(node) {
+  # Only customize CallNode signatures for specific methods
+  if node.is_a?(Prism::CallNode)
+    # source() calls - match by method name only (there&#39;s usually just one)
+    return [:source] if node.name == :source
+
+    # gem() calls - match by gem name (first argument)
+    if node.name == :gem
+      first_arg = node.arguments&amp;.arguments&amp;.first
+      if first_arg.is_a?(Prism::StringNode)
+        return [:gem, first_arg.unescaped]
+      end
+    end
+  end
+
+  # Return the node to fall through to default signature computation
+  # This preserves correct handling for FreezeNodes, classes, modules, etc.
+  node
+}
 
 merger = Prism::Merge::SmartMerger.new(
   template_content,
@@ -709,6 +790,25 @@ merger = Prism::Merge::SmartMerger.new(
   signature_match_preference: :template,
   add_template_only_nodes: true,
 )
+</code></pre>
+
+<h5 id="why-fallthrough-matters">Why Fallthrough Matters</h5>
+
+<p>When you provide a custom signature generator, it’s called for <strong>all</strong> node types, including internal types like <code>FreezeNode</code>. If your generator returns <code>nil</code> for node types it doesn’t recognize, those nodes won’t be matched properly:</p>
+
+<pre class="code language-ruby"><code class="language-ruby"># ❌ Bad: Returns nil for unrecognized nodes
+signature_generator = -&gt;(node) {
+  return unless node.is_a?(Prism::CallNode)  # FreezeNodes get nil!
+  [:call, node.name]
+}
+
+# ✅ Good: Falls through for unrecognized nodes
+signature_generator = -&gt;(node) {
+  if node.is_a?(Prism::CallNode)
+    return [:call, node.name]
+  end
+  node  # FreezeNodes and others use default signatures
+}
 </code></pre>
 
 <h3 id="freeze-blocks">Freeze Blocks</h3>
@@ -1368,7 +1468,7 @@ Please consider sponsoring me or the project.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 18:12:13 2025 by
+  Generated on Thu Dec  4 21:47:19 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

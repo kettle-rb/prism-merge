@@ -166,7 +166,11 @@ class FileAnalysis
   attr_reader statements: Array[untyped]
   attr_reader freeze_blocks: Array[freeze_block]
 
-  def initialize: (String content, ?signature_generator: (^(untyped) -&gt; Array[untyped])?) -&gt; void
+  # Custom signature generator return types:
+  # - Array[untyped]: Used as the node&#39;s signature for matching
+  # - nil: Node gets no signature (won&#39;t be matched by signature)
+  # - Prism::Node or FreezeNode: Falls through to default signature computation
+  def initialize: (String content, ?signature_generator: (^(untyped) -&gt; (Array[untyped] | untyped | nil))?, ?freeze_token: String?) -&gt; void
 
   def valid?: () -&gt; bool
 
@@ -217,6 +221,11 @@ class FileAnalysis
   #   [:module, String]                       - module definitions
   #   [:singleton_class, String]              - singleton class definitions
   #   [:const, Symbol | String]               - constant assignments
+  #   [:local_var, Symbol]                    - local variable assignments
+  #   [:ivar, Symbol]                         - instance variable assignments
+  #   [:cvar, Symbol]                         - class variable assignments
+  #   [:gvar, Symbol]                         - global variable assignments
+  #   [:multi_write, Array[Symbol | String]]  - multiple assignment
   #   [:if, String] | [:unless, String]       - conditionals
   #   [:case, String] | [:case_match, String] - case statements
   #   [:while, String] | [:until, String]     - while/until loops
@@ -377,10 +386,14 @@ class SmartMerger
     statistics: Hash[Symbol, Integer]
   }
 
+  # Custom signature generator return types:
+  # - Array[untyped]: Used as the node&#39;s signature for matching
+  # - nil: Node gets no signature (won&#39;t be matched by signature)
+  # - Prism::Node or FreezeNode: Falls through to default signature computation
   def initialize: (
     String template_content,
     String dest_content,
-    ?signature_generator: (^(untyped) -&gt; Array[untyped])?,
+    ?signature_generator: (^(untyped) -&gt; (Array[untyped] | untyped | nil))?,
     ?signature_match_preference: Symbol,
     ?add_template_only_nodes: bool,
     ?freeze_token: String?,
@@ -441,7 +454,7 @@ end   end end
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 18:12:13 2025 by
+  Generated on Thu Dec  4 21:47:19 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

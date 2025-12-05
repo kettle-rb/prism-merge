@@ -68,7 +68,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 and <a href="https://tom.preston-werner.com/2022/05/23/major-version-numbers-are-not-sacred.html">yes</a>, platform and engine support are part of the <a href="https://github.com/semver/semver/issues/716#issuecomment-869336139">public API</a>.<br>
 Please file a bug if you notice a violation of semantic versioning.</p>
 
-<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.3...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.4...HEAD">Unreleased</a></h2>
 
 <h3 id="added">Added</h3>
 
@@ -82,6 +82,57 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="security">Security</h3>
 
+<h2 id="114---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.3...v1.1.4">1.1.4</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.4">v1.1.4</a>
+</li>
+  <li>COVERAGE: 98.26% – 902/918 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 87.59% – 381/435 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-1">Added</h3>
+
+<ul>
+  <li>
+<strong>Custom signature generator fallthrough support</strong>: Custom signature generators can now return a <code>Prism::Node</code> or <code>FreezeNode</code> to fall through to the default signature computation. This allows custom generators to only override specific node types while delegating others to the built-in logic. Previously, returning <code>nil</code> was the only way to skip custom handling, but that prevented proper matching for unhandled node types.</li>
+  <li>
+<strong>Variable assignment node signatures</strong>: Added signature support for all variable write node types:
+    <ul>
+      <li>
+<code>LocalVariableWriteNode</code> → <code>[:local_var, name]</code>
+</li>
+      <li>
+<code>InstanceVariableWriteNode</code> → <code>[:ivar, name]</code>
+</li>
+      <li>
+<code>ClassVariableWriteNode</code> → <code>[:cvar, name]</code>
+</li>
+      <li>
+<code>GlobalVariableWriteNode</code> → <code>[:gvar, name]</code>
+</li>
+      <li>
+<code>MultiWriteNode</code> → <code>[:multi_write, [target_names]]</code>
+</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="removed-1">Removed</h3>
+
+<ul>
+  <li>Removed pre-prism code in <code>ConflictResolver</code> that compared template node line numbers against destination freeze block line numbers (cross-file line comparison makes no sense)</li>
+</ul>
+
+<h3 id="fixed-1">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed template-only nodes not being added when destination has freeze blocks</strong>: When <code>add_template_only_nodes: true</code>, template nodes with no matching signature in destination were incorrectly skipped if the destination contained freeze blocks. The bug was caused by comparing template node line numbers against destination freeze block line numbers, which is a meaningless cross-file comparison. Template-only nodes are now correctly added regardless of freeze block presence.</li>
+</ul>
+
 <h2 id="113---2025-12-04">
 <a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.2...v1.1.3">1.1.3</a> - 2025-12-04</h2>
 
@@ -93,7 +144,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 
 <ul>
   <li>
@@ -111,7 +162,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 
 <ul>
   <li>
@@ -122,7 +173,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 <code>max_recursion_depth</code> option (defaults to <code>Float::INFINITY</code>) as a safety valve for edge cases</li>
 </ul>
 
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 
 <ul>
   <li>
@@ -140,7 +191,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 
 <ul>
   <li>Documented comparison of this tool, git-merge, and IDE “Smart Merge” in README.md</li>
@@ -190,7 +241,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>Added RBS type definitions for <code>FreezeNode</code> class</li>
 </ul>
 
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 
 <ul>
   <li>Documentation of freeze blocks, and configuration to customize the freeze token</li>
@@ -207,7 +258,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 
 <ul>
   <li>Recursive merge support for class and module bodies - nested structures are now merged intelligently</li>
@@ -229,7 +280,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>Improved node lookup to handle anchors with leading comments (e.g., magic comments)</li>
 </ul>
 
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 
 <ul>
   <li>Template-only nodes are now correctly excluded in all contexts when <code>add_template_only_nodes: false</code>
@@ -251,13 +302,13 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 
 <ul>
   <li>Improved synopsis documentation</li>
 </ul>
 
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-6">Fixed</h3>
 
 <ul>
   <li>More fixes to Ruby compatibility documentation (down to Ruby 2.7)</li>
@@ -274,13 +325,13 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 
 <ul>
   <li>specs covering existing support for end-of-line comments</li>
 </ul>
 
-<h3 id="fixed-6">Fixed</h3>
+<h3 id="fixed-7">Fixed</h3>
 
 <ul>
   <li>Ruby compatibility documentation</li>
@@ -297,7 +348,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="fixed-7">Fixed</h3>
+<h3 id="fixed-8">Fixed</h3>
 
 <ul>
   <li>
@@ -321,7 +372,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 
 <ul>
   <li>Initial release</li>
@@ -330,7 +381,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 18:12:13 2025 by
+  Generated on Thu Dec  4 21:47:19 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>
