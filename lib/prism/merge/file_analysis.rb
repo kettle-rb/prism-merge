@@ -89,12 +89,38 @@ module Prism
         generate_signature(statements[index])
       end
 
-      # Generate signature for a node
-      # @param node [Prism::Node] Node to generate signature for
+      # Generate signature for a node.
+      #
+      # If a custom signature_generator is provided, it is called first. The custom
+      # generator can return:
+      # - An array signature (e.g., `[:gem, "foo"]`) - used as the signature
+      # - `nil` - the node gets no signature (won't be matched by signature)
+      # - A `Prism::Node` or `FreezeNode` - falls through to default computation using
+      #   the returned node. This allows the custom generator to optionally modify the
+      #   node before default processing, or simply return the original node unchanged
+      #   for fallthrough.
+      #
+      # @param node [Prism::Node, FreezeNode] Node to generate signature for
       # @return [Array, nil] Signature array
+      #
+      # @example Custom generator with fallthrough
+      #   signature_generator = ->(node) {
+      #     case node
+      #     when Prism::CallNode
+      #       return [:gem, node.arguments.arguments.first.unescaped] if node.name == :gem
+      #     end
+      #     node  # Return original node for default signature computation
+      #   }
       def generate_signature(node)
         result = if @signature_generator
-          @signature_generator.call(node)
+          custom_result = @signature_generator.call(node)
+          if custom_result.is_a?(Prism::Node) || custom_result.is_a?(FreezeNode)
+            # Custom generator returned a node - use default computation on it
+            compute_node_signature(custom_result)
+          else
+            # Custom result is either an array signature or nil
+            custom_result
+          end
         else
           compute_node_signature(node)
         end

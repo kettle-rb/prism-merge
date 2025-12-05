@@ -20,13 +20,19 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- **Custom signature generator fallthrough support**: Custom signature generators can now return a `Prism::Node` or `FreezeNode` to fall through to the default signature computation. This allows custom generators to only override specific node types while delegating others to the built-in logic. Previously, returning `nil` was the only way to skip custom handling, but that prevented proper matching for unhandled node types.
+
 ### Changed
 
 ### Deprecated
 
 ### Removed
 
+- Removed pre-prism code in `ConflictResolver` that compared template node line numbers against destination freeze block line numbers (cross-file line comparison makes no sense)
+
 ### Fixed
+
+- **Fixed template-only nodes not being added when destination has freeze blocks**: When `add_template_only_nodes: true`, template nodes with no matching signature in destination were incorrectly skipped if the destination contained freeze blocks. The bug was caused by comparing template node line numbers against destination freeze block line numbers, which is a meaningless cross-file comparison. Template-only nodes are now correctly added regardless of freeze block presence.
 
 ### Security
 
