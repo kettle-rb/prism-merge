@@ -332,7 +332,7 @@ The following node types support **recursive body merging**, where nested conten
 - `ClassNode` - class bodies are recursively merged
 - `ModuleNode` - module bodies are recursively merged
 - `SingletonClassNode` - singleton class bodies are recursively merged
-- `CallNode` with block - block bodies are recursively merged (e.g., `configure do ... end`)
+- `CallNode` with block - block bodies are recursively merged **only when the body contains mergeable statements** (e.g., `describe do ... end` with nested `it` blocks). Blocks containing only literals or simple expressions (like `git_source(:github) { |repo| "https://..." }`) are treated atomically.
 - `BeginNode` - begin/rescue/ensure blocks are recursively merged
 
 #### Custom Signature Generator

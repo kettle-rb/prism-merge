@@ -382,7 +382,10 @@ class SmartMerger
     String dest_content,
     ?signature_generator: (^(untyped) -&gt; Array[untyped])?,
     ?signature_match_preference: Symbol,
-    ?add_template_only_nodes: bool
+    ?add_template_only_nodes: bool,
+    ?freeze_token: String?,
+    ?max_recursion_depth: (Integer | Float),
+    ?current_depth: Integer
   ) -&gt; void
 
   def merge: () -&gt; String
@@ -412,8 +415,17 @@ class SmartMerger
   def find_node_at_line: (FileAnalysis analysis, Integer line_num) -&gt; untyped?
 
   # Determine if two matching nodes should be recursively merged
-  # Returns true for ClassNode, ModuleNode, SingletonClassNode, CallNode with blocks, BeginNode
+  # Returns true for ClassNode, ModuleNode, SingletonClassNode, and CallNode/BeginNode
+  # with blocks that contain mergeable statements
   def should_merge_recursively?: (untyped? template_node, untyped? dest_node) -&gt; bool
+
+  # Check if a body (StatementsNode) contains statements that could be merged
+  # Returns true if body contains CallNode, DefNode, ClassNode, assignments, etc.
+  def body_has_mergeable_statements?: (untyped? body) -&gt; bool
+
+  # Check if a statement is mergeable (can generate a signature)
+  # Returns true for CallNode, DefNode, ClassNode, ModuleNode, assignments, conditionals, etc.
+  def mergeable_statement?: (untyped node) -&gt; bool
 
   # Check if a node&#39;s body contains freeze block markers
   def node_contains_freeze_blocks?: (untyped node) -&gt; bool
@@ -428,7 +440,7 @@ end   end end
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 15:41:08 2025 by
+  Generated on Thu Dec  4 17:07:50 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

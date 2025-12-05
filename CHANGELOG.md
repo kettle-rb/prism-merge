@@ -20,6 +20,10 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- `body_has_mergeable_statements?` private method to check if a block body contains statements that can be signature-matched
+- `mergeable_statement?` private method to determine if a node type can generate signatures for merging
+- `max_recursion_depth` option (defaults to `Float::INFINITY`) as a safety valve for edge cases
+
 ### Changed
 
 ### Deprecated
@@ -27,6 +31,8 @@ Please file a bug if you notice a violation of semantic versioning.
 ### Removed
 
 ### Fixed
+
+- **Fixed infinite recursion** when merging `CallNode` blocks (like `git_source`) that have matching signatures but non-mergeable body content (e.g., just string literals). The fix detects when a block body contains only literals/expressions with no signature-matchable statements and treats the node atomically instead of recursing.
 
 ### Security
 
