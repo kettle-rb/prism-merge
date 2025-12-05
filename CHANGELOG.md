@@ -22,11 +22,16 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Changed
 
+- **Recursive merge now preserves freeze blocks**: When recursively merging nested block bodies (e.g., `Gem::Specification.new do ... end`), freeze blocks inside the body are now properly preserved. Previously, nested mergers were created with `freeze_token: nil`, causing freeze blocks to be lost.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- **Fixed freeze blocks lost in nested block bodies**: Freeze blocks inside class, module, or call-with-block bodies were being lost during recursive merge. The fix passes `freeze_token` to nested mergers and ensures `extract_node_body` includes leading comments/freeze markers that appear between the node's opening line and the first statement.
+- **Fixed duplicate freeze markers in output**: Freeze/unfreeze marker comments were incorrectly attached as leading comments to subsequent nodes, causing duplicate markers in merged output. These markers are now filtered from leading comments since they belong to FreezeNode boundaries.
 
 ### Security
 

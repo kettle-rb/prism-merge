@@ -474,11 +474,6 @@ module Prism
 
         return false unless can_merge_recursively
 
-        # Don't recursively merge if either node contains freeze blocks
-        # (they would be lost in the nested merge since we pass freeze_token: nil)
-        return false if node_contains_freeze_blocks?(template_node)
-        return false if node_contains_freeze_blocks?(dest_node)
-
         true
       end
 
@@ -524,9 +519,10 @@ module Prism
       # Check if a node's body contains freeze block markers.
       #
       # @param node [Prism::Node] The node to check
+      # @param analysis [FileAnalysis] The analysis for the file containing this node
       # @return [Boolean] true if the node's body contains freeze block comments
       # @api private
-      def node_contains_freeze_blocks?(node)
+      def node_contains_freeze_blocks?(node, analysis)
         return false unless @freeze_token
 
         # Check if node has nested content that could contain freeze blocks
@@ -550,15 +546,13 @@ module Prism
         return false unless has_content
 
         # Check if any comments in the node's range contain freeze markers
+        # Only check comments from the analysis that owns this node
         freeze_pattern = /#\s*#{Regexp.escape(@freeze_token)}:(freeze|unfreeze)/i
 
         node_start = node.location.start_line
         node_end = node.location.end_line
 
-        @template_analysis.parse_result.comments.any? do |comment|
-          comment_line = comment.location.start_line
-          comment_line > node_start && comment_line < node_end && comment.slice.match?(freeze_pattern)
-        end || @dest_analysis.parse_result.comments.any? do |comment|
+        analysis.parse_result.comments.any? do |comment|
           comment_line = comment.location.start_line
           comment_line > node_start && comment_line < node_end && comment.slice.match?(freeze_pattern)
         end
@@ -575,8 +569,7 @@ module Prism
       # @param anchor [FileAligner::Anchor] The anchor representing this match
       #
       # @note The nested merger is configured with:
-      #   - Same signature_generator, signature_match_preference, and add_template_only_nodes
-      #   - freeze_token: nil (freeze blocks not processed in nested context)
+      #   - Same signature_generator, signature_match_preference, add_template_only_nodes, and freeze_token
       #   - Incremented current_depth to track recursion level
       #
       # @api private
@@ -586,13 +579,14 @@ module Prism
         dest_body = extract_node_body(dest_node, @dest_analysis)
 
         # Recursively merge the bodies with incremented depth
+        # Pass freeze_token so freeze blocks inside nested bodies are preserved
         body_merger = SmartMerger.new(
           template_body,
           dest_body,
           signature_generator: @template_analysis.instance_variable_get(:@signature_generator),
           signature_match_preference: @signature_match_preference,
           add_template_only_nodes: @add_template_only_nodes,
-          freeze_token: nil,  # Don't process freeze blocks in nested context
+          freeze_token: @freeze_token,
           max_recursion_depth: @max_recursion_depth,
           current_depth: @current_depth + 1,
         )
@@ -712,13 +706,25 @@ module Prism
         body_statements = statements_node.body
         return "" if body_statements.empty?
 
-        # Get the line range of the body (between opening line and end)
-        first_stmt_line = body_statements.first.location.start_line
+        # Get the line range of the body
+        # Start from line after node opening (to include any leading comments/freeze markers)
+        # For nodes with blocks, the body starts after the block opening
+        body_start_line = case node
+        when Prism::CallNode
+          # Block body starts on line after the `do` or `{`
+          node.block.opening_loc ? node.block.opening_loc.start_line + 1 : body_statements.first.location.start_line
+        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
+          # Body starts on line after class/module declaration
+          node.location.start_line + 1
+        else
+          body_statements.first.location.start_line
+        end
+
         last_stmt_line = body_statements.last.location.end_line
 
         # Extract the source lines for the body
         lines = []
-        (first_stmt_line..last_stmt_line).each do |line_num|
+        (body_start_line..last_stmt_line).each do |line_num|
           lines << analysis.line_at(line_num).chomp
         end
         lines.join("\n") + "\n"

@@ -1755,7 +1755,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger.merge
 
         node = Prism.parse(source).value.statements.body.first
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be false
       end
 
@@ -1772,7 +1772,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger.merge
 
         node = Prism.parse(source).value.statements.body.first
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be true
       end
 
@@ -1789,7 +1789,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger.merge
 
         node = Prism.parse(source).value.statements.body.first
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be true
       end
 
@@ -1812,7 +1812,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         node = Prism.parse(source).value.statements.body.first
         # Should return false since no freeze comments exist in source
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be false
       end
 
@@ -1833,7 +1833,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         node = Prism.parse(source).value.statements.body.first.value
         # Should return false since no freeze comments exist
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be false
       end
 
@@ -1848,7 +1848,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger.merge
 
         node = Prism.parse(source).value.statements.body.first
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be false
       end
 
@@ -1870,7 +1870,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         node = Prism.parse(source).value.statements.body.first
         # Should return false since no freeze comments exist
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be false
       end
 
@@ -1881,7 +1881,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger.merge
 
         node = Prism.parse(source).value.statements.body.first
-        result = merger.send(:node_contains_freeze_blocks?, node)
+        result = merger.send(:node_contains_freeze_blocks?, node, merger.template_analysis)
         expect(result).to be false
       end
     end

@@ -74,11 +74,23 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="changed">Changed</h3>
 
+<ul>
+  <li>
+<strong>Recursive merge now preserves freeze blocks</strong>: When recursively merging nested block bodies (e.g., <code>Gem::Specification.new do ... end</code>), freeze blocks inside the body are now properly preserved. Previously, nested mergers were created with <code>freeze_token: nil</code>, causing freeze blocks to be lost.</li>
+</ul>
+
 <h3 id="deprecated">Deprecated</h3>
 
 <h3 id="removed">Removed</h3>
 
 <h3 id="fixed">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed freeze blocks lost in nested block bodies</strong>: Freeze blocks inside class, module, or call-with-block bodies were being lost during recursive merge. The fix passes <code>freeze_token</code> to nested mergers and ensures <code>extract_node_body</code> includes leading comments/freeze markers that appear between the node’s opening line and the first statement.</li>
+  <li>
+<strong>Fixed duplicate freeze markers in output</strong>: Freeze/unfreeze marker comments were incorrectly attached as leading comments to subsequent nodes, causing duplicate markers in merged output. These markers are now filtered from leading comments since they belong to FreezeNode boundaries.</li>
+</ul>
 
 <h3 id="security">Security</h3>
 
@@ -381,7 +393,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 21:47:19 2025 by
+  Generated on Thu Dec  4 23:30:54 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

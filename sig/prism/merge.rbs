@@ -383,7 +383,9 @@ module Prism
       def mergeable_statement?: (untyped node) -> bool
 
       # Check if a node's body contains freeze block markers
-      def node_contains_freeze_blocks?: (untyped node) -> bool
+      # @param node The node to check for freeze markers
+      # @param analysis The FileAnalysis for the file containing the node
+      def node_contains_freeze_blocks?: (untyped node, FileAnalysis analysis) -> bool
 
       # Recursively merge the body of matching class, module, or call-with-block nodes
       def merge_node_body_recursively: (untyped template_node, untyped dest_node, FileAligner::Anchor anchor) -> void

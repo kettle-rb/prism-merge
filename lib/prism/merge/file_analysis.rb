@@ -325,6 +325,11 @@ module Prism
       def extract_nodes_with_comments
         return [] unless valid?
 
+        # Build pattern to filter out freeze/unfreeze markers from leading comments
+        freeze_marker_pattern = if @freeze_token
+          /#\s*#{Regexp.escape(@freeze_token)}:(freeze|unfreeze)/i
+        end
+
         statements.map.with_index do |stmt, idx|
           # FreezeNode doesn't have Prism location with comments
           # It's a wrapper with custom Location struct
@@ -338,10 +343,18 @@ module Prism
               line_range: stmt.location.start_line..stmt.location.end_line,
             }
           else
+            # Filter out freeze/unfreeze marker comments from leading comments
+            # These markers are part of FreezeNode boundaries and should not be
+            # attached to subsequent nodes
+            leading = stmt.location.leading_comments
+            if freeze_marker_pattern
+              leading = leading.reject { |c| c.slice.match?(freeze_marker_pattern) }
+            end
+
             {
               node: stmt,
               index: idx,
-              leading_comments: stmt.location.leading_comments,    # Prism native!
+              leading_comments: leading,
               inline_comments: stmt.location.trailing_comments,    # Prism native!
               signature: generate_signature(stmt),
               line_range: stmt.location.start_line..stmt.location.end_line,
