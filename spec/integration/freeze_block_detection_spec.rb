@@ -208,4 +208,102 @@ RSpec.describe "Freeze Block Detection and Handling" do
       expect(result).to include('CONST = "value"')
     end
   end
+
+  # Regression test for nested freeze blocks inside block bodies (e.g., Gem::Specification.new)
+  # Previously, freeze blocks inside nested block bodies were lost during recursive merge
+  # because: 1) freeze_token wasn't passed to nested mergers, and 2) extract_node_body
+  # didn't include leading comments/freeze markers before the first statement.
+  describe "with freeze blocks inside nested block bodies (regression)" do
+    let(:template_code) do
+      <<~RUBY
+        Gem::Specification.new do |spec|
+          spec.name = "updated-name"
+          spec.add_dependency "foo"
+        end
+      RUBY
+    end
+
+    let(:dest_code) do
+      <<~RUBY
+        Gem::Specification.new do |spec|
+          spec.name = "original-name"
+          # kettle-dev:freeze
+          spec.metadata["custom"] = "1"
+          # kettle-dev:unfreeze
+          spec.add_dependency "existing"
+        end
+      RUBY
+    end
+
+    let(:signature_generator) do
+      lambda do |node|
+        if node.is_a?(Prism::CallNode)
+          method_name = node.name.to_s
+          receiver_name = node.receiver.is_a?(Prism::CallNode) ? node.receiver.name.to_s : node.receiver&.slice
+
+          # For assignment methods, match by receiver and method name only
+          if method_name.end_with?("=")
+            return [:call, node.name, receiver_name]
+          end
+
+          # For other methods with arguments, include first argument
+          first_arg = node.arguments&.arguments&.first
+          arg_value = case first_arg
+                      when Prism::StringNode then first_arg.unescaped.to_s
+                      when Prism::SymbolNode then first_arg.unescaped.to_sym
+                      else nil
+                      end
+
+          return [node.name, arg_value] if arg_value
+        end
+
+        # Fall through to default signature computation
+        node
+      end
+    end
+
+    it "preserves freeze blocks inside Gem::Specification blocks" do
+      merger = Prism::Merge::SmartMerger.new(
+        template_code,
+        dest_code,
+        signature_match_preference: :template,
+        add_template_only_nodes: true,
+        freeze_token: "kettle-dev",
+        signature_generator: signature_generator,
+      )
+
+      result = merger.merge
+
+      # Template's spec.name should win (signature match with :template preference)
+      expect(result).to include('spec.name = "updated-name"')
+
+      # Freeze block from dest should be preserved
+      expect(result).to include("# kettle-dev:freeze")
+      expect(result).to include('spec.metadata["custom"] = "1"')
+      expect(result).to include("# kettle-dev:unfreeze")
+
+      # Template's add_dependency should be included (template-only node)
+      expect(result).to include('spec.add_dependency "foo"')
+
+      # The unfreeze marker should NOT be duplicated
+      expect(result.scan("# kettle-dev:unfreeze").count).to eq(1)
+    end
+
+    it "does not duplicate freeze markers as leading comments" do
+      merger = Prism::Merge::SmartMerger.new(
+        template_code,
+        dest_code,
+        signature_match_preference: :template,
+        add_template_only_nodes: true,
+        freeze_token: "kettle-dev",
+        signature_generator: signature_generator,
+      )
+
+      result = merger.merge
+
+      # Each freeze marker should appear exactly once
+      expect(result.scan("# kettle-dev:freeze").count).to eq(1)
+      expect(result.scan("# kettle-dev:unfreeze").count).to eq(1)
+    end
+  end
 end
