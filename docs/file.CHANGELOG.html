@@ -68,9 +68,32 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 and <a href="https://tom.preston-werner.com/2022/05/23/major-version-numbers-are-not-sacred.html">yes</a>, platform and engine support are part of the <a href="https://github.com/semver/semver/issues/716#issuecomment-869336139">public API</a>.<br>
 Please file a bug if you notice a violation of semantic versioning.</p>
 
-<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.1...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.2...HEAD">Unreleased</a></h2>
 
 <h3 id="added">Added</h3>
+
+<h3 id="changed">Changed</h3>
+
+<h3 id="deprecated">Deprecated</h3>
+
+<h3 id="removed">Removed</h3>
+
+<h3 id="fixed">Fixed</h3>
+
+<h3 id="security">Security</h3>
+
+<h2 id="112---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.1...v1.1.2">1.1.2</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.2">v1.1.2</a>
+</li>
+  <li>COVERAGE: 96.66% – 868/898 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 82.84% – 338/408 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-1">Added</h3>
 
 <ul>
   <li>
@@ -81,20 +104,12 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 <code>max_recursion_depth</code> option (defaults to <code>Float::INFINITY</code>) as a safety valve for edge cases</li>
 </ul>
 
-<h3 id="changed">Changed</h3>
-
-<h3 id="deprecated">Deprecated</h3>
-
-<h3 id="removed">Removed</h3>
-
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-1">Fixed</h3>
 
 <ul>
   <li>
 <strong>Fixed infinite recursion</strong> when merging <code>CallNode</code> blocks (like <code>git_source</code>) that have matching signatures but non-mergeable body content (e.g., just string literals). The fix detects when a block body contains only literals/expressions with no signature-matchable statements and treats the node atomically instead of recursing.</li>
 </ul>
-
-<h3 id="security">Security</h3>
 
 <h2 id="111---2025-12-04">
 <a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.0...v1.1.1">1.1.1</a> - 2025-12-04</h2>
@@ -107,7 +122,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 
 <ul>
   <li>Documented comparison of this tool, git-merge, and IDE “Smart Merge” in README.md</li>
@@ -157,7 +172,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>Added RBS type definitions for <code>FreezeNode</code> class</li>
 </ul>
 
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 
 <ul>
   <li>Documentation of freeze blocks, and configuration to customize the freeze token</li>
@@ -174,7 +189,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 
 <ul>
   <li>Recursive merge support for class and module bodies - nested structures are now merged intelligently</li>
@@ -196,7 +211,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>Improved node lookup to handle anchors with leading comments (e.g., magic comments)</li>
 </ul>
 
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 
 <ul>
   <li>Template-only nodes are now correctly excluded in all contexts when <code>add_template_only_nodes: false</code>
@@ -218,13 +233,13 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 
 <ul>
   <li>Improved synopsis documentation</li>
 </ul>
 
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 
 <ul>
   <li>More fixes to Ruby compatibility documentation (down to Ruby 2.7)</li>
@@ -241,13 +256,13 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 
 <ul>
   <li>specs covering existing support for end-of-line comments</li>
 </ul>
 
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 
 <ul>
   <li>Ruby compatibility documentation</li>
@@ -264,7 +279,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-6">Fixed</h3>
 
 <ul>
   <li>
@@ -288,7 +303,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 
 <ul>
   <li>Initial release</li>
@@ -297,7 +312,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 17:20:40 2025 by
+  Generated on Thu Dec  4 17:26:16 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>
