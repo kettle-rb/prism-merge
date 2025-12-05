@@ -93,6 +93,12 @@ module Prism
       #   Default: "prism-merge" (looks for # prism-merge:freeze / # prism-merge:unfreeze)
       #   Freeze blocks preserve destination content unchanged during merge.
       #
+      # @param max_recursion_depth [Integer, Float] Maximum depth for recursive body merging.
+      #   Default: Float::INFINITY (no limit). This is a safety valve that users can set
+      #   if they encounter edge cases. Normal merging terminates naturally based on
+      #   body content analysis (blocks with non-mergeable content like literals are
+      #   not recursed into).
+      #
       # @raise [TemplateParseError] If template has syntax errors
       # @raise [DestinationParseError] If destination has syntax errors
       #
@@ -131,12 +137,14 @@ module Prism
       #     destination,
       #     signature_generator: sig_gen
       #   )
-      def initialize(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN)
+      def initialize(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0)
         @template_content = template_content
         @dest_content = dest_content
         @signature_match_preference = signature_match_preference
         @add_template_only_nodes = add_template_only_nodes
         @freeze_token = freeze_token
+        @max_recursion_depth = max_recursion_depth
+        @current_depth = current_depth
         @template_analysis = FileAnalysis.new(template_content, signature_generator: signature_generator, freeze_token: freeze_token)
         @dest_analysis = FileAnalysis.new(dest_content, signature_generator: signature_generator, freeze_token: freeze_token)
         @aligner = FileAligner.new(@template_analysis, @dest_analysis)
@@ -415,8 +423,13 @@ module Prism
       #   - Conditional nodes (if/unless) - treated as atomic units
       #   - Classes/modules/blocks containing freeze blocks - frozen content would be lost
       #   - Nodes of different types
+      #   - Blocks whose body contains only literals/expressions with no mergeable statements
+      #   - When max_recursion_depth has been reached (safety valve)
       def should_merge_recursively?(template_node, dest_node)
         return false unless template_node && dest_node
+
+        # Safety valve: stop recursion if max depth reached
+        return false if @current_depth >= @max_recursion_depth
 
         # Both nodes must be the same type
         return false unless template_node.class == dest_node.class
@@ -427,8 +440,10 @@ module Prism
           # Class/module definitions - merge their body contents
           true
         when Prism::CallNode
-          # Only merge if both have blocks
-          template_node.block && dest_node.block
+          # Only merge if both have blocks with mergeable content
+          template_node.block && dest_node.block &&
+            body_has_mergeable_statements?(template_node.block.body) &&
+            body_has_mergeable_statements?(dest_node.block.body)
         when Prism::BeginNode
           # begin/rescue/ensure blocks - merge statements
           template_node.statements && dest_node.statements
@@ -454,6 +469,45 @@ module Prism
         return false if node_contains_freeze_blocks?(dest_node)
 
         true
+      end
+
+      # Check if a body (StatementsNode) contains statements that could be merged.
+      #
+      # Mergeable statements are those that can generate signatures and be
+      # independently matched between template and destination. This includes
+      # method definitions, class/module definitions, method calls, assignments, etc.
+      #
+      # Bodies containing only literals (strings, numbers, arrays, hashes) or
+      # simple expressions should not be recursively merged as there's nothing
+      # to align - they should be treated atomically.
+      #
+      # @param body [Prism::StatementsNode, nil] The body to check
+      # @return [Boolean] true if the body contains mergeable statements
+      # @api private
+      def body_has_mergeable_statements?(body)
+        return false unless body.is_a?(Prism::StatementsNode)
+        return false if body.body.empty?
+
+        body.body.any? { |stmt| mergeable_statement?(stmt) }
+      end
+
+      # Check if a statement is mergeable (can generate a signature).
+      #
+      # @param node [Prism::Node] The node to check
+      # @return [Boolean] true if this node type can be merged
+      # @api private
+      def mergeable_statement?(node)
+        case node
+        when Prism::CallNode, Prism::DefNode, Prism::ClassNode, Prism::ModuleNode,
+             Prism::SingletonClassNode, Prism::ConstantWriteNode, Prism::ConstantPathWriteNode,
+             Prism::LocalVariableWriteNode, Prism::InstanceVariableWriteNode,
+             Prism::ClassVariableWriteNode, Prism::GlobalVariableWriteNode,
+             Prism::MultiWriteNode, Prism::IfNode, Prism::UnlessNode, Prism::CaseNode,
+             Prism::BeginNode
+          true
+        else
+          false
+        end
       end
 
       # Check if a node's body contains freeze block markers.
@@ -512,6 +566,7 @@ module Prism
       # @note The nested merger is configured with:
       #   - Same signature_generator, signature_match_preference, and add_template_only_nodes
       #   - freeze_token: nil (freeze blocks not processed in nested context)
+      #   - Incremented current_depth to track recursion level
       #
       # @api private
       def merge_node_body_recursively(template_node, dest_node, anchor)
@@ -519,7 +574,7 @@ module Prism
         template_body = extract_node_body(template_node, @template_analysis)
         dest_body = extract_node_body(dest_node, @dest_analysis)
 
-        # Recursively merge the bodies
+        # Recursively merge the bodies with incremented depth
         body_merger = SmartMerger.new(
           template_body,
           dest_body,
@@ -527,6 +582,8 @@ module Prism
           signature_match_preference: @signature_match_preference,
           add_template_only_nodes: @add_template_only_nodes,
           freeze_token: nil,  # Don't process freeze blocks in nested context
+          max_recursion_depth: @max_recursion_depth,
+          current_depth: @current_depth + 1,
         )
         merged_body = body_merger.merge.rstrip
 

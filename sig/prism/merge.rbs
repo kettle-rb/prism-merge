@@ -323,7 +323,10 @@ module Prism
         String dest_content,
         ?signature_generator: (^(untyped) -> Array[untyped])?,
         ?signature_match_preference: Symbol,
-        ?add_template_only_nodes: bool
+        ?add_template_only_nodes: bool,
+        ?freeze_token: String?,
+        ?max_recursion_depth: (Integer | Float),
+        ?current_depth: Integer
       ) -> void
 
       def merge: () -> String
@@ -353,8 +356,18 @@ module Prism
       def find_node_at_line: (FileAnalysis analysis, Integer line_num) -> untyped?
 
       # Determine if two matching nodes should be recursively merged
-      # Returns true for ClassNode, ModuleNode, SingletonClassNode, CallNode with blocks, BeginNode
+      # Returns true for ClassNode, ModuleNode, SingletonClassNode, and CallNode/BeginNode
+      # with blocks that contain mergeable statements.
+      # Returns false if max_recursion_depth has been reached (safety valve).
       def should_merge_recursively?: (untyped? template_node, untyped? dest_node) -> bool
+
+      # Check if a body (StatementsNode) contains statements that could be merged
+      # Returns true if body contains CallNode, DefNode, ClassNode, assignments, etc.
+      def body_has_mergeable_statements?: (untyped? body) -> bool
+
+      # Check if a statement is mergeable (can generate a signature)
+      # Returns true for CallNode, DefNode, ClassNode, ModuleNode, assignments, conditionals, etc.
+      def mergeable_statement?: (untyped node) -> bool
 
       # Check if a node's body contains freeze block markers
       def node_contains_freeze_blocks?: (untyped node) -> bool

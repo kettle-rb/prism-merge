@@ -298,6 +298,33 @@ merger = Prism::Merge::SmartMerger.new(
 # Result: Existing configs keep destination values, new configs added from template
 ```
 
+### Recursion Depth Limit
+
+Prism::Merge automatically detects when block bodies contain only literals or simple expressions (no mergeable statements) and treats them atomically. However, as a safety valve for edge cases, you can limit recursion depth:
+
+```ruby
+# Limit recursive merging to 3 levels deep
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  max_recursion_depth: 3,
+)
+
+# Disable recursive merging entirely (treat all nodes atomically)
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  max_recursion_depth: 0,
+)
+```
+
+**When to use:**
+
+- **`Float::INFINITY`** (default) - Normal operation, recursion terminates naturally based on content analysis.
+  - NOTE: If you get `stack level too deep (SystemStackError)`, please file a [bug](https://github.com/kettle-rb/prism-merge/issues)!
+- **Finite value** - Safety valve if you encounter edge cases with unexpected deep recursion
+- **`0`** - Disable recursive merging entirely; all matching nodes are treated atomically
+
 ### Custom Signature Generator
 
 By default, Prism::Merge uses intelligent structural signatures to match nodes. The signature determines how nodes are matched between template and destination files.
@@ -332,7 +359,7 @@ The following node types support **recursive body merging**, where nested conten
 - `ClassNode` - class bodies are recursively merged
 - `ModuleNode` - module bodies are recursively merged
 - `SingletonClassNode` - singleton class bodies are recursively merged
-- `CallNode` with block - block bodies are recursively merged (e.g., `configure do ... end`)
+- `CallNode` with block - block bodies are recursively merged **only when the body contains mergeable statements** (e.g., `describe do ... end` with nested `it` blocks). Blocks containing only literals or simple expressions (like `git_source(:github) { |repo| "https://..." }`) are treated atomically.
 - `BeginNode` - begin/rescue/ensure blocks are recursively merged
 
 #### Custom Signature Generator

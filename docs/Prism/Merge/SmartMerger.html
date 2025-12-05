@@ -340,7 +340,7 @@ nested methods, constants, and other definitions.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN)  &#x21d2; SmartMerger </a>
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0)  &#x21d2; SmartMerger </a>
     
 
     
@@ -417,7 +417,7 @@ nested methods, constants, and other definitions.</p>
     <div class="method_details first">
   <h3 class="signature first" id="initialize-instance_method">
   
-    #<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN)  &#x21d2; <tt><span class='object_link'><a href="" title="Prism::Merge::SmartMerger (class)">SmartMerger</a></span></tt> 
+    #<strong>initialize</strong>(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0)  &#x21d2; <tt><span class='object_link'><a href="" title="Prism::Merge::SmartMerger (class)">SmartMerger</a></span></tt> 
   
 
   
@@ -609,6 +609,27 @@ Freeze blocks preserve destination content unchanged during merge.</p>
       
     </li>
   
+    <li>
+      
+        <span class='name'>max_recursion_depth</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>, <tt>Float</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>Float::INFINITY</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'><p>Maximum depth for recursive body merging.<br />
+Default: Float::INFINITY (no limit). This is a safety valve that users can set<br />
+if they encounter edge cases. Normal merging terminates naturally based on<br />
+body content analysis (blocks with non-mergeable content like literals are<br />
+not recursed into).</p>
+</div>
+      
+    </li>
+  
 </ul>
 
 <p class="tag_title">Raises:</p>
@@ -648,12 +669,6 @@ Freeze blocks preserve destination content unchanged during merge.</p>
       <pre class="lines">
 
 
-134
-135
-136
-137
-138
-139
 140
 141
 142
@@ -664,17 +679,27 @@ Freeze blocks preserve destination content unchanged during merge.</p>
 147
 148
 149
-150</pre>
+150
+151
+152
+153
+154
+155
+156
+157
+158</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 134</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 140</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>signature_match_preference:</span> <span class='symbol'>:destination</span><span class='comma'>,</span> <span class='label'>add_template_only_nodes:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="FileAnalysis.html#DEFAULT_FREEZE_TOKEN-constant" title="Prism::Merge::FileAnalysis::DEFAULT_FREEZE_TOKEN (constant)">DEFAULT_FREEZE_TOKEN</a></span></span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='label'>signature_match_preference:</span> <span class='symbol'>:destination</span><span class='comma'>,</span> <span class='label'>add_template_only_nodes:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="FileAnalysis.html#DEFAULT_FREEZE_TOKEN-constant" title="Prism::Merge::FileAnalysis::DEFAULT_FREEZE_TOKEN (constant)">DEFAULT_FREEZE_TOKEN</a></span></span><span class='comma'>,</span> <span class='label'>max_recursion_depth:</span> <span class='const'>Float</span><span class='op'>::</span><span class='const'>INFINITY</span><span class='comma'>,</span> <span class='label'>current_depth:</span> <span class='int'>0</span><span class='rparen'>)</span>
   <span class='ivar'>@template_content</span> <span class='op'>=</span> <span class='id identifier rubyid_template_content'>template_content</span>
   <span class='ivar'>@dest_content</span> <span class='op'>=</span> <span class='id identifier rubyid_dest_content'>dest_content</span>
   <span class='ivar'>@signature_match_preference</span> <span class='op'>=</span> <span class='id identifier rubyid_signature_match_preference'>signature_match_preference</span>
   <span class='ivar'>@add_template_only_nodes</span> <span class='op'>=</span> <span class='id identifier rubyid_add_template_only_nodes'>add_template_only_nodes</span>
   <span class='ivar'>@freeze_token</span> <span class='op'>=</span> <span class='id identifier rubyid_freeze_token'>freeze_token</span>
+  <span class='ivar'>@max_recursion_depth</span> <span class='op'>=</span> <span class='id identifier rubyid_max_recursion_depth'>max_recursion_depth</span>
+  <span class='ivar'>@current_depth</span> <span class='op'>=</span> <span class='id identifier rubyid_current_depth'>current_depth</span>
   <span class='ivar'>@template_analysis</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAnalysis.html#initialize-instance_method" title="Prism::Merge::FileAnalysis#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='id identifier rubyid_signature_generator'>signature_generator</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='id identifier rubyid_freeze_token'>freeze_token</span><span class='rparen'>)</span>
   <span class='ivar'>@dest_analysis</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAnalysis.html" title="Prism::Merge::FileAnalysis (class)">FileAnalysis</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAnalysis.html#initialize-instance_method" title="Prism::Merge::FileAnalysis#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_dest_content'>dest_content</span><span class='comma'>,</span> <span class='label'>signature_generator:</span> <span class='id identifier rubyid_signature_generator'>signature_generator</span><span class='comma'>,</span> <span class='label'>freeze_token:</span> <span class='id identifier rubyid_freeze_token'>freeze_token</span><span class='rparen'>)</span>
   <span class='ivar'>@aligner</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="FileAligner.html" title="Prism::Merge::FileAligner (class)">FileAligner</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="FileAligner.html#initialize-instance_method" title="Prism::Merge::FileAligner#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='ivar'>@template_analysis</span><span class='comma'>,</span> <span class='ivar'>@dest_analysis</span><span class='rparen'>)</span>
@@ -1115,14 +1140,6 @@ Freeze blocks preserve destination content unchanged during merge.</p>
       <pre class="lines">
 
 
-183
-184
-185
-186
-187
-188
-189
-190
 191
 192
 193
@@ -1141,10 +1158,18 @@ Freeze blocks preserve destination content unchanged during merge.</p>
 206
 207
 208
-209</pre>
+209
+210
+211
+212
+213
+214
+215
+216
+217</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 183</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 191</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge'>merge</span>
   <span class='comment'># Handle invalid files
@@ -1267,17 +1292,17 @@ useful for debugging, testing, and understanding merge behavior.</p>
       <pre class="lines">
 
 
-240
-241
-242
-243
-244
-245
-246
-247</pre>
+248
+249
+250
+251
+252
+253
+254
+255</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 240</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 248</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge_with_debug'>merge_with_debug</span>
   <span class='id identifier rubyid_content'>content</span> <span class='op'>=</span> <span class='id identifier rubyid_merge'>merge</span>
@@ -1297,7 +1322,7 @@ useful for debugging, testing, and understanding merge behavior.</p>
 </div>
 
       <div id="footer">
-  Generated on Thu Dec  4 15:41:08 2025 by
+  Generated on Thu Dec  4 17:20:41 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

@@ -2079,5 +2079,339 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(body).to include("puts i")
       end
     end
+
+    describe "infinite recursion prevention" do
+      context "with git_source blocks having matching signatures" do
+        # Regression test for infinite recursion bug when merging CallNodes with blocks
+        # that have matching signatures but non-mergeable body content (just literals).
+        # The fix detects that the block body contains no mergeable statements and
+        # treats the node atomically instead of recursing.
+        it "does not cause infinite recursion with custom signature generator" do
+          src = <<~'SRC'
+            source "https://gem.coop"
+            git_source(:bitbucket) { |repo_name| "https://bitbucket.org/#{repo_name}" }
+          SRC
+
+          dest = <<~'DEST'
+            # Header
+            source "https://rubygems.org"
+            git_source(:bitbucket) { |repo_name| "https://bb.org/#{repo_name}" }
+          DEST
+
+          # Custom signature generator that matches git_source by their first argument
+          signature_generator = ->(node) {
+            return unless node.is_a?(Prism::CallNode)
+            return unless [:gem, :source, :git_source].include?(node.name)
+
+            return [:source] if node.name == :source
+
+            first_arg = node.arguments&.arguments&.first
+            arg_value = case first_arg
+            when Prism::StringNode
+              first_arg.unescaped.to_s
+            when Prism::SymbolNode
+              first_arg.unescaped.to_sym
+            end
+
+            arg_value ? [node.name, arg_value] : nil
+          }
+
+          # This should NOT raise SystemStackError
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :template,
+            add_template_only_nodes: true,
+            signature_generator: signature_generator,
+          )
+
+          result = nil
+          expect { result = merger.merge }.not_to raise_error
+
+          # Verify merge produces valid output
+          expect(result).to include("source")
+          expect(result).to include("git_source(:bitbucket)")
+        end
+
+        it "uses template content for blocks with non-mergeable body when preference is template" do
+          src = <<~'SRC'
+            git_source(:github) { |repo| "https://github.com/#{repo}" }
+          SRC
+
+          dest = <<~'DEST'
+            git_source(:github) { |repo| "https://gh.com/#{repo}" }
+          DEST
+
+          signature_generator = ->(node) {
+            return unless node.is_a?(Prism::CallNode)
+            return unless node.name == :git_source
+            first_arg = node.arguments&.arguments&.first
+            return unless first_arg.is_a?(Prism::SymbolNode)
+            [:git_source, first_arg.unescaped.to_sym]
+          }
+
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :template,
+            signature_generator: signature_generator,
+          )
+
+          result = merger.merge
+          # Template version should win since body is not mergeable (just a string)
+          expect(result).to include("https://github.com")
+        end
+
+        it "uses destination content for blocks with non-mergeable body when preference is destination" do
+          src = <<~'SRC'
+            git_source(:github) { |repo| "https://github.com/#{repo}" }
+          SRC
+
+          dest = <<~'DEST'
+            git_source(:github) { |repo| "https://gh.com/#{repo}" }
+          DEST
+
+          signature_generator = ->(node) {
+            return unless node.is_a?(Prism::CallNode)
+            return unless node.name == :git_source
+            first_arg = node.arguments&.arguments&.first
+            return unless first_arg.is_a?(Prism::SymbolNode)
+            [:git_source, first_arg.unescaped.to_sym]
+          }
+
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :destination,
+            signature_generator: signature_generator,
+          )
+
+          result = merger.merge
+          # Destination version should win since body is not mergeable (just a string)
+          expect(result).to include("https://gh.com")
+        end
+      end
+
+      context "with blocks containing mergeable statements" do
+        it "recursively merges RSpec describe blocks with nested it blocks" do
+          src = <<~SRC
+            describe "Calculator" do
+              it "adds numbers" do
+                expect(1 + 1).to eq(2)
+              end
+            end
+          SRC
+
+          dest = <<~DEST
+            describe "Calculator" do
+              it "adds numbers" do
+                expect(2 + 2).to eq(4)
+              end
+              it "subtracts numbers" do
+                expect(5 - 3).to eq(2)
+              end
+            end
+          DEST
+
+          merger = described_class.new(src, dest, signature_match_preference: :destination)
+          result = merger.merge
+
+          # Should preserve destination's custom it block
+          expect(result).to include("subtracts numbers")
+          # Should have both it blocks
+          expect(result.scan('it "').count).to eq(2)
+        end
+      end
+
+      context "with max_recursion_depth safety valve" do
+        it "stops recursion when max_recursion_depth is reached" do
+          # Deeply nested structure that would normally recurse
+          src = <<~SRC
+            class Outer
+              class Inner
+                def foo
+                  :template
+                end
+              end
+            end
+          SRC
+
+          dest = <<~DEST
+            class Outer
+              class Inner
+                def foo
+                  :destination
+                end
+              end
+            end
+          DEST
+
+          # With max_recursion_depth: 0, no recursive merging should happen at all
+          # The top-level class will be treated atomically based on signature_match_preference
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :destination,
+            max_recursion_depth: 0,
+          )
+          result = merger.merge
+
+          # Since recursion is blocked at depth 0, should use destination atomically
+          expect(result).to include(":destination")
+          expect(result).not_to include(":template")
+        end
+
+        it "allows recursion up to the specified depth" do
+          src = <<~SRC
+            class Outer
+              class Inner
+                def foo
+                  :template
+                end
+              end
+            end
+          SRC
+
+          dest = <<~DEST
+            class Outer
+              class Inner
+                def foo
+                  :destination
+                end
+                def bar
+                  :custom
+                end
+              end
+            end
+          DEST
+
+          # With max_recursion_depth: 2, can recurse into Outer and Inner
+          merger = described_class.new(
+            src,
+            dest,
+            signature_match_preference: :destination,
+            max_recursion_depth: 2,
+          )
+          result = merger.merge
+
+          # Should preserve destination's custom method since recursion is allowed
+          expect(result).to include("def bar")
+          expect(result).to include(":custom")
+        end
+      end
+    end
+
+    describe "#body_has_mergeable_statements?" do
+      it "returns false for body with only string literal" do
+        source = <<~'RUBY'
+          git_source(:github) { |repo| "https://github.com/#{repo}" }
+        RUBY
+
+        merger = described_class.new(source, source)
+        node = Prism.parse(source).value.statements.body.first
+        body = node.block.body
+
+        expect(merger.send(:body_has_mergeable_statements?, body)).to be false
+      end
+
+      it "returns true for body with CallNode" do
+        source = <<~RUBY
+          describe "test" do
+            it "works" do
+              expect(true).to be true
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        node = Prism.parse(source).value.statements.body.first
+        body = node.block.body
+
+        expect(merger.send(:body_has_mergeable_statements?, body)).to be true
+      end
+
+      it "returns true for body with DefNode" do
+        source = <<~RUBY
+          class Foo
+            def bar
+              42
+            end
+          end
+        RUBY
+
+        merger = described_class.new(source, source)
+        node = Prism.parse(source).value.statements.body.first
+        body = node.body
+
+        expect(merger.send(:body_has_mergeable_statements?, body)).to be true
+      end
+
+      it "returns false for nil body" do
+        merger = described_class.new("x = 1", "x = 1")
+        expect(merger.send(:body_has_mergeable_statements?, nil)).to be false
+      end
+
+      it "returns false for empty body" do
+        source = "class Foo; end"
+        merger = described_class.new(source, source)
+        node = Prism.parse(source).value.statements.body.first
+        # ClassNode with no body has nil body, not empty StatementsNode
+        expect(merger.send(:body_has_mergeable_statements?, node.body)).to be false
+      end
+    end
+
+    describe "#mergeable_statement?" do
+      let(:merger) { described_class.new("x = 1", "x = 1") }
+
+      it "returns true for CallNode" do
+        node = Prism.parse("foo()").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be true
+      end
+
+      it "returns true for DefNode" do
+        node = Prism.parse("def foo; end").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be true
+      end
+
+      it "returns true for ClassNode" do
+        node = Prism.parse("class Foo; end").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be true
+      end
+
+      it "returns true for ConstantWriteNode" do
+        node = Prism.parse("FOO = 1").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be true
+      end
+
+      it "returns true for LocalVariableWriteNode" do
+        node = Prism.parse("foo = 1").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be true
+      end
+
+      it "returns false for StringNode" do
+        node = Prism.parse('"hello"').value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be false
+      end
+
+      it "returns false for InterpolatedStringNode" do
+        node = Prism.parse('"hello #{world}"').value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be false
+      end
+
+      it "returns false for IntegerNode" do
+        node = Prism.parse("42").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be false
+      end
+
+      it "returns false for ArrayNode" do
+        node = Prism.parse("[1, 2, 3]").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be false
+      end
+
+      it "returns false for HashNode" do
+        node = Prism.parse("{a: 1}").value.statements.body.first
+        expect(merger.send(:mergeable_statement?, node)).to be false
+      end
+    end
   end
 end
