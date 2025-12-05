@@ -80,6 +80,11 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="fixed">Fixed</h3>
 
+<ul>
+  <li>
+<strong>Fixed indentation loss</strong> when adding nodes to merge result - the <code>add_node</code> method was using <code>node.slice</code> which loses leading indentation. Now uses <code>source_analysis.line_at</code> to get full lines from the source file, preserving original indentation.</li>
+</ul>
+
 <h3 id="security">Security</h3>
 
 <h2 id="112---2025-12-04">
@@ -312,7 +317,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Thu Dec  4 17:26:16 2025 by
+  Generated on Thu Dec  4 18:03:42 2025 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.37 (ruby-3.4.7).
 </div>

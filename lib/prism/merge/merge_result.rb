@@ -73,15 +73,21 @@ module Prism
       # @param node_info [Hash] Node information from FileAnalysis
       # @param decision [Symbol] Merge decision
       # @param source [Symbol] :template or :destination
-      # @param source_analysis [FileAnalysis] Source file analysis (unused but kept for compatibility)
+      # @param source_analysis [FileAnalysis] Source file analysis for preserving indentation
       def add_node(node_info, decision:, source:, source_analysis: nil)
         node = node_info[:node]
         start_line = node.location.start_line
+        end_line = node.location.end_line
 
         # Add leading comments
         node_info[:leading_comments].each do |comment|
-          line = comment.slice.rstrip
           comment_line = comment.location.start_line
+          # Use source_analysis to get full line with indentation if available
+          line = if source_analysis
+            source_analysis.line_at(comment_line)&.chomp || comment.slice.rstrip
+          else
+            comment.slice.rstrip
+          end
           if source == :template
             add_line(line, decision: decision, template_line: comment_line)
           else
@@ -89,27 +95,49 @@ module Prism
           end
         end
 
-        # Add node source
-        node_source = node.slice
-        node_lines = node_source.lines(chomp: true)
+        # Add node source lines
+        # Use source_analysis.line_at to preserve original indentation
+        if source_analysis
+          # Get full lines from source to preserve indentation
+          inline_comments = node_info[:inline_comments]
+          (start_line..end_line).each do |line_num|
+            line = source_analysis.line_at(line_num)&.chomp || ""
 
-        # Handle inline comments
-        inline_comments = node_info[:inline_comments]
-        if inline_comments.any?
-          # Inline comments are on the last line
-          last_idx = node_lines.length - 1
-          if last_idx >= 0
-            inline_text = inline_comments.map { |c| c.slice.strip }.join(" ")
-            node_lines[last_idx] = node_lines[last_idx].rstrip + " " + inline_text
+            # Handle inline comments on the last line
+            if line_num == end_line && inline_comments.any?
+              inline_text = inline_comments.map { |c| c.slice.strip }.join(" ")
+              line = line.rstrip + " " + inline_text
+            end
+
+            if source == :template
+              add_line(line, decision: decision, template_line: line_num)
+            else
+              add_line(line, decision: decision, dest_line: line_num)
+            end
           end
-        end
+        else
+          # Fallback: use node.slice (loses leading indentation)
+          node_source = node.slice
+          node_lines = node_source.lines(chomp: true)
 
-        node_lines.each_with_index do |line, idx|
-          line_num = start_line + idx
-          if source == :template
-            add_line(line, decision: decision, template_line: line_num)
-          else
-            add_line(line, decision: decision, dest_line: line_num)
+          # Handle inline comments
+          inline_comments = node_info[:inline_comments]
+          if inline_comments.any?
+            # Inline comments are on the last line
+            last_idx = node_lines.length - 1
+            if last_idx >= 0
+              inline_text = inline_comments.map { |c| c.slice.strip }.join(" ")
+              node_lines[last_idx] = node_lines[last_idx].rstrip + " " + inline_text
+            end
+          end
+
+          node_lines.each_with_index do |line, idx|
+            line_num = start_line + idx
+            if source == :template
+              add_line(line, decision: decision, template_line: line_num)
+            else
+              add_line(line, decision: decision, dest_line: line_num)
+            end
           end
         end
       end

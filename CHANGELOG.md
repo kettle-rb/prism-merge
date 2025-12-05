@@ -28,6 +28,8 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- **Fixed indentation loss** when adding nodes to merge result - the `add_node` method was using `node.slice` which loses leading indentation. Now uses `source_analysis.line_at` to get full lines from the source file, preserving original indentation.
+
 ### Security
 
 ## [1.1.2] - 2025-12-04

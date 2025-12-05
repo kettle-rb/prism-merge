@@ -176,6 +176,77 @@ RSpec.describe Prism::Merge::MergeResult do
 
       expect(result.lines).to eq(["VERSION = '1.0'"])
     end
+
+    context "without source_analysis (fallback path)" do
+      it "adds node using node.slice when source_analysis is nil" do
+        content = "  def indented_method\n    puts 'test'\n  end"
+        analysis = Prism::Merge::FileAnalysis.new(content)
+        node_info = analysis.nodes_with_comments.first
+
+        # Call without source_analysis - uses fallback node.slice path
+        result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: nil)
+
+        # Should include the method (loses leading indentation with node.slice)
+        result_text = result.lines.join("\n")
+        expect(result_text).to include("def indented_method")
+        expect(result_text).to include("puts 'test'")
+        expect(result_text).to include("end")
+      end
+
+      it "adds leading comments using comment.slice when source_analysis is nil" do
+        content = "  # A leading comment\n  def my_method\n    'result'\n  end"
+        analysis = Prism::Merge::FileAnalysis.new(content)
+        node_info = analysis.nodes_with_comments.first
+
+        result.add_node(node_info, decision: :kept_destination, source: :destination, source_analysis: nil)
+
+        # Should include the comment (from comment.slice.rstrip)
+        result_text = result.lines.join("\n")
+        expect(result_text).to include("# A leading comment")
+        expect(result.line_metadata.first[:dest_line]).not_to be_nil
+      end
+
+      it "handles inline comments using node.slice fallback" do
+        content = "CONST = 'value' # inline comment"
+        analysis = Prism::Merge::FileAnalysis.new(content)
+        node_info = analysis.nodes_with_comments.first
+
+        result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: nil)
+
+        result_text = result.lines.join("\n")
+        expect(result_text).to include("CONST = 'value'")
+        expect(result_text).to include("# inline comment")
+      end
+
+      it "handles multi-line nodes using node.slice fallback" do
+        content = "class MyClass\n  attr_reader :name\nend"
+        analysis = Prism::Merge::FileAnalysis.new(content)
+        node_info = analysis.nodes_with_comments.first
+
+        result.add_node(node_info, decision: :kept_destination, source: :destination, source_analysis: nil)
+
+        expect(result.lines.length).to eq(3)
+        expect(result.lines[0]).to eq("class MyClass")
+        expect(result.lines[1]).to eq("  attr_reader :name")
+        expect(result.lines[2]).to eq("end")
+
+        # Verify line numbers are tracked correctly
+        expect(result.line_metadata[0][:dest_line]).to eq(1)
+        expect(result.line_metadata[1][:dest_line]).to eq(2)
+        expect(result.line_metadata[2][:dest_line]).to eq(3)
+      end
+
+      it "handles nodes without any comments using fallback" do
+        content = "simple_call"
+        analysis = Prism::Merge::FileAnalysis.new(content)
+        node_info = analysis.nodes_with_comments.first
+
+        result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: nil)
+
+        expect(result.lines).to eq(["simple_call"])
+        expect(result.line_metadata.first[:template_line]).to eq(1)
+      end
+    end
   end
 
   describe "#to_s" do
