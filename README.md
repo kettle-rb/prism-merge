@@ -338,6 +338,12 @@ By default, Prism::Merge uses intelligent structural signatures to match nodes. 
 | `ModuleNode` | `[:module, name]` | Modules match by name |
 | `SingletonClassNode` | `[:singleton_class, expr]` | Singleton classes match by expression (`class << self`) |
 | `ConstantWriteNode` | `[:const, name]` | Constants match by name only (not value) |
+| `ConstantPathWriteNode` | `[:const, target]` | Namespaced constants match by full path |
+| `LocalVariableWriteNode` | `[:local_var, name]` | Local variables match by name |
+| `InstanceVariableWriteNode` | `[:ivar, name]` | Instance variables match by name |
+| `ClassVariableWriteNode` | `[:cvar, name]` | Class variables match by name |
+| `GlobalVariableWriteNode` | `[:gvar, name]` | Global variables match by name |
+| `MultiWriteNode` | `[:multi_write, targets]` | Multiple assignment matches by target names |
 | `IfNode` / `UnlessNode` | `[:if, condition]` | Conditionals match by condition expression |
 | `CaseNode` | `[:case, predicate]` | Case statements match by the expression being switched |
 | `CaseMatchNode` | `[:case_match, predicate]` | Pattern matching cases match by expression |
@@ -403,7 +409,7 @@ signature_generator = ->(node) {
   if node.is_a?(Prism::CallNode)
     # source() calls - match by method name only (there's usually just one)
     return [:source] if node.name == :source
-    
+
     # gem() calls - match by gem name (first argument)
     if node.name == :gem
       first_arg = node.arguments&.arguments&.first
@@ -412,7 +418,7 @@ signature_generator = ->(node) {
       end
     end
   end
-  
+
   # Return the node to fall through to default signature computation
   # This preserves correct handling for FreezeNodes, classes, modules, etc.
   node
@@ -434,7 +440,7 @@ When you provide a custom signature generator, it's called for **all** node type
 ```ruby
 # ❌ Bad: Returns nil for unrecognized nodes
 signature_generator = ->(node) {
-  return nil unless node.is_a?(Prism::CallNode)  # FreezeNodes get nil!
+  return unless node.is_a?(Prism::CallNode)  # FreezeNodes get nil!
   [:call, node.name]
 }
 

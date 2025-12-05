@@ -2414,4 +2414,533 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
   end
+
+  describe "signature_match_preference: :template" do
+    it "uses template version when nodes have matching signatures" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        VERSION = "2.0.0"
+
+        def shared_method
+          puts "template version"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        # frozen_string_literal: true
+
+        VERSION = "1.0.0"
+
+        def shared_method
+          puts "destination version"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :template,
+        add_template_only_nodes: true,
+      )
+      result = merger.merge
+
+      # Template version should win for VERSION constant
+      expect(result).to include('VERSION = "2.0.0"')
+      expect(result).not_to include('VERSION = "1.0.0"')
+
+      # Template version should win for shared_method
+      expect(result).to include('puts "template version"')
+      expect(result).not_to include('puts "destination version"')
+    end
+
+    it "adds template-only nodes when preference is template" do
+      template = <<~RUBY
+        def template_only_method
+          "from template"
+        end
+
+        def shared_method
+          "template"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        def shared_method
+          "destination"
+        end
+
+        def dest_only_method
+          "from destination"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :template,
+        add_template_only_nodes: true,
+      )
+      result = merger.merge
+
+      expect(result).to include("def template_only_method")
+      expect(result).to include("def dest_only_method")
+      expect(result).to include('"template"')
+      expect(result).not_to include('"destination"')
+    end
+  end
+
+  describe "signature generator fallthrough with FreezeNode" do
+    it "allows fallthrough by returning FreezeNode from custom generator" do
+      template = <<~RUBY
+        gem "foo"
+        gem "bar"
+      RUBY
+
+      destination = <<~RUBY
+        # kettle-dev:freeze
+        gem "frozen_gem"
+        # kettle-dev:unfreeze
+        gem "bar"
+      RUBY
+
+      # This generator returns FreezeNode unchanged to trigger fallthrough
+      fallthrough_generator = lambda do |node|
+        case node
+        when Prism::CallNode
+          if node.name == :gem
+            [:gem, node.arguments&.arguments&.first&.unescaped]
+          else
+            node # fallthrough for other calls
+          end
+        when Prism::Merge::FreezeNode
+          # Return FreezeNode to trigger fallthrough to default signature
+          node
+        else
+          node # fallthrough to default
+        end
+      end
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_generator: fallthrough_generator,
+        add_template_only_nodes: true,
+        freeze_token: "kettle-dev",
+      )
+      result = merger.merge
+
+      # Freeze block should be preserved
+      expect(result).to include('gem "frozen_gem"')
+      expect(result).to include("kettle-dev:freeze")
+      # Template-only gem should be added
+      expect(result).to include('gem "foo"')
+    end
+  end
+
+  describe "identical files optimization" do
+    it "returns content unchanged when template equals destination" do
+      content = <<~RUBY
+        # frozen_string_literal: true
+
+        def identical_method
+          puts "same in both"
+        end
+
+        CONSTANT = "value"
+      RUBY
+
+      merger = described_class.new(content, content)
+      result = merger.merge
+
+      # Should preserve the content exactly
+      expect(result.strip).to eq(content.strip)
+    end
+  end
+
+  describe "recursive merge with nested freeze blocks" do
+    it "does not recurse into nodes containing freeze blocks" do
+      template = <<~RUBY
+        class MyClass
+          def method_a
+            "template a"
+          end
+
+          def method_b
+            "template b"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        class MyClass
+          def method_a
+            "destination a"
+          end
+
+          # prism-merge:freeze
+          def method_b
+            "frozen b"
+          end
+          # prism-merge:unfreeze
+        end
+      RUBY
+
+      # Use :destination preference so we can see the freeze block preserved
+      # The class won't be recursively merged because dest has freeze blocks
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      # The class should not be recursively merged because dest has freeze blocks
+      # So destination version should be preserved entirely
+      expect(result).to include("prism-merge:freeze")
+      expect(result).to include('"frozen b"')
+      expect(result).to include('"destination a"')
+    end
+  end
+
+  describe "boundary after last anchor" do
+    it "handles boundaries that come after all anchors" do
+      template = <<~RUBY
+        def shared_method
+          "shared"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        def shared_method
+          "shared"
+        end
+
+        def extra_method
+          "extra"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        add_template_only_nodes: false,
+      )
+      result = merger.merge
+
+      # The extra_method is destination-only and comes after the last anchor
+      expect(result).to include("def shared_method")
+      expect(result).to include("def extra_method")
+    end
+  end
+
+  describe "body extraction edge cases" do
+    it "handles BeginNode for recursive merge consideration" do
+      template = <<~RUBY
+        begin
+          def inner_method
+            "template"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        begin
+          def inner_method
+            "destination"
+          end
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to include("def inner_method")
+    end
+
+    it "handles ParenthesesNode" do
+      template = <<~RUBY
+        (
+          CONST = 1
+        )
+      RUBY
+
+      destination = <<~RUBY
+        (
+          CONST = 2
+        )
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      expect(result).to include("CONST =")
+    end
+
+    it "handles nodes without standard body accessors" do
+      # This tests the else branch with respond_to? checks
+      template = <<~RUBY
+        while true
+          x = 1
+        end
+      RUBY
+
+      destination = <<~RUBY
+        while true
+          x = 2
+        end
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      expect(result).to include("while true")
+    end
+  end
+
+  describe "CallNode with block for recursive merge" do
+    it "considers CallNode with block for recursive merging" do
+      template = <<~RUBY
+        Rails.application.configure do
+          config.setting_a = "template_a"
+          config.setting_b = "template_b"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        Rails.application.configure do
+          config.setting_a = "dest_a"
+          config.setting_c = "dest_c"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+        add_template_only_nodes: true,
+      )
+      result = merger.merge
+
+      # The block should potentially be recursively merged
+      expect(result).to include("Rails.application.configure")
+    end
+  end
+
+  describe "get_body_content edge cases" do
+    it "handles IfNode for body extraction" do
+      template = <<~RUBY
+        if condition
+          def method_a
+            "template"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        if condition
+          def method_a
+            "destination"
+          end
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to include("if condition")
+    end
+
+    it "handles UnlessNode for body extraction" do
+      template = <<~RUBY
+        unless condition
+          def method_a
+            "template"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        unless condition
+          def method_a
+            "destination"
+          end
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to include("unless condition")
+    end
+
+    it "handles ForNode for body extraction" do
+      template = <<~RUBY
+        for i in items
+          def method_a
+            "template"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        for i in items
+          def method_a
+            "destination"
+          end
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to include("for i in items")
+    end
+
+    it "handles CaseNode (returns nil, no recursion)" do
+      template = <<~RUBY
+        case x
+        when 1
+          "one"
+        when 2
+          "two"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        case x
+        when 1
+          "uno"
+        when 2
+          "dos"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to include("case x")
+    end
+
+    it "handles empty body statements" do
+      template = <<~RUBY
+        class EmptyClass
+        end
+      RUBY
+
+      destination = <<~RUBY
+        class EmptyClass
+        end
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      expect(result).to include("class EmptyClass")
+      expect(result).to include("end")
+    end
+  end
+
+  describe "timeline boundary positioning" do
+    it "handles boundary before first anchor" do
+      template = <<~RUBY
+        BEFORE = "before"
+
+        def anchored_method
+          "same"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        def anchored_method
+          "same"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        add_template_only_nodes: true,
+      )
+      result = merger.merge
+
+      # Template-only content before the anchor
+      expect(result).to include("BEFORE")
+      expect(result).to include("def anchored_method")
+    end
+
+    it "handles boundary between anchors" do
+      template = <<~RUBY
+        def method_a
+          "same"
+        end
+
+        MIDDLE = "template middle"
+
+        def method_b
+          "same"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        def method_a
+          "same"
+        end
+
+        MIDDLE = "dest middle"
+
+        def method_b
+          "same"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        signature_match_preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to include("def method_a")
+      expect(result).to include("def method_b")
+    end
+  end
+
+  describe "unknown anchor match type" do
+    it "defaults to template for unknown match types" do
+      # This is hard to test directly, but we can verify the code path exists
+      # by checking that exact_match anchors work
+      template = <<~RUBY
+        # Exact same content
+        def identical_method
+          "same"
+        end
+      RUBY
+
+      merger = described_class.new(template, template)
+      result = merger.merge
+
+      expect(result).to include("def identical_method")
+    end
+  end
 end

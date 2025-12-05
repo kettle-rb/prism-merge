@@ -21,6 +21,12 @@ Please file a bug if you notice a violation of semantic versioning.
 ### Added
 
 - **Custom signature generator fallthrough support**: Custom signature generators can now return a `Prism::Node` or `FreezeNode` to fall through to the default signature computation. This allows custom generators to only override specific node types while delegating others to the built-in logic. Previously, returning `nil` was the only way to skip custom handling, but that prevented proper matching for unhandled node types.
+- **Variable assignment node signatures**: Added signature support for all variable write node types:
+  - `LocalVariableWriteNode` → `[:local_var, name]`
+  - `InstanceVariableWriteNode` → `[:ivar, name]`
+  - `ClassVariableWriteNode` → `[:cvar, name]`
+  - `GlobalVariableWriteNode` → `[:gvar, name]`
+  - `MultiWriteNode` → `[:multi_write, [target_names]]`
 
 ### Changed
 

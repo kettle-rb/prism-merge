@@ -162,6 +162,11 @@ module Prism
       #   [:module, String]                       - module definitions
       #   [:singleton_class, String]              - singleton class definitions
       #   [:const, Symbol | String]               - constant assignments
+      #   [:local_var, Symbol]                    - local variable assignments
+      #   [:ivar, Symbol]                         - instance variable assignments
+      #   [:cvar, Symbol]                         - class variable assignments
+      #   [:gvar, Symbol]                         - global variable assignments
+      #   [:multi_write, Array[Symbol | String]]  - multiple assignment
       #   [:if, String] | [:unless, String]       - conditionals
       #   [:case, String] | [:case_match, String] - case statements
       #   [:while, String] | [:until, String]     - while/until loops
