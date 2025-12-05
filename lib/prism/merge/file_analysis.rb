@@ -319,15 +319,37 @@ module Prism
         end
       end
 
-      # Extract nodes with their comments and metadata
-      # Uses Prism's native comment attachment via node.location
-      # @return [Array<Hash>]
+      # Extract nodes with their comments and metadata.
+      #
+      # Uses Prism's native comment attachment via node.location. Leading comments
+      # are filtered to exclude:
+      # 1. Freeze/unfreeze marker comments (they belong to FreezeNode boundaries)
+      # 2. Comments inside freeze blocks (they belong to FreezeNode content)
+      #
+      # This filtering prevents duplicate content when freeze blocks precede other
+      # nodes, as Prism attaches ALL preceding comments to a node's leading_comments.
+      #
+      # @return [Array<Hash>] Array of node info hashes with keys:
+      #   - :node [Prism::Node, FreezeNode] The AST node
+      #   - :index [Integer] Position in statements array
+      #   - :leading_comments [Array<Prism::Comment>] Filtered leading comments
+      #   - :inline_comments [Array<Prism::Comment>] Trailing/inline comments
+      #   - :signature [Array, nil] Structural signature for matching
+      #   - :line_range [Range] Line range covered by the node
+      # @api private
       def extract_nodes_with_comments
         return [] unless valid?
 
         # Build pattern to filter out freeze/unfreeze markers from leading comments
         freeze_marker_pattern = if @freeze_token
           /#\s*#{Regexp.escape(@freeze_token)}:(freeze|unfreeze)/i
+        end
+
+        # Build a set of line numbers that are inside freeze blocks
+        # Comments on these lines should not be attached as leading comments to other nodes
+        freeze_block_lines = Set.new
+        freeze_blocks.each do |fb|
+          (fb.start_line..fb.end_line).each { |line| freeze_block_lines << line }
         end
 
         statements.map.with_index do |stmt, idx|
@@ -343,12 +365,17 @@ module Prism
               line_range: stmt.location.start_line..stmt.location.end_line,
             }
           else
-            # Filter out freeze/unfreeze marker comments from leading comments
-            # These markers are part of FreezeNode boundaries and should not be
-            # attached to subsequent nodes
+            # Filter out comments that are:
+            # 1. Freeze/unfreeze markers (part of FreezeNode boundaries)
+            # 2. Inside freeze blocks (belong to FreezeNode content, not this node)
             leading = stmt.location.leading_comments
-            if freeze_marker_pattern
-              leading = leading.reject { |c| c.slice.match?(freeze_marker_pattern) }
+            if freeze_marker_pattern || freeze_block_lines.any?
+              leading = leading.reject do |c|
+                comment_line = c.location.start_line
+                # Reject if it's a freeze marker OR if it's inside a freeze block
+                (freeze_marker_pattern && c.slice.match?(freeze_marker_pattern)) ||
+                  freeze_block_lines.include?(comment_line)
+              end
             end
 
             {

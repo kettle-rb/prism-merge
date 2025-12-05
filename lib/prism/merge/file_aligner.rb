@@ -254,17 +254,28 @@ module Prism
           d_node_info = dest_sig_map[sig].find { |d| !matched_dest.include?(d[:index]) }
           next unless d_node_info
 
-          # Create anchor for this matched node (including its leading comments)
-          t_start = t_node_info[:leading_comments].any? ? t_node_info[:leading_comments].first.location.start_line : t_node_info[:line_range].begin
+          # Create anchor for this matched node
+          # Only include leading comments if they are immediately before the node
+          # (no other nodes/content between comments and this node)
+          t_start = calculate_anchor_start(t_node_info, template_nodes)
           t_end = t_node_info[:line_range].end
-          d_start = d_node_info[:leading_comments].any? ? d_node_info[:leading_comments].first.location.start_line : d_node_info[:line_range].begin
+          d_start = calculate_anchor_start(d_node_info, dest_nodes)
           d_end = d_node_info[:line_range].end
 
-          # Check if this would completely overlap with existing anchors
-          # Only skip if an anchor already covers the EXACT same range
+          # Check if this would overlap with existing anchors in BOTH template AND dest
+          # (same position in both files indicates a true overlap/conflict)
+          # Also check for exact match (already covered)
           overlaps = @anchors.any? do |a|
-            a.template_start == t_start && a.template_end == t_end &&
+            # Exact match - already have this anchor
+            exact_match = a.template_start == t_start && a.template_end == t_end &&
               a.dest_start == d_start && a.dest_end == d_end
+
+            # Check if the proposed anchor's range overlaps with existing anchor
+            # AND it's the same relative position (both template ranges overlap AND both dest ranges overlap)
+            template_overlaps = ranges_overlap?(t_start..t_end, a.template_start..a.template_end)
+            dest_overlaps = ranges_overlap?(d_start..d_end, a.dest_start..a.dest_end)
+
+            exact_match || (template_overlaps && dest_overlaps)
           end
 
           unless overlaps
@@ -278,6 +289,33 @@ module Prism
             )
             matched_dest << d_node_info[:index]
           end
+        end
+      end
+
+      # Calculate the start line for an anchor, considering leading comments
+      # Only include leading comments if they are immediately adjacent to the node
+      # (no other nodes between the comments and this node)
+      def calculate_anchor_start(node_info, all_nodes)
+        node_start = node_info[:line_range].begin
+        leading_comments = node_info[:leading_comments]
+
+        return node_start if leading_comments.empty?
+
+        first_comment_line = leading_comments.first.location.start_line
+
+        # Check if any other node exists between the first comment and this node
+        # If so, don't include the leading comments in the anchor
+        has_intervening_node = all_nodes.any? do |other|
+          next false if other[:index] == node_info[:index]
+          other_range = other[:line_range]
+          # Check if other node is between first comment and this node
+          other_range.begin > first_comment_line && other_range.end < node_start
+        end
+
+        if has_intervening_node
+          node_start
+        else
+          first_comment_line
         end
       end
 

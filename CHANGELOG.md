@@ -28,6 +28,11 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- **Fixed duplicate content when freeze blocks precede nodes with leading comments**: When a freeze block appeared before a node that had leading comments attached from earlier in the file, the merge would output duplicate content. Fixed by:
+  - Filtering out comments inside freeze blocks from being attached as leading comments to subsequent nodes
+  - Not including leading comments in anchor ranges when other nodes exist between the comments and the node
+  - Extending `extract_node_body` to include content after the last statement up to the closing line, ensuring freeze blocks at the end of block bodies are preserved
+
 ### Security
 
 ## [1.1.5] - 2025-12-04
