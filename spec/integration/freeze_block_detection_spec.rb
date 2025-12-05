@@ -249,10 +249,9 @@ RSpec.describe "Freeze Block Detection and Handling" do
           # For other methods with arguments, include first argument
           first_arg = node.arguments&.arguments&.first
           arg_value = case first_arg
-                      when Prism::StringNode then first_arg.unescaped.to_s
-                      when Prism::SymbolNode then first_arg.unescaped.to_sym
-                      else nil
-                      end
+          when Prism::StringNode then first_arg.unescaped.to_s
+          when Prism::SymbolNode then first_arg.unescaped.to_sym
+          end
 
           return [node.name, arg_value] if arg_value
         end

@@ -22,18 +22,29 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Changed
 
-- **Recursive merge now preserves freeze blocks**: When recursively merging nested block bodies (e.g., `Gem::Specification.new do ... end`), freeze blocks inside the body are now properly preserved. Previously, nested mergers were created with `freeze_token: nil`, causing freeze blocks to be lost.
-
 ### Deprecated
 
 ### Removed
 
 ### Fixed
 
+### Security
+
+## [1.1.5] - 2025-12-04
+
+- TAG: [v1.1.5][1.1.5t]
+- COVERAGE: 98.26% -- 906/922 lines in 9 files
+- BRANCH COVERAGE: 87.27% -- 384/440 branches in 9 files
+- 100.00% documented
+
+### Changed
+
+- **Recursive merge now preserves freeze blocks**: When recursively merging nested block bodies (e.g., `Gem::Specification.new do ... end`), freeze blocks inside the body are now properly preserved. Previously, nested mergers were created with `freeze_token: nil`, causing freeze blocks to be lost.
+
+### Fixed
+
 - **Fixed freeze blocks lost in nested block bodies**: Freeze blocks inside class, module, or call-with-block bodies were being lost during recursive merge. The fix passes `freeze_token` to nested mergers and ensures `extract_node_body` includes leading comments/freeze markers that appear between the node's opening line and the first statement.
 - **Fixed duplicate freeze markers in output**: Freeze/unfreeze marker comments were incorrectly attached as leading comments to subsequent nodes, causing duplicate markers in merged output. These markers are now filtered from leading comments since they belong to FreezeNode boundaries.
-
-### Security
 
 ## [1.1.4] - 2025-12-04
 
@@ -212,7 +223,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/kettle-rb/prism-merge/compare/v1.1.4...v1.1.5
+[1.1.5t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.5
 [1.1.4]: https://github.com/kettle-rb/prism-merge/compare/v1.1.3...v1.1.4
 [1.1.4t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.4
 [1.1.3]: https://github.com/kettle-rb/prism-merge/compare/v1.1.2...v1.1.3
