@@ -83,7 +83,7 @@ GEM
       pp (>= 0.6.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
-    json (2.16.0)
+    json (2.17.1)
     kettle-dev (1.1.60)
     kettle-soup-cover (1.0.10)
       simplecov (~> 0.22)
@@ -298,7 +298,7 @@ GEM
       kramdown-parser-gfm (~> 1.1)
       prawn (>= 2.5, < 3)
       version_gem (~> 1.1, >= 1.1.9)
-    yard (0.9.37)
+    yard (0.9.38)
     yard-fence (0.8.0)
       rdoc (~> 6.11)
       version_gem (~> 1.1, >= 1.1.9)
@@ -379,7 +379,7 @@ CHECKSUMS
   gitmoji-regex (1.0.3) sha256=538c6f49f5af6dc36d1630edb89a5a66f6e14ec5850d7fd071e0331f940e553f
   io-console (0.8.1) sha256=1e15440a6b2f67b6ea496df7c474ed62c860ad11237f29b3bd187f054b925fcb
   irb (1.15.3) sha256=4349edff1efa7ff7bfd34cb9df74a133a588ba88c2718098b3b4468b81184aaa
-  json (2.16.0) sha256=ca5630320bb5ca23ebfd0bac84532fab56eb357575653b815b9df42c051e1525
+  json (2.17.1) sha256=e0e4824541336a44915436f53e7ea74c687314fb8f88080fa1456f6a34ead92e
   kettle-dev (1.1.60) sha256=e155e60912c171b4fab24cfce1dc6f00e87cb3e62803a235c8524516d1ba1850
   kettle-soup-cover (1.0.10) sha256=2674fe2d87cbe2961847396f4f8d1e5c0165ae9999ffa8e94e8491215e0b8c3d
   kettle-test (1.0.6) sha256=01a125697339c4d9cbbe0efa7a29332e294fd2ba46f6c99a665222af24054d1a
@@ -461,7 +461,7 @@ CHECKSUMS
   unicode-emoji (4.1.0) sha256=4997d2d5df1ed4252f4830a9b6e86f932e2013fbff2182a9ce9ccabda4f325a5
   version_gem (1.1.9) sha256=0c1a0962ae543c84a00889bb018d9f14d8f8af6029d26b295d98774e3d2eb9a4
   yaml-converter (0.1.0) sha256=3a8a6ce675eec8adc7ee67697ee0567e2153cad974b601c062c3a25f545ecc77
-  yard (0.9.37) sha256=a6e910399e78e613f80ba9add9ba7c394b1a935f083cccbef82903a3d2a26992
+  yard (0.9.38) sha256=721fb82afb10532aa49860655f6cc2eaa7130889df291b052e1e6b268283010f
   yard-fence (0.8.0) sha256=98483d5a49411ec46b59bb4b4bf1a89e85de49767bff3fa7fb04ae5bcd5f5eaf
   yard-junk (0.0.10)
   yard-relative_markdown_links (0.6.0) sha256=3e5ffa85cbad9bac70bee5421774b190fb25d3bdf489323a5b3534f647d1a70e

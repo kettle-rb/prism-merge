@@ -3,82 +3,153 @@
 RSpec.describe Prism::Merge::DebugLogger, :check_output do
   before do
     stub_env("PRISM_MERGE_DEBUG" => "true")
-    # Stub enabled to return true for most tests
-    allow(described_class).to receive(:enabled).and_return(true)
-    # Reset logger instance
-    described_class.instance_variable_set(:@logger, nil)
+    # Stub enabled? to return true for most tests
+    allow(described_class).to receive(:enabled?).and_return(true)
   end
 
-  after do
-    # Reset logger state after each test
-    described_class.instance_variable_set(:@logger, nil)
+  describe ".enabled?" do
+    it "returns true when PRISM_MERGE_DEBUG is '1'" do
+      allow(described_class).to receive(:enabled?).and_call_original
+      stub_env("PRISM_MERGE_DEBUG" => "1")
+      expect(described_class.enabled?).to be true
+    end
+
+    it "returns true when PRISM_MERGE_DEBUG is 'true'" do
+      allow(described_class).to receive(:enabled?).and_call_original
+      stub_env("PRISM_MERGE_DEBUG" => "true")
+      expect(described_class.enabled?).to be true
+    end
+
+    it "returns false when PRISM_MERGE_DEBUG is not set" do
+      allow(described_class).to receive(:enabled?).and_call_original
+      stub_env("PRISM_MERGE_DEBUG" => nil)
+      expect(described_class.enabled?).to be false
+    end
   end
 
-  it "prints debug output using logger when available" do
-    out = capture(:stdout) do
-      described_class.debug("hello world", foo: :bar)
+  describe ".debug" do
+    it "prints debug output to stderr with context" do
+      out = capture(:stderr) do
+        described_class.debug("hello world", foo: :bar)
+      end
+
+      expect(out).to match(/hello world/)
+      expect(out).to match(/foo.*:bar/)
     end
 
-    expect(out).to match(/hello world/)
-    expect(out).to match(/foo|:bar/)
+    it "handles empty context hash" do
+      out = capture(:stderr) do
+        described_class.debug("no context")
+      end
+
+      expect(out).to match(/no context/)
+      # Should not have context inspect output
+      expect(out).not_to match(/\{\}/)
+    end
+
+    it "does nothing when disabled" do
+      allow(described_class).to receive(:enabled?).and_return(false)
+
+      out = capture(:stderr) do
+        described_class.debug("should not appear")
+      end
+
+      expect(out).to be_empty
+    end
   end
 
-  it "falls back to puts when logger is not available" do
-    # Temporarily stub logger_available? to return false
-    allow(described_class).to receive(:logger_available?).and_return(false)
+  describe ".info" do
+    it "prints info message to stderr" do
+      out = capture(:stderr) do
+        described_class.info("info message")
+      end
 
-    out = capture(:stdout) do
-      described_class.debug("fallback", baz: 1)
+      expect(out).to match(/INFO/)
+      expect(out).to match(/info message/)
     end
-    expect(out).to match(/fallback/)
-    expect(out).to match(/baz|1/)
+
+    it "does nothing when disabled" do
+      allow(described_class).to receive(:enabled?).and_return(false)
+
+      out = capture(:stderr) do
+        described_class.info("should not appear")
+      end
+
+      expect(out).to be_empty
+    end
   end
 
-  it "handles empty context hash" do
-    out = capture(:stdout) do
-      described_class.debug("no context")
-    end
+  describe ".warning" do
+    it "prints warning message to stderr even when disabled" do
+      allow(described_class).to receive(:enabled?).and_return(false)
 
-    expect(out).to match(/no context/)
-    # Should not have context string
-    expect(out).not_to match(/\{/)
+      out = capture(:stderr) do
+        described_class.warning("warning message")
+      end
+
+      expect(out).to match(/WARNING/)
+      expect(out).to match(/warning message/)
+    end
   end
 
-  it "handles empty context with puts fallback" do
-    allow(described_class).to receive(:logger_available?).and_return(false)
+  describe ".time" do
+    it "times a block and logs duration when enabled" do
+      out = capture(:stderr) do
+        result = described_class.time("test operation") { 42 }
+        expect(result).to eq(42)
+      end
 
-    out = capture(:stdout) do
-      described_class.debug("no context fallback")
+      expect(out).to match(/Starting: test operation/)
+      expect(out).to match(/Completed: test operation/)
+      expect(out).to match(/real_ms/)
     end
 
-    expect(out).to match(/no context fallback/)
+    it "returns block result without logging when disabled" do
+      allow(described_class).to receive(:enabled?).and_return(false)
+
+      out = capture(:stderr) do
+        result = described_class.time("test operation") { 42 }
+        expect(result).to eq(42)
+      end
+
+      expect(out).to be_empty
+    end
+
+    it "warns and returns block result when benchmark is unavailable" do
+      stub_const("Prism::Merge::DebugLogger::BENCHMARK_AVAILABLE", false)
+
+      out = capture(:stderr) do
+        result = described_class.time("test operation") { 42 }
+        expect(result).to eq(42)
+      end
+
+      expect(out).to match(/WARNING/)
+      expect(out).to match(/Benchmark gem not available/)
+      expect(out).to match(/test operation/)
+      expect(out).not_to match(/real_ms/)
+    end
   end
 
-  it "reuses existing logger instance" do
-    # First call creates logger
-    capture(:stdout) do
-      described_class.debug("first call")
+  describe ".log_node" do
+    it "logs node information when enabled" do
+      node = double("Node", class: "TestNode", location: double(start_line: 1))
+      allow(node).to receive(:respond_to?).with(:location).and_return(true)
+
+      out = capture(:stderr) do
+        described_class.log_node(node, label: "TestLabel")
+      end
+
+      expect(out).to match(/TestLabel/)
     end
 
-    logger_after_first = described_class.instance_variable_get(:@logger)
-    expect(logger_after_first).not_to be_nil
+    it "does nothing when disabled" do
+      allow(described_class).to receive(:enabled?).and_return(false)
 
-    # Second call reuses logger
-    capture(:stdout) do
-      described_class.debug("second call")
+      out = capture(:stderr) do
+        described_class.log_node("anything", label: "Test")
+      end
+
+      expect(out).to be_empty
     end
-
-    logger_after_second = described_class.instance_variable_get(:@logger)
-    expect(logger_after_second).to eq(logger_after_first)
-  end
-
-  it "does nothing when disabled" do
-    allow(described_class).to receive(:enabled).and_return(false)
-
-    out = capture(:stdout) do
-      described_class.debug("should not appear")
-    end
-
-    expect(out).to be_empty
   end
 end

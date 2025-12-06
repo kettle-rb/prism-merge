@@ -200,31 +200,33 @@ module Prism
       #
       # @see #merge_with_debug for detailed merge information
       def merge
-        # Handle invalid files
-        unless @template_analysis.valid?
-          raise Prism::Merge::TemplateParseError.new(
-            "Template file has parsing errors",
-            content: @template_content,
-            parse_result: @template_analysis.parse_result,
-          )
+        DebugLogger.time("SmartMerger#merge") do
+          # Handle invalid files
+          unless @template_analysis.valid?
+            raise Prism::Merge::TemplateParseError.new(
+              "Template file has parsing errors",
+              content: @template_content,
+              parse_result: @template_analysis.parse_result,
+            )
+          end
+
+          unless @dest_analysis.valid?
+            raise Prism::Merge::DestinationParseError.new(
+              "Destination file has parsing errors",
+              content: @dest_content,
+              parse_result: @dest_analysis.parse_result,
+            )
+          end
+
+          # Find anchors and boundaries
+          boundaries = @aligner.align
+
+          # Process the merge by walking through anchors and boundaries in order
+          process_merge(boundaries)
+
+          # Return final content
+          @result.to_s
         end
-
-        unless @dest_analysis.valid?
-          raise Prism::Merge::DestinationParseError.new(
-            "Destination file has parsing errors",
-            content: @dest_content,
-            parse_result: @dest_analysis.parse_result,
-          )
-        end
-
-        # Find anchors and boundaries
-        boundaries = @aligner.align
-
-        # Process the merge by walking through anchors and boundaries in order
-        process_merge(boundaries)
-
-        # Return final content
-        @result.to_s
       end
 
       # Performs merge and returns detailed debug information.

@@ -55,9 +55,11 @@ module Prism
       # Perform alignment and identify anchors and boundaries
       # @return [Array<Boundary>] Boundaries requiring conflict resolution
       def align
-        find_anchors
-        compute_boundaries
-        @boundaries
+        DebugLogger.time("FileAligner#align") do
+          find_anchors
+          compute_boundaries
+          @boundaries
+        end
       end
 
       private

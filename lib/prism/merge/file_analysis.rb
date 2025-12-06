@@ -42,7 +42,7 @@ module Prism
         @lines = source.lines
         @freeze_token = freeze_token
         @signature_generator = signature_generator
-        @parse_result = Prism.parse(source)
+        @parse_result = DebugLogger.time("FileAnalysis#parse") { Prism.parse(source) }
 
         # Use Prism's native comment attachment
         # On JRuby, the Comments class may not be loaded yet, so we need to require it
@@ -55,7 +55,7 @@ module Prism
           signature_generator: signature_generator ? "custom" : "default",
           statements_count: @statements.size,
           freeze_blocks: freeze_blocks.size,
-        }) if defined?(DebugLogger)
+        })
       end
 
       # Check if parse was successful
@@ -129,7 +129,7 @@ module Prism
           node_type: node.class.name.split("::").last,
           signature: result,
           generator: @signature_generator ? "custom" : "default",
-        }) if defined?(DebugLogger) && result
+        }) if result
 
         result
       end

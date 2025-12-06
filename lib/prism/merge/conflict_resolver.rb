@@ -77,29 +77,31 @@ module Prism
       # @param boundary [FileAligner::Boundary] Boundary to resolve
       # @param result [MergeResult] Result object to populate
       def resolve(boundary, result)
-        # Extract content from both sides
-        template_content = extract_boundary_content(@template_analysis, boundary.template_range)
-        dest_content = extract_boundary_content(@dest_analysis, boundary.dest_range)
+        DebugLogger.time("ConflictResolver#resolve") do
+          # Extract content from both sides
+          template_content = extract_boundary_content(@template_analysis, boundary.template_range)
+          dest_content = extract_boundary_content(@dest_analysis, boundary.dest_range)
 
-        # If both sides are empty, nothing to do
-        return if template_content[:lines].empty? && dest_content[:lines].empty?
+          # If both sides are empty, nothing to do
+          return if template_content[:lines].empty? && dest_content[:lines].empty?
 
-        # If one side is empty, use the other
-        if template_content[:lines].empty?
-          add_content_to_result(dest_content, result, :destination, MergeResult::DECISION_KEPT_DEST)
-          return
-        end
-
-        if dest_content[:lines].empty?
-          # Only add template-only content if the flag allows it
-          if @add_template_only_nodes
-            add_content_to_result(template_content, result, :template, MergeResult::DECISION_KEPT_TEMPLATE)
+          # If one side is empty, use the other
+          if template_content[:lines].empty?
+            add_content_to_result(dest_content, result, :destination, MergeResult::DECISION_KEPT_DEST)
+            return
           end
-          return
-        end
 
-        # Both sides have content - perform intelligent merge
-        merge_boundary_content(template_content, dest_content, boundary, result)
+          if dest_content[:lines].empty?
+            # Only add template-only content if the flag allows it
+            if @add_template_only_nodes
+              add_content_to_result(template_content, result, :template, MergeResult::DECISION_KEPT_TEMPLATE)
+            end
+            return
+          end
+
+          # Both sides have content - perform intelligent merge
+          merge_boundary_content(template_content, dest_content, boundary, result)
+        end
       end
 
       private
