@@ -14,3 +14,5 @@ eval_gemfile "gemfiles/modular/style.gemfile"
 eval_gemfile "gemfiles/modular/documentation.gemfile"
 eval_gemfile "gemfiles/modular/optional.gemfile"
 eval_gemfile "gemfiles/modular/x_std_libs.gemfile"
+
+gem "ast-merge", path: "vendor/ast-merge"

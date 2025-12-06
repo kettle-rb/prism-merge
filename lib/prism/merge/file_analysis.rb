@@ -14,23 +14,13 @@ module Prism
     # - Better performance (one attach_comments! call vs multiple iterations)
     # - Enhanced freeze block validation (detects partial nodes and non-class/module contexts)
     class FileAnalysis
+      include Ast::Merge::FileAnalyzable
+
       # Default freeze token for identifying freeze blocks
       DEFAULT_FREEZE_TOKEN = "prism-merge"
 
       # @return [Prism::ParseResult] The parse result from Prism
       attr_reader :parse_result
-
-      # @return [String] Source code content
-      attr_reader :source
-
-      # @return [Array<String>] Lines of source code
-      attr_reader :lines
-
-      # @return [String] Token used to mark freeze blocks
-      attr_reader :freeze_token
-
-      # @return [Proc, nil] Custom signature generator
-      attr_reader :signature_generator
 
       # Initialize file analysis with Prism's native comment handling
       #
@@ -64,29 +54,11 @@ module Prism
         @parse_result.success?
       end
 
-      # Get all statements (code nodes outside freeze blocks + FreezeNodes)
-      # @return [Array<Prism::Node, FreezeNode>]
-      attr_reader :statements
-
-      # Get freeze blocks
-      # @return [Array<FreezeNode>]
-      def freeze_blocks
-        @statements.select { |node| node.is_a?(FreezeNode) }
-      end
-
       # Get nodes with their associated comments and metadata
       # Comments are now accessed via Prism's native node.location API
       # @return [Array<Hash>] Array of node info hashes
       def nodes_with_comments
         @nodes_with_comments ||= extract_nodes_with_comments
-      end
-
-      # Get structural signature for a statement at given index
-      # @param index [Integer] Statement index
-      # @return [Array, nil] Signature array
-      def signature_at(index)
-        return if index < 0 || index >= statements.length
-        generate_signature(statements[index])
       end
 
       # Generate signature for a node.
@@ -95,12 +67,12 @@ module Prism
       # generator can return:
       # - An array signature (e.g., `[:gem, "foo"]`) - used as the signature
       # - `nil` - the node gets no signature (won't be matched by signature)
-      # - A `Prism::Node` or `FreezeNode` - falls through to default computation using
+      # - A `Prism::Node` or `FreezeNodeBase` subclass - falls through to default computation using
       #   the returned node. This allows the custom generator to optionally modify the
       #   node before default processing, or simply return the original node unchanged
       #   for fallthrough.
       #
-      # @param node [Prism::Node, FreezeNode] Node to generate signature for
+      # @param node [Prism::Node, FreezeNodeBase] Node to generate signature for
       # @return [Array, nil] Signature array
       #
       # @example Custom generator with fallthrough
@@ -114,7 +86,7 @@ module Prism
       def generate_signature(node)
         result = if @signature_generator
           custom_result = @signature_generator.call(node)
-          if custom_result.is_a?(Prism::Node) || custom_result.is_a?(FreezeNode)
+          if custom_result.is_a?(Prism::Node) || custom_result.is_a?(Ast::Merge::FreezeNodeBase)
             # Custom generator returned a node - use default computation on it
             compute_node_signature(custom_result)
           else
@@ -134,34 +106,11 @@ module Prism
         result
       end
 
-      # Check if a line is within a freeze block
-      # @param line_num [Integer] 1-based line number
-      # @return [Boolean]
-      def in_freeze_block?(line_num)
-        freeze_blocks.any? { |freeze_node| freeze_node.location.cover?(line_num) }
-      end
-
-      # Get the freeze block containing the given line, if any
-      # @param line_num [Integer] 1-based line number
-      # @return [FreezeNode, nil] Freeze block node or nil
-      def freeze_block_at(line_num)
-        freeze_blocks.find { |freeze_node| freeze_node.location.cover?(line_num) }
-      end
-
-      # Get normalized line content (stripped)
-      # @param line_num [Integer] 1-based line number
-      # @return [String, nil]
-      def normalized_line(line_num)
-        return if line_num < 1 || line_num > lines.length
-        lines[line_num - 1].strip
-      end
-
-      # Get raw line content
-      # @param line_num [Integer] 1-based line number
-      # @return [String, nil]
-      def line_at(line_num)
-        return if line_num < 1 || line_num > lines.length
-        lines[line_num - 1]
+      # Override to detect Prism nodes for signature generator fallthrough
+      # @param value [Object] The value to check
+      # @return [Boolean] true if this is a fallthrough node
+      def fallthrough_node?(value)
+        value.is_a?(::Prism::Node) || value.is_a?(Ast::Merge::FreezeNodeBase)
       end
 
       private
@@ -184,7 +133,7 @@ module Prism
       end
 
       # Extract all nodes: freeze blocks + statements outside freeze blocks
-      # @return [Array<Prism::Node, FreezeNode>]
+      # @return [Array<Prism::Node, FreezeNodeBase>]
       def extract_and_integrate_all_nodes
         return [] unless valid?
 
@@ -213,37 +162,41 @@ module Prism
 
       # Extract freeze blocks by scanning for freeze/unfreeze markers in comments
       # @param statements [Array<Prism::Node>] Base AST statements
-      # @return [Array<FreezeNode>] Freeze block nodes
+      # @return [Array<FreezeNodeBase>] Freeze block nodes
       def extract_freeze_nodes(statements)
         # Skip freeze node extraction if no freeze token is configured
         return [] unless @freeze_token
 
         freeze_blocks = []
-        freeze_start_line = nil
-        freeze_start_pattern = /#\s*#{Regexp.escape(@freeze_token)}:freeze/i
-        freeze_end_pattern = /#\s*#{Regexp.escape(@freeze_token)}:unfreeze/i
+        freeze_start_info = nil  # { line: Integer, marker: String }
+        # Use shared pattern from Ast::Merge::FreezeNodeBase with our specific token
+        freeze_pattern = Ast::Merge::FreezeNodeBase.pattern_for(:hash_comment, @freeze_token)
 
         # Scan all comments for freeze markers
         @parse_result.comments.each do |comment|
           line = comment.slice
           line_num = comment.location.start_line
 
-          if line.match?(freeze_start_pattern)
-            if freeze_start_line
+          next unless (match = line.match(freeze_pattern))
+
+          marker_type = match[1]&.downcase # 'freeze' or 'unfreeze'
+
+          if marker_type == "freeze"
+            if freeze_start_info
               # Nested freeze blocks not allowed
               raise FreezeNode::InvalidStructureError,
-                "Nested freeze block at line #{line_num} (previous freeze at line #{freeze_start_line})"
+                "Nested freeze block at line #{line_num} (previous freeze at line #{freeze_start_info[:line]})"
             end
-            freeze_start_line = line_num
-          elsif line.match?(freeze_end_pattern)
-            unless freeze_start_line
+            freeze_start_info = { line: line_num, marker: line }
+          elsif marker_type == "unfreeze"
+            unless freeze_start_info
               raise FreezeNode::InvalidStructureError,
                 "Unfreeze marker at line #{line_num} without matching freeze marker"
             end
 
             # Find statements enclosed by this freeze block
             enclosed_statements = statements.select do |stmt|
-              stmt.location.start_line > freeze_start_line &&
+              stmt.location.start_line > freeze_start_info[:line] &&
                 stmt.location.end_line < line_num
             end
 
@@ -252,52 +205,55 @@ module Prism
               stmt_start = stmt.location.start_line
               stmt_end = stmt.location.end_line
               # Overlaps if: starts before end AND ends after start
-              stmt_start <= line_num && stmt_end >= freeze_start_line
+              stmt_start <= line_num && stmt_end >= freeze_start_info[:line]
             end
 
             # Create freeze node (validation happens in initialize)
             freeze_node = FreezeNode.new(
-              start_line: freeze_start_line,
+              start_line: freeze_start_info[:line],
               end_line: line_num,
               analysis: self,
               nodes: enclosed_statements,
               overlapping_nodes: overlapping_statements,
+              start_marker: freeze_start_info[:marker],
+              end_marker: line,
             )
 
             freeze_blocks << freeze_node
-            freeze_start_line = nil
+            freeze_start_info = nil
           end
         end
 
         # Handle unclosed freeze blocks
         # If freeze block is unclosed AND at root level, it extends to end of file
         # If freeze block is unclosed AND inside a nested node, it's an error
-        if freeze_start_line
-          # Check if any statement starts before freeze_start_line and ends after it
+        if freeze_start_info
+          # Check if any statement starts before freeze_start_info[:line] and ends after it
           # This means the freeze is inside a nested structure (class, module, method, etc.)
           nested_context = statements.any? do |stmt|
-            stmt.location.start_line < freeze_start_line &&
-              stmt.location.end_line > freeze_start_line
+            stmt.location.start_line < freeze_start_info[:line] &&
+              stmt.location.end_line > freeze_start_info[:line]
           end
 
           if nested_context
             raise FreezeNode::InvalidStructureError,
-              "Unclosed freeze block starting at line #{freeze_start_line} inside a nested structure. " \
+              "Unclosed freeze block starting at line #{freeze_start_info[:line]} inside a nested structure. " \
                 "Freeze blocks inside classes/methods/modules must have matching unfreeze markers."
           end
 
           # Root-level unclosed freeze: extends to end of file
           last_line = @lines.length
           enclosed_statements = statements.select do |stmt|
-            stmt.location.start_line > freeze_start_line &&
+            stmt.location.start_line > freeze_start_info[:line] &&
               stmt.location.end_line <= last_line
           end
 
           freeze_node = FreezeNode.new(
-            start_line: freeze_start_line,
+            start_line: freeze_start_info[:line],
             end_line: last_line,
             analysis: self,
             nodes: enclosed_statements,
+            start_marker: freeze_start_info[:marker],
           )
 
           freeze_blocks << freeze_node
@@ -308,7 +264,7 @@ module Prism
 
       # Filter out statements that are inside freeze blocks
       # @param statements [Array<Prism::Node>] Base statements
-      # @param freeze_nodes [Array<FreezeNode>] Freeze block nodes
+      # @param freeze_nodes [Array<FreezeNodeBase>] Freeze block nodes
       # @return [Array<Prism::Node>] Statements outside freeze blocks
       def filter_statements_outside_freeze(statements, freeze_nodes)
         statements.reject do |stmt|
@@ -323,14 +279,14 @@ module Prism
       #
       # Uses Prism's native comment attachment via node.location. Leading comments
       # are filtered to exclude:
-      # 1. Freeze/unfreeze marker comments (they belong to FreezeNode boundaries)
-      # 2. Comments inside freeze blocks (they belong to FreezeNode content)
+      # 1. Freeze/unfreeze marker comments (they belong to FreezeNodeBase boundaries)
+      # 2. Comments inside freeze blocks (they belong to FreezeNodeBase content)
       #
       # This filtering prevents duplicate content when freeze blocks precede other
       # nodes, as Prism attaches ALL preceding comments to a node's leading_comments.
       #
       # @return [Array<Hash>] Array of node info hashes with keys:
-      #   - :node [Prism::Node, FreezeNode] The AST node
+      #   - :node [Prism::Node, FreezeNodeBase] The AST node
       #   - :index [Integer] Position in statements array
       #   - :leading_comments [Array<Prism::Comment>] Filtered leading comments
       #   - :inline_comments [Array<Prism::Comment>] Trailing/inline comments
@@ -353,7 +309,7 @@ module Prism
         end
 
         statements.map.with_index do |stmt, idx|
-          # FreezeNode doesn't have Prism location with comments
+          # FreezeNodeBase doesn't have Prism location with comments
           # It's a wrapper with custom Location struct
           if stmt.is_a?(FreezeNode)
             {
@@ -366,8 +322,8 @@ module Prism
             }
           else
             # Filter out comments that are:
-            # 1. Freeze/unfreeze markers (part of FreezeNode boundaries)
-            # 2. Inside freeze blocks (belong to FreezeNode content, not this node)
+            # 1. Freeze/unfreeze markers (part of FreezeNodeBase boundaries)
+            # 2. Inside freeze blocks (belong to FreezeNodeBase content, not this node)
             leading = stmt.location.leading_comments
             if freeze_marker_pattern || freeze_block_lines.any?
               leading = leading.reject do |c|
@@ -452,7 +408,7 @@ module Prism
       #   **Other:**
       #   - `ParenthesesNode` → `[:parens, first_expression_preview]`
       #   - `EmbeddedStatementsNode` → `[:embedded, statements_source]`
-      #   - `FreezeNode` → Uses FreezeNode#signature
+      #   - `FreezeNodeBase` subclass → Uses FreezeNodeBase#signature
       #   - Unknown nodes → `[:other, class_name, line_number]`
       #
       # @example Method definition signature
@@ -678,9 +634,9 @@ module Prism
         when Prism::EmbeddedStatementsNode
           [:embedded, node.statements&.slice || ""]
 
-        # === FreezeNode (our custom wrapper) ===
+        # === FreezeNodeBase subclass (our custom wrapper) ===
         when FreezeNode
-          # FreezeNode has its own signature method with normalized content
+          # FreezeNodeBase has its own signature method with normalized content
           node.signature
 
         else

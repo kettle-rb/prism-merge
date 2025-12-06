@@ -1,6 +1,14 @@
 # frozen_string_literal: true
 
+require "ast/merge/rspec/shared_examples"
+
 RSpec.describe Prism::Merge::MergeResult do
+  # Use shared examples to validate base MergeResultBase integration
+  it_behaves_like "Ast::Merge::MergeResultBase" do
+    let(:merge_result_class) { described_class }
+    let(:build_merge_result) { -> { described_class.new } }
+  end
+
   describe "#initialize" do
     it "creates an empty result" do
       result = described_class.new

@@ -1,155 +1,47 @@
 # frozen_string_literal: true
 
-RSpec.describe Prism::Merge::DebugLogger, :check_output do
-  before do
-    stub_env("PRISM_MERGE_DEBUG" => "true")
-    # Stub enabled? to return true for most tests
-    allow(described_class).to receive(:enabled?).and_return(true)
+require "ast/merge/rspec/shared_examples"
+
+RSpec.describe Prism::Merge::DebugLogger do
+  # Use the shared examples to validate base DebugLogger integration
+  it_behaves_like "Ast::Merge::DebugLogger" do
+    let(:described_logger) { described_class }
+    let(:env_var_name) { "PRISM_MERGE_DEBUG" }
+    let(:log_prefix) { "[Prism::Merge]" }
   end
 
-  describe ".enabled?" do
-    it "returns true when PRISM_MERGE_DEBUG is '1'" do
-      allow(described_class).to receive(:enabled?).and_call_original
+  describe "Prism-specific extract_node_info override" do
+    before do
       stub_env("PRISM_MERGE_DEBUG" => "1")
-      expect(described_class.enabled?).to be true
     end
 
-    it "returns true when PRISM_MERGE_DEBUG is 'true'" do
-      allow(described_class).to receive(:enabled?).and_call_original
-      stub_env("PRISM_MERGE_DEBUG" => "true")
-      expect(described_class.enabled?).to be true
-    end
+    it "handles FreezeNode when defined" do
+      # Create a mock FreezeNode-like object
+      freeze_node_class = Class.new do
+        attr_reader :start_line, :end_line
 
-    it "returns false when PRISM_MERGE_DEBUG is not set" do
-      allow(described_class).to receive(:enabled?).and_call_original
-      stub_env("PRISM_MERGE_DEBUG" => nil)
-      expect(described_class.enabled?).to be false
-    end
-  end
-
-  describe ".debug" do
-    it "prints debug output to stderr with context" do
-      out = capture(:stderr) do
-        described_class.debug("hello world", foo: :bar)
+        def initialize(start_line:, end_line:)
+          @start_line = start_line
+          @end_line = end_line
+        end
       end
 
-      expect(out).to match(/hello world/)
-      expect(out).to match(/foo.*:bar/)
+      # Define FreezeNode constant temporarily
+      stub_const("Prism::Merge::FreezeNode", freeze_node_class)
+      node = freeze_node_class.new(start_line: 1, end_line: 5)
+
+      info = described_class.extract_node_info(node)
+
+      expect(info[:type]).to eq("FreezeNode")
+      expect(info[:lines]).to eq("1..5")
     end
 
-    it "handles empty context hash" do
-      out = capture(:stderr) do
-        described_class.debug("no context")
-      end
+    it "delegates to base implementation for non-FreezeNode types" do
+      node = Object.new
 
-      expect(out).to match(/no context/)
-      # Should not have context inspect output
-      expect(out).not_to match(/\{\}/)
-    end
+      info = described_class.extract_node_info(node)
 
-    it "does nothing when disabled" do
-      allow(described_class).to receive(:enabled?).and_return(false)
-
-      out = capture(:stderr) do
-        described_class.debug("should not appear")
-      end
-
-      expect(out).to be_empty
-    end
-  end
-
-  describe ".info" do
-    it "prints info message to stderr" do
-      out = capture(:stderr) do
-        described_class.info("info message")
-      end
-
-      expect(out).to match(/INFO/)
-      expect(out).to match(/info message/)
-    end
-
-    it "does nothing when disabled" do
-      allow(described_class).to receive(:enabled?).and_return(false)
-
-      out = capture(:stderr) do
-        described_class.info("should not appear")
-      end
-
-      expect(out).to be_empty
-    end
-  end
-
-  describe ".warning" do
-    it "prints warning message to stderr even when disabled" do
-      allow(described_class).to receive(:enabled?).and_return(false)
-
-      out = capture(:stderr) do
-        described_class.warning("warning message")
-      end
-
-      expect(out).to match(/WARNING/)
-      expect(out).to match(/warning message/)
-    end
-  end
-
-  describe ".time" do
-    it "times a block and logs duration when enabled" do
-      out = capture(:stderr) do
-        result = described_class.time("test operation") { 42 }
-        expect(result).to eq(42)
-      end
-
-      expect(out).to match(/Starting: test operation/)
-      expect(out).to match(/Completed: test operation/)
-      expect(out).to match(/real_ms/)
-    end
-
-    it "returns block result without logging when disabled" do
-      allow(described_class).to receive(:enabled?).and_return(false)
-
-      out = capture(:stderr) do
-        result = described_class.time("test operation") { 42 }
-        expect(result).to eq(42)
-      end
-
-      expect(out).to be_empty
-    end
-
-    it "warns and returns block result when benchmark is unavailable" do
-      stub_const("Prism::Merge::DebugLogger::BENCHMARK_AVAILABLE", false)
-
-      out = capture(:stderr) do
-        result = described_class.time("test operation") { 42 }
-        expect(result).to eq(42)
-      end
-
-      expect(out).to match(/WARNING/)
-      expect(out).to match(/Benchmark gem not available/)
-      expect(out).to match(/test operation/)
-      expect(out).not_to match(/real_ms/)
-    end
-  end
-
-  describe ".log_node" do
-    it "logs node information when enabled" do
-      node = double("Node", class: "TestNode", location: double(start_line: 1))
-      allow(node).to receive(:respond_to?).with(:location).and_return(true)
-
-      out = capture(:stderr) do
-        described_class.log_node(node, label: "TestLabel")
-      end
-
-      expect(out).to match(/TestLabel/)
-    end
-
-    it "does nothing when disabled" do
-      allow(described_class).to receive(:enabled?).and_return(false)
-
-      out = capture(:stderr) do
-        described_class.log_node("anything", label: "Test")
-      end
-
-      expect(out).to be_empty
+      expect(info[:type]).to eq("Object")
     end
   end
 end

@@ -4,6 +4,9 @@
 require "prism"
 require "version_gem"
 
+# Shared merge infrastructure
+require "ast/merge"
+
 # This gem
 require_relative "merge/version"
 
@@ -32,13 +35,13 @@ module Prism
   # @see ConflictResolver Resolves content within boundaries
   module Merge
     # Base error class for Prism::Merge
-    class Error < StandardError; end
+    # Inherits from Ast::Merge::Error for consistency across merge gems.
+    class Error < Ast::Merge::Error; end
 
-    # Raised when the template/destination file has parsing errors
-    class ParseError < Error
-      # @return [String] The content that failed to parse
-      attr_reader :content
-
+    # Raised when a Ruby file has parsing errors.
+    # Inherits from Ast::Merge::ParseError for consistency across merge gems.
+    # Provides Prism-specific `parse_result` attribute.
+    class ParseError < Ast::Merge::ParseError
       # @return [Prism::ParseResult] The Prism parse result containing error details
       attr_reader :parse_result
 
@@ -46,9 +49,8 @@ module Prism
       # @param content [String] The Ruby source that failed to parse
       # @param parse_result [Prism::ParseResult] Parse result with error information
       def initialize(message, content:, parse_result:)
-        super(message)
-        @content = content
         @parse_result = parse_result
+        super(message, errors: parse_result.errors, content: content)
       end
     end
 
@@ -60,9 +62,7 @@ module Prism
     #     result = merger.merge
     #   rescue TemplateParseError => e
     #     puts "Template syntax error: #{e.message}"
-    #     e.parse_result.errors.each do |error|
-    #       puts "  #{error.message}"
-    #     end
+    #     e.errors.each { |error| puts "  #{error.message}" }
     #   end
     class TemplateParseError < ParseError; end
 
@@ -74,9 +74,7 @@ module Prism
     #     result = merger.merge
     #   rescue DestinationParseError => e
     #     puts "Destination syntax error: #{e.message}"
-    #     e.parse_result.errors.each do |error|
-    #       puts "  #{error.message}"
-    #     end
+    #     e.errors.each { |error| puts "  #{error.message}" }
     #   end
     class DestinationParseError < ParseError; end
 

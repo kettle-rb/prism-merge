@@ -22,6 +22,13 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Changed
 
+- **BREAKING**: Error classes now inherit from `Ast::Merge` base classes:
+  - `Prism::Merge::Error` now inherits from `Ast::Merge::Error` (was `StandardError`)
+  - `Prism::Merge::ParseError` now inherits from `Ast::Merge::ParseError` (was `Prism::Merge::Error`)
+  - `ParseError#errors` attribute added (array of error objects from `parse_result.errors`)
+  - Code using `e.parse_result.errors` should now use `e.errors` directly
+  - `parse_result` attribute is still available for Prism-specific access
+
 ### Deprecated
 
 ### Removed

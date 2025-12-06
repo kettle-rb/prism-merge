@@ -14,6 +14,9 @@ module Prism
     # - Preserves trailing blank lines for proper spacing
     # - Handles template-only and destination-only nodes
     #
+    # Inherits from Ast::Merge::ConflictResolverBase using the :boundary strategy,
+    # which resolves conflicts on a per-boundary (section) basis.
+    #
     # @example Basic usage (via SmartMerger)
     #   resolver = ConflictResolver.new(template_analysis, dest_analysis)
     #   resolver.resolve(boundary, result)
@@ -21,18 +24,13 @@ module Prism
     # @see SmartMerger
     # @see FileAnalysis
     # @see MergeResult
-    class ConflictResolver
-      # @return [FileAnalysis] Analysis of the template file
-      attr_reader :template_analysis
-
-      # @return [FileAnalysis] Analysis of the destination file
-      attr_reader :dest_analysis
-
-      # @return [Symbol] Preference for signature matches (:template or :destination)
-      attr_reader :signature_match_preference
-
-      # @return [Boolean] Whether to add template-only nodes
-      attr_reader :add_template_only_nodes
+    # @see Ast::Merge::ConflictResolverBase
+    class ConflictResolver < ::Ast::Merge::ConflictResolverBase
+      # Alias for compatibility with existing code
+      # @return [Symbol]
+      def signature_match_preference
+        preference
+      end
 
       # Creates a new ConflictResolver for handling merge conflicts.
       #
@@ -65,18 +63,23 @@ module Prism
       #     add_template_only_nodes: true
       #   )
       def initialize(template_analysis, dest_analysis, signature_match_preference: :destination, add_template_only_nodes: false)
-        @template_analysis = template_analysis
-        @dest_analysis = dest_analysis
-        @signature_match_preference = signature_match_preference
-        @add_template_only_nodes = add_template_only_nodes
+        super(
+          strategy: :boundary,
+          preference: signature_match_preference,
+          template_analysis: template_analysis,
+          dest_analysis: dest_analysis,
+          add_template_only_nodes: add_template_only_nodes,
+        )
       end
+
+      protected
 
       # Resolve a boundary by deciding which content to keep.
       # If the boundary contains a `kettle-dev:freeze` block, the entire
       # block from the destination is preserved.
       # @param boundary [FileAligner::Boundary] Boundary to resolve
       # @param result [MergeResult] Result object to populate
-      def resolve(boundary, result)
+      def resolve_boundary(boundary, result)
         DebugLogger.time("ConflictResolver#resolve") do
           # Extract content from both sides
           template_content = extract_boundary_content(@template_analysis, boundary.template_range)
@@ -87,14 +90,14 @@ module Prism
 
           # If one side is empty, use the other
           if template_content[:lines].empty?
-            add_content_to_result(dest_content, result, :destination, MergeResult::DECISION_KEPT_DEST)
+            add_content_to_result(dest_content, result, :destination, DECISION_KEPT_DEST)
             return
           end
 
           if dest_content[:lines].empty?
             # Only add template-only content if the flag allows it
             if @add_template_only_nodes
-              add_content_to_result(template_content, result, :template, MergeResult::DECISION_KEPT_TEMPLATE)
+              add_content_to_result(template_content, result, :template, DECISION_KEPT_TEMPLATE)
             end
             return
           end
@@ -131,10 +134,6 @@ module Prism
         }
       end
 
-      def ranges_overlap?(range1, range2)
-        range1.begin <= range2.end && range2.begin <= range1.end
-      end
-
       def add_content_to_result(content, result, source, decision)
         return if content[:lines].empty?
 
@@ -149,7 +148,7 @@ module Prism
 
       def merge_boundary_content(template_content, dest_content, _boundary, result)
         # Strategy: Process nodes in order using signature matching.
-        # FreezeNodes from destination are always preferred to preserve customizations.
+        # FreezeNodeBase subclasses from destination are always preferred to preserve customizations.
 
         template_nodes = template_content[:nodes]
         dest_nodes = dest_content[:nodes]
@@ -157,15 +156,15 @@ module Prism
         # Track which dest nodes have been matched
         matched_dest_indices = Set.new
 
-        # Check if there are any FreezeNodes in destination - they always win
-        dest_freeze_nodes = dest_nodes.select { |n| n[:node].is_a?(FreezeNode) }
+        # Check if there are any FreezeNodeBase subclasses in destination - they always win
+        dest_freeze_nodes = dest_nodes.select { |n| freeze_node?(n[:node]) }
 
         if dest_freeze_nodes.any?
           # Add all destination freeze blocks as-is
           dest_freeze_nodes.each do |freeze_node_info|
             result.add_node(
               freeze_node_info,
-              decision: MergeResult::DECISION_FREEZE_BLOCK,
+              decision: DECISION_FREEZE_BLOCK,
               source: :destination,
               source_analysis: @dest_analysis,
             )
@@ -174,7 +173,7 @@ module Prism
         end
 
         # Build signature map for destination nodes (excluding already-matched freeze nodes)
-        dest_sig_map = build_signature_map(dest_nodes.reject { |n| matched_dest_indices.include?(n[:index]) })
+        dest_sig_map = build_signature_map_from_infos(dest_nodes.reject { |n| matched_dest_indices.include?(n[:index]) })
 
         # Build a set of line numbers that are covered by leading comments of nodes
         # so we don't duplicate them when processing non-node lines
@@ -226,7 +225,7 @@ module Prism
                 line = @template_analysis.line_at(current_line)
                 # Only add non-blank lines here (blank lines belong to preceding node)
                 unless line.strip.empty?
-                  add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_TEMPLATE, template_line: current_line)
+                  add_line_safe(result, line.chomp, decision: DECISION_KEPT_TEMPLATE, template_line: current_line)
                 end
               end
               current_line += 1
@@ -237,11 +236,11 @@ module Prism
           # Include trailing blank lines with the node
           if is_matched
             # Match found - use preference to decide which version
-            if @signature_match_preference == :template
+            if @preference == :template
               # Use template version (it's the canonical/updated version)
               result.add_node(
                 t_node_info,
-                decision: MergeResult::DECISION_REPLACED,
+                decision: DECISION_REPLACED,
                 source: :template,
                 source_analysis: @template_analysis,
               )
@@ -250,7 +249,7 @@ module Prism
               dest_matches = dest_sig_map[sig]
               result.add_node(
                 dest_matches.first,
-                decision: MergeResult::DECISION_REPLACED,
+                decision: DECISION_REPLACED,
                 source: :destination,
                 source_analysis: @dest_analysis,
               )
@@ -293,7 +292,7 @@ module Prism
             # Add trailing blank lines from destination (preserving destination spacing)
             (d_node_end + 1..d_trailing_blank_end).each do |line_num|
               line = @dest_analysis.line_at(line_num)
-              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+              add_line_safe(result, line.chomp, decision: DECISION_KEPT_DEST, dest_line: line_num)
             end
 
             in_template_only_sequence = false
@@ -301,7 +300,7 @@ module Prism
             # No match - this is a template-only node
             result.add_node(
               t_node_info,
-              decision: MergeResult::DECISION_KEPT_TEMPLATE,
+              decision: DECISION_KEPT_TEMPLATE,
               source: :template,
               source_analysis: @template_analysis,
             )
@@ -309,7 +308,7 @@ module Prism
             # Add trailing blank lines from template
             (node_end + 1..trailing_blank_end).each do |line_num|
               line = @template_analysis.line_at(line_num)
-              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_TEMPLATE, template_line: line_num)
+              add_line_safe(result, line.chomp, decision: DECISION_KEPT_TEMPLATE, template_line: line_num)
             end
 
             in_template_only_sequence = false
@@ -328,7 +327,7 @@ module Prism
           while current_line <= template_line_range.end
             if !leading_comment_lines.include?(current_line)
               line = @template_analysis.line_at(current_line)
-              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_TEMPLATE, template_line: current_line)
+              add_line_safe(result, line.chomp, decision: DECISION_KEPT_TEMPLATE, template_line: current_line)
             end
             current_line += 1
           end
@@ -340,13 +339,13 @@ module Prism
         unless dest_only_nodes.empty?
           # Add a blank line before appending dest-only nodes if the result doesn't already end with one
           if result.lines.any? && !result.lines.last.strip.empty?
-            add_line_safe(result, "", decision: MergeResult::DECISION_KEPT_TEMPLATE)
+            add_line_safe(result, "", decision: DECISION_KEPT_TEMPLATE)
           end
 
           dest_only_nodes.each_with_index do |d_node_info, idx|
             result.add_node(
               d_node_info,
-              decision: MergeResult::DECISION_APPENDED,
+              decision: DECISION_APPENDED,
               source: :destination,
               source_analysis: @dest_analysis,
             )
@@ -395,19 +394,10 @@ module Prism
             # Add trailing blank lines from destination
             (d_node_end + 1..d_trailing_blank_end).each do |line_num|
               line = @dest_analysis.line_at(line_num)
-              add_line_safe(result, line.chomp, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+              add_line_safe(result, line.chomp, decision: DECISION_KEPT_DEST, dest_line: line_num)
             end
           end
         end
-      end
-
-      def build_signature_map(nodes)
-        map = Hash.new { |h, k| h[k] = [] }
-        nodes.each do |node_info|
-          sig = node_info[:signature]
-          map[sig] << node_info if sig
-        end
-        map
       end
 
       # Add a line to result but avoid adding multiple consecutive blank lines.
@@ -434,7 +424,7 @@ module Prism
           line = @template_analysis.line_at(line_num)
           result.add_line(
             line.chomp,
-            decision: MergeResult::DECISION_KEPT_TEMPLATE,
+            decision: DECISION_KEPT_TEMPLATE,
             template_line: line_num,
           )
         end
@@ -450,7 +440,7 @@ module Prism
           line = @dest_analysis.line_at(line_num)
           result.add_line(
             line.chomp,
-            decision: MergeResult::DECISION_APPENDED,
+            decision: DECISION_APPENDED,
             dest_line: line_num,
           )
         end

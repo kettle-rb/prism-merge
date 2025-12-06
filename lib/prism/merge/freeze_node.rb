@@ -6,11 +6,16 @@ module Prism
     # A freeze block is a section marked with freeze/unfreeze comment markers that
     # should be preserved from the destination during merges.
     #
+    # Inherits from Ast::Merge::FreezeNodeBase for shared functionality including
+    # the Location struct, InvalidStructureError, and configurable marker patterns.
+    #
+    # Uses the `:hash_comment` pattern type by default for Ruby source files.
+    #
     # While freeze blocks are delineated by comment markers, they are conceptually
     # different from CommentNode and do not inherit from it because:
-    # - FreezeNode is a *structural directive* that contains code and/or comments
+    # - FreezeNodeBase is a *structural directive* that contains code and/or comments
     # - CommentNode represents *pure documentation* with no structural significance
-    # - FreezeNode can contain Ruby code nodes (methods, constants, etc.)
+    # - FreezeNodeBase can contain Ruby code nodes (methods, constants, etc.)
     # - CommentNode only contains comments
     # - Their signatures need different semantics for merge matching
     #
@@ -26,20 +31,12 @@ module Prism
     #     # ...
     #   end
     #   # prism-merge:unfreeze
-    class FreezeNode
-      # Error raised when a freeze block has invalid structure
-      class InvalidStructureError < StandardError
-        attr_reader :start_line, :end_line, :unclosed_nodes
+    class FreezeNode < Ast::Merge::FreezeNodeBase
+      # Inherit InvalidStructureError from base class
+      InvalidStructureError = Ast::Merge::FreezeNodeBase::InvalidStructureError
 
-        def initialize(message, start_line: nil, end_line: nil, unclosed_nodes: [])
-          super(message)
-          @start_line = start_line
-          @end_line = end_line
-          @unclosed_nodes = unclosed_nodes
-        end
-      end
-
-      attr_reader :start_line, :end_line, :content, :nodes, :start_marker, :end_marker
+      # Inherit Location from base class
+      Location = Ast::Merge::FreezeNodeBase::Location
 
       # @param start_line [Integer] Line number of freeze marker
       # @param end_line [Integer] Line number of unfreeze marker
@@ -48,41 +45,26 @@ module Prism
       # @param overlapping_nodes [Array<Prism::Node>] All nodes that overlap with freeze block (for validation)
       # @param start_marker [String, nil] The freeze start marker text
       # @param end_marker [String, nil] The freeze end marker text
-      def initialize(start_line:, end_line:, analysis:, nodes: [], overlapping_nodes: nil, start_marker: nil, end_marker: nil)
-        @start_line = start_line
-        @end_line = end_line
-        @analysis = analysis
-        @nodes = nodes
-        @overlapping_nodes = overlapping_nodes || nodes
-        @start_marker = start_marker
-        @end_marker = end_marker
-
-        # Extract content for the entire block
-        @content = (start_line..end_line).map { |ln| analysis.line_at(ln) }.join
+      # @param pattern_type [Symbol] Pattern type for marker matching (defaults to :hash_comment)
+      def initialize(start_line:, end_line:, analysis:, nodes: [], overlapping_nodes: nil, start_marker: nil, end_marker: nil, pattern_type: Ast::Merge::FreezeNodeBase::DEFAULT_PATTERN)
+        super(
+          start_line: start_line,
+          end_line: end_line,
+          analysis: analysis,
+          nodes: nodes,
+          overlapping_nodes: overlapping_nodes || nodes,
+          start_marker: start_marker,
+          end_marker: end_marker,
+          pattern_type: pattern_type
+        )
 
         # Validate structure
         validate_structure!
       end
 
-      # Returns a location-like object for compatibility with Prism nodes
-      def location
-        @location ||= Location.new(@start_line, @end_line)
-      end
-
-      # Returns the freeze block content
-      def slice
-        @content
-      end
-
-      # Simple location struct for compatibility
-      Location = Struct.new(:start_line, :end_line) do
-        def cover?(line)
-          (start_line..end_line).cover?(line)
-        end
-      end
-
       # Returns a stable signature for this freeze block
       # Signature includes the normalized content to detect changes
+      # @return [Array] Signature array
       def signature
         normalized = (@start_line..@end_line).map do |ln|
           @analysis.normalized_line(ln)
@@ -91,12 +73,8 @@ module Prism
         [:FreezeNode, normalized]
       end
 
-      # Check if this is a freeze node (always true for FreezeNode)
-      def freeze_node?
-        true
-      end
-
       # String representation for debugging
+      # @return [String]
       def inspect
         "#<Prism::Merge::FreezeNode lines=#{@start_line}..#{@end_line} nodes=#{@nodes.length}>"
       end

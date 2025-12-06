@@ -370,13 +370,13 @@ The following node types support **recursive body merging**, where nested conten
 
 #### Custom Signature Generator
 
-You can provide a custom signature generator to control how nodes are matched between template and destination files. The signature generator is a callable (lambda/proc) that receives a `Prism::Node` (or `FreezeNode`) and returns one of three types of values:
+You can provide a custom signature generator to control how nodes are matched between template and destination files. The signature generator is a callable (lambda/proc) that receives a `Prism::Node` (or `FreezeNodeBase` subclass) and returns one of three types of values:
 
 | Return Value | Behavior |
 |--------------|----------|
 | **Array** (e.g., `[:gem, "foo"]`) | Used as the node's signature for matching. Nodes with identical signatures are considered matches. |
 | **`nil`** | The node gets no signature and won't be matched by signature. Useful for nodes you want to skip or handle specially. |
-| **`Prism::Node` or `FreezeNode`** | Falls through to the default signature computation using the returned node. Return the original node unchanged for simple fallthrough, or return a modified node to influence default matching. |
+| **`Prism::Node` or `FreezeNodeBase` subclass** | Falls through to the default signature computation using the returned node. Return the original node unchanged for simple fallthrough, or return a modified node to influence default matching. |
 
 ##### Basic Example
 
@@ -420,7 +420,7 @@ signature_generator = ->(node) {
   end
 
   # Return the node to fall through to default signature computation
-  # This preserves correct handling for FreezeNodes, classes, modules, etc.
+  # This preserves correct handling for FreezeNodeBase subclasses, classes, modules, etc.
   node
 }
 
@@ -435,12 +435,12 @@ merger = Prism::Merge::SmartMerger.new(
 
 ##### Why Fallthrough Matters
 
-When you provide a custom signature generator, it's called for **all** node types, including internal types like `FreezeNode`. If your generator returns `nil` for node types it doesn't recognize, those nodes won't be matched properly:
+When you provide a custom signature generator, it's called for **all** node types, including internal types like `FreezeNodeBase` subclasses. If your generator returns `nil` for node types it doesn't recognize, those nodes won't be matched properly:
 
 ```ruby
 # ❌ Bad: Returns nil for unrecognized nodes
 signature_generator = ->(node) {
-  return unless node.is_a?(Prism::CallNode)  # FreezeNodes get nil!
+  return unless node.is_a?(Prism::CallNode)  # FreezeNodeBase subclasses get nil!
   [:call, node.name]
 }
 
@@ -449,7 +449,7 @@ signature_generator = ->(node) {
   if node.is_a?(Prism::CallNode)
     return [:call, node.name]
   end
-  node  # FreezeNodes and others use default signatures
+  node  # FreezeNodeBase subclasses and others use default signatures
 }
 ```
 

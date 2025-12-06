@@ -1,11 +1,25 @@
 # frozen_string_literal: true
 
+require "ast/merge/rspec/shared_examples"
+
 RSpec.describe Prism::Merge::FreezeNode do
   let(:analysis) do
     Prism::Merge::FileAnalysis.new(<<~RUBY)
       # frozen_string_literal: true
       def a; end
     RUBY
+  end
+
+  # Prism::Merge::FreezeNode has a specialized constructor that requires analysis and nodes
+  # Use shared examples with appropriate factory
+  it_behaves_like "Ast::Merge::FreezeNodeBase" do
+    let(:freeze_node_class) { described_class }
+    let(:default_pattern_type) { :hash_comment }
+    let(:build_freeze_node) do
+      ->(start_line:, end_line:, **opts) {
+        freeze_node_class.new(start_line: start_line, end_line: end_line, analysis: analysis, nodes: [], **opts)
+      }
+    end
   end
 
   it "computes signature and slice" do

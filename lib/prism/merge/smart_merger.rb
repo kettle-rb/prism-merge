@@ -68,10 +68,10 @@ module Prism
       # @param dest_content [String] Destination Ruby source code
       #
       # @param signature_generator [Proc, nil] Optional proc to generate custom node signatures.
-      #   The proc receives a Prism node (or FreezeNode) and should return one of:
+      #   The proc receives a Prism node (or FreezeNodeBase subclass) and should return one of:
       #   - An array representing the node's signature (e.g., `[:gem, "foo"]`)
       #   - `nil` to indicate the node should have no signature (won't be matched)
-      #   - A `Prism::Node` or `FreezeNode` to fall through to default signature computation
+      #   - A `Prism::Node` or `FreezeNodeBase` subclass to fall through to default signature computation
       #     using that node. This allows custom generators to only override specific node
       #     types while delegating others to the built-in logic. Return the original node
       #     unchanged for simple fallthrough, or return a modified node to influence

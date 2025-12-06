@@ -1,6 +1,51 @@
 # frozen_string_literal: true
 
+require "ast/merge/rspec/shared_examples"
+
 RSpec.describe Prism::Merge::ConflictResolver do
+  # Use shared examples to validate base ConflictResolverBase integration
+  # Note: prism-merge uses the :boundary strategy
+  it_behaves_like "Ast::Merge::ConflictResolverBase" do
+    let(:conflict_resolver_class) { described_class }
+    let(:strategy) { :boundary }
+    let(:build_conflict_resolver) do
+      ->(preference:, template_analysis:, dest_analysis:, **opts) {
+        described_class.new(
+          template_analysis,
+          dest_analysis,
+          signature_match_preference: preference,
+          add_template_only_nodes: opts.fetch(:add_template_only_nodes, false),
+        )
+      }
+    end
+    let(:build_mock_analysis) do
+      -> {
+        source = "def foo; end\n"
+        Prism::Merge::FileAnalysis.new(source)
+      }
+    end
+  end
+
+  it_behaves_like "Ast::Merge::ConflictResolverBase boundary strategy" do
+    let(:conflict_resolver_class) { described_class }
+    let(:build_conflict_resolver) do
+      ->(preference:, template_analysis:, dest_analysis:, **opts) {
+        described_class.new(
+          template_analysis,
+          dest_analysis,
+          signature_match_preference: preference,
+          add_template_only_nodes: opts.fetch(:add_template_only_nodes, false),
+        )
+      }
+    end
+    let(:build_mock_analysis) do
+      -> {
+        source = "def foo; end\n"
+        Prism::Merge::FileAnalysis.new(source)
+      }
+    end
+  end
+
   let(:template_content) do
     <<~RUBY
       # frozen_string_literal: true
