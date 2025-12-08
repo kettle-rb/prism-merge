@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "ast/merge/rspec/shared_examples"
-
 RSpec.describe Prism::Merge::MergeResult do
   # Use shared examples to validate base MergeResultBase integration
   it_behaves_like "Ast::Merge::MergeResultBase" do

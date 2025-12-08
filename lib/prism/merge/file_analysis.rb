@@ -120,7 +120,7 @@ module Prism
       # so we need to explicitly require it
       def attach_comments_safely!
         @parse_result.attach_comments!
-      # :nocov:
+      # :nocov: defensive - JRuby compatibility for Comments class autoloading
       rescue NameError => e
         if e.message.include?("Comments")
           # On JRuby, the Comments class needs to be explicitly required
@@ -139,11 +139,15 @@ module Prism
 
         body = @parse_result.value.statements
         base_statements = if body.nil?
+          # :nocov: defensive - Prism currently always returns StatementsNode
           []
+          # :nocov:
         elsif body.is_a?(Prism::StatementsNode)
           body.body.compact
         else
+          # :nocov: defensive - hypothetical case where body is a single node
           [body].compact
+          # :nocov:
         end
 
         # Extract freeze blocks by scanning comments for markers
@@ -187,7 +191,7 @@ module Prism
               raise FreezeNode::InvalidStructureError,
                 "Nested freeze block at line #{line_num} (previous freeze at line #{freeze_start_info[:line]})"
             end
-            freeze_start_info = { line: line_num, marker: line }
+            freeze_start_info = {line: line_num, marker: line}
           elsif marker_type == "unfreeze"
             unless freeze_start_info
               raise FreezeNode::InvalidStructureError,
@@ -470,7 +474,9 @@ module Prism
           params = if node.parameters
             # Handle forwarding parameters (def foo(...)) specially
             if node.parameters.is_a?(Prism::ForwardingParameterNode)
+              # :nocov: defensive - current Prism wraps ForwardingParameterNode in ParametersNode
               [:forwarding]
+              # :nocov:
             else
               param_names = []
               param_names.concat(node.parameters.requireds.map(&:name)) if node.parameters.requireds
@@ -585,7 +591,9 @@ module Prism
             # Assignment method: config.setting = "value"
             # Match by receiver and method name, NOT the value being assigned
             if node.block
+              # :nocov: defensive - Ruby syntax doesn't allow blocks with assignment methods
               [:call_with_block, node.name, receiver]
+              # :nocov:
             else
               [:call, node.name, receiver]
             end

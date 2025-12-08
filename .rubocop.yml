@@ -6,6 +6,11 @@ inherit_from:
 
 plugins: rubocop-on-rbs
 
+AllCops:
+  Exclude:
+    - 'pkg/**/*'
+    - 'vendor/**/*'
+
 RBS:
   Enabled: true
 

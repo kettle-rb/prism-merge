@@ -20,7 +20,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         end
       RUBY
 
-      result = described_class.new(template, dest, signature_match_preference: :template).merge
+      result = described_class.new(template, dest, preference: :template).merge
 
       # dest-only content should be present
       expect(result).to include("dest-only header")
@@ -46,7 +46,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         FOOTER = true
       RUBY
 
-      result = described_class.new(template, dest, signature_match_preference: :template).merge
+      result = described_class.new(template, dest, preference: :template).merge
       expect(result).to include("FOOTER = true")
       expect(result).to include("dest-only footer")
     end

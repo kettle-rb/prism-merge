@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "ast/merge/rspec/shared_examples"
-
 RSpec.describe Prism::Merge::FreezeNode do
   let(:analysis) do
     Prism::Merge::FileAnalysis.new(<<~RUBY)

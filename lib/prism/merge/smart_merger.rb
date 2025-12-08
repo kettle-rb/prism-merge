@@ -18,7 +18,7 @@ module Prism
     #   merger = SmartMerger.new(
     #     template_content,
     #     dest_content,
-    #     signature_match_preference: :template,
+    #     preference: :template,
     #     add_template_only_nodes: true
     #   )
     #   result = merger.merge
@@ -28,7 +28,7 @@ module Prism
     #   merger = SmartMerger.new(
     #     template_content,
     #     dest_content,
-    #     signature_match_preference: :destination,  # default
+    #     preference: :destination,  # default
     #     add_template_only_nodes: false             # default
     #   )
     #   result = merger.merge
@@ -83,7 +83,7 @@ module Prism
       #   - Assignments by name only (not value)
       #   - Method calls by name and args (not block)
       #
-      # @param signature_match_preference [Symbol] Controls which version to use when nodes
+      # @param preference [Symbol] Controls which version to use when nodes
       #   have matching signatures but different content:
       #   - `:destination` (default) - Use destination version (preserves customizations).
       #     Use for Appraisals files, configs with project-specific values.
@@ -118,7 +118,7 @@ module Prism
       #   merger = SmartMerger.new(
       #     template,
       #     destination,
-      #     signature_match_preference: :template,
+      #     preference: :template,
       #     add_template_only_nodes: true
       #   )
       #
@@ -126,7 +126,7 @@ module Prism
       #   merger = SmartMerger.new(
       #     template,
       #     destination,
-      #     signature_match_preference: :destination,
+      #     preference: :destination,
       #     add_template_only_nodes: false
       #   )
       #
@@ -148,22 +148,75 @@ module Prism
       #     destination,
       #     signature_generator: sig_gen
       #   )
-      def initialize(template_content, dest_content, signature_generator: nil, signature_match_preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0)
+      #
+      # @param match_refiner [#call, nil, :default] Optional match refiner for fuzzy matching of
+      #   unmatched nodes. Default: nil (fuzzy matching disabled).
+      #   Set to MethodMatchRefiner.new to enable fuzzy method matching.
+      #   The refiner is called with (template_nodes, dest_nodes, context) and should
+      #   return an array of MatchResult objects pairing nodes that should be considered matches.
+      #
+      # @param node_splitter [Hash{Symbol,String => #call}, nil] Optional node splitter configuration.
+      #   Maps node type names to callable objects that can transform nodes and add merge_type
+      #   attributes. The merge_type can then be used for per-node-type preference settings.
+      #   @see Ast::Merge::NodeSplitter
+      #
+      # @example With fuzzy method matching enabled
+      #   merger = SmartMerger.new(
+      #     template,
+      #     destination,
+      #     match_refiner: MethodMatchRefiner.new(threshold: 0.7)
+      #   )
+      #
+      # @example Default (no fuzzy matching)
+      #   merger = SmartMerger.new(
+      #     template,
+      #     destination
+      #   )
+      #
+      # @example With node_splitter and per-node-type preferences
+      #   node_splitter = {
+      #     CallNode: ->(node) {
+      #       return node unless node.name == :gem
+      #       gem_name = node.arguments&.arguments&.first
+      #       return node unless gem_name.is_a?(Prism::StringNode)
+      #       if gem_name.unescaped.start_with?("rubocop")
+      #         Ast::Merge::NodeSplitter.with_merge_type(node, :lint_gem)
+      #       else
+      #         node
+      #       end
+      #     }
+      #   }
+      #
+      #   merger = SmartMerger.new(
+      #     template,
+      #     destination,
+      #     node_splitter: node_splitter,
+      #     preference: { default: :destination, lint_gem: :template }
+      #   )
+      def initialize(template_content, dest_content, signature_generator: nil, preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0, match_refiner: nil, node_splitter: nil)
         @template_content = template_content
         @dest_content = dest_content
-        @signature_match_preference = signature_match_preference
+        @preference = preference
         @add_template_only_nodes = add_template_only_nodes
         @freeze_token = freeze_token
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
-        @template_analysis = FileAnalysis.new(template_content, signature_generator: signature_generator, freeze_token: freeze_token)
-        @dest_analysis = FileAnalysis.new(dest_content, signature_generator: signature_generator, freeze_token: freeze_token)
+        @match_refiner = match_refiner
+        @node_splitter = node_splitter
+        @signature_generator = signature_generator
+
+        # Wrap signature_generator to include node_splitter processing
+        effective_signature_generator = build_effective_signature_generator(signature_generator, node_splitter)
+
+        @template_analysis = FileAnalysis.new(template_content, signature_generator: effective_signature_generator, freeze_token: freeze_token)
+        @dest_analysis = FileAnalysis.new(dest_content, signature_generator: effective_signature_generator, freeze_token: freeze_token)
         @aligner = FileAligner.new(@template_analysis, @dest_analysis)
         @resolver = ConflictResolver.new(
           @template_analysis,
           @dest_analysis,
-          signature_match_preference: signature_match_preference,
+          preference: preference,
           add_template_only_nodes: add_template_only_nodes,
+          match_refiner: @match_refiner,
         )
         @result = MergeResult.new
       end
@@ -177,7 +230,7 @@ module Prism
       # 4. Returns merged content as a string
       #
       # Merge behavior is controlled by constructor parameters:
-      # - `signature_match_preference`: Which version wins for matching nodes
+      # - `preference`: Which version wins for matching nodes
       # - `add_template_only_nodes`: Whether to add template-only content
       #
       # @return [String] The merged Ruby source code
@@ -200,7 +253,25 @@ module Prism
       #
       # @see #merge_with_debug for detailed merge information
       def merge
-        DebugLogger.time("SmartMerger#merge") do
+        merge_result.to_s
+      end
+
+      # Performs the intelligent merge and returns the full result object.
+      #
+      # The merge process:
+      # 1. Validates both files for syntax errors
+      # 2. Finds anchors (matching sections) and boundaries (differences)
+      # 3. Processes anchors and boundaries in order
+      # 4. Returns MergeResult with content and metadata
+      #
+      # @return [MergeResult] The merge result containing merged content and metadata
+      #
+      # @raise [TemplateParseError] If template has syntax errors
+      # @raise [DestinationParseError] If destination has syntax errors
+      def merge_result
+        return @merge_result if @merge_result
+
+        @merge_result = DebugLogger.time("SmartMerger#merge") do
           # Handle invalid files
           unless @template_analysis.valid?
             raise Prism::Merge::TemplateParseError.new(
@@ -224,8 +295,7 @@ module Prism
           # Process the merge by walking through anchors and boundaries in order
           process_merge(boundaries)
 
-          # Return final content
-          @result.to_s
+          @result
         end
       end
 
@@ -268,6 +338,69 @@ module Prism
       end
 
       private
+
+      # Build an effective signature generator that incorporates node_splitter.
+      #
+      # If node_splitter is provided, nodes are first processed through the splitter
+      # before being passed to the signature_generator (or default computation).
+      # This allows nodes to have merge_type attributes added for per-node-type preferences.
+      #
+      # @param signature_generator [Proc, nil] Custom signature generator
+      # @param node_splitter [Hash, nil] Node splitter configuration
+      # @return [Proc, nil] Combined signature generator, or nil if neither is provided
+      def build_effective_signature_generator(signature_generator, node_splitter)
+        return signature_generator unless node_splitter
+
+        ->(node) {
+          # First, process through node_splitter to potentially add merge_type
+          processed_node = ::Ast::Merge::NodeSplitter.process(node, node_splitter)
+
+          # Then, pass to signature_generator or return node for default processing
+          if signature_generator
+            signature_generator.call(processed_node)
+          else
+            processed_node
+          end
+        }
+      end
+
+      # Determine the preference for a specific node pair.
+      #
+      # When per-node-type preferences are configured, checks if either node is a
+      # TypedNodeWrapper and uses its merge_type to look up the preference.
+      # Falls back to the default preference if neither node has a merge_type.
+      #
+      # @param template_node [Object, nil] Template node (may be TypedNodeWrapper)
+      # @param dest_node [Object, nil] Destination node (may be TypedNodeWrapper)
+      # @return [Symbol] :destination or :template
+      def preference_for_nodes(template_node, dest_node)
+        # If not using per-type preferences, return the default
+        return default_preference unless @preference.is_a?(Hash)
+
+        # Check template node first, then dest node
+        if template_node && ::Ast::Merge::NodeSplitter.typed_node?(template_node)
+          merge_type = ::Ast::Merge::NodeSplitter.merge_type_for(template_node)
+          return @preference.fetch(merge_type) { default_preference } if merge_type
+        end
+
+        if dest_node && ::Ast::Merge::NodeSplitter.typed_node?(dest_node)
+          merge_type = ::Ast::Merge::NodeSplitter.merge_type_for(dest_node)
+          return @preference.fetch(merge_type) { default_preference } if merge_type
+        end
+
+        default_preference
+      end
+
+      # Get the default preference (used as fallback).
+      #
+      # @return [Symbol] :destination or :template
+      def default_preference
+        if @preference.is_a?(Hash)
+          @preference.fetch(:default, :destination)
+        else
+          @preference
+        end
+      end
 
       def process_merge(boundaries)
         # Build complete timeline of anchors and boundaries
@@ -354,10 +487,13 @@ module Prism
         template_node = find_node_in_range(@template_analysis, anchor.template_start, anchor.template_end)
         dest_node = find_node_in_range(@dest_analysis, anchor.dest_start, anchor.dest_end)
 
+        # Determine preference for this specific node pair
+        node_preference = preference_for_nodes(template_node, dest_node)
+
         # Check if this is a class or module that should be recursively merged
         if should_merge_recursively?(template_node, dest_node)
           merge_node_body_recursively(template_node, dest_node, anchor)
-        elsif @signature_match_preference == :template
+        elsif node_preference == :template
           # Use template version (for updates/canonical values)
           anchor.template_range.each do |line_num|
             line = @template_analysis.line_at(line_num)
@@ -571,7 +707,7 @@ module Prism
       # @param anchor [FileAligner::Anchor] The anchor representing this match
       #
       # @note The nested merger is configured with:
-      #   - Same signature_generator, signature_match_preference, add_template_only_nodes, and freeze_token
+      #   - Same signature_generator, preference, add_template_only_nodes, and freeze_token
       #   - Incremented current_depth to track recursion level
       #
       # @api private
@@ -586,21 +722,25 @@ module Prism
           template_body,
           dest_body,
           signature_generator: @template_analysis.instance_variable_get(:@signature_generator),
-          signature_match_preference: @signature_match_preference,
+          preference: @preference,
           add_template_only_nodes: @add_template_only_nodes,
           freeze_token: @freeze_token,
           max_recursion_depth: @max_recursion_depth,
           current_depth: @current_depth + 1,
+          node_splitter: @node_splitter,
         )
         merged_body = body_merger.merge.rstrip
 
         # Determine leading comments handling:
-        # - If template has leading comments, use template's based on signature_match_preference
+        # - If template has leading comments, use template's based on preference
         # - If template has NO leading comments but destination does, preserve destination's
         template_has_leading = anchor.template_start < template_node.location.start_line
         dest_has_leading = anchor.dest_start < dest_node.location.start_line
 
-        if template_has_leading && @signature_match_preference == :template
+        # Get preference for this specific node pair
+        node_preference = preference_for_nodes(template_node, dest_node)
+
+        if template_has_leading && node_preference == :template
           # Use template's leading comments
           (anchor.template_start...template_node.location.start_line).each do |line_num|
             line = @template_analysis.line_at(line_num)
@@ -623,16 +763,16 @@ module Prism
           end
         end
 
-        # Add the opening line (based on signature_match_preference)
-        source_analysis = (@signature_match_preference == :template) ? @template_analysis : @dest_analysis
-        source_node = (@signature_match_preference == :template) ? template_node : dest_node
+        # Add the opening line (based on preference)
+        source_analysis = (node_preference == :template) ? @template_analysis : @dest_analysis
+        source_node = (node_preference == :template) ? template_node : dest_node
 
         opening_line = source_analysis.line_at(source_node.location.start_line)
         @result.add_line(
           opening_line.chomp,
           decision: MergeResult::DECISION_REPLACED,
-          template_line: ((@signature_match_preference == :template) ? source_node.location.start_line : nil),
-          dest_line: ((@signature_match_preference == :destination) ? source_node.location.start_line : nil),
+          template_line: ((node_preference == :template) ? source_node.location.start_line : nil),
+          dest_line: ((node_preference == :destination) ? source_node.location.start_line : nil),
         )
 
         # Add the merged body (indented appropriately)
@@ -650,8 +790,8 @@ module Prism
         @result.add_line(
           end_line.chomp,
           decision: MergeResult::DECISION_REPLACED,
-          template_line: ((@signature_match_preference == :template) ? source_node.location.end_line : nil),
-          dest_line: ((@signature_match_preference == :destination) ? source_node.location.end_line : nil),
+          template_line: ((node_preference == :template) ? source_node.location.end_line : nil),
+          dest_line: ((node_preference == :destination) ? source_node.location.end_line : nil),
         )
       end
 
@@ -693,6 +833,7 @@ module Prism
         when Prism::ParenthesesNode
           node.body
         else
+          # :nocov: defensive - all common node types are handled explicitly above
           # Try common patterns
           if node.respond_to?(:body)
             node.body
@@ -701,6 +842,7 @@ module Prism
           elsif node.respond_to?(:block) && node.block
             node.block.body
           end
+          # :nocov:
         end
 
         return "" unless statements_node&.is_a?(Prism::StatementsNode)

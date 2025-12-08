@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
-
 module Prism
   module Merge
     # Identifies sequential "anchor sections" where template and destination

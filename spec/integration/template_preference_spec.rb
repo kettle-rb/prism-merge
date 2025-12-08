@@ -45,7 +45,7 @@ RSpec.describe "Template Preference Signature Matching" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 
@@ -86,7 +86,7 @@ RSpec.describe "Template Preference Signature Matching" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 
@@ -135,7 +135,7 @@ RSpec.describe "Template Preference Signature Matching" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 
@@ -173,7 +173,7 @@ RSpec.describe "Template Preference Signature Matching" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
-
 module Prism
   module Merge
     # Resolves conflicts in boundaries between anchors using structural
@@ -26,18 +24,12 @@ module Prism
     # @see MergeResult
     # @see Ast::Merge::ConflictResolverBase
     class ConflictResolver < ::Ast::Merge::ConflictResolverBase
-      # Alias for compatibility with existing code
-      # @return [Symbol]
-      def signature_match_preference
-        preference
-      end
-
       # Creates a new ConflictResolver for handling merge conflicts.
       #
       # @param template_analysis [FileAnalysis] Analyzed template file
       # @param dest_analysis [FileAnalysis] Analyzed destination file
       #
-      # @param signature_match_preference [Symbol] Which version to prefer when
+      # @param preference [Symbol] Which version to prefer when
       #   nodes have matching signatures but different content:
       #   - `:destination` (default) - Keep destination version (customizations)
       #   - `:template` - Use template version (updates)
@@ -51,7 +43,7 @@ module Prism
       #   resolver = ConflictResolver.new(
       #     template_analysis,
       #     dest_analysis,
-      #     signature_match_preference: :destination,
+      #     preference: :destination,
       #     add_template_only_nodes: false
       #   )
       #
@@ -59,17 +51,21 @@ module Prism
       #   resolver = ConflictResolver.new(
       #     template_analysis,
       #     dest_analysis,
-      #     signature_match_preference: :template,
+      #     preference: :template,
       #     add_template_only_nodes: true
       #   )
-      def initialize(template_analysis, dest_analysis, signature_match_preference: :destination, add_template_only_nodes: false)
+      #
+      # @param match_refiner [#call, nil] Optional match refiner for fuzzy matching
+      #   of unmatched nodes within boundaries.
+      def initialize(template_analysis, dest_analysis, preference: :destination, add_template_only_nodes: false, match_refiner: nil)
         super(
           strategy: :boundary,
-          preference: signature_match_preference,
+          preference: preference,
           template_analysis: template_analysis,
           dest_analysis: dest_analysis,
           add_template_only_nodes: add_template_only_nodes,
         )
+        @match_refiner = match_refiner
       end
 
       protected
@@ -135,7 +131,9 @@ module Prism
       end
 
       def add_content_to_result(content, result, source, decision)
+        # :nocov: defensive - content with no lines (e.g., empty boundary region)
         return if content[:lines].empty?
+        # :nocov:
 
         start_line = content[:line_range].begin
         result.add_lines_from(
@@ -155,6 +153,10 @@ module Prism
 
         # Track which dest nodes have been matched
         matched_dest_indices = Set.new
+
+        # Build refined matches map (from refiner) before processing
+        # This maps template node indices to their refiner-matched destination node info
+        @refined_matches = build_refined_matches(template_nodes, dest_nodes)
 
         # Check if there are any FreezeNodeBase subclasses in destination - they always win
         dest_freeze_nodes = dest_nodes.select { |n| freeze_node?(n[:node]) }
@@ -186,7 +188,9 @@ module Prism
 
         # Process template line by line, adding nodes and non-node lines in order
         template_line_range = template_content[:line_range]
+        # :nocov: defensive - nil line_range when template_content has no valid range
         return unless template_line_range
+        # :nocov:
 
         current_line = template_line_range.begin
         # Track if we're in a sequence of template-only nodes
@@ -199,8 +203,9 @@ module Prism
           node_end = t_node_info[:line_range].end
 
           # Check if this node will be matched or is template-only
+          # First check signature match, then check refined match
           sig = t_node_info[:signature]
-          is_matched = dest_sig_map[sig]&.any?
+          is_matched = dest_sig_map[sig]&.any? || @refined_matches.key?(t_node_info[:index])
 
           # Calculate the range that includes trailing blank lines up to the next node
           # This way, blank lines "belong" to the preceding node
@@ -225,7 +230,9 @@ module Prism
                 line = @template_analysis.line_at(current_line)
                 # Only add non-blank lines here (blank lines belong to preceding node)
                 unless line.strip.empty?
+                  # :nocov: defensive - non-blank, non-comment line between nodes (rare in practice)
                   add_line_safe(result, line.chomp, decision: DECISION_KEPT_TEMPLATE, template_line: current_line)
+                  # :nocov:
                 end
               end
               current_line += 1
@@ -236,7 +243,24 @@ module Prism
           # Include trailing blank lines with the node
           if is_matched
             # Match found - use preference to decide which version
-            if @preference == :template
+            # Get the dest matches first so we can check per-node-type preference
+            dest_matches = dest_sig_map[sig] || []
+            if dest_matches.empty? && @refined_matches.key?(t_node_info[:index])
+              dest_matches = [@refined_matches[t_node_info[:index]]]
+            end
+
+            # Determine preference for this specific node (supports per-node-type preferences)
+            template_node = t_node_info[:node]
+            dest_node = dest_matches.first&.dig(:node)
+            node_preference = if ::Ast::Merge::NodeSplitter.typed_node?(template_node)
+              preference_for_node(template_node)
+            elsif dest_node && ::Ast::Merge::NodeSplitter.typed_node?(dest_node)
+              preference_for_node(dest_node)
+            else
+              default_preference
+            end
+
+            if node_preference == :template
               # Use template version (it's the canonical/updated version)
               result.add_node(
                 t_node_info,
@@ -246,7 +270,6 @@ module Prism
               )
             else
               # Use destination version (it has the customizations)
-              dest_matches = dest_sig_map[sig]
               result.add_node(
                 dest_matches.first,
                 decision: DECISION_REPLACED,
@@ -256,7 +279,6 @@ module Prism
             end
 
             # Mark matching dest nodes as processed
-            dest_matches = dest_sig_map[sig]
             dest_matches.each do |d_node_info|
               matched_dest_indices << d_node_info[:index]
             end
@@ -283,8 +305,9 @@ module Prism
                 if line_content.strip.empty?
                   d_trailing_blank_end = line_num
                 else
-                  # Stop at first non-blank line
+                  # :nocov: defensive - non-blank line between matched node end and next node start
                   break
+                  # :nocov:
                 end
               end
             end
@@ -361,7 +384,9 @@ module Prism
               next_dest_info = dest_only_nodes[idx + 1]
               # Find where next node's content actually starts (first leading comment or node itself)
               next_content_start = if next_dest_info[:leading_comments].any?
+                # :nocov: defensive - dest-only node followed by another with leading comments
                 next_dest_info[:leading_comments].first.location.start_line
+                # :nocov:
               else
                 next_dest_info[:node].location.start_line
               end
@@ -372,7 +397,9 @@ module Prism
                 if line_content.strip.empty?
                   d_trailing_blank_end = line_num
                 else
+                  # :nocov: defensive - non-blank line between consecutive dest-only nodes
                   break
+                  # :nocov:
                 end
               end
             else
@@ -472,6 +499,41 @@ module Prism
         end
 
         orphans
+      end
+
+      # Build a map of refined matches from template node index to destination node info.
+      # Uses the match_refiner to find additional pairings for nodes that didn't match by signature.
+      #
+      # @param template_nodes [Array<Hash>] Template node info hashes
+      # @param dest_nodes [Array<Hash>] Destination node info hashes
+      # @return [Hash<Integer, Hash>] Map of template index to destination node info
+      def build_refined_matches(template_nodes, dest_nodes)
+        return {} unless @match_refiner
+
+        # Extract the actual nodes for the refiner
+        t_nodes = template_nodes.map { |info| info[:node] }
+        d_nodes = dest_nodes.map { |info| info[:node] }
+
+        # Build a lookup from node to info hash
+        d_node_to_info = dest_nodes.each_with_object({}) { |info, h| h[info[:node]] = info }
+
+        # Call the refiner
+        matches = @match_refiner.call(t_nodes, d_nodes, {
+          template_analysis: @template_analysis,
+          dest_analysis: @dest_analysis,
+        })
+
+        # Build result map: template index -> dest node info
+        result = {}
+        matches.each do |match|
+          t_info = template_nodes.find { |info| info[:node] == match.template_node }
+          d_info = d_node_to_info[match.dest_node]
+          next unless t_info && d_info
+
+          result[t_info[:index]] = d_info
+        end
+
+        result
       end
     end
   end

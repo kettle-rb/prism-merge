@@ -28,13 +28,13 @@ RSpec.describe "Merge Configuration Options" do
     RUBY
   end
 
-  describe "with add_template_only_nodes: false, signature_match_preference: :template" do
+  describe "with add_template_only_nodes: false, preference: :template" do
     it "uses template for matches, skips template-only" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
         add_template_only_nodes: false,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 
@@ -44,13 +44,13 @@ RSpec.describe "Merge Configuration Options" do
     end
   end
 
-  describe "with add_template_only_nodes: true, signature_match_preference: :template" do
+  describe "with add_template_only_nodes: true, preference: :template" do
     it "uses template for matches, includes template-only" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
         add_template_only_nodes: true,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 
@@ -59,13 +59,13 @@ RSpec.describe "Merge Configuration Options" do
     end
   end
 
-  describe "with add_template_only_nodes: false, signature_match_preference: :destination" do
+  describe "with add_template_only_nodes: false, preference: :destination" do
     it "uses destination for matches, skips template-only" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
         add_template_only_nodes: false,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -74,13 +74,13 @@ RSpec.describe "Merge Configuration Options" do
     end
   end
 
-  describe "with add_template_only_nodes: true, signature_match_preference: :destination" do
+  describe "with add_template_only_nodes: true, preference: :destination" do
     it "uses destination for matches, includes template-only" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
         add_template_only_nodes: true,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -134,7 +134,7 @@ RSpec.describe "Merge Configuration Options" do
         template_code,
         dest_code,
         add_template_only_nodes: true,
-        signature_match_preference: :destination,
+        preference: :destination,
         freeze_token: "kettle-dev",
       )
       result = merger.merge

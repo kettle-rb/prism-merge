@@ -155,7 +155,7 @@ RSpec.describe Prism::Merge::FileAligner do
         aligner = described_class.new(template_analysis, dest_analysis)
         aligner.align
 
-        # First anchor should start at line 1
+        # First anchor should start at the beginning (include magic comment where applicable)
         first_anchor = aligner.instance_variable_get(:@anchors).first
         expect(first_anchor&.template_start).to eq(1)
         expect(first_anchor&.dest_start).to eq(1)

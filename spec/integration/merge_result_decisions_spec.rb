@@ -69,7 +69,7 @@ RSpec.describe "MergeResult Decision Types" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
       )
       result = merger.merge
 
@@ -82,7 +82,7 @@ RSpec.describe "MergeResult Decision Types" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -215,7 +215,7 @@ RSpec.describe "MergeResult Decision Types" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 

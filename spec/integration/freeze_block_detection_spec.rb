@@ -265,7 +265,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
         add_template_only_nodes: true,
         freeze_token: "kettle-dev",
         signature_generator: signature_generator,
@@ -292,7 +292,7 @@ RSpec.describe "Freeze Block Detection and Handling" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :template,
+        preference: :template,
         add_template_only_nodes: true,
         freeze_token: "kettle-dev",
         signature_generator: signature_generator,
@@ -395,8 +395,8 @@ RSpec.describe "Freeze Block Detection and Handling" do
         n[:node].is_a?(Prism::LocalVariableWriteNode)
       end
 
-      # Leading comments should NOT include lines from the freeze block (4, 5, 6)
-      # Should only include magic comments (lines 1, 2)
+      # Freeze block comments should NOT become leading comments for subsequent nodes
+      # Should only include magic file-level comments such as frozen_string_literal
       leading_lines = node_info[:leading_comments].map { |c| c.location.start_line }
       expect(leading_lines).to eq([1, 2])
       expect(leading_lines).not_to include(4, 5, 6)

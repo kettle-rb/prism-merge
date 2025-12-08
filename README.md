@@ -60,6 +60,8 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 
 - **AST-Aware**: Uses Prism parser to understand Ruby structure
 - **Intelligent**: Matches nodes by structural signatures
+- **Fuzzy Method Matching**: `MethodMatchRefiner` matches similar method names and signatures
+  (e.g., `process_user` ↔ `process_users`) using Levenshtein distance
 - **Recursive Merge**: Automatically merges class and module bodies recursively, intelligently combining nested methods and constants
 - **Comment-Preserving**: Comments are properly attached to relevant nodes and/or placement
 - **Freeze Block Support**: Respects freeze markers (default: `prism-merge:freeze` / `prism-merge:unfreeze`) for template merge control - customizable to match your project's conventions
@@ -67,9 +69,11 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 - **Standalone**: No dependencies other than `prism` and `version_gem` (which is a tiny tool all my gems depend on)
 - **Customizable**:
   - `signature_generator` - callable custom signature generators
-  - `signature_match_preference` - setting of `:template` or `:destination`
+  - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+  - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge](https://github.com/kettle-rb/ast-merge) docs)
   - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
   - `freeze_token` - customize freeze block markers (default: `"prism-merge"`)
+  - `match_refiners` - array of refiners for fuzzy matching (e.g., `MethodMatchRefiner`)
 
 ### Example
 
@@ -84,6 +88,45 @@ result = merger.merge
 
 File.write("merged.rb", result)
 ```
+
+### The `*-merge` Gem Family
+
+This gem is part of a family of gems that provide intelligent merging for various file formats:
+
+| Gem | Format | Parser | Description |
+|-----|--------|--------|-------------|
+| [ast-merge][ast-merge] | N/A | N/A | Shared infrastructure for all `*-merge` gems |
+| [prism-merge][prism-merge] | Ruby | [Prism][prism] | Smart merge for Ruby source files |
+| [psych-merge][psych-merge] | YAML | [Psych][psych] | Smart merge for YAML files |
+| [json-merge][json-merge] | JSON | [tree-sitter-json][ts-json] | Smart merge for JSON files |
+| [jsonc-merge][jsonc-merge] | JSONC | [tree-sitter-json][ts-json] | Smart merge for JSON with Comments |
+| [bash-merge][bash-merge] | Bash | [tree-sitter-bash][ts-bash] | Smart merge for Bash scripts |
+| [rbs-merge][rbs-merge] | RBS | [RBS][rbs] | Smart merge for Ruby type signatures |
+| [dotenv-merge][dotenv-merge] | Dotenv | [dotenv][dotenv] | Smart merge for `.env` files |
+| [toml-merge][toml-merge] | TOML | [tree-sitter-toml][ts-toml] | Smart merge for TOML files |
+| [markly-merge][markly-merge] | Markdown | [Markly][markly] | Smart merge for Markdown (CommonMark via libcmark-gfm) |
+| [commonmarker-merge][commonmarker-merge] | Markdown | [Commonmarker][commonmarker] | Smart merge for Markdown (CommonMark via comrak) |
+
+[ast-merge]: https://github.com/kettle-rb/ast-merge
+[prism-merge]: https://github.com/kettle-rb/prism-merge
+[psych-merge]: https://github.com/kettle-rb/psych-merge
+[json-merge]: https://github.com/kettle-rb/json-merge
+[jsonc-merge]: https://github.com/kettle-rb/jsonc-merge
+[bash-merge]: https://github.com/kettle-rb/bash-merge
+[rbs-merge]: https://github.com/kettle-rb/rbs-merge
+[dotenv-merge]: https://github.com/kettle-rb/dotenv-merge
+[toml-merge]: https://github.com/kettle-rb/toml-merge
+[markly-merge]: https://github.com/kettle-rb/markly-merge
+[commonmarker-merge]: https://github.com/kettle-rb/commonmarker-merge
+[prism]: https://github.com/ruby/prism
+[psych]: https://github.com/ruby/psych
+[ts-json]: https://github.com/tree-sitter/tree-sitter-json
+[ts-bash]: https://github.com/tree-sitter/tree-sitter-bash
+[ts-toml]: https://github.com/tree-sitter-grammars/tree-sitter-toml
+[rbs]: https://github.com/ruby/rbs
+[dotenv]: https://github.com/bkeepers/dotenv
+[markly]: https://github.com/kivikakk/markly
+[commonmarker]: https://github.com/gjtorikian/commonmarker
 
 ## 💡 Info you can shake a stick at
 
@@ -210,14 +253,14 @@ Control which version to use when nodes have matching signatures but different c
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  signature_match_preference: :template,
+  preference: :template,
 )
 
 # Use destination version (for Appraisals, configs with customizations)
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  signature_match_preference: :destination,  # This is the default
+  preference: :destination,  # This is the default
 )
 ```
 
@@ -274,7 +317,7 @@ For different merge scenarios:
 merger = Prism::Merge::SmartMerger.new(
   template_content,
   dest_content,
-  signature_match_preference: :template,
+  preference: :template,
   add_template_only_nodes: true,
 )
 # Result: VERSION updated to template value, NAME constant added
@@ -283,8 +326,8 @@ merger = Prism::Merge::SmartMerger.new(
 merger = Prism::Merge::SmartMerger.new(
   template_content,
   dest_content,
-  signature_match_preference: :destination,  # default
-  add_template_only_nodes: false,             # default
+  preference: :destination,       # default
+  add_template_only_nodes: false, # default
 )
 # Result: Destination gem versions preserved, template-only ruby blocks skipped
 
@@ -292,8 +335,8 @@ merger = Prism::Merge::SmartMerger.new(
 merger = Prism::Merge::SmartMerger.new(
   template_content,
   dest_content,
-  signature_match_preference: :destination,  # Keep custom values
-  add_template_only_nodes: true,              # But add new required configs
+  preference: :destination,       # Keep custom values
+  add_template_only_nodes: true,  # But add new required configs
 )
 # Result: Existing configs keep destination values, new configs added from template
 ```
@@ -324,6 +367,200 @@ merger = Prism::Merge::SmartMerger.new(
   - NOTE: If you get `stack level too deep (SystemStackError)`, please file a [bug](https://github.com/kettle-rb/prism-merge/issues)!
 - **Finite value** - Safety valve if you encounter edge cases with unexpected deep recursion
 - **`0`** - Disable recursive merging entirely; all matching nodes are treated atomically
+
+### Per-Node-Type Preferences
+
+For advanced use cases, you can specify different preferences for different node types using a Hash:
+
+```ruby
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  preference: {
+    default: :destination,    # Default for unspecified types
+    lint_gem: :template,      # Use template versions for lint gems
+    test_gem: :destination,   # Keep destination versions for test gems
+  },
+)
+```
+
+This is especially powerful when combined with the `node_splitter` option (see below) to create custom node categories.
+
+### Node Splitter
+
+The `node_splitter` option allows you to transform nodes and add custom `merge_type` attributes that can be used for per-node-type preferences:
+
+```ruby
+# Define a node splitter that categorizes gem calls
+node_splitter = {
+  CallNode: ->(node) {
+    # Only process gem() calls
+    return node unless node.name == :gem
+    first_arg = node.arguments&.arguments&.first
+    return node unless first_arg.is_a?(Prism::StringNode)
+
+    gem_name = first_arg.unescaped
+
+    # Categorize gems by type
+    if gem_name.start_with?("rubocop", "standard")
+      Ast::Merge::NodeSplitter.with_merge_type(node, :lint_gem)
+    elsif gem_name.start_with?("rspec", "minitest", "test-")
+      Ast::Merge::NodeSplitter.with_merge_type(node, :test_gem)
+    else
+      node  # Return unchanged for other gems
+    end
+  }
+}
+
+# Use the node splitter with per-type preferences
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  node_splitter: node_splitter,
+  preference: {
+    default: :destination,    # Default: keep destination versions
+    lint_gem: :template,      # But use template versions for linters
+  },
+)
+```
+
+#### How Node Splitter Works
+
+1. **Node Processing**: During analysis, each node is passed through the splitter for its type
+2. **Type Wrapping**: The splitter can wrap nodes with `Ast::Merge::NodeSplitter.with_merge_type(node, :type)`
+3. **Preference Lookup**: During conflict resolution, wrapped nodes have their `merge_type` checked against the preference Hash
+4. **Transparent Delegation**: Wrapped nodes delegate all methods to the original node, so existing logic works unchanged
+
+#### Node Splitter Return Values
+
+Your splitter callable can return:
+- **The original node** - Node is processed normally with default preference
+- **A wrapped node** (using `NodeSplitter.with_merge_type`) - Node uses the type-specific preference
+- **`nil`** - Node is skipped (use with caution)
+
+#### Integration with Signature Generator
+
+Node splitter works alongside `signature_generator`. Nodes are first processed through the splitter, then the (potentially wrapped) node is passed to the signature generator:
+
+```ruby
+node_splitter = {
+  CallNode: ->(node) {
+    # Categorize gem calls
+    return node unless node.name == :gem
+    gem_name = node.arguments&.arguments&.first&.unescaped
+    return node unless gem_name
+
+    if gem_name.match?(/^(rubocop|standard)/)
+      Ast::Merge::NodeSplitter.with_merge_type(node, :lint_gem)
+    else
+      node
+    end
+  }
+}
+
+signature_generator = ->(node) {
+  # Custom signature for gem calls
+  if node.is_a?(Prism::CallNode) && node.name == :gem
+    first_arg = node.arguments&.arguments&.first
+    return [:gem, first_arg.unescaped] if first_arg.is_a?(Prism::StringNode)
+  end
+  node  # Fall through to default
+}
+
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  node_splitter: node_splitter,
+  signature_generator: signature_generator,
+  preference: { default: :destination, lint_gem: :template },
+)
+```
+
+### Method Match Refiner
+
+When Ruby method definitions don't match by exact signature (name + parameters), the
+`MethodMatchRefiner` uses fuzzy matching to pair methods with:
+
+- Similar names (e.g., `process_user` vs `process_users`)
+- Same name but different parameter signatures
+- Renamed methods that perform similar functions
+
+```ruby
+# Enable method fuzzy matching
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Prism::Merge::MethodMatchRefiner.new(threshold: 0.6),
+  ],
+)
+```
+
+#### MethodMatchRefiner Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `threshold` | 0.5 | Minimum similarity score (0.0-1.0) to accept a match |
+| `name_weight` | 0.7 | Weight for method name similarity |
+| `params_weight` | 0.3 | Weight for parameter similarity |
+
+```ruby
+# Custom weights for name-centric matching
+refiner = Prism::Merge::MethodMatchRefiner.new(
+  threshold: 0.6,
+  name_weight: 0.8,   # Focus more on method names
+  params_weight: 0.2,  # Less focus on parameters
+)
+
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [refiner],
+)
+```
+
+#### Fuzzy Method Matching Example
+
+```ruby
+template = <<~RUBY
+  class UserService
+    def process_user(user)
+      validate(user)
+      save(user)
+    end
+
+    def find_user_by_email(email)
+      User.find_by(email: email)
+    end
+  end
+RUBY
+
+destination = <<~RUBY
+  class UserService
+    def process_users(users)
+      users.each { |u| validate(u); save(u) }
+    end
+
+    def find_by_email(email)
+      User.where(email: email).first
+    end
+  end
+RUBY
+
+# Default merge won't match methods (names/params differ)
+# Use MethodMatchRefiner for fuzzy matching
+merger = Prism::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Prism::Merge::MethodMatchRefiner.new(threshold: 0.5),
+  ],
+)
+
+# Methods are matched despite name differences:
+# - process_user ↔ process_users (similar: "process_user")
+# - find_user_by_email ↔ find_by_email (similar: "find", "email")
+```
 
 ### Custom Signature Generator
 
@@ -428,7 +665,7 @@ merger = Prism::Merge::SmartMerger.new(
   template_content,
   destination_content,
   signature_generator: signature_generator,
-  signature_match_preference: :template,
+  preference: :template,
   add_template_only_nodes: true,
 )
 ```

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "ast/merge/rspec/shared_examples"
-
 RSpec.describe Prism::Merge::DebugLogger do
   # Use the shared examples to validate base DebugLogger integration
   it_behaves_like "Ast::Merge::DebugLogger" do

@@ -33,7 +33,7 @@ RSpec.describe "Merge Result Construction" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -126,7 +126,7 @@ RSpec.describe "Merge Result Construction" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 

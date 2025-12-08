@@ -157,7 +157,7 @@ RSpec.describe "Error Handling and Edge Cases" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -187,7 +187,7 @@ RSpec.describe "Error Handling and Edge Cases" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -272,13 +272,13 @@ RSpec.describe "Error Handling and Edge Cases" do
       RUBY
     end
 
-    context "with add_template_only_nodes: false, signature_match_preference: :template" do
+    context "with add_template_only_nodes: false, preference: :template" do
       it "uses template for matches, skips template-only" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
           add_template_only_nodes: false,
-          signature_match_preference: :template,
+          preference: :template,
         )
         result = merger.merge
 
@@ -288,13 +288,13 @@ RSpec.describe "Error Handling and Edge Cases" do
       end
     end
 
-    context "with add_template_only_nodes: true, signature_match_preference: :template" do
+    context "with add_template_only_nodes: true, preference: :template" do
       it "uses template for matches, includes template-only" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
           add_template_only_nodes: true,
-          signature_match_preference: :template,
+          preference: :template,
         )
         result = merger.merge
 
@@ -303,13 +303,13 @@ RSpec.describe "Error Handling and Edge Cases" do
       end
     end
 
-    context "with add_template_only_nodes: false, signature_match_preference: :destination" do
+    context "with add_template_only_nodes: false, preference: :destination" do
       it "uses destination for matches, skips template-only" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
           add_template_only_nodes: false,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -318,13 +318,13 @@ RSpec.describe "Error Handling and Edge Cases" do
       end
     end
 
-    context "with add_template_only_nodes: true, signature_match_preference: :destination" do
+    context "with add_template_only_nodes: true, preference: :destination" do
       it "uses destination for matches, includes template-only" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
           add_template_only_nodes: true,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -376,7 +376,7 @@ RSpec.describe "Error Handling and Edge Cases" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -412,7 +412,7 @@ RSpec.describe "Error Handling and Edge Cases" do
         merger = Prism::Merge::SmartMerger.new(
           template_code,
           dest_code,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 

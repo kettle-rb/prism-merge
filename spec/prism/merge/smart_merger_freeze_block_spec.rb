@@ -36,7 +36,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         src_content,
         dest_content,
-        signature_match_preference: :template,
+        preference: :template,
         add_template_only_nodes: true,
         signature_generator: signature_generator,
       )

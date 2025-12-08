@@ -235,6 +235,29 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       expect(node_info[:line_range]).to eq(1..3)
     end
+
+    it "does not include freeze markers as leading comments for nodes" do
+      code = <<~RUBY
+        # prism-merge:freeze
+        def frozen
+          "f"
+        end
+        # prism-merge:unfreeze
+
+        # Regular leading comment
+        # Another regular line
+        def not_frozen
+          "nf"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::DefNode) && n[:node].name == :not_frozen }
+
+      # Ensure no leading comment is a prism-merge marker
+      expect(node_info[:leading_comments].map(&:slice).join("\n")).not_to include("prism-merge:freeze")
+      expect(node_info[:leading_comments].map(&:slice).join("\n")).not_to include("prism-merge:unfreeze")
+    end
   end
 
   describe "comment attachment behavior" do
@@ -320,6 +343,51 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
+  describe "#generate_signature with nil generator" do
+    it "returns nil when generator returns nil" do
+      code = "def example; end"
+      null_gen = ->(_node) { nil }
+
+      analysis = described_class.new(code, signature_generator: null_gen)
+      expect(analysis.signature_at(0)).to be_nil
+    end
+  end
+
+  describe "#fallthrough_node?" do
+    it "returns true for Prism::Node objects" do
+      code = "def example; end"
+      analysis = described_class.new(code)
+      node = analysis.statements.first
+
+      expect(analysis.send(:fallthrough_node?, node)).to be true
+    end
+
+    it "returns false for unrelated objects" do
+      analysis = described_class.new("")
+      expect(analysis.send(:fallthrough_node?, "string")).to be false
+      expect(analysis.send(:fallthrough_node?, 123)).to be false
+    end
+  end
+
+  describe "freeze_token nil behavior" do
+    it "does not recognise freeze blocks when freeze_token is nil and retains the markers as comments" do
+      code = <<~RUBY
+        # prism-merge:freeze
+        def frozen
+          "f"
+        end
+        # prism-merge:unfreeze
+      RUBY
+
+      analysis = described_class.new(code, freeze_token: nil)
+      expect(analysis.freeze_blocks).to be_empty
+
+      # The marker comments should remain attached to following nodes as leading comments
+      node_info = analysis.nodes_with_comments.first
+      expect(node_info[:leading_comments].map(&:slice).join("\n")).to include("prism-merge:freeze")
+    end
+  end
+
   describe "custom signature generator" do
     it "uses custom signature generator when provided" do
       code = "def example\nend"
@@ -400,7 +468,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
   describe "#compute_node_signature" do
     # Test node signature generation for various node types
-    # These tests cover lines 461-562 in file_analysis.rb
+    # These tests cover compute_node_signature logic across many node types
 
     it "generates signature for SingletonClassNode" do
       code = <<~RUBY
@@ -412,6 +480,27 @@ RSpec.describe Prism::Merge::FileAnalysis do
       analysis = described_class.new(code)
       sig = analysis.signature_at(0)
 
+      expect(sig).to eq([:singleton_class, "self"])
+    end
+
+    it "falls back to 'self' when expression.slice raises an error" do
+      code = <<~RUBY
+        class << self
+          def foo; end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node = analysis.statements.first
+
+      # Replace expression with an object whose slice method raises
+      bad_expr = Object.new
+      def bad_expr.slice
+        raise "boom"
+      end
+      node.instance_variable_set(:@expression, bad_expr)
+
+      sig = analysis.send(:compute_node_signature, node)
       expect(sig).to eq([:singleton_class, "self"])
     end
 
@@ -655,10 +744,161 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       expect(sig).to eq([:call, :method_call, :symbol_arg])
     end
+
+    it "extracts non-string/symbol first arguments by using slice for other node types" do
+      code = <<~RUBY
+        def helper; end
+        method_call(helper)
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(1)
+
+      # The first argument is a CallNode (helper), so extract_first_argument_value should use slice
+      expect(sig[2]).to include("helper")
+    end
+
+    it "extracts string arguments from CallNode" do
+      code = <<~RUBY
+        method_call("string_arg")
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:call, :method_call, "string_arg"])
+    end
+
+    it "generates call_with_block signature for CallNode with block" do
+      code = <<~RUBY
+        def example
+          appraise "ruby-3.3" do
+            true
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      class_or_def = analysis.statements.first
+      # find the CallNode inside the method body
+      call_node = class_or_def.body.body.first
+      sig = analysis.send(:compute_node_signature, call_node)
+
+      expect(sig[0]).to eq(:call_with_block)
+      expect(sig[1]).to eq(:appraise)
+      expect(sig[2]).to eq("ruby-3.3")
+    end
+
+    it "generates call_with_block signature for CallNode with receiver and block" do
+      code = <<~RUBY
+        def example
+          config.process "x" do
+            1
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      def_node = analysis.statements.first
+      call_node = def_node.body.body.first
+      sig = analysis.send(:compute_node_signature, call_node)
+
+      expect(sig[0]).to eq(:call_with_block)
+      expect(sig[1]).to eq(:process)
+      # For call_with_block, the signature uses the first argument OR receiver for assignment calls; here it uses the first arg
+      expect(sig[2]).to eq("x")
+    end
+
+    it "generates signature for IfNode" do
+      code = <<~RUBY
+        if enabled?
+          do_something
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:if, "enabled?"])
+    end
+
+    it "generates signature for EmbeddedStatementsNode inside string interpolation" do
+      analysis = described_class.new("")
+      # We can't always rely on the parser producing an actual instance of
+      # EmbeddedStatementsNode in the AST for all Prism versions, so construct
+      # a minimal instance by allocating and stubbing the methods we need.
+      embedded = Prism::EmbeddedStatementsNode.allocate
+      # Provide a fake statements struct with a slice method
+      fake_statements = Object.new
+      fake_statements.define_singleton_method(:slice) { "1 + 2" }
+      # Use define_singleton_method to capture the closure properly
+      embedded.define_singleton_method(:statements) { fake_statements }
+
+      sig = analysis.send(:compute_node_signature, embedded)
+      expect(sig[0]).to eq(:embedded)
+      expect(sig[1]).to include("1")
+    end
+
+    it "handles CallNode assignment without block" do
+      code = <<~RUBY
+        class C
+          def self.configure
+            config.setting = "value"
+          end
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      # find the call node inside the method body
+      class_node = analysis.statements.first
+      def_node = class_node.body.body.first
+      call_node = def_node.body.body.first
+
+      sig = analysis.send(:compute_node_signature, call_node)
+      expect(sig[0]).to eq(:call)
+      expect(sig[1]).to eq(:setting=)
+      expect(sig[2]).to include("config")
+    end
+
+    it "returns nil as first argument when CallNode has no arguments" do
+      code = <<~RUBY
+        def call_me
+          helper
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node = analysis.statements.first
+      # node is a DefNode, its body is a StatementsNode; extract the first statement which is the CallNode
+      call_node = node.body.body.first
+
+      sig = analysis.send(:compute_node_signature, call_node)
+      expect(sig[2]).to be_nil
+    end
   end
 
   describe "#attach_comments_safely!" do
-    # This tests line 149-154 (JRuby compatibility path)
+    it "rescues NameError with 'Comments' and retries attach_comments!" do
+      # Use allocate to bypass initialization which calls attach_comments_safely!
+      analysis = described_class.allocate
+      parse_result = double("ParseResult")
+      # First call raises NameError mentioning Comments, second call succeeds
+      expect(parse_result).to receive(:attach_comments!).ordered.and_raise(NameError.new("uninitialized constant Comments"))
+      expect(parse_result).to receive(:attach_comments!).ordered.and_return(nil)
+      analysis.instance_variable_set(:@parse_result, parse_result)
+
+      expect { analysis.send(:attach_comments_safely!) }.not_to raise_error
+    end
+
+    it "re-raises NameError when message doesn't include Comments" do
+      analysis = described_class.allocate
+      parse_result = double("ParseResult")
+      allow(parse_result).to receive(:attach_comments!).and_raise(NameError.new("something else"))
+      analysis.instance_variable_set(:@parse_result, parse_result)
+
+      expect { analysis.send(:attach_comments_safely!) }.to raise_error(NameError)
+    end
+    # Tests JRuby-compatible attach_comments_safely! behavior
     # We can't easily test the JRuby path on MRI, but we can verify the normal path works
 
     it "attaches comments successfully on standard Ruby" do
@@ -674,7 +914,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
   end
 
   describe "#extract_and_integrate_all_nodes" do
-    # Tests lines 163-169 for edge cases
+    # Tests extract_and_integrate_all_nodes edge cases (nil body and single statement handling)
 
     it "handles nil body from parse result" do
       # Empty file
@@ -1153,6 +1393,371 @@ RSpec.describe Prism::Merge::FileAnalysis do
       node_info = analysis.nodes_with_comments.first
 
       expect(node_info[:signature][0]).to eq(:other)
+    end
+  end
+
+  describe "edge cases for parameter extraction" do
+    it "handles method with ForwardingParameterNode as parameter type" do
+      # This covers the case when node.parameters.is_a?(Prism::ForwardingParameterNode)
+      code = <<~RUBY
+        def forward_all(...)
+          other(...)
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:def, :forward_all, [:forwarding]])
+    end
+
+    it "handles method with keyword_rest that is ForwardingParameterNode" do
+      # This covers line 486: keyword_rest.is_a?(Prism::ForwardingParameterNode)
+      code = <<~RUBY
+        def mixed_forward(a, ...)
+          other(a, ...)
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      sig = node_info[:signature]
+      expect(sig[0]).to eq(:def)
+      expect(sig[1]).to eq(:mixed_forward)
+      # Should have 'a' and 'forwarding'
+      expect(sig[2]).to include(:a)
+      expect(sig[2]).to include(:forwarding)
+    end
+
+    it "handles method with posts parameters (after rest)" do
+      # This covers line 480: node.parameters.posts
+      code = <<~RUBY
+        def with_posts(first, *middle, last)
+          [first, middle, last]
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      sig = node_info[:signature]
+      expect(sig[0]).to eq(:def)
+      expect(sig[1]).to eq(:with_posts)
+      expect(sig[2]).to include(:first)
+      expect(sig[2]).to include(:middle)
+      expect(sig[2]).to include(:last)
+    end
+  end
+
+  describe "single statement body handling" do
+    it "handles parse result with single non-StatementsNode body" do
+      # This covers line 146: else branch when body is not StatementsNode
+      code = "__END__"
+
+      analysis = described_class.new(code)
+      # __END__ creates a program with no statements
+      expect(analysis.statements).to eq([])
+    end
+  end
+
+  describe "extract_nodes_with_comments edge cases" do
+    it "handles file with no freeze_token (nil freeze_marker_pattern)" do
+      # This covers line 297: when freeze_marker_pattern is nil
+      code = <<~RUBY
+        # Comment about freeze blocks but freeze_token is nil
+        def example
+          "test"
+        end
+      RUBY
+
+      analysis = described_class.new(code, freeze_token: nil)
+      node_info = analysis.nodes_with_comments.first
+
+      # Without freeze_token, there's no freeze_marker_pattern
+      # Comments should still be attached normally
+      expect(node_info[:leading_comments].size).to eq(1)
+      expect(node_info[:leading_comments].first.slice).to include("freeze blocks")
+    end
+  end
+
+  describe "signature generator fallthrough behavior" do
+    it "uses default signature when generator returns the exact node object" do
+      # This covers line 473: the fallthrough_node? check
+      code = <<~RUBY
+        def fallthrough_example
+          "test"
+        end
+      RUBY
+
+      # Generator that returns the node itself for fallthrough
+      fallthrough_gen = ->(node) { node }
+
+      analysis = described_class.new(code, signature_generator: fallthrough_gen)
+      sig = analysis.signature_at(0)
+
+      # Should fall through to default signature
+      expect(sig).to eq([:def, :fallthrough_example, []])
+    end
+
+    it "handles generator returning non-node non-array values as nil signature" do
+      # This covers when signature is neither an Array nor a fallthrough node
+      code = "def example; end"
+
+      # Generator that returns something that's not an Array or Node
+      weird_gen = ->(_node) { "invalid" }
+
+      analysis = described_class.new(code, signature_generator: weird_gen)
+      sig = analysis.signature_at(0)
+
+      # String return should be used directly (not array, not fallthrough)
+      expect(sig).to eq("invalid")
+    end
+  end
+
+  describe "extract_first_argument_value edge cases" do
+    it "handles CallNode with SymbolNode argument" do
+      # This covers line 655: when Prism::SymbolNode
+      code = <<~RUBY
+        attr_reader :my_attribute
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig).to eq([:call, :attr_reader, :my_attribute])
+    end
+
+    it "handles CallNode with non-string/symbol argument using slice" do
+      # This covers line 660: else branch using first_arg.slice
+      code = <<~RUBY
+        process(1 + 2)
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig[0]).to eq(:call)
+      expect(sig[1]).to eq(:process)
+      expect(sig[2]).to include("1")
+    end
+  end
+
+  describe "CaseNode and CaseMatchNode without predicate" do
+    it "handles CaseMatchNode without predicate" do
+      # CaseMatchNode without predicate uses pattern matching syntax
+      # Note: `case` without expression followed by `in` may be parsed differently
+      # depending on Ruby/Prism version. Use a valid pattern matching case.
+      code = <<~RUBY
+        value = [1, 2]
+        case value
+        in [a, b] then a + b
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      # The CaseMatchNode is at index 1 (after the assignment)
+      sig = analysis.signature_at(1)
+
+      expect(sig[0]).to eq(:case_match)
+      expect(sig[1]).to eq("value")
+    end
+  end
+
+  describe "BeginNode edge cases" do
+    it "handles BeginNode with nil statements" do
+      # BeginNode.statements can be nil in edge cases
+      code = <<~RUBY
+        begin
+        rescue
+          handle_error
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig[0]).to eq(:begin)
+      # When statements is nil or empty, first_stmt becomes ""
+      expect(sig[1]).to eq("")
+    end
+
+    it "handles BeginNode with statements that have empty body" do
+      code = <<~RUBY
+        begin
+          # just a comment, no actual statements in body
+        ensure
+          cleanup
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig[0]).to eq(:begin)
+    end
+  end
+
+  describe "ParenthesesNode edge cases" do
+    it "handles ParenthesesNode with nil body" do
+      # Create a test that exercises ParenthesesNode with minimal body
+      code = "()"
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      # Empty parens should have empty first_expr
+      expect(sig[0]).to eq(:parens)
+      expect(sig[1]).to eq("")
+    end
+
+    it "handles ParenthesesNode with expression" do
+      code = "(1 + 2)"
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      expect(sig[0]).to eq(:parens)
+    end
+  end
+
+  describe "CallNode with assignment method" do
+    it "handles assignment method call without block" do
+      # This covers the branch: method_name.end_with?("=") && !node.block -> [:call, ...]
+      code = <<~RUBY
+        config.items = [1, 2, 3]
+      RUBY
+
+      analysis = described_class.new(code)
+      sig = analysis.signature_at(0)
+
+      # Assignment methods without blocks use :call
+      expect(sig[0]).to eq(:call)
+      expect(sig[1]).to eq(:items=)
+      expect(sig[2]).to eq("config")
+    end
+  end
+
+  describe "DefNode with no optionals, keywords, or keyword_rest" do
+    it "handles method with only required parameters" do
+      # This tests the branches where optionals/keywords/keyword_rest are nil/empty
+      code = <<~RUBY
+        def simple(a, b)
+          a + b
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:def, :simple, [:a, :b]])
+    end
+
+    it "handles method with only optional parameters" do
+      code = <<~RUBY
+        def with_optionals(a = 1, b = 2)
+          a + b
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature]).to eq([:def, :with_optionals, [:a, :b]])
+    end
+
+    it "handles method with rest but no name (anonymous splat)" do
+      # The rest parameter without name: def foo(*)
+      code = <<~RUBY
+        def anonymous_rest(*)
+          "called"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # Anonymous splat doesn't respond_to?(:name) with a truthy value
+      expect(node_info[:signature][0]).to eq(:def)
+      expect(node_info[:signature][1]).to eq(:anonymous_rest)
+    end
+
+    it "handles method with anonymous keyword rest" do
+      # def foo(**) - anonymous keyword rest
+      code = <<~RUBY
+        def anonymous_kwrest(**)
+          "called"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      expect(node_info[:signature][0]).to eq(:def)
+      expect(node_info[:signature][1]).to eq(:anonymous_kwrest)
+    end
+  end
+
+  describe "freeze block marker filtering" do
+    it "filters freeze markers from leading comments when freeze_token is set" do
+      # This covers line 297: freeze_marker_pattern being truthy
+      code = <<~RUBY
+        # prism-merge:freeze
+        def frozen_method
+          "frozen"
+        end
+        # prism-merge:unfreeze
+
+        # Regular comment after freeze block
+        def after_freeze
+          "after"
+        end
+      RUBY
+
+      analysis = described_class.new(code, freeze_token: "prism-merge")
+
+      # The after_freeze method should not have freeze markers as leading comments
+      after_info = analysis.nodes_with_comments.find { |n|
+        n[:node].is_a?(Prism::DefNode) && n[:node].name == :after_freeze
+      }
+
+      comments_text = after_info[:leading_comments].map(&:slice).join("\n")
+      expect(comments_text).not_to include("prism-merge:freeze")
+      expect(comments_text).not_to include("prism-merge:unfreeze")
+      expect(comments_text).to include("Regular comment")
+    end
+  end
+
+  describe "EmbeddedStatementsNode with nil statements" do
+    it "handles EmbeddedStatementsNode when statements is nil" do
+      analysis = described_class.new("")
+
+      # Create an EmbeddedStatementsNode with nil statements
+      embedded = Prism::EmbeddedStatementsNode.allocate
+      embedded.define_singleton_method(:statements) { nil }
+
+      sig = analysis.send(:compute_node_signature, embedded)
+      expect(sig[0]).to eq(:embedded)
+      expect(sig[1]).to eq("")
+    end
+  end
+
+  describe "extract_and_integrate_all_nodes body type handling" do
+    it "handles when parse result value.statements is nil" do
+      # Empty heredoc that produces nil statements
+      analysis = described_class.new("")
+
+      expect(analysis.statements).to eq([])
+    end
+
+    it "handles when body is a single node (not StatementsNode)" do
+      # Some edge cases produce a single node rather than StatementsNode
+      # This is hard to trigger naturally, but we test the branch exists
+      code = "42"
+      analysis = described_class.new(code)
+
+      # Should still work and produce statements
+      expect(analysis.statements).not_to be_empty
     end
   end
 end

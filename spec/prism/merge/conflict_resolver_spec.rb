@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "ast/merge/rspec/shared_examples"
-
 RSpec.describe Prism::Merge::ConflictResolver do
   # Use shared examples to validate base ConflictResolverBase integration
   # Note: prism-merge uses the :boundary strategy
@@ -13,7 +11,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         described_class.new(
           template_analysis,
           dest_analysis,
-          signature_match_preference: preference,
+          preference: preference,
           add_template_only_nodes: opts.fetch(:add_template_only_nodes, false),
         )
       }
@@ -33,7 +31,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         described_class.new(
           template_analysis,
           dest_analysis,
-          signature_match_preference: preference,
+          preference: preference,
           add_template_only_nodes: opts.fetch(:add_template_only_nodes, false),
         )
       }
@@ -87,7 +85,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
       expect(resolver.template_analysis).to eq(template_analysis)
       expect(resolver.dest_analysis).to eq(dest_analysis)
-      expect(resolver.signature_match_preference).to be(:destination)
+      expect(resolver.preference).to be(:destination)
       expect(resolver.add_template_only_nodes).to be(false)
     end
 
@@ -95,11 +93,11 @@ RSpec.describe Prism::Merge::ConflictResolver do
       resolver = described_class.new(
         template_analysis,
         dest_analysis,
-        signature_match_preference: :template,
+        preference: :template,
         add_template_only_nodes: true,
       )
 
-      expect(resolver.signature_match_preference).to be(:template)
+      expect(resolver.preference).to be(:template)
       expect(resolver.add_template_only_nodes).to be(true)
     end
   end
@@ -114,7 +112,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         merger = Prism::Merge::SmartMerger.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
           add_template_only_nodes: true,
         )
 
@@ -138,7 +136,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         merger = Prism::Merge::SmartMerger.new(
           template_content,
           dest_content,
-          signature_match_preference: :destination,
+          preference: :destination,
           add_template_only_nodes: false,
         )
 
@@ -308,7 +306,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         merger = Prism::Merge::SmartMerger.new(
           template,
           destination,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result_text = merger.merge
 
@@ -316,7 +314,53 @@ RSpec.describe Prism::Merge::ConflictResolver do
       end
     end
 
-    context "with signature_match_preference: :template in boundary resolution" do
+    context "with private helper methods" do
+      it "add_line_safe collapses consecutive blank lines" do
+        analysis = Prism::Merge::FileAnalysis.new("\n")
+        resolver = described_class.new(analysis, analysis)
+        result = Prism::Merge::MergeResult.new
+
+        # Add a non-blank line
+        resolver.send(:add_line_safe, result, "first line", decision: :kept_template)
+        # Add blank line
+        resolver.send(:add_line_safe, result, "", decision: :kept_template)
+        # Add another blank line - should be collapsed by add_line_safe
+        resolver.send(:add_line_safe, result, "", decision: :kept_template)
+        # Add another non-blank line
+        resolver.send(:add_line_safe, result, "second line", decision: :kept_template)
+
+        expect(result.lines).to eq(["first line", "", "second line"])
+      end
+
+      it "handle_orphan_lines skips adding duplicate dest orphans present in template" do
+        template = <<~RUBY
+          # shared comment
+        RUBY
+
+        dest = <<~RUBY
+          # shared comment
+          # dest-only comment
+        RUBY
+
+        template_analysis = Prism::Merge::FileAnalysis.new(template)
+        dest_analysis = Prism::Merge::FileAnalysis.new(dest)
+
+        resolver = described_class.new(template_analysis, dest_analysis)
+        result = Prism::Merge::MergeResult.new
+
+        template_content = resolver.send(:extract_boundary_content, template_analysis, 1..1)
+        dest_content = resolver.send(:extract_boundary_content, dest_analysis, 1..2)
+
+        resolver.send(:handle_orphan_lines, template_content, dest_content, result)
+
+        result_text = result.to_s
+
+        expect(result_text.scan("# shared comment").length).to eq(1)
+        expect(result_text).to include("# dest-only comment")
+      end
+    end
+
+    context "with preference: :template in boundary resolution" do
       it "uses template version for matched nodes within boundaries" do
         # This test directly creates a boundary scenario with matching signatures
         # to test the resolver's :template preference path
@@ -347,7 +391,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         resolver = described_class.new(
           template_analysis,
           dest_analysis,
-          signature_match_preference: :template,
+          preference: :template,
           add_template_only_nodes: true,
         )
 
@@ -388,7 +432,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         resolver = described_class.new(
           template_analysis,
           dest_analysis,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         boundary = Prism::Merge::FileAligner::Boundary.new(1..4, 1..4, nil, nil)
@@ -491,7 +535,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
           template,
           dest,
           signature_generator: nil_gen,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
 
         # Should not error even with nil signatures everywhere
@@ -501,7 +545,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
 
     context "with add_content_to_result edge cases" do
       it "handles empty content lines array" do
-        # This tests line 137 - content[:lines].empty? returning true
+        # Tests handling of empty content lines (content[:lines].empty? returning true)
         template = "# frozen_string_literal: true\n"
         dest = "# frozen_string_literal: true\n"
 
@@ -549,7 +593,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         resolver = described_class.new(
           template_analysis,
           dest_analysis,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
 
         # Process boundary covering all content
@@ -592,7 +636,7 @@ RSpec.describe Prism::Merge::ConflictResolver do
         resolver = described_class.new(
           template_analysis,
           dest_analysis,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
 
         boundary = Prism::Merge::FileAligner::Boundary.new(1..7, 1..7, nil, nil)
@@ -604,6 +648,195 @@ RSpec.describe Prism::Merge::ConflictResolver do
         expect(result_text).to include("def method_a")
         expect(result_text).to include("def method_b")
       end
+    end
+  end
+
+  describe "empty content handling" do
+    it "handles boundary with nil template_range gracefully" do
+      template = ""
+      destination = "def method; end"
+
+      template_analysis = Prism::Merge::FileAnalysis.new(template)
+      dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+      resolver = described_class.new(template_analysis, dest_analysis)
+
+      # Create a boundary with nil template_range - this tests the edge case
+      # where template has no content in a boundary region
+      boundary = Prism::Merge::FileAligner::Boundary.new(nil, 1..1, nil, nil)
+      result = Prism::Merge::MergeResult.new
+
+      # Should not raise an error
+      expect { resolver.resolve(boundary, result) }.not_to raise_error
+    end
+  end
+
+  describe "in_template_only_sequence behavior" do
+    it "skips lines before template-only nodes when in sequence" do
+      template = <<~RUBY
+        # Comment for template method 1
+        def template_method_1
+          "t1"
+        end
+
+        # Comment for template method 2
+        def template_method_2
+          "t2"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        # Different method
+        def dest_method
+          "d"
+        end
+      RUBY
+
+      template_analysis = Prism::Merge::FileAnalysis.new(template)
+      dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+      resolver = described_class.new(
+        template_analysis,
+        dest_analysis,
+        add_template_only_nodes: false,
+      )
+
+      boundary = Prism::Merge::FileAligner::Boundary.new(1..9, 1..4, nil, nil)
+      result = Prism::Merge::MergeResult.new
+
+      resolver.resolve(boundary, result)
+      result_text = result.to_s
+
+      # Template-only methods should be skipped
+      expect(result_text).not_to include("template_method_1")
+      expect(result_text).not_to include("template_method_2")
+    end
+  end
+
+  describe "dest-only nodes trailing blank handling" do
+    it "handles dest-only nodes with trailing blanks" do
+      template = <<~RUBY
+        def shared
+          "same"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        def shared
+          "same"
+        end
+
+        def dest_only
+          "d"
+        end
+      RUBY
+
+      template_analysis = Prism::Merge::FileAnalysis.new(template)
+      dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+      resolver = described_class.new(template_analysis, dest_analysis)
+
+      # The boundary covers the area where both files have content
+      # Template: lines 1-3, Dest: lines 1-7 (heredoc strips final newline)
+      boundary = Prism::Merge::FileAligner::Boundary.new(1..3, 1..7, nil, nil)
+      result = Prism::Merge::MergeResult.new
+
+      resolver.resolve(boundary, result)
+
+      # Should include dest_only method
+      expect(result.to_s).to include("def dest_only")
+    end
+
+    it "adds blank line before appending dest-only nodes when result doesn't end with blank" do
+      template = <<~RUBY
+        def method_a
+          "a"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        def method_a
+          "a"
+        end
+        def dest_only
+          "d"
+        end
+      RUBY
+
+      template_analysis = Prism::Merge::FileAnalysis.new(template)
+      dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+      resolver = described_class.new(template_analysis, dest_analysis)
+
+      boundary = Prism::Merge::FileAligner::Boundary.new(1..3, 1..6, nil, nil)
+      result = Prism::Merge::MergeResult.new
+
+      resolver.resolve(boundary, result)
+
+      # Result should include both methods
+      result_text = result.to_s
+      expect(result_text).to include("def method_a")
+      expect(result_text).to include("def dest_only")
+    end
+  end
+
+  describe "template_line_range nil handling" do
+    it "handles resolve when template_line_range is nil" do
+      template = ""
+      destination = <<~RUBY
+        def dest_method
+          "dest"
+        end
+      RUBY
+
+      template_analysis = Prism::Merge::FileAnalysis.new(template)
+      dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+      resolver = described_class.new(template_analysis, dest_analysis)
+
+      # Boundary with nil template_range
+      boundary = Prism::Merge::FileAligner::Boundary.new(nil, 1..3, nil, nil)
+      result = Prism::Merge::MergeResult.new
+
+      # Should not raise, should handle gracefully
+      expect { resolver.resolve(boundary, result) }.not_to raise_error
+    end
+  end
+
+  describe "leading comment lines exclusion" do
+    it "excludes leading comment lines from non-node line processing" do
+      template = <<~RUBY
+        # This is a leading comment
+        # Another leading comment
+        def documented_method
+          "implementation"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        # Different comment
+        def documented_method
+          "dest impl"
+        end
+      RUBY
+
+      template_analysis = Prism::Merge::FileAnalysis.new(template)
+      dest_analysis = Prism::Merge::FileAnalysis.new(destination)
+
+      resolver = described_class.new(
+        template_analysis,
+        dest_analysis,
+        preference: :destination,
+      )
+
+      boundary = Prism::Merge::FileAligner::Boundary.new(1..5, 1..4, nil, nil)
+      result = Prism::Merge::MergeResult.new
+
+      resolver.resolve(boundary, result)
+      result_text = result.to_s
+
+      # Should use destination version with its comment
+      expect(result_text).to include("def documented_method")
     end
   end
 end

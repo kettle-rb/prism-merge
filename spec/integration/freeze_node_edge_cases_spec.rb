@@ -179,7 +179,7 @@ RSpec.describe "FreezeNode Edge Cases" do
       end
 
       it "allows freeze blocks inside method bodies" do
-        # The method_one node spans lines 3-8, and the freeze block is lines 4-6
+        # The method_one node spans multiple lines and includes an inner freeze block
         # This is valid because DefNode is allowed to contain freeze blocks
         # (freeze blocks can protect portions of method implementations)
         expect {

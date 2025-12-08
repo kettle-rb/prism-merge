@@ -22,13 +22,15 @@ module Prism
       #
       # @param node [Object] Node to extract info from
       # @return [Hash] Node information
-      def self.extract_node_info(node)
-        if defined?(Prism::Merge::FreezeNode) && node.is_a?(Prism::Merge::FreezeNode)
-          return {type: "FreezeNode", lines: "#{node.start_line}..#{node.end_line}"}
-        end
+      class << self
+        def extract_node_info(node)
+          if defined?(Prism::Merge::FreezeNode) && node.is_a?(Prism::Merge::FreezeNode)
+            return {type: "FreezeNode", lines: "#{node.start_line}..#{node.end_line}"}
+          end
 
-        # Delegate to base implementation for other node types
-        Ast::Merge::DebugLogger.extract_node_info(node)
+          # Delegate to base implementation for other node types
+          Ast::Merge::DebugLogger.extract_node_info(node)
+        end
       end
     end
   end

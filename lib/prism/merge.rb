@@ -3,6 +3,7 @@
 # External gems
 require "prism"
 require "version_gem"
+require "set"
 
 # Shared merge infrastructure
 require "ast/merge"
@@ -85,6 +86,7 @@ module Prism
     autoload :FileAligner, "prism/merge/file_aligner"
     autoload :ConflictResolver, "prism/merge/conflict_resolver"
     autoload :SmartMerger, "prism/merge/smart_merger"
+    autoload :MethodMatchRefiner, "prism/merge/method_match_refiner"
   end
 end
 

@@ -288,10 +288,9 @@ module Prism
 
       attr_reader template_analysis: FileAnalysis
       attr_reader dest_analysis: FileAnalysis
-      attr_reader signature_match_preference: Symbol
       attr_reader add_template_only_nodes: bool
 
-      def initialize: (FileAnalysis template_analysis, FileAnalysis dest_analysis, ?signature_match_preference: Symbol, ?add_template_only_nodes: bool) -> void
+      def initialize: (FileAnalysis template_analysis, FileAnalysis dest_analysis, ?preference: (Symbol | Hash[Symbol, Symbol]), ?add_template_only_nodes: bool) -> void
 
       def resolve: (FileAligner::Boundary boundary, MergeResult result) -> void
 
@@ -335,11 +334,12 @@ module Prism
         String template_content,
         String dest_content,
         ?signature_generator: (^(untyped) -> (Array[untyped] | untyped | nil))?,
-        ?signature_match_preference: Symbol,
+        ?preference: (Symbol | Hash[Symbol, Symbol]),
         ?add_template_only_nodes: bool,
         ?freeze_token: String?,
         ?max_recursion_depth: (Integer | Float),
-        ?current_depth: Integer
+        ?current_depth: Integer,
+        ?node_splitter: (Hash[Symbol, untyped])?
       ) -> void
 
       def merge: () -> String

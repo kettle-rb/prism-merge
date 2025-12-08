@@ -95,6 +95,75 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
+    context "with private timeline and anchor handling" do
+      it "orders boundaries correctly in timeline (before first, between, after last)" do
+        template = <<~RUBY
+          # header
+          def foo; end
+          def bar; end
+        RUBY
+
+        dest = template
+        merger = described_class.new(template, dest)
+
+        anchor = Prism::Merge::FileAligner::Anchor.new(2, 2, 2, 2, :exact_match, 1)
+        boundary_before = Prism::Merge::FileAligner::Boundary.new(1..1, 1..1, nil, anchor)
+        boundary_after = Prism::Merge::FileAligner::Boundary.new(3..3, 3..3, anchor, nil)
+
+        # Monkeypatch aligner to use our anchors
+        merger.instance_variable_get(:@aligner).instance_variable_set(:@anchors, [anchor])
+
+        timeline = merger.send(:build_timeline, [boundary_after, boundary_before])
+        # Timeline should be sorted with boundary_before first, anchor second, boundary_after last
+        expect(timeline.first[:type]).to eq(:boundary)
+        expect(timeline.last[:type]).to eq(:boundary)
+        expect(timeline[1][:type]).to eq(:anchor)
+      end
+
+      it "process_anchor handles unknown match types by defaulting to template" do
+        template = <<~RUBY
+          # header
+          def foo; end
+        RUBY
+        dest = template
+
+        merger = described_class.new(template, dest)
+        anchor = Prism::Merge::FileAligner::Anchor.new(2, 2, 2, 2, :unknown, 1)
+
+        merger.send(:process_anchor, anchor)
+
+        expect(merger.result.to_s).to include("def foo")
+      end
+
+      it "does not recursively merge when max_recursion_depth is reached" do
+        template = <<~RUBY
+          class MyClass
+            def a; 1; end
+          end
+        RUBY
+
+        dest = <<~RUBY
+          class MyClass
+            def a; 2; end
+            def b; 3; end
+          end
+        RUBY
+
+        merger = described_class.new(template, dest, max_recursion_depth: 0)
+        # Find anchor: signature match on class node
+        aligner = merger.instance_variable_get(:@aligner)
+        aligner.align
+        anchor = aligner.anchors.find { |a| a.match_type == :signature_match }
+        expect(anchor).not_to be_nil
+
+        # Should not recursively merge; with default preference destination remains
+        merger.send(:process_anchor, anchor)
+        expect(merger.result.to_s).to include("def a")
+        # Destination b should still be preserved as appended/kept
+        expect(merger.result.to_s).to include("def b")
+      end
+    end
+
     context "with conditionals" do
       let(:template_path) { "spec/support/fixtures/smart_merge/conditional.template.rb" }
       let(:dest_path) { "spec/support/fixtures/smart_merge/conditional.destination.rb" }
@@ -102,7 +171,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       let(:dest_content) { File.read(dest_path) }
 
       it "updates conditional bodies from template" do
-        merger = described_class.new(template_content, dest_content, signature_match_preference: :template)
+        merger = described_class.new(template_content, dest_content, preference: :template)
         result = merger.merge
 
         # Should have the conditional
@@ -133,7 +202,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           AUTHOR = "John Doe"
         RUBY
 
-        merger = described_class.new(template, dest, signature_match_preference: :template, add_template_only_nodes: true)
+        merger = described_class.new(template, dest, preference: :template, add_template_only_nodes: true)
         result = merger.merge
 
         # Template version should win
@@ -195,7 +264,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           VERSION = "1.0.0" # Current version
         RUBY
 
-        merger = described_class.new(template, dest, signature_match_preference: :template)
+        merger = described_class.new(template, dest, preference: :template)
         result = merger.merge
 
         # Template version and comment should win
@@ -218,7 +287,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           var = "stuff"
         RUBY
 
-        merger = described_class.new(template, dest, signature_match_preference: :template)
+        merger = described_class.new(template, dest, preference: :template)
         result = merger.merge
 
         expect(result).to include('var = "stuff" # this is the stuff')
@@ -237,7 +306,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           var = "junk"
         RUBY
 
-        merger = described_class.new(template, dest, signature_match_preference: :template)
+        merger = described_class.new(template, dest, preference: :template)
         result = merger.merge
 
         expect(result).to include('var = "stuff" # this is the stuff')
@@ -256,7 +325,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           var = "junk" # this is the old
         RUBY
 
-        merger = described_class.new(template, dest, signature_match_preference: :template)
+        merger = described_class.new(template, dest, preference: :template)
         result = merger.merge
 
         expect(result).to include('var = "stuff" # this is the stuff')
@@ -275,7 +344,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           var = "junk" # this is the old
         RUBY
 
-        merger = described_class.new(template, dest, signature_match_preference: :destination)
+        merger = described_class.new(template, dest, preference: :destination)
         result = merger.merge
 
         expect(result).to include('var = "junk" # this is the old')
@@ -362,7 +431,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             template,
             dest,
-            signature_match_preference: :template,
+            preference: :template,
             add_template_only_nodes: false,
           )
           result = merger.merge
@@ -394,7 +463,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             template,
             dest,
-            signature_match_preference: :template,
+            preference: :template,
             add_template_only_nodes: false,
           )
           result = merger.merge
@@ -430,7 +499,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             template,
             dest,
-            signature_match_preference: :template,
+            preference: :template,
             add_template_only_nodes: true,
           )
           result = merger.merge
@@ -462,7 +531,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             template,
             dest,
-            signature_match_preference: :template,
+            preference: :template,
             add_template_only_nodes: true,
           )
           result = merger.merge
@@ -543,7 +612,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
           add_template_only_nodes: true,
         )
         result = merger.merge
@@ -564,7 +633,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :destination,
+          preference: :destination,
           add_template_only_nodes: false,
         )
         result = merger.merge
@@ -605,7 +674,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
           freeze_token: "kettle-dev",
         )
         result = merger.merge
@@ -613,6 +682,60 @@ RSpec.describe Prism::Merge::SmartMerger do
         # Freeze block still wins from destination
         expect(result).to include('secret: "destination secret"')
         expect(result).to include('api_key: "abc123"')
+      end
+    end
+
+    context "with recursive merge leading comment handling" do
+      it "uses template leading comments when preference is :template" do
+        template = <<~RUBY
+          # Template leading
+          class A
+            def foo
+              1
+            end
+          end
+        RUBY
+
+        dest = <<~RUBY
+          # Dest leading
+          class A
+            def foo
+              2
+            end
+          end
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to include("# Template leading")
+        expect(result).not_to include("# Dest leading")
+      end
+
+      it "preserves destination leading comments when preference is :destination" do
+        template = <<~RUBY
+          # Template leading
+          class A
+            def foo
+              1
+            end
+          end
+        RUBY
+
+        dest = <<~RUBY
+          # Dest leading
+          class A
+            def foo
+              2
+            end
+          end
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :destination)
+        result = merger.merge
+
+        expect(result).to include("# Dest leading")
+        expect(result).not_to include("# Template leading")
       end
     end
 
@@ -626,7 +749,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -642,7 +765,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
         )
         result = merger.merge
 
@@ -660,7 +783,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
           add_template_only_nodes: false,
         )
         result = merger.merge
@@ -687,7 +810,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -706,7 +829,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
         )
         result = merger.merge
 
@@ -732,7 +855,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :destination,
+          preference: :destination,
         )
         result = merger.merge
 
@@ -751,7 +874,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_content,
           dest_content,
-          signature_match_preference: :template,
+          preference: :template,
         )
         result = merger.merge
 
@@ -769,7 +892,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
-    context "with top-level constants and signature_match_preference" do
+    context "with top-level constants and preference" do
       let(:template_code) do
         <<~RUBY
           # frozen_string_literal: true
@@ -797,11 +920,11 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
       end
 
-      it "uses template version when signature_match_preference is :template" do
+      it "uses template version when preference is :template" do
         merger = described_class.new(
           template_code,
           dest_code,
-          signature_match_preference: :template,
+          preference: :template,
           add_template_only_nodes: true,
         )
 
@@ -816,11 +939,11 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).not_to include('puts "Dest debug"')
       end
 
-      it "uses destination version when signature_match_preference is :destination (default)" do
+      it "uses destination version when preference is :destination (default)" do
         merger = described_class.new(
           template_code,
           dest_code,
-          signature_match_preference: :destination,
+          preference: :destination,
           add_template_only_nodes: true,
         )
 
@@ -1059,7 +1182,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_code,
           dest_code,
-          signature_match_preference: :template,  # Use template version to get its comments
+          preference: :template,  # Use template version to get its comments
         )
 
         result = merger.merge
@@ -1196,7 +1319,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_code,
           dest_code,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         result = merger.merge
@@ -1252,7 +1375,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template_code,
           dest_code,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         result = merger.merge
@@ -1345,7 +1468,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template,
           starting_dest,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         first_run = merger.merge
@@ -1360,7 +1483,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template,
           starting_dest,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         second_run = merger.merge
@@ -1417,7 +1540,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template,
           starting_dest,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         first_run = merger.merge
@@ -1432,7 +1555,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(
           template,
           starting_dest,
-          signature_match_preference: :template,
+          preference: :template,
         )
 
         second_run = merger.merge
@@ -1484,8 +1607,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         analysis = merger.instance_variable_get(:@template_analysis)
         node = merger.send(:find_node_at_line, analysis, 2) # Comment/blank line
 
-        # Line 2 is blank, should not find a statement there
-        # (statements start at line 3)
+        # The second line is blank; should not find a statement there
+        # (statements start after the blank line)
         expect(node).to be_nil
       end
     end
@@ -2120,7 +2243,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             src,
             dest,
-            signature_match_preference: :template,
+            preference: :template,
             add_template_only_nodes: true,
             signature_generator: signature_generator,
           )
@@ -2153,7 +2276,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             src,
             dest,
-            signature_match_preference: :template,
+            preference: :template,
             signature_generator: signature_generator,
           )
 
@@ -2182,7 +2305,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             src,
             dest,
-            signature_match_preference: :destination,
+            preference: :destination,
             signature_generator: signature_generator,
           )
 
@@ -2213,7 +2336,7 @@ RSpec.describe Prism::Merge::SmartMerger do
             end
           DEST
 
-          merger = described_class.new(src, dest, signature_match_preference: :destination)
+          merger = described_class.new(src, dest, preference: :destination)
           result = merger.merge
 
           # Should preserve destination's custom it block
@@ -2247,11 +2370,11 @@ RSpec.describe Prism::Merge::SmartMerger do
           DEST
 
           # With max_recursion_depth: 0, no recursive merging should happen at all
-          # The top-level class will be treated atomically based on signature_match_preference
+          # The top-level class will be treated atomically based on preference
           merger = described_class.new(
             src,
             dest,
-            signature_match_preference: :destination,
+            preference: :destination,
             max_recursion_depth: 0,
           )
           result = merger.merge
@@ -2289,7 +2412,7 @@ RSpec.describe Prism::Merge::SmartMerger do
           merger = described_class.new(
             src,
             dest,
-            signature_match_preference: :destination,
+            preference: :destination,
             max_recursion_depth: 2,
           )
           result = merger.merge
@@ -2415,7 +2538,7 @@ RSpec.describe Prism::Merge::SmartMerger do
     end
   end
 
-  describe "signature_match_preference: :template" do
+  describe "preference: :template" do
     it "uses template version when nodes have matching signatures" do
       template = <<~RUBY
         # frozen_string_literal: true
@@ -2440,7 +2563,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :template,
+        preference: :template,
         add_template_only_nodes: true,
       )
       result = merger.merge
@@ -2478,7 +2601,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :template,
+        preference: :template,
         add_template_only_nodes: true,
       )
       result = merger.merge
@@ -2591,7 +2714,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2655,7 +2778,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2721,7 +2844,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
         add_template_only_nodes: true,
       )
       result = merger.merge
@@ -2752,7 +2875,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2779,7 +2902,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2806,7 +2929,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2835,7 +2958,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2917,7 +3040,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(
         template,
         destination,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -2941,6 +3064,255 @@ RSpec.describe Prism::Merge::SmartMerger do
       result = merger.merge
 
       expect(result).to include("def identical_method")
+    end
+  end
+
+  describe "recursion depth limiting" do
+    it "stops recursive merging when max_recursion_depth is reached" do
+      # Create deeply nested classes that would normally recurse
+      template = <<~RUBY
+        class Outer
+          class Middle
+            class Inner
+              def deep_method
+                "template"
+              end
+            end
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        class Outer
+          class Middle
+            class Inner
+              def deep_method
+                "destination"
+              end
+            end
+          end
+        end
+      RUBY
+
+      # With max_recursion_depth: 1, it should stop after Outer level
+      merger = described_class.new(
+        template,
+        destination,
+        max_recursion_depth: 1,
+      )
+      result = merger.merge
+
+      # The merge should complete without infinite recursion
+      expect(result).to include("class Outer")
+      expect(result).to include("class Middle")
+    end
+  end
+
+  describe "extract_node_body edge cases" do
+    it "handles IfNode body extraction" do
+      template = <<~RUBY
+        if condition
+          def inside_if
+            "template"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        if condition
+          def inside_if
+            "dest"
+          end
+        end
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      expect(result).to include("if condition")
+      expect(result).to include("def inside_if")
+    end
+
+    it "handles CaseNode without mergeable body" do
+      template = <<~RUBY
+        case x
+        when 1 then :one
+        when 2 then :two
+        end
+      RUBY
+
+      destination = <<~RUBY
+        case x
+        when 1 then :one
+        when 2 then :two
+        end
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      expect(result).to include("case x")
+      expect(result).to include("when 1")
+    end
+
+    it "handles ParenthesesNode body extraction" do
+      template = <<~RUBY
+        result = (
+          complex_expression +
+          another_expression
+        )
+      RUBY
+
+      merger = described_class.new(template, template)
+      result = merger.merge
+
+      expect(result).to include("result =")
+      expect(result).to include("complex_expression")
+    end
+
+    it "handles node with respond_to?(:body) but no statements method" do
+      template = <<~RUBY
+        begin
+          risky_code
+        rescue => e
+          handle(e)
+        end
+      RUBY
+
+      merger = described_class.new(template, template)
+      result = merger.merge
+
+      expect(result).to include("begin")
+      expect(result).to include("risky_code")
+    end
+  end
+
+  describe "body_has_mergeable_statements? behavior" do
+    it "returns false for bodies with only literals" do
+      # A block containing only a string literal shouldn't be recursively merged
+      template = <<~RUBY
+        config do
+          "just a string"
+        end
+      RUBY
+
+      destination = <<~RUBY
+        config do
+          "different string"
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        preference: :destination,
+      )
+      result = merger.merge
+
+      # Should treat block atomically, preferring destination
+      expect(result).to include("different string")
+    end
+
+    it "returns true for bodies with method definitions" do
+      template = <<~RUBY
+        class Example
+          def method_one
+            "template"
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        class Example
+          def method_one
+            "dest"
+          end
+
+          def method_two
+            "custom"
+          end
+        end
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      # Should recursively merge, preserving method_two
+      expect(result).to include("def method_one")
+      expect(result).to include("def method_two")
+    end
+  end
+
+  describe "should_merge_recursively? edge cases" do
+    it "returns false when nodes are different types" do
+      template = <<~RUBY
+        class Foo
+          "template"
+        end
+      RUBY
+
+      # Different structure - module vs class
+      destination = <<~RUBY
+        module Foo
+          "dest"
+        end
+      RUBY
+
+      merger = described_class.new(template, destination)
+      result = merger.merge
+
+      # Should not merge recursively since types differ
+      expect(result).to include("class Foo").or include("module Foo")
+    end
+
+    it "does not recursively merge WhileNode" do
+      template = <<~RUBY
+        while running
+          process_item
+        end
+      RUBY
+
+      destination = <<~RUBY
+        while running
+          process_item
+          log_progress
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        preference: :destination,
+      )
+      result = merger.merge
+
+      # WhileNode should be treated atomically
+      expect(result).to include("while running")
+    end
+
+    it "does not recursively merge LambdaNode" do
+      template = <<~RUBY
+        processor = -> {
+          step_one
+        }
+      RUBY
+
+      destination = <<~RUBY
+        processor = -> {
+          step_one
+          step_two
+        }
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        preference: :destination,
+      )
+      result = merger.merge
+
+      # Lambda should be treated atomically
+      expect(result).to include("processor =")
     end
   end
 end

@@ -49,7 +49,7 @@ RSpec.describe "Complex Real-World Merge Scenarios" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -95,7 +95,7 @@ RSpec.describe "Complex Real-World Merge Scenarios" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -160,7 +160,7 @@ RSpec.describe "Complex Real-World Merge Scenarios" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -229,7 +229,7 @@ RSpec.describe "Complex Real-World Merge Scenarios" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
@@ -292,7 +292,7 @@ RSpec.describe "Complex Real-World Merge Scenarios" do
       merger = Prism::Merge::SmartMerger.new(
         template_code,
         dest_code,
-        signature_match_preference: :destination,
+        preference: :destination,
       )
       result = merger.merge
 
