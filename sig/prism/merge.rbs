@@ -339,7 +339,7 @@ module Prism
         ?freeze_token: String?,
         ?max_recursion_depth: (Integer | Float),
         ?current_depth: Integer,
-        ?node_splitter: (Hash[Symbol, untyped])?
+        ?node_typing: (Hash[Symbol, untyped])?
       ) -> void
 
       def merge: () -> String

@@ -252,9 +252,9 @@ module Prism
             # Determine preference for this specific node (supports per-node-type preferences)
             template_node = t_node_info[:node]
             dest_node = dest_matches.first&.dig(:node)
-            node_preference = if ::Ast::Merge::NodeSplitter.typed_node?(template_node)
+            node_preference = if ::Ast::Merge::NodeTyping.typed_node?(template_node)
               preference_for_node(template_node)
-            elsif dest_node && ::Ast::Merge::NodeSplitter.typed_node?(dest_node)
+            elsif dest_node && ::Ast::Merge::NodeTyping.typed_node?(dest_node)
               preference_for_node(dest_node)
             else
               default_preference

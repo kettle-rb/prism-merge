@@ -155,10 +155,10 @@ module Prism
       #   The refiner is called with (template_nodes, dest_nodes, context) and should
       #   return an array of MatchResult objects pairing nodes that should be considered matches.
       #
-      # @param node_splitter [Hash{Symbol,String => #call}, nil] Optional node splitter configuration.
+      # @param node_typing [Hash{Symbol,String => #call}, nil] Optional node typing configuration.
       #   Maps node type names to callable objects that can transform nodes and add merge_type
       #   attributes. The merge_type can then be used for per-node-type preference settings.
-      #   @see Ast::Merge::NodeSplitter
+      #   @see Ast::Merge::NodeTyping
       #
       # @example With fuzzy method matching enabled
       #   merger = SmartMerger.new(
@@ -173,14 +173,14 @@ module Prism
       #     destination
       #   )
       #
-      # @example With node_splitter and per-node-type preferences
-      #   node_splitter = {
+      # @example With node_typing and per-node-type preferences
+      #   node_typing = {
       #     CallNode: ->(node) {
       #       return node unless node.name == :gem
       #       gem_name = node.arguments&.arguments&.first
       #       return node unless gem_name.is_a?(Prism::StringNode)
       #       if gem_name.unescaped.start_with?("rubocop")
-      #         Ast::Merge::NodeSplitter.with_merge_type(node, :lint_gem)
+      #         Ast::Merge::NodeTyping.with_merge_type(node, :lint_gem)
       #       else
       #         node
       #       end
@@ -190,10 +190,10 @@ module Prism
       #   merger = SmartMerger.new(
       #     template,
       #     destination,
-      #     node_splitter: node_splitter,
+      #     node_typing: node_typing,
       #     preference: { default: :destination, lint_gem: :template }
       #   )
-      def initialize(template_content, dest_content, signature_generator: nil, preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0, match_refiner: nil, node_splitter: nil)
+      def initialize(template_content, dest_content, signature_generator: nil, preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0, match_refiner: nil, node_typing: nil)
         @template_content = template_content
         @dest_content = dest_content
         @preference = preference
@@ -202,11 +202,11 @@ module Prism
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
         @match_refiner = match_refiner
-        @node_splitter = node_splitter
+        @node_typing = node_typing
         @signature_generator = signature_generator
 
-        # Wrap signature_generator to include node_splitter processing
-        effective_signature_generator = build_effective_signature_generator(signature_generator, node_splitter)
+        # Wrap signature_generator to include node_typing processing
+        effective_signature_generator = build_effective_signature_generator(signature_generator, node_typing)
 
         @template_analysis = FileAnalysis.new(template_content, signature_generator: effective_signature_generator, freeze_token: freeze_token)
         @dest_analysis = FileAnalysis.new(dest_content, signature_generator: effective_signature_generator, freeze_token: freeze_token)
@@ -339,21 +339,21 @@ module Prism
 
       private
 
-      # Build an effective signature generator that incorporates node_splitter.
+      # Build an effective signature generator that incorporates node_typing.
       #
-      # If node_splitter is provided, nodes are first processed through the splitter
+      # If node_typing is provided, nodes are first processed through the typing
       # before being passed to the signature_generator (or default computation).
       # This allows nodes to have merge_type attributes added for per-node-type preferences.
       #
       # @param signature_generator [Proc, nil] Custom signature generator
-      # @param node_splitter [Hash, nil] Node splitter configuration
+      # @param node_typing [Hash, nil] Node typing configuration
       # @return [Proc, nil] Combined signature generator, or nil if neither is provided
-      def build_effective_signature_generator(signature_generator, node_splitter)
-        return signature_generator unless node_splitter
+      def build_effective_signature_generator(signature_generator, node_typing)
+        return signature_generator unless node_typing
 
         ->(node) {
-          # First, process through node_splitter to potentially add merge_type
-          processed_node = ::Ast::Merge::NodeSplitter.process(node, node_splitter)
+          # First, process through node_typing to potentially add merge_type
+          processed_node = ::Ast::Merge::NodeTyping.process(node, node_typing)
 
           # Then, pass to signature_generator or return node for default processing
           if signature_generator
@@ -367,24 +367,24 @@ module Prism
       # Determine the preference for a specific node pair.
       #
       # When per-node-type preferences are configured, checks if either node is a
-      # TypedNodeWrapper and uses its merge_type to look up the preference.
+      # NodeTypeWrapper and uses its merge_type to look up the preference.
       # Falls back to the default preference if neither node has a merge_type.
       #
-      # @param template_node [Object, nil] Template node (may be TypedNodeWrapper)
-      # @param dest_node [Object, nil] Destination node (may be TypedNodeWrapper)
+      # @param template_node [Object, nil] Template node (may be NodeTypeWrapper)
+      # @param dest_node [Object, nil] Destination node (may be NodeTypeWrapper)
       # @return [Symbol] :destination or :template
       def preference_for_nodes(template_node, dest_node)
         # If not using per-type preferences, return the default
         return default_preference unless @preference.is_a?(Hash)
 
         # Check template node first, then dest node
-        if template_node && ::Ast::Merge::NodeSplitter.typed_node?(template_node)
-          merge_type = ::Ast::Merge::NodeSplitter.merge_type_for(template_node)
+        if template_node && ::Ast::Merge::NodeTyping.typed_node?(template_node)
+          merge_type = ::Ast::Merge::NodeTyping.merge_type_for(template_node)
           return @preference.fetch(merge_type) { default_preference } if merge_type
         end
 
-        if dest_node && ::Ast::Merge::NodeSplitter.typed_node?(dest_node)
-          merge_type = ::Ast::Merge::NodeSplitter.merge_type_for(dest_node)
+        if dest_node && ::Ast::Merge::NodeTyping.typed_node?(dest_node)
+          merge_type = ::Ast::Merge::NodeTyping.merge_type_for(dest_node)
           return @preference.fetch(merge_type) { default_preference } if merge_type
         end
 
@@ -727,7 +727,7 @@ module Prism
           freeze_token: @freeze_token,
           max_recursion_depth: @max_recursion_depth,
           current_depth: @current_depth + 1,
-          node_splitter: @node_splitter,
+          node_typing: @node_typing,
         )
         merged_body = body_merger.merge.rstrip
 

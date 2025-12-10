@@ -70,7 +70,7 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 - **Customizable**:
   - `signature_generator` - callable custom signature generators
   - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
-  - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge](https://github.com/kettle-rb/ast-merge) docs)
+  - `node_typing` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge](https://github.com/kettle-rb/ast-merge) docs)
   - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
   - `freeze_token` - customize freeze block markers (default: `"prism-merge"`)
   - `match_refiners` - array of refiners for fuzzy matching (e.g., `MethodMatchRefiner`)
@@ -385,15 +385,15 @@ merger = Prism::Merge::SmartMerger.new(
 )
 ```
 
-This is especially powerful when combined with the `node_splitter` option (see below) to create custom node categories.
+This is especially powerful when combined with the `node_typing` option (see below) to create custom node categories.
 
-### Node Splitter
+### Node Typing
 
-The `node_splitter` option allows you to transform nodes and add custom `merge_type` attributes that can be used for per-node-type preferences:
+The `node_typing` option allows you to transform nodes and add custom `merge_type` attributes that can be used for per-node-type preferences:
 
 ```ruby
-# Define a node splitter that categorizes gem calls
-node_splitter = {
+# Define a node typing config that categorizes gem calls
+node_typing = {
   CallNode: ->(node) {
     # Only process gem() calls
     return node unless node.name == :gem
@@ -404,20 +404,20 @@ node_splitter = {
 
     # Categorize gems by type
     if gem_name.start_with?("rubocop", "standard")
-      Ast::Merge::NodeSplitter.with_merge_type(node, :lint_gem)
+      Ast::Merge::NodeTyping.with_merge_type(node, :lint_gem)
     elsif gem_name.start_with?("rspec", "minitest", "test-")
-      Ast::Merge::NodeSplitter.with_merge_type(node, :test_gem)
+      Ast::Merge::NodeTyping.with_merge_type(node, :test_gem)
     else
       node  # Return unchanged for other gems
     end
   }
 }
 
-# Use the node splitter with per-type preferences
+# Use the node typing with per-type preferences
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  node_splitter: node_splitter,
+  node_typing: node_typing,
   preference: {
     default: :destination,    # Default: keep destination versions
     lint_gem: :template,      # But use template versions for linters
@@ -425,26 +425,26 @@ merger = Prism::Merge::SmartMerger.new(
 )
 ```
 
-#### How Node Splitter Works
+#### How Node Typing Works
 
-1. **Node Processing**: During analysis, each node is passed through the splitter for its type
-2. **Type Wrapping**: The splitter can wrap nodes with `Ast::Merge::NodeSplitter.with_merge_type(node, :type)`
+1. **Node Processing**: During analysis, each node is passed through the typing config for its type
+2. **Type Wrapping**: The config can wrap nodes with `Ast::Merge::NodeTyping.with_merge_type(node, :type)`
 3. **Preference Lookup**: During conflict resolution, wrapped nodes have their `merge_type` checked against the preference Hash
 4. **Transparent Delegation**: Wrapped nodes delegate all methods to the original node, so existing logic works unchanged
 
-#### Node Splitter Return Values
+#### Node Typing Return Values
 
-Your splitter callable can return:
+Your typing callable can return:
 - **The original node** - Node is processed normally with default preference
-- **A wrapped node** (using `NodeSplitter.with_merge_type`) - Node uses the type-specific preference
+- **A wrapped node** (using `NodeTyping.with_merge_type`) - Node uses the type-specific preference
 - **`nil`** - Node is skipped (use with caution)
 
 #### Integration with Signature Generator
 
-Node splitter works alongside `signature_generator`. Nodes are first processed through the splitter, then the (potentially wrapped) node is passed to the signature generator:
+Node typing works alongside `signature_generator`. Nodes are first processed through the typing config, then the (potentially wrapped) node is passed to the signature generator:
 
 ```ruby
-node_splitter = {
+node_typing = {
   CallNode: ->(node) {
     # Categorize gem calls
     return node unless node.name == :gem
@@ -452,7 +452,7 @@ node_splitter = {
     return node unless gem_name
 
     if gem_name.match?(/^(rubocop|standard)/)
-      Ast::Merge::NodeSplitter.with_merge_type(node, :lint_gem)
+      Ast::Merge::NodeTyping.with_merge_type(node, :lint_gem)
     else
       node
     end
@@ -471,7 +471,7 @@ signature_generator = ->(node) {
 merger = Prism::Merge::SmartMerger.new(
   template,
   destination,
-  node_splitter: node_splitter,
+  node_typing: node_typing,
   signature_generator: signature_generator,
   preference: { default: :destination, lint_gem: :template },
 )
