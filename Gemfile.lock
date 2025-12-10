@@ -11,16 +11,16 @@ GIT
       yard
 
 PATH
+  remote: ../..
+  specs:
+    ast-merge (1.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
   remote: .
   specs:
     prism-merge (1.1.6)
       prism (~> 1.6)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: vendor/ast-merge
-  specs:
-    ast-merge (1.0.0)
       version_gem (~> 1.1, >= 1.1.9)
 
 GEM
