@@ -10,6 +10,20 @@ module Prism
     # automatically performs recursive merging of their bodies, intelligently combining
     # nested methods, constants, and other definitions.
     #
+    # ## Anchor/Boundary Algorithm
+    #
+    # Unlike simpler merge implementations, prism-merge uses a sophisticated anchor/boundary
+    # algorithm that:
+    #
+    # 1. **Identifies Anchors**: Finds matching code structures between template and destination
+    # 2. **Identifies Boundaries**: Determines the gaps between anchors
+    # 3. **Recursive Body Merging**: When matching class/module definitions are found,
+    #    recursively merges their bodies, intelligently combining nested methods, constants, etc.
+    # 4. **Line-Based Result Tracking**: Tracks merge decisions per-line with bidirectional
+    #    links to source files, enabling detailed provenance debugging.
+    #
+    # This approach is necessary for Ruby's complex AST with nested class/module bodies.
+    #
     # @example Basic merge (destination customizations preserved)
     #   merger = SmartMerger.new(template_content, dest_content)
     #   result = merger.merge
@@ -46,21 +60,9 @@ module Prism
     # @see FileAligner
     # @see ConflictResolver
     # @see MergeResult
-    class SmartMerger
-      # @return [FileAnalysis] Analysis of the template file
-      attr_reader :template_analysis
-
-      # @return [FileAnalysis] Analysis of the destination file
-      attr_reader :dest_analysis
-
+    class SmartMerger < ::Ast::Merge::SmartMergerBase
       # @return [FileAligner] Aligner for finding matches and differences
       attr_reader :aligner
-
-      # @return [ConflictResolver] Resolver for handling conflicting content
-      attr_reader :resolver
-
-      # @return [MergeResult] Result object tracking merged content
-      attr_reader :result
 
       # Creates a new SmartMerger for intelligent Ruby file merging.
       #
@@ -193,110 +195,29 @@ module Prism
       #     node_typing: node_typing,
       #     preference: { default: :destination, lint_gem: :template }
       #   )
-      def initialize(template_content, dest_content, signature_generator: nil, preference: :destination, add_template_only_nodes: false, freeze_token: FileAnalysis::DEFAULT_FREEZE_TOKEN, max_recursion_depth: Float::INFINITY, current_depth: 0, match_refiner: nil, node_typing: nil)
-        @template_content = template_content
-        @dest_content = dest_content
-        @preference = preference
-        @add_template_only_nodes = add_template_only_nodes
-        @freeze_token = freeze_token
+      def initialize(template_content, dest_content, signature_generator: nil, preference: :destination, add_template_only_nodes: false, freeze_token: nil, max_recursion_depth: Float::INFINITY, current_depth: 0, match_refiner: nil, node_typing: nil, regions: nil, region_placeholder: nil)
+        # Prism-specific options (not in base class)
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
-        @match_refiner = match_refiner
         @node_typing = node_typing
-        @signature_generator = signature_generator
 
         # Wrap signature_generator to include node_typing processing
         effective_signature_generator = build_effective_signature_generator(signature_generator, node_typing)
 
-        @template_analysis = FileAnalysis.new(template_content, signature_generator: effective_signature_generator, freeze_token: freeze_token)
-        @dest_analysis = FileAnalysis.new(dest_content, signature_generator: effective_signature_generator, freeze_token: freeze_token)
-        @aligner = FileAligner.new(@template_analysis, @dest_analysis)
-        @resolver = ConflictResolver.new(
-          @template_analysis,
-          @dest_analysis,
+        super(
+          template_content,
+          dest_content,
+          signature_generator: effective_signature_generator,
           preference: preference,
           add_template_only_nodes: add_template_only_nodes,
-          match_refiner: @match_refiner,
+          freeze_token: freeze_token,
+          match_refiner: match_refiner,
+          regions: regions,
+          region_placeholder: region_placeholder,
         )
-        @result = MergeResult.new
-      end
 
-      # Performs the intelligent merge of template and destination files.
-      #
-      # The merge process:
-      # 1. Validates both files for syntax errors
-      # 2. Finds anchors (matching sections) and boundaries (differences)
-      # 3. Processes anchors and boundaries in order
-      # 4. Returns merged content as a string
-      #
-      # Merge behavior is controlled by constructor parameters:
-      # - `preference`: Which version wins for matching nodes
-      # - `add_template_only_nodes`: Whether to add template-only content
-      #
-      # @return [String] The merged Ruby source code
-      #
-      # @raise [TemplateParseError] If template has syntax errors
-      # @raise [DestinationParseError] If destination has syntax errors
-      #
-      # @example Basic merge
-      #   merger = SmartMerger.new(template, destination)
-      #   result = merger.merge
-      #   File.write("output.rb", result)
-      #
-      # @example With error handling
-      #   begin
-      #     result = merger.merge
-      #   rescue Prism::Merge::TemplateParseError => e
-      #     puts "Template error: #{e.message}"
-      #     puts "Parse errors: #{e.parse_result.errors}"
-      #   end
-      #
-      # @see #merge_with_debug for detailed merge information
-      def merge
-        merge_result.to_s
-      end
-
-      # Performs the intelligent merge and returns the full result object.
-      #
-      # The merge process:
-      # 1. Validates both files for syntax errors
-      # 2. Finds anchors (matching sections) and boundaries (differences)
-      # 3. Processes anchors and boundaries in order
-      # 4. Returns MergeResult with content and metadata
-      #
-      # @return [MergeResult] The merge result containing merged content and metadata
-      #
-      # @raise [TemplateParseError] If template has syntax errors
-      # @raise [DestinationParseError] If destination has syntax errors
-      def merge_result
-        return @merge_result if @merge_result
-
-        @merge_result = DebugLogger.time("SmartMerger#merge") do
-          # Handle invalid files
-          unless @template_analysis.valid?
-            raise Prism::Merge::TemplateParseError.new(
-              "Template file has parsing errors",
-              content: @template_content,
-              parse_result: @template_analysis.parse_result,
-            )
-          end
-
-          unless @dest_analysis.valid?
-            raise Prism::Merge::DestinationParseError.new(
-              "Destination file has parsing errors",
-              content: @dest_content,
-              parse_result: @dest_analysis.parse_result,
-            )
-          end
-
-          # Find anchors and boundaries
-          boundaries = @aligner.align
-
-          # Process the merge by walking through anchors and boundaries in order
-          process_merge(boundaries)
-
-          @result
-        end
+        # Create the aligner (Prism-specific - uses anchor/boundary algorithm)
+        @aligner = FileAligner.new(@template_analysis, @dest_analysis)
       end
 
       # Performs merge and returns detailed debug information.
@@ -335,6 +256,103 @@ module Prism
           debug: @result.debug_output,
           statistics: @result.statistics,
         }
+      end
+
+      protected
+
+      # @return [Class] The analysis class for Ruby files
+      def analysis_class
+        FileAnalysis
+      end
+
+      # @return [String] The default freeze token for Ruby
+      def default_freeze_token
+        "prism-merge"
+      end
+
+      # @return [Class] The resolver class for Ruby files
+      def resolver_class
+        ConflictResolver
+      end
+
+      # @return [Class] The result class for Ruby files
+      def result_class
+        MergeResult
+      end
+
+      # @return [Class, nil] The aligner class (Prism builds aligner separately)
+      def aligner_class
+        nil
+      end
+
+      # Perform the Prism-specific merge using anchor/boundary algorithm.
+      #
+      # The merge process:
+      # 1. Validates both files for syntax errors (raises TemplateParseError/DestinationParseError)
+      # 2. Uses FileAligner to find anchors (matching sections) and boundaries (differences)
+      # 3. Processes anchors and boundaries in order via {#process_merge}
+      # 4. Returns MergeResult with content and per-line provenance metadata
+      #
+      # Merge behavior is controlled by constructor parameters:
+      # - `preference`: Which version wins for matching nodes (:template or :destination)
+      # - `add_template_only_nodes`: Whether to add template-only content
+      #
+      # @return [MergeResult] The merge result containing merged content and metadata
+      # @raise [TemplateParseError] If template has syntax errors
+      # @raise [DestinationParseError] If destination has syntax errors
+      # @see FileAligner For anchor/boundary detection
+      # @see ConflictResolver For boundary resolution logic
+      def perform_merge
+        # Handle invalid files
+        unless @template_analysis.valid?
+          raise Prism::Merge::TemplateParseError.new(
+            "Template file has parsing errors",
+            content: @template_content,
+            parse_result: @template_analysis.parse_result,
+          )
+        end
+
+        unless @dest_analysis.valid?
+          raise Prism::Merge::DestinationParseError.new(
+            "Destination file has parsing errors",
+            content: @dest_content,
+            parse_result: @dest_analysis.parse_result,
+          )
+        end
+
+        # Find anchors and boundaries
+        boundaries = @aligner.align
+
+        # Process the merge by walking through anchors and boundaries in order
+        process_merge(boundaries)
+
+        @result
+      end
+
+      # Build the resolver with Prism-specific signature.
+      def build_resolver
+        ConflictResolver.new(
+          @template_analysis,
+          @dest_analysis,
+          preference: @preference,
+          add_template_only_nodes: @add_template_only_nodes,
+          match_refiner: @match_refiner,
+        )
+      end
+
+      # Build the result (no-arg constructor for Prism)
+      def build_result
+        MergeResult.new
+      end
+
+      # @return [Class] The template parse error class for Ruby
+      def template_parse_error_class
+        TemplateParseError
+      end
+
+      # @return [Class] The destination parse error class for Ruby
+      def destination_parse_error_class
+        DestinationParseError
       end
 
       private
