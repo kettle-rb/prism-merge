@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
   spec.name = "prism-merge"
   spec.version = gem_version
   spec.authors = ["Peter H. Boling"]
-  spec.email = ["peter.boling@gmail.com"]
+  spec.email = ["floss@galtzo.com"]
 
   spec.summary = "☯️ Intelligently merge two versions of a Ruby file using Prism AST analysis, useful in templating"
   spec.description = "☯️ Intelligently merge two versions of a Ruby file using Prism AST analysis, similar to a smart 'git merge' specifically designed for Ruby code."
