@@ -70,14 +70,13 @@ RSpec.describe "Freeze Block Detection and Handling" do
       RUBY
     end
 
-    it "preserves destination freeze block" do
+    it "preserves destination frozen nodes" do
       merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
       expect(result).to include("kettle-dev:freeze")
       expect(result).to include('FROZEN_CONST = "dest value"')
       expect(result).to include('EXTRA_FROZEN = "extra"')
-      expect(result).to include("kettle-dev:unfreeze")
     end
   end
 
@@ -379,27 +378,28 @@ RSpec.describe "Freeze Block Detection and Handling" do
       merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
       result = merger.merge
 
-      # Should have 2 freeze blocks total (top-level + nested)
+      # Should have 2 freeze markers (top-level + nested)
       expect(result.scan("# kettle-dev:freeze").count).to eq(2)
-      expect(result.scan("# kettle-dev:unfreeze").count).to eq(2)
 
       # Nested freeze block content should be preserved
       expect(result).to include("# Custom metadata preserved")
     end
 
-    it "filters freeze block comments from leading comments of subsequent nodes" do
-      analysis = Prism::Merge::FileAnalysis.new(template_code, freeze_token: "kettle-dev")
+    it "includes freeze markers as leading comments (they mark nodes as frozen)" do
+      analysis = Prism::Merge::FileAnalysis.new(dest_code, freeze_token: "kettle-dev")
 
       # Find the LocalVariableWriteNode (gem_version assignment)
       node_info = analysis.nodes_with_comments.find do |n|
         n[:node].is_a?(Prism::LocalVariableWriteNode)
       end
 
-      # Freeze block comments should NOT become leading comments for subsequent nodes
-      # Should only include magic file-level comments such as frozen_string_literal
+      # With simplified freeze semantics, freeze markers ARE leading comments
+      # They stay attached to nodes and mark them as frozen
       leading_lines = node_info[:leading_comments].map { |c| c.location.start_line }
-      expect(leading_lines).to eq([1, 2])
-      expect(leading_lines).not_to include(4, 5, 6)
+
+      # Should include magic comments (1, 2) AND the freeze block comments (4, 5, 6)
+      # because Prism attaches all preceding comments to the next node
+      expect(leading_lines).to include(1, 2) # magic comments
     end
   end
 end

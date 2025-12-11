@@ -2,33 +2,41 @@
 
 module Prism
   module Merge
-    # Orchestrates the smart merge process using FileAnalysis, FileAligner,
-    # ConflictResolver, and MergeResult to merge two Ruby files intelligently.
+    # A merger that uses section-based semantics with recursive body merging for cleaner merging.
     #
-    # SmartMerger provides flexible configuration for different merge scenarios.
-    # When matching class or module definitions are found in both files, the merger
-    # automatically performs recursive merging of their bodies, intelligently combining
-    # nested methods, constants, and other definitions.
+    # SmartMerger:
+    # 1. Converts each top-level node into a "section" identified by its signature
+    # 2. Uses SectionTyping-style merge logic to decide which sections to include
+    # 3. Recursively merges matching class/module/block bodies
+    # 4. Outputs each selected node exactly once (with its comments)
     #
-    # ## Anchor/Boundary Algorithm
+    # This approach avoids the complexity of tracking line ranges for anchors
+    # and boundaries, which can lead to duplicate content when comments are
+    # attached to multiple overlapping ranges.
     #
-    # Unlike simpler merge implementations, prism-merge uses a sophisticated anchor/boundary
-    # algorithm that:
+    # ## Merge Algorithm
     #
-    # 1. **Identifies Anchors**: Finds matching code structures between template and destination
-    # 2. **Identifies Boundaries**: Determines the gaps between anchors
-    # 3. **Recursive Body Merging**: When matching class/module definitions are found,
-    #    recursively merges their bodies, intelligently combining nested methods, constants, etc.
-    # 4. **Line-Based Result Tracking**: Tracks merge decisions per-line with bidirectional
-    #    links to source files, enabling detailed provenance debugging.
+    # 1. Parse both template and destination files
+    # 2. Generate signatures for all top-level nodes in both files
+    # 3. Build a signature -> node map for destination
+    # 4. Walk template nodes in order:
+    #    - If signature matches a dest node:
+    #      - If class/module/block with mergeable body: recursively merge bodies
+    #      - Otherwise: output based on preference
+    #    - If template-only: output if add_template_only_nodes is true
+    # 5. Output any remaining dest-only nodes
     #
-    # This approach is necessary for Ruby's complex AST with nested class/module bodies.
+    # ## Recursive Body Merging
     #
-    # @example Basic merge (destination customizations preserved)
+    # When matching class/module definitions or CallNodes with blocks are found,
+    # the merger recursively merges their body contents. This allows template
+    # updates to nested methods/constants to be merged with destination customizations.
+    #
+    # @example Basic merge
     #   merger = SmartMerger.new(template_content, dest_content)
     #   result = merger.merge
     #
-    # @example Version file merge (template updates win)
+    # @example Template wins with additions
     #   merger = SmartMerger.new(
     #     template_content,
     #     dest_content,
@@ -36,170 +44,57 @@ module Prism
     #     add_template_only_nodes: true
     #   )
     #   result = merger.merge
-    #   # Result: VERSION = "2.0.0" (from template), new constants added
     #
-    # @example Appraisals merge (destination customizations preserved)
-    #   merger = SmartMerger.new(
-    #     template_content,
-    #     dest_content,
-    #     preference: :destination,  # default
-    #     add_template_only_nodes: false             # default
-    #   )
-    #   result = merger.merge
-    #   # Result: Custom gem versions preserved, template-only blocks skipped
-    #
-    # @example Custom signature matching
-    #   sig_gen = ->(node) { [node.class.name, node.name] }
-    #   merger = SmartMerger.new(
-    #     template_content,
-    #     dest_content,
-    #     signature_generator: sig_gen
-    #   )
-    #
-    # @see FileAnalysis
-    # @see FileAligner
-    # @see ConflictResolver
-    # @see MergeResult
     class SmartMerger < ::Ast::Merge::SmartMergerBase
-      # @return [FileAligner] Aligner for finding matches and differences
-      attr_reader :aligner
+      # @return [Hash{Symbol,String => #call}, nil] Node typing configuration
+      attr_reader :node_typing
 
-      # Creates a new SmartMerger for intelligent Ruby file merging.
+      # @return [Integer, Float] Maximum recursion depth for body merging
+      attr_reader :max_recursion_depth
+
+      # @return [Hash, nil] Options to pass to Text::SmartMerger for comment-only files
+      attr_reader :text_merger_options
+
+      # Creates a new SmartMerger.
       #
       # @param template_content [String] Template Ruby source code
       # @param dest_content [String] Destination Ruby source code
-      #
-      # @param signature_generator [Proc, nil] Optional proc to generate custom node signatures.
-      #   The proc receives a Prism node (or FreezeNodeBase subclass) and should return one of:
-      #   - An array representing the node's signature (e.g., `[:gem, "foo"]`)
-      #   - `nil` to indicate the node should have no signature (won't be matched)
-      #   - A `Prism::Node` or `FreezeNodeBase` subclass to fall through to default signature computation
-      #     using that node. This allows custom generators to only override specific node
-      #     types while delegating others to the built-in logic. Return the original node
-      #     unchanged for simple fallthrough, or return a modified node to influence
-      #     default matching.
-      #
-      #   Nodes with identical signatures are considered matches during merge.
-      #   Default: Uses {FileAnalysis#compute_node_signature} which matches:
-      #   - Conditionals by condition only (not body)
-      #   - Assignments by name only (not value)
-      #   - Method calls by name and args (not block)
-      #
-      # @param preference [Symbol] Controls which version to use when nodes
-      #   have matching signatures but different content:
-      #   - `:destination` (default) - Use destination version (preserves customizations).
-      #     Use for Appraisals files, configs with project-specific values.
-      #   - `:template` - Use template version (applies updates).
-      #     Use for version files, canonical configs, conditional implementations.
-      #
-      # @param add_template_only_nodes [Boolean] Controls whether to add nodes that only
-      #   exist in template:
-      #   - `false` (default) - Skip template-only nodes.
-      #     Use for templates with placeholder/example content.
-      #   - `true` - Add template-only nodes to result.
-      #     Use when template has new required constants/methods to add.
-      #
-      # @param freeze_token [String] Token to use for freeze block markers.
-      #   Default: "prism-merge" (looks for # prism-merge:freeze / # prism-merge:unfreeze)
-      #   Freeze blocks preserve destination content unchanged during merge.
-      #
+      # @param signature_generator [Proc, nil] Custom signature generator
+      # @param preference [Symbol, Hash] :template, :destination, or per-type Hash
+      # @param add_template_only_nodes [Boolean] Whether to add template-only nodes
+      # @param freeze_token [String, nil] Token for freeze block markers
+      # @param node_typing [Hash{Symbol,String => #call}, nil] Node typing configuration
+      #   for per-node-type merge preferences
       # @param max_recursion_depth [Integer, Float] Maximum depth for recursive body merging.
       #   Default: Float::INFINITY (no limit). This is a safety valve that users can set
-      #   if they encounter edge cases. Normal merging terminates naturally based on
-      #   body content analysis (blocks with non-mergeable content like literals are
-      #   not recursed into).
-      #
-      # @raise [TemplateParseError] If template has syntax errors
-      # @raise [DestinationParseError] If destination has syntax errors
-      #
-      # @example Basic usage
-      #   merger = SmartMerger.new(template, destination)
-      #   result = merger.merge
-      #
-      # @example Template updates win (version files)
-      #   merger = SmartMerger.new(
-      #     template,
-      #     destination,
-      #     preference: :template,
-      #     add_template_only_nodes: true
-      #   )
-      #
-      # @example Destination customizations win (Appraisals)
-      #   merger = SmartMerger.new(
-      #     template,
-      #     destination,
-      #     preference: :destination,
-      #     add_template_only_nodes: false
-      #   )
-      #
-      # @example Custom signature matching with fallthrough
-      #   sig_gen = lambda do |node|
-      #     case node
-      #     when Prism::CallNode
-      #       # Custom handling for gem calls - match by gem name
-      #       if node.name == :gem
-      #         return [:gem, node.arguments&.arguments&.first&.unescaped]
-      #       end
-      #     end
-      #     # Return the node to fall through to default signature computation
-      #     node
-      #   end
-      #
-      #   merger = SmartMerger.new(
-      #     template,
-      #     destination,
-      #     signature_generator: sig_gen
-      #   )
-      #
-      # @param match_refiner [#call, nil, :default] Optional match refiner for fuzzy matching of
-      #   unmatched nodes. Default: nil (fuzzy matching disabled).
-      #   Set to MethodMatchRefiner.new to enable fuzzy method matching.
-      #   The refiner is called with (template_nodes, dest_nodes, context) and should
-      #   return an array of MatchResult objects pairing nodes that should be considered matches.
-      #
-      # @param node_typing [Hash{Symbol,String => #call}, nil] Optional node typing configuration.
-      #   Maps node type names to callable objects that can transform nodes and add merge_type
-      #   attributes. The merge_type can then be used for per-node-type preference settings.
-      #   @see Ast::Merge::NodeTyping
-      #
-      # @example With fuzzy method matching enabled
-      #   merger = SmartMerger.new(
-      #     template,
-      #     destination,
-      #     match_refiner: MethodMatchRefiner.new(threshold: 0.7)
-      #   )
-      #
-      # @example Default (no fuzzy matching)
-      #   merger = SmartMerger.new(
-      #     template,
-      #     destination
-      #   )
-      #
-      # @example With node_typing and per-node-type preferences
-      #   node_typing = {
-      #     CallNode: ->(node) {
-      #       return node unless node.name == :gem
-      #       gem_name = node.arguments&.arguments&.first
-      #       return node unless gem_name.is_a?(Prism::StringNode)
-      #       if gem_name.unescaped.start_with?("rubocop")
-      #         Ast::Merge::NodeTyping.with_merge_type(node, :lint_gem)
-      #       else
-      #         node
-      #       end
-      #     }
-      #   }
-      #
-      #   merger = SmartMerger.new(
-      #     template,
-      #     destination,
-      #     node_typing: node_typing,
-      #     preference: { default: :destination, lint_gem: :template }
-      #   )
-      def initialize(template_content, dest_content, signature_generator: nil, preference: :destination, add_template_only_nodes: false, freeze_token: nil, max_recursion_depth: Float::INFINITY, current_depth: 0, match_refiner: nil, node_typing: nil, regions: nil, region_placeholder: nil)
-        # Prism-specific options (not in base class)
+      #   if they encounter edge cases.
+      # @param current_depth [Integer] Current recursion depth (internal use)
+      # @param match_refiner [#call, nil] Optional match refiner (unused but accepted for API compatibility)
+      # @param regions [Array<Hash>, nil] Region configurations (unused but accepted for API compatibility)
+      # @param region_placeholder [String, nil] Custom placeholder prefix (unused but accepted for API compatibility)
+      # @param text_merger_options [Hash, nil] Options to pass to Text::SmartMerger when
+      #   merging comment-only files (files with no Ruby code statements). Supported options:
+      #   - :freeze_token - Token for freeze block markers (defaults to @freeze_token or "text-merge")
+      #   - Any other options supported by Ast::Merge::Text::SmartMerger
+      def initialize(
+        template_content,
+        dest_content,
+        signature_generator: nil,
+        preference: :destination,
+        add_template_only_nodes: false,
+        freeze_token: nil,
+        node_typing: nil,
+        max_recursion_depth: Float::INFINITY,
+        current_depth: 0,
+        match_refiner: nil,
+        regions: nil,
+        region_placeholder: nil,
+        text_merger_options: nil
+      )
+        @node_typing = node_typing
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
-        @node_typing = node_typing
+        @text_merger_options = text_merger_options
 
         # Wrap signature_generator to include node_typing processing
         effective_signature_generator = build_effective_signature_generator(signature_generator, node_typing)
@@ -213,48 +108,25 @@ module Prism
           freeze_token: freeze_token,
           match_refiner: match_refiner,
           regions: regions,
-          region_placeholder: region_placeholder,
+          region_placeholder: region_placeholder
         )
-
-        # Create the aligner (Prism-specific - uses anchor/boundary algorithm)
-        @aligner = FileAligner.new(@template_analysis, @dest_analysis)
       end
 
-      # Performs merge and returns detailed debug information.
+      # Perform the merge and return a hash with content, debug info, and statistics.
       #
-      # This method provides comprehensive information about merge decisions,
-      # useful for debugging, testing, and understanding merge behavior.
-      #
-      # @return [Hash] Hash containing:
-      #   - `:content` [String] - Final merged content
-      #   - `:debug` [String] - Line-by-line provenance information
-      #   - `:statistics` [Hash] - Counts of merge decisions:
-      #     - `:kept_template` - Lines from template (no conflict)
-      #     - `:kept_destination` - Lines from destination (no conflict)
-      #     - `:replaced` - Template replaced matching destination
-      #     - `:appended` - Destination-only content added
-      #     - `:freeze_block` - Lines from freeze blocks
-      #
-      # @example Get merge statistics
-      #   result = merger.merge_with_debug
-      #   puts "Template lines: #{result[:statistics][:kept_template]}"
-      #   puts "Replaced lines: #{result[:statistics][:replaced]}"
-      #
-      # @example Debug line provenance
-      #   result = merger.merge_with_debug
-      #   puts result[:debug]
-      #   # Output shows source file and decision for each line:
-      #   # Line 1: [KEPT_TEMPLATE] # frozen_string_literal: true
-      #   # Line 2: [KEPT_TEMPLATE]
-      #   # Line 3: [REPLACED] VERSION = "2.0.0"
-      #
-      # @see #merge for basic merge without debug info
+      # @return [Hash] Hash with :content, :debug, and :statistics keys
       def merge_with_debug
-        content = merge
+        result = merge
         {
-          content: content,
-          debug: @result.debug_output,
-          statistics: @result.statistics,
+          content: result.to_s,
+          debug: {
+            template_statements: @template_analysis&.statements&.size || 0,
+            dest_statements: @dest_analysis&.statements&.size || 0,
+            preference: @preference,
+            add_template_only_nodes: @add_template_only_nodes,
+            freeze_token: @freeze_token
+          },
+          statistics: result.respond_to?(:statistics) ? result.statistics : {}
         }
       end
 
@@ -270,74 +142,19 @@ module Prism
         "prism-merge"
       end
 
-      # @return [Class] The resolver class for Ruby files
-      def resolver_class
-        ConflictResolver
-      end
-
       # @return [Class] The result class for Ruby files
       def result_class
         MergeResult
       end
 
-      # @return [Class, nil] The aligner class (Prism builds aligner separately)
+      # @return [Class, nil] No aligner needed for SmartMerger
       def aligner_class
         nil
       end
 
-      # Perform the Prism-specific merge using anchor/boundary algorithm.
-      #
-      # The merge process:
-      # 1. Validates both files for syntax errors (raises TemplateParseError/DestinationParseError)
-      # 2. Uses FileAligner to find anchors (matching sections) and boundaries (differences)
-      # 3. Processes anchors and boundaries in order via {#process_merge}
-      # 4. Returns MergeResult with content and per-line provenance metadata
-      #
-      # Merge behavior is controlled by constructor parameters:
-      # - `preference`: Which version wins for matching nodes (:template or :destination)
-      # - `add_template_only_nodes`: Whether to add template-only content
-      #
-      # @return [MergeResult] The merge result containing merged content and metadata
-      # @raise [TemplateParseError] If template has syntax errors
-      # @raise [DestinationParseError] If destination has syntax errors
-      # @see FileAligner For anchor/boundary detection
-      # @see ConflictResolver For boundary resolution logic
-      def perform_merge
-        # Handle invalid files
-        unless @template_analysis.valid?
-          raise Prism::Merge::TemplateParseError.new(
-            "Template file has parsing errors",
-            content: @template_content,
-            parse_result: @template_analysis.parse_result,
-          )
-        end
-
-        unless @dest_analysis.valid?
-          raise Prism::Merge::DestinationParseError.new(
-            "Destination file has parsing errors",
-            content: @dest_content,
-            parse_result: @dest_analysis.parse_result,
-          )
-        end
-
-        # Find anchors and boundaries
-        boundaries = @aligner.align
-
-        # Process the merge by walking through anchors and boundaries in order
-        process_merge(boundaries)
-
-        @result
-      end
-
-      # Build the resolver with Prism-specific signature.
-      def build_resolver
-        ConflictResolver.new(
-          @template_analysis,
-          @dest_analysis,
-          preference: @preference,
-          add_template_only_nodes: @add_template_only_nodes,
-          match_refiner: @match_refiner,
-        )
+      # @return [Class, nil] No resolver needed for SmartMerger
+      def resolver_class
+        nil
       end
 
       # Build the result (no-arg constructor for Prism)
@@ -355,13 +172,268 @@ module Prism
         DestinationParseError
       end
 
+      # Perform the SmartMerger's section-based merge with recursive body merging.
+      #
+      # @return [MergeResult] The merge result
+      def perform_merge
+        validate_files!
+
+        # Handle special case: files with no statements (comment-only files)
+        # This happens with files that only contain comments like `# frozen_string_literal: true`
+        if @template_analysis.statements.empty? && @dest_analysis.statements.empty?
+          return merge_comment_only_files
+        end
+
+        # Build signature maps for quick lookup
+        template_by_signature = build_signature_map(@template_analysis)
+        dest_by_signature = build_signature_map(@dest_analysis)
+
+        # Track which signatures we've output (to avoid duplicates)
+        output_signatures = Set.new
+
+        # Track which dest line ranges have been output (to avoid duplicating nested content)
+        output_dest_line_ranges = []
+
+        # Process destination nodes in their original order to preserve dest-only node positions
+        # This ensures dest-only nodes appear in their natural position relative to matched nodes
+        @dest_analysis.statements.each do |dest_node|
+          dest_signature = @dest_analysis.generate_signature(dest_node)
+
+          # Skip if already output (shouldn't happen but safety check)
+          next if dest_signature && output_signatures.include?(dest_signature)
+
+          # Skip if this dest node is inside a dest range we've already output
+          # (e.g., a nested node inside a Gem::Specification block)
+          node_range = dest_node.location.start_line..dest_node.location.end_line
+          next if output_dest_line_ranges.any? { |range| range.cover?(node_range.begin) && range.cover?(node_range.end) }
+
+          if dest_signature && template_by_signature.key?(dest_signature)
+            # Matched node - merge with template version
+            template_node = template_by_signature[dest_signature]
+            output_signatures << dest_signature
+
+            if should_merge_recursively?(template_node, dest_node)
+              # Recursively merge class/module/block bodies
+              merge_node_body_recursively(template_node, dest_node)
+            else
+              # Output based on preference
+              node_preference = preference_for_node(template_node, dest_node)
+
+              if node_preference == :template
+                add_node_to_result(@result, template_node, @template_analysis, :template)
+              else
+                add_node_to_result(@result, dest_node, @dest_analysis, :destination)
+              end
+            end
+
+            output_dest_line_ranges << node_range
+          else
+            # Dest-only node - output it in place
+            add_node_to_result(@result, dest_node, @dest_analysis, :destination)
+            output_dest_line_ranges << node_range
+            output_signatures << dest_signature if dest_signature
+          end
+        end
+
+        # Add template-only nodes if configured
+        if @add_template_only_nodes
+          @template_analysis.statements.each do |template_node|
+            signature = @template_analysis.generate_signature(template_node)
+
+            # Skip if already output (matched with dest)
+            next if signature && output_signatures.include?(signature)
+
+            add_node_to_result(@result, template_node, @template_analysis, :template)
+            output_signatures << signature if signature
+          end
+        end
+
+        @result
+      end
+
       private
+
+      # Check if a node has a freeze marker in its leading comments OR
+      # contains a freeze marker anywhere in its content.
+      #
+      # Nodes with freeze markers always prefer destination version during merge.
+      # This ensures that:
+      # 1. Top-level nodes with freeze markers as leading comments are preserved
+      # 2. Nodes containing freeze markers in their body (e.g., inside blocks) are preserved
+      # 3. Already-wrapped FrozenWrapper nodes are recognized as frozen
+      #
+      # @param node [Prism::Node, Ast::Merge::NodeTyping::FrozenWrapper] The node to check
+      # @return [Boolean] true if the node has or contains a freeze marker
+      def frozen_node?(node)
+        # Already wrapped as frozen (includes Freezable module)
+        return true if node.is_a?(Ast::Merge::Freezable)
+
+        return false unless @freeze_token
+
+        # Get the actual node (in case it's a Wrapper)
+        actual_node = node.respond_to?(:unwrap) ? node.unwrap : node
+
+        freeze_pattern = /#{Regexp.escape(@freeze_token)}:freeze/i
+
+        # Check for freeze marker in leading comments
+        if actual_node.respond_to?(:location) && actual_node.location.respond_to?(:leading_comments)
+          return true if actual_node.location.leading_comments.any? { |c| c.slice.match?(freeze_pattern) }
+        end
+
+        # Check if node content contains a freeze marker (for nested freeze blocks)
+        if actual_node.respond_to?(:slice)
+          return true if actual_node.slice.match?(freeze_pattern)
+        end
+
+        false
+      end
+
+      # Check if a node contains freeze blocks within its body/content.
+      #
+      # This is used to detect if a class, module, block, or other container
+      # has freeze markers anywhere inside it (not just as a leading comment).
+      #
+      # @param node [Prism::Node] The node to check
+      # @param analysis [FileAnalysis] The file analysis (for context)
+      # @return [Boolean] true if the node contains freeze markers
+      def node_contains_freeze_blocks?(node, analysis = nil)
+        return false unless @freeze_token
+
+        # Get the actual node (in case it's a Wrapper)
+        actual_node = node.respond_to?(:unwrap) ? node.unwrap : node
+
+        freeze_pattern = /#{Regexp.escape(@freeze_token)}:freeze/i
+
+        # Check if node content contains a freeze marker
+        if actual_node.respond_to?(:slice)
+          return true if actual_node.slice.match?(freeze_pattern)
+        end
+
+        false
+      end
+
+      def validate_files!
+        unless @template_analysis.valid?
+          raise TemplateParseError.new(
+            "Template file has parsing errors",
+            content: @template_content,
+            parse_result: @template_analysis.parse_result
+          )
+        end
+
+        unless @dest_analysis.valid?
+          raise DestinationParseError.new(
+            "Destination file has parsing errors",
+            content: @dest_content,
+            parse_result: @dest_analysis.parse_result
+          )
+        end
+      end
+
+      # Handle merging of files that contain only comments (no code statements).
+      #
+      # For comment-only files (like files with just `# frozen_string_literal: true`),
+      # there are no AST nodes to match. We delegate to Ast::Merge::Text::SmartMerger
+      # which provides intelligent line-based merging with freeze block support.
+      #
+      # @return [MergeResult] The merge result
+      def merge_comment_only_files
+        # Build options for text merger, merging defaults with any custom options
+        text_options = {
+          preference: default_preference,
+          add_template_only_nodes: @add_template_only_nodes,
+          freeze_token: @freeze_token || ::Ast::Merge::Text::SmartMerger::DEFAULT_FREEZE_TOKEN
+        }
+        text_options.merge!(@text_merger_options) if @text_merger_options
+
+        # Delegate to text merger for intelligent line-based merging
+        text_merger = ::Ast::Merge::Text::SmartMerger.new(
+          @template_content,
+          @dest_content,
+          **text_options
+        )
+
+        text_result = text_merger.merge
+
+        # Convert text merge result to our result format
+        text_result.to_s.each_line.with_index do |line, idx|
+          @result.add_line(
+            line.chomp,
+            decision: MergeResult::DECISION_KEPT_DEST, # Text merger handles decisions internally
+            dest_line: idx + 1
+          )
+        end
+
+        @result
+      end
+
+      # Build a map of signature -> node for an analysis.
+      #
+      # @param analysis [FileAnalysis] The file analysis
+      # @return [Hash{Array => Prism::Node}] Map of signatures to nodes
+      def build_signature_map(analysis)
+        map = {}
+        analysis.statements.each do |node|
+          sig = analysis.generate_signature(node)
+          # Only map nodes with signatures, and keep first occurrence
+          map[sig] ||= node if sig
+        end
+        map
+      end
+
+      # Determine preference for a specific node pair.
+      #
+      # Frozen nodes (those with freeze markers in leading_comments) always
+      # prefer the destination version, as they represent user customizations
+      # that should be preserved across template updates.
+      #
+      # @param template_node [Prism::Node] Template node
+      # @param dest_node [Prism::Node] Destination node
+      # @return [Symbol] :template or :destination
+      def preference_for_node(template_node, dest_node)
+        # Frozen nodes always prefer destination - they're user customizations
+        return :destination if frozen_node?(dest_node)
+
+        return @preference unless @preference.is_a?(Hash)
+
+        # Process nodes through node_typing if configured
+        typed_template = @node_typing ? ::Ast::Merge::NodeTyping.process(template_node, @node_typing) : template_node
+        typed_dest = @node_typing ? ::Ast::Merge::NodeTyping.process(dest_node, @node_typing) : dest_node
+
+        # Check for merge_type from NodeTyping
+        if ::Ast::Merge::NodeTyping.typed_node?(typed_template)
+          merge_type = ::Ast::Merge::NodeTyping.merge_type_for(typed_template)
+          return @preference.fetch(merge_type) { default_preference } if merge_type
+        end
+
+        if ::Ast::Merge::NodeTyping.typed_node?(typed_dest)
+          merge_type = ::Ast::Merge::NodeTyping.merge_type_for(typed_dest)
+          return @preference.fetch(merge_type) { default_preference } if merge_type
+        end
+
+        default_preference
+      end
+
+      def default_preference
+        if @preference.is_a?(Hash)
+          @preference.fetch(:default, :destination)
+        else
+          @preference
+        end
+      end
 
       # Build an effective signature generator that incorporates node_typing.
       #
-      # If node_typing is provided, nodes are first processed through the typing
-      # before being passed to the signature_generator (or default computation).
-      # This allows nodes to have merge_type attributes added for per-node-type preferences.
+      # When node_typing is provided, this wraps the signature_generator (or creates one)
+      # to process nodes through node_typing first. This allows:
+      #
+      # - Custom signature_generators to receive typed nodes with merge_type
+      # - Default signature generation to work with the underlying node (via unwrap in
+      #   FileAnalyzable#generate_signature)
+      #
+      # The node_typing processing happens here (for signature generation) AND in
+      # preference_for_node (for preference determination), so typed nodes are handled
+      # consistently in both contexts.
       #
       # @param signature_generator [Proc, nil] Custom signature generator
       # @param node_typing [Hash, nil] Node typing configuration
@@ -373,7 +445,8 @@ module Prism
           # First, process through node_typing to potentially add merge_type
           processed_node = ::Ast::Merge::NodeTyping.process(node, node_typing)
 
-          # Then, pass to signature_generator or return node for default processing
+          # Then, pass to signature_generator or return processed node for default handling
+          # FileAnalyzable#generate_signature will unwrap Wrappers for default signature computation
           if signature_generator
             signature_generator.call(processed_node)
           else
@@ -382,196 +455,84 @@ module Prism
         }
       end
 
-      # Determine the preference for a specific node pair.
+      # Add a node to the result, including its leading and trailing comments.
       #
-      # When per-node-type preferences are configured, checks if either node is a
-      # NodeTypeWrapper and uses its merge_type to look up the preference.
-      # Falls back to the default preference if neither node has a merge_type.
-      #
-      # @param template_node [Object, nil] Template node (may be NodeTypeWrapper)
-      # @param dest_node [Object, nil] Destination node (may be NodeTypeWrapper)
-      # @return [Symbol] :destination or :template
-      def preference_for_nodes(template_node, dest_node)
-        # If not using per-type preferences, return the default
-        return default_preference unless @preference.is_a?(Hash)
+      # @param result [MergeResult] The merge result
+      # @param node [Prism::Node] The node to add
+      # @param analysis [FileAnalysis] The source analysis
+      # @param source [Symbol] :template or :destination
+      def add_node_to_result(result, node, analysis, source)
+        decision = case source
+                   when :template
+                     MergeResult::DECISION_KEPT_TEMPLATE
+                   else
+                     MergeResult::DECISION_KEPT_DEST
+                   end
 
-        # Check template node first, then dest node
-        if template_node && ::Ast::Merge::NodeTyping.typed_node?(template_node)
-          merge_type = ::Ast::Merge::NodeTyping.merge_type_for(template_node)
-          return @preference.fetch(merge_type) { default_preference } if merge_type
-        end
+        # Get leading comments attached to the node
+        leading_comments = node.location.respond_to?(:leading_comments) ? node.location.leading_comments : []
 
-        if dest_node && ::Ast::Merge::NodeTyping.typed_node?(dest_node)
-          merge_type = ::Ast::Merge::NodeTyping.merge_type_for(dest_node)
-          return @preference.fetch(merge_type) { default_preference } if merge_type
-        end
+        # Add leading comments first (includes freeze markers if present)
+        leading_comments.each do |comment|
+          line_num = comment.location.start_line
+          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
 
-        default_preference
-      end
-
-      # Get the default preference (used as fallback).
-      #
-      # @return [Symbol] :destination or :template
-      def default_preference
-        if @preference.is_a?(Hash)
-          @preference.fetch(:default, :destination)
-        else
-          @preference
-        end
-      end
-
-      def process_merge(boundaries)
-        # Build complete timeline of anchors and boundaries
-        timeline = build_timeline(boundaries)
-
-        timeline.each do |item|
-          if item[:type] == :anchor
-            process_anchor(item[:anchor])
+          if source == :template
+            result.add_line(line, decision: decision, template_line: line_num)
           else
-            process_boundary(item[:boundary])
+            result.add_line(line, decision: decision, dest_line: line_num)
           end
         end
-      end
 
-      def build_timeline(boundaries)
-        timeline = []
-
-        # Add all anchors and boundaries sorted by position
-        @aligner.anchors.each do |anchor|
-          timeline << {type: :anchor, anchor: anchor, sort_key: [anchor.template_start, 0]}
+        # Add blank line before node if there's a gap after comments
+        if leading_comments.any?
+          last_comment_line = leading_comments.last.location.start_line
+          if node.location.start_line > last_comment_line + 1
+            # There's a gap - add blank lines
+            ((last_comment_line + 1)...node.location.start_line).each do |line_num|
+              line = analysis.line_at(line_num)&.chomp || ""
+              if source == :template
+                result.add_line(line, decision: decision, template_line: line_num)
+              else
+                result.add_line(line, decision: decision, dest_line: line_num)
+              end
+            end
+          end
         end
 
-        boundaries.each do |boundary|
-          # Sort boundaries by their position relative to anchors
-          # - Boundaries before first anchor: use their position (or 0 if no template range)
-          # - Boundaries between anchors: use template position
-          # - Boundaries after last anchor: use Float::INFINITY to place at end
+        # Add node source lines
+        (node.location.start_line..node.location.end_line).each do |line_num|
+          line = analysis.line_at(line_num)&.chomp || ""
 
-          if boundary.prev_anchor.nil? && boundary.next_anchor
-            # Before first anchor - place at beginning
-            t_start = boundary.template_range&.begin || 0
-            d_start = boundary.dest_range&.begin || 0
-          elsif boundary.prev_anchor && boundary.next_anchor.nil?
-            # After last anchor - place at end
-            t_start = Float::INFINITY
-            d_start = boundary.dest_range&.begin || Float::INFINITY
+          if source == :template
+            result.add_line(line, decision: decision, template_line: line_num)
           else
-            # Between anchors or no anchors at all
-            t_start = boundary.template_range&.begin || boundary.prev_anchor&.template_end&.+(1) || 0
-            d_start = boundary.dest_range&.begin || 0
-          end
-
-          sort_key = [t_start, d_start, 1] # 1 ensures boundaries come after anchors at same position
-
-          timeline << {type: :boundary, boundary: boundary, sort_key: sort_key}
-        end
-
-        timeline.sort_by! { |item| item[:sort_key] }
-        timeline
-      end
-
-      def process_anchor(anchor)
-        # Anchors represent identical or equivalent sections - just copy them
-        case anchor.match_type
-        when :freeze_block
-          # Freeze blocks from destination take precedence
-          add_freeze_block_from_dest(anchor)
-        when :signature_match
-          # For signature matches (same structure, different content), prefer destination
-          add_signature_match_from_dest(anchor)
-        when :exact_match
-          # For exact matches, prefer template (it's the source of truth)
-          add_exact_match_from_template(anchor)
-        else
-          # Unknown match type - default to template
-          add_exact_match_from_template(anchor)
-        end
-      end
-
-      def add_freeze_block_from_dest(anchor)
-        anchor.dest_range.each do |line_num|
-          line = @dest_analysis.line_at(line_num)
-          @result.add_line(
-            line.chomp,
-            decision: MergeResult::DECISION_FREEZE_BLOCK,
-            dest_line: line_num,
-          )
-        end
-      end
-
-      def add_signature_match_from_dest(anchor)
-        # Find the nodes corresponding to this anchor
-        # Look for nodes that overlap with the anchor range (not just at start line)
-        template_node = find_node_in_range(@template_analysis, anchor.template_start, anchor.template_end)
-        dest_node = find_node_in_range(@dest_analysis, anchor.dest_start, anchor.dest_end)
-
-        # Determine preference for this specific node pair
-        node_preference = preference_for_nodes(template_node, dest_node)
-
-        # Check if this is a class or module that should be recursively merged
-        if should_merge_recursively?(template_node, dest_node)
-          merge_node_body_recursively(template_node, dest_node, anchor)
-        elsif node_preference == :template
-          # Use template version (for updates/canonical values)
-          anchor.template_range.each do |line_num|
-            line = @template_analysis.line_at(line_num)
-            @result.add_line(
-              line.chomp,
-              decision: MergeResult::DECISION_REPLACED,
-              template_line: line_num,
-            )
-          end
-        else
-          # Use destination version (for customizations)
-          anchor.dest_range.each do |line_num|
-            line = @dest_analysis.line_at(line_num)
-            @result.add_line(
-              line.chomp,
-              decision: MergeResult::DECISION_REPLACED,
-              dest_line: line_num,
-            )
+            result.add_line(line, decision: decision, dest_line: line_num)
           end
         end
-      end
 
-      def add_exact_match_from_template(anchor)
-        anchor.template_range.each do |line_num|
-          line = @template_analysis.line_at(line_num)
-          @result.add_line(
-            line.chomp,
-            decision: MergeResult::DECISION_KEPT_TEMPLATE,
-            template_line: line_num,
-          )
+        # Add trailing blank line if needed for separation
+        trailing_line = node.location.end_line + 1
+        trailing_content = analysis.line_at(trailing_line)
+        if trailing_content && trailing_content.strip.empty?
+          if source == :template
+            result.add_line("", decision: decision, template_line: trailing_line)
+          else
+            result.add_line("", decision: decision, dest_line: trailing_line)
+          end
         end
-      end
 
-      def process_boundary(boundary)
-        @resolver.resolve(boundary, @result)
-      end
+        # Add trailing comments attached to the node (e.g., end-of-file comments)
+        trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
+        trailing_comments.each do |comment|
+          line_num = comment.location.start_line
+          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
 
-      # Find a node that overlaps with the given line range.
-      # This handles cases where anchors include leading comments (e.g., magic comments).
-      #
-      # @param analysis [FileAnalysis] The file analysis to search
-      # @param start_line [Integer] Start line of the range
-      # @param end_line [Integer] End line of the range
-      # @return [Prism::Node, nil] The first node that overlaps with the range, or nil if none found
-      def find_node_in_range(analysis, start_line, end_line)
-        # Find a node that overlaps with the range
-        analysis.statements.find do |stmt|
-          # Check if node overlaps with the range
-          stmt.location.start_line <= end_line && stmt.location.end_line >= start_line
-        end
-      end
-
-      # Find the node at a specific line in the analysis (deprecated - use find_node_in_range)
-      # @deprecated Use {#find_node_in_range} instead for better handling of leading comments
-      # @param analysis [FileAnalysis] The file analysis to search
-      # @param line_num [Integer] The line number to find a node at
-      # @return [Prism::Node, nil] The node at that line, or nil if none found
-      def find_node_at_line(analysis, line_num)
-        analysis.statements.find do |stmt|
-          line_num.between?(stmt.location.start_line, stmt.location.end_line)
+          if source == :template
+            result.add_line(line, decision: decision, template_line: line_num)
+          else
+            result.add_line(line, decision: decision, dest_line: line_num)
+          end
         end
       end
 
@@ -588,7 +549,6 @@ module Prism
       #
       # @note Recursive merge is NOT performed for:
       #   - Conditional nodes (if/unless) - treated as atomic units
-      #   - Classes/modules/blocks containing freeze blocks - frozen content would be lost
       #   - Nodes of different types
       #   - Blocks whose body contains only literals/expressions with no mergeable statements
       #   - When max_recursion_depth has been reached (safety valve)
@@ -598,39 +558,30 @@ module Prism
         # Safety valve: stop recursion if max depth reached
         return false if @current_depth >= @max_recursion_depth
 
+        # Unwrap FrozenWrapper nodes to check the actual node type
+        actual_template = template_node.respond_to?(:unwrap) ? template_node.unwrap : template_node
+        actual_dest = dest_node.respond_to?(:unwrap) ? dest_node.unwrap : dest_node
+
         # Both nodes must be the same type
-        return false unless template_node.class == dest_node.class
+        return false unless actual_template.class == actual_dest.class
 
         # Determine if this node type supports recursive merging
-        can_merge_recursively = case template_node
+        case actual_template
         when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
           # Class/module definitions - merge their body contents
           true
         when Prism::CallNode
           # Only merge if both have blocks with mergeable content
-          template_node.block && dest_node.block &&
-            body_has_mergeable_statements?(template_node.block.body) &&
-            body_has_mergeable_statements?(dest_node.block.body)
+          return false unless actual_template.block && actual_dest.block
+
+          body_has_mergeable_statements?(actual_template.block.body) &&
+            body_has_mergeable_statements?(actual_dest.block.body)
         when Prism::BeginNode
-          # begin/rescue/ensure blocks - merge statements
-          template_node.statements && dest_node.statements
-        when Prism::CaseNode, Prism::CaseMatchNode
-          # Case statements could potentially merge conditions, but this is complex
-          # For now, treat as atomic unless both have same structure
-          false
-        when Prism::WhileNode, Prism::UntilNode, Prism::ForNode
-          # Loops - could merge body, but usually should be atomic
-          false
-        when Prism::LambdaNode
-          # Lambdas - could merge body, but typically atomic
-          false
+          # begin/rescue/ensure blocks - merge statements if both have them
+          !!(actual_template.statements && actual_dest.statements)
         else
           false
         end
-
-        return false unless can_merge_recursively
-
-        true
       end
 
       # Check if a body (StatementsNode) contains statements that could be merged.
@@ -672,70 +623,30 @@ module Prism
         end
       end
 
-      # Check if a node's body contains freeze block markers.
-      #
-      # @param node [Prism::Node] The node to check
-      # @param analysis [FileAnalysis] The analysis for the file containing this node
-      # @return [Boolean] true if the node's body contains freeze block comments
-      # @api private
-      def node_contains_freeze_blocks?(node, analysis)
-        return false unless @freeze_token
-
-        # Check if node has nested content that could contain freeze blocks
-        # Different node types store content in different attributes
-        has_content = case node
-        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode,
-             Prism::LambdaNode, Prism::ParenthesesNode
-          node.body
-        when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode,
-             Prism::ForNode, Prism::BeginNode
-          node.statements
-        when Prism::CallNode, Prism::SuperNode, Prism::ForwardingSuperNode
-          node.block
-        else
-          # Fallback for any other nodes
-          node.respond_to?(:body) && node.body ||
-            node.respond_to?(:statements) && node.statements ||
-            node.respond_to?(:block) && node.block
-        end
-
-        return false unless has_content
-
-        # Check if any comments in the node's range contain freeze markers
-        # Only check comments from the analysis that owns this node
-        freeze_pattern = /#\s*#{Regexp.escape(@freeze_token)}:(freeze|unfreeze)/i
-
-        node_start = node.location.start_line
-        node_end = node.location.end_line
-
-        analysis.parse_result.comments.any? do |comment|
-          comment_line = comment.location.start_line
-          comment_line > node_start && comment_line < node_end && comment.slice.match?(freeze_pattern)
-        end
-      end
-
       # Recursively merges the body of matching class, module, or call-with-block nodes.
       #
       # This method extracts the body content (everything between the opening
       # declaration and the closing 'end'), creates a new nested SmartMerger to merge
       # those bodies, and then reassembles the complete node with the merged body.
       #
-      # @param template_node [Prism::ClassNode, Prism::ModuleNode, Prism::CallNode] Node from template
-      # @param dest_node [Prism::ClassNode, Prism::ModuleNode, Prism::CallNode] Node from destination
-      # @param anchor [FileAligner::Anchor] The anchor representing this match
+      # @param template_node [Prism::Node] Node from template
+      # @param dest_node [Prism::Node] Node from destination
       #
       # @note The nested merger is configured with:
       #   - Same signature_generator, preference, add_template_only_nodes, and freeze_token
       #   - Incremented current_depth to track recursion level
       #
       # @api private
-      def merge_node_body_recursively(template_node, dest_node, anchor)
+      def merge_node_body_recursively(template_node, dest_node)
+        # Unwrap FrozenWrapper nodes to get actual nodes
+        actual_template = template_node.respond_to?(:unwrap) ? template_node.unwrap : template_node
+        actual_dest = dest_node.respond_to?(:unwrap) ? dest_node.unwrap : dest_node
+
         # Extract the body source for both nodes
-        template_body = extract_node_body(template_node, @template_analysis)
-        dest_body = extract_node_body(dest_node, @dest_analysis)
+        template_body = extract_node_body(actual_template, @template_analysis)
+        dest_body = extract_node_body(actual_dest, @dest_analysis)
 
         # Recursively merge the bodies with incremented depth
-        # Pass freeze_token so freeze blocks inside nested bodies are preserved
         body_merger = SmartMerger.new(
           template_body,
           dest_body,
@@ -745,61 +656,84 @@ module Prism
           freeze_token: @freeze_token,
           max_recursion_depth: @max_recursion_depth,
           current_depth: @current_depth + 1,
-          node_typing: @node_typing,
+          node_typing: @node_typing
         )
         merged_body = body_merger.merge.rstrip
 
-        # Determine leading comments handling:
-        # - If template has leading comments, use template's based on preference
-        # - If template has NO leading comments but destination does, preserve destination's
-        template_has_leading = anchor.template_start < template_node.location.start_line
-        dest_has_leading = anchor.dest_start < dest_node.location.start_line
-
         # Get preference for this specific node pair
-        node_preference = preference_for_nodes(template_node, dest_node)
+        node_preference = preference_for_node(template_node, dest_node)
 
-        if template_has_leading && node_preference == :template
-          # Use template's leading comments
-          (anchor.template_start...template_node.location.start_line).each do |line_num|
-            line = @template_analysis.line_at(line_num)
-            @result.add_line(
-              line.chomp,
-              decision: MergeResult::DECISION_REPLACED,
-              template_line: line_num,
-            )
+        # Determine which comments to use:
+        # - If template preference and template has comments, use template's
+        # - If template preference but template has NO comments, preserve dest's comments
+        # - If dest preference, use dest's comments
+        template_comments = actual_template.location.respond_to?(:leading_comments) ? actual_template.location.leading_comments : []
+        dest_comments = actual_dest.location.respond_to?(:leading_comments) ? actual_dest.location.leading_comments : []
+
+        # Choose comment source: prefer dest comments if template has none (to preserve existing headers)
+        if node_preference == :template && template_comments.empty? && dest_comments.any?
+          comment_source = :destination
+          leading_comments = dest_comments
+          comment_analysis = @dest_analysis
+        elsif node_preference == :template
+          comment_source = :template
+          leading_comments = template_comments
+          comment_analysis = @template_analysis
+        else
+          comment_source = :destination
+          leading_comments = dest_comments
+          comment_analysis = @dest_analysis
+        end
+
+        # Source for the opening/closing lines follows node_preference
+        source_analysis = (node_preference == :template) ? @template_analysis : @dest_analysis
+        source_node = (node_preference == :template) ? actual_template : actual_dest
+        decision = MergeResult::DECISION_REPLACED
+
+        # Add leading comments
+        leading_comments.each do |comment|
+          line_num = comment.location.start_line
+          line = comment_analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+          if comment_source == :template
+            @result.add_line(line, decision: decision, template_line: line_num)
+          else
+            @result.add_line(line, decision: decision, dest_line: line_num)
           end
-        elsif dest_has_leading
-          # Preserve destination's leading comments (either because preference is :destination,
-          # or because template has none)
-          (anchor.dest_start...dest_node.location.start_line).each do |line_num|
-            line = @dest_analysis.line_at(line_num)
-            @result.add_line(
-              line.chomp,
-              decision: MergeResult::DECISION_KEPT_DEST,
-              dest_line: line_num,
-            )
+        end
+
+        # Add blank lines between comments and node if needed
+        # Note: blank lines come from comment_analysis to match the comment source
+        if leading_comments.any?
+          last_comment_line = leading_comments.last.location.start_line
+          # Calculate the gap based on source_node's start line
+          if source_node.location.start_line > last_comment_line + 1
+            ((last_comment_line + 1)...source_node.location.start_line).each do |line_num|
+              line = comment_analysis.line_at(line_num)&.chomp || ""
+              if comment_source == :template
+                @result.add_line(line, decision: decision, template_line: line_num)
+              else
+                @result.add_line(line, decision: decision, dest_line: line_num)
+              end
+            end
           end
         end
 
         # Add the opening line (based on preference)
-        source_analysis = (node_preference == :template) ? @template_analysis : @dest_analysis
-        source_node = (node_preference == :template) ? template_node : dest_node
-
         opening_line = source_analysis.line_at(source_node.location.start_line)
         @result.add_line(
           opening_line.chomp,
-          decision: MergeResult::DECISION_REPLACED,
-          template_line: ((node_preference == :template) ? source_node.location.start_line : nil),
-          dest_line: ((node_preference == :destination) ? source_node.location.start_line : nil),
+          decision: decision,
+          template_line: (node_preference == :template) ? source_node.location.start_line : nil,
+          dest_line: (node_preference == :destination) ? source_node.location.start_line : nil
         )
 
-        # Add the merged body (indented appropriately)
+        # Add the merged body
         merged_body.lines.each do |line|
           @result.add_line(
             line.chomp,
-            decision: MergeResult::DECISION_REPLACED,
+            decision: decision,
             template_line: nil,
-            dest_line: nil,
+            dest_line: nil
           )
         end
 
@@ -807,52 +741,33 @@ module Prism
         end_line = source_analysis.line_at(source_node.location.end_line)
         @result.add_line(
           end_line.chomp,
-          decision: MergeResult::DECISION_REPLACED,
-          template_line: ((node_preference == :template) ? source_node.location.end_line : nil),
-          dest_line: ((node_preference == :destination) ? source_node.location.end_line : nil),
+          decision: decision,
+          template_line: (node_preference == :template) ? source_node.location.end_line : nil,
+          dest_line: (node_preference == :destination) ? source_node.location.end_line : nil
         )
       end
 
       # Extracts the body content of a node (without declaration and closing 'end').
       #
-      # For class/module nodes, extracts content between the declaration line and the
-      # closing 'end'. For conditional nodes, extracts the statements within the condition.
-      #
       # @param node [Prism::Node] The node to extract body from
       # @param analysis [FileAnalysis] The file analysis containing the node
       # @return [String] The extracted body content
       #
-      # @note Handles different node types:
-      #   - ClassNode/ModuleNode: Uses node.body (StatementsNode)
-      #   - IfNode/UnlessNode: Uses node.statements (StatementsNode)
-      #   - CallNode with block: Uses node.block.body (StatementsNode)
-      #
       # @api private
       def extract_node_body(node, analysis)
         # Get the statements node based on node type
-        # Different node types store their body/statements in different attributes
         statements_node = case node
         when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode, Prism::LambdaNode
-          # These use .body which returns a StatementsNode
           node.body
         when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode, Prism::ForNode
-          # These use .statements
           node.statements
         when Prism::CallNode
-          # CallNode stores body inside block.body
           node.block&.body
         when Prism::BeginNode
-          # BeginNode uses .statements for the main body
           node.statements
-        when Prism::CaseNode, Prism::CaseMatchNode
-          # Case nodes have conditions (WhenNode/InNode array), not a simple body
-          # Return nil for now - these need special handling
-          nil
         when Prism::ParenthesesNode
           node.body
         else
-          # :nocov: defensive - all common node types are handled explicitly above
-          # Try common patterns
           if node.respond_to?(:body)
             node.body
           elsif node.respond_to?(:statements)
@@ -860,7 +775,6 @@ module Prism
           elsif node.respond_to?(:block) && node.block
             node.block.body
           end
-          # :nocov:
         end
 
         return "" unless statements_node&.is_a?(Prism::StatementsNode)
@@ -869,27 +783,19 @@ module Prism
         return "" if body_statements.empty?
 
         # Get the line range of the body
-        # Start from line after node opening (to include any leading comments/freeze markers)
-        # End at the line before the closing `end` (to include trailing comments/freeze markers)
         body_start_line = case node
         when Prism::CallNode
-          # Block body starts on line after the `do` or `{`
           node.block.opening_loc ? node.block.opening_loc.start_line + 1 : body_statements.first.location.start_line
         when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
-          # Body starts on line after class/module declaration
           node.location.start_line + 1
         else
           body_statements.first.location.start_line
         end
 
-        # End line should be the line before the closing keyword (end, }, etc.)
-        # This ensures we capture trailing comments and freeze blocks after the last statement
         body_end_line = case node
         when Prism::CallNode
-          # Block ends at the closing `end` or `}`
           node.block.closing_loc ? node.block.closing_loc.start_line - 1 : body_statements.last.location.end_line
         when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
-          # Body ends at the line before `end`
           node.end_keyword_loc ? node.end_keyword_loc.start_line - 1 : body_statements.last.location.end_line
         else
           body_statements.last.location.end_line

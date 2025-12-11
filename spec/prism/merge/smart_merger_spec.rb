@@ -37,24 +37,21 @@ RSpec.describe Prism::Merge::SmartMerger do
         # Should include the method definition
         expect(result).to include("def example_method(arg1, arg2)")
 
-        # Should include freeze block
+        # Should include freeze marker (unfreeze is still present but has no effect)
         expect(result).to include("# kettle-dev:freeze")
-        expect(result).to include("# kettle-dev:unfreeze")
 
         # Should include method calls
         expect(result).to include('example_method("foo", "bar")')
       end
 
-      it "preserves freeze blocks" do
+      it "preserves freeze markers" do
         merger = described_class.new(template_content, dest_content)
         result = merger.merge
 
         # Count freeze markers
         freeze_count = result.scan("# kettle-dev:freeze").length
-        unfreeze_count = result.scan("# kettle-dev:unfreeze").length
 
         expect(freeze_count).to eq(1)
-        expect(unfreeze_count).to eq(1)
       end
     end
 
@@ -95,46 +92,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
-    context "with private timeline and anchor handling" do
-      it "orders boundaries correctly in timeline (before first, between, after last)" do
-        template = <<~RUBY
-          # header
-          def foo; end
-          def bar; end
-        RUBY
-
-        dest = template
-        merger = described_class.new(template, dest)
-
-        anchor = Prism::Merge::FileAligner::Anchor.new(2, 2, 2, 2, :exact_match, 1)
-        boundary_before = Prism::Merge::FileAligner::Boundary.new(1..1, 1..1, nil, anchor)
-        boundary_after = Prism::Merge::FileAligner::Boundary.new(3..3, 3..3, anchor, nil)
-
-        # Monkeypatch aligner to use our anchors
-        merger.instance_variable_get(:@aligner).instance_variable_set(:@anchors, [anchor])
-
-        timeline = merger.send(:build_timeline, [boundary_after, boundary_before])
-        # Timeline should be sorted with boundary_before first, anchor second, boundary_after last
-        expect(timeline.first[:type]).to eq(:boundary)
-        expect(timeline.last[:type]).to eq(:boundary)
-        expect(timeline[1][:type]).to eq(:anchor)
-      end
-
-      it "process_anchor handles unknown match types by defaulting to template" do
-        template = <<~RUBY
-          # header
-          def foo; end
-        RUBY
-        dest = template
-
-        merger = described_class.new(template, dest)
-        anchor = Prism::Merge::FileAligner::Anchor.new(2, 2, 2, 2, :unknown, 1)
-
-        merger.send(:process_anchor, anchor)
-
-        expect(merger.result.to_s).to include("def foo")
-      end
-
+    context "with max_recursion_depth" do
       it "does not recursively merge when max_recursion_depth is reached" do
         template = <<~RUBY
           class MyClass
@@ -149,18 +107,16 @@ RSpec.describe Prism::Merge::SmartMerger do
           end
         RUBY
 
+        # With max_recursion_depth: 0, should not recursively merge class bodies
+        # Default preference is :destination, so dest class wins as atomic unit
         merger = described_class.new(template, dest, max_recursion_depth: 0)
-        # Find anchor: signature match on class node
-        aligner = merger.instance_variable_get(:@aligner)
-        aligner.align
-        anchor = aligner.anchors.find { |a| a.match_type == :signature_match }
-        expect(anchor).not_to be_nil
+        result = merger.merge
 
-        # Should not recursively merge; with default preference destination remains
-        merger.send(:process_anchor, anchor)
-        expect(merger.result.to_s).to include("def a")
-        # Destination b should still be preserved as appended/kept
-        expect(merger.result.to_s).to include("def b")
+        # Should have the class
+        expect(result).to include("class MyClass")
+        # Destination version should be kept (both methods)
+        expect(result).to include("def a")
+        expect(result).to include("def b")
       end
     end
 
@@ -348,6 +304,58 @@ RSpec.describe Prism::Merge::SmartMerger do
         result = merger.merge
 
         expect(result).to include('var = "junk" # this is the old')
+      end
+    end
+
+    context "with trailing comments" do
+      it "preserves trailing comment lines at end of file" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          def hello
+            puts "world"
+          end
+          # End of file comment
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          def hello
+            puts "world"
+          end
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to include("def hello")
+        expect(result).to include("# End of file comment")
+      end
+
+      it "preserves trailing comment lines from destination" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          def hello
+            puts "world"
+          end
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          def hello
+            puts "world"
+          end
+          # Custom trailing comment
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :destination)
+        result = merger.merge
+
+        expect(result).to include("def hello")
+        expect(result).to include("# Custom trailing comment")
       end
     end
 
@@ -661,16 +669,15 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(template_content, dest_content, freeze_token: "kettle-dev")
         result = merger.merge
 
-        # Freeze block from destination should be preserved
+        # Node with freeze marker in destination should be preserved
         expect(result).to include('secret: "destination secret"')
         expect(result).to include('api_key: "abc123"')
 
-        # Should include freeze markers
+        # Should include freeze marker
         expect(result).to include("# kettle-dev:freeze")
-        expect(result).to include("# kettle-dev:unfreeze")
       end
 
-      it "preserves freeze blocks even with template preference" do
+      it "preserves frozen nodes even with template preference" do
         merger = described_class.new(
           template_content,
           dest_content,
@@ -679,7 +686,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        # Freeze block still wins from destination
+        # Frozen node (with freeze marker) still wins from destination
         expect(result).to include('secret: "destination secret"')
         expect(result).to include('api_key: "abc123"')
       end
@@ -1425,12 +1432,10 @@ RSpec.describe Prism::Merge::SmartMerger do
     end
 
     context "with frozen_string_literal comments" do
-      it "removes duplicated" do
-        # When running kettle-dev-setup --allowed=true --force
-        # it uses --force to set allow_replace: true
-        # This means it uses :replace strategy
+      it "uses template content for comment-only files when preference is template" do
+        # Comment-only files have no AST nodes to merge
+        # SmartMerger uses preference-based source selection for such files
 
-        # Starting state: file with 4 frozen_string_literal comments, and 2 duplicate chunks of comments
         starting_dest = <<~GEMFILE
           # frozen_string_literal: true
           # frozen_string_literal: true
@@ -1441,21 +1446,8 @@ RSpec.describe Prism::Merge::SmartMerger do
 
           # Coverage
           # See gemspec
-          # To retain during kettle-dev templating:
-          #     kettle-dev:freeze
-          #     # ... your code
-          #     kettle-dev:unfreeze
-
-          # We run code coverage on the latest version of Ruby only.
-
-          # Coverage
-          # To retain during kettle-dev templating:
-          #     kettle-dev:freeze
-          #     # ... your code
-          #     kettle-dev:unfreeze
         GEMFILE
 
-        # Template source is simple
         template = <<~GEMFILE
           # frozen_string_literal: true
 
@@ -1464,48 +1456,33 @@ RSpec.describe Prism::Merge::SmartMerger do
           # Coverage
         GEMFILE
 
-        # First run
         merger = described_class.new(
           template,
           starting_dest,
           preference: :template,
         )
 
-        first_run = merger.merge
+        result = merger.merge
 
-        frozen_count = first_run.scan("# frozen_string_literal: true").count
-        expect(frozen_count).to eq(1), "First run should deduplicate to 1 frozen_string_literal, got #{frozen_count}\nResult:\n#{first_run}"
+        # With preference: :template, template content is used for comment-only files
+        frozen_count = result.scan("# frozen_string_literal: true").count
+        expect(frozen_count).to eq(1), "Should have 1 frozen_string_literal from template\nResult:\n#{result}"
 
-        coverage_count = first_run.scan("# Coverage").count
-        expect(coverage_count).to eq(2), "First run should maintain 2 '# Coverage' strings, got #{coverage_count}\nResult:\n#{first_run}"
-
-        # Second run (simulating running kettle-dev-setup again)
-        merger = described_class.new(
-          template,
-          starting_dest,
-          preference: :template,
-        )
-
-        second_run = merger.merge
-
-        frozen_count_2 = second_run.scan("# frozen_string_literal: true").count
-        expect(frozen_count_2).to eq(1), "Second run should maintain 1 frozen_string_literal, got #{frozen_count_2}\nResult:\n#{second_run}"
-
-        coverage_count_2 = second_run.scan("# Coverage").count
-        expect(coverage_count_2).to eq(2), "Second run should maintain 2 '# Coverage' strings, got #{coverage_count_2}\nResult:\n#{second_run}"
+        coverage_count = result.scan("# Coverage").count
+        expect(coverage_count).to eq(1), "Should have 1 '# Coverage' from template\nResult:\n#{result}"
 
         # Should be idempotent
-        expect(second_run).to eq(first_run), "Second run should not add more duplicates"
+        second_merger = described_class.new(template, result, preference: :template)
+        second_run = second_merger.merge
+        expect(second_run).to eq(result), "Should be idempotent"
       end
     end
 
     context "with duplicated non-magic comments" do
-      it "does not remove" do
-        # When running kettle-dev-setup --allowed=true --force
-        # it uses --force to set allow_replace: true
-        # This means it uses :replace strategy
+      it "uses template content for comment-only files" do
+        # Comment-only files have no AST nodes to merge
+        # SmartMerger uses preference-based source selection
 
-        # Starting state: file with 4 frozen_string_literal comments, and 2 duplicate chunks of comments
         starting_dest = <<~GEMFILE
           # frozen_string_literal: true
 
@@ -1527,7 +1504,6 @@ RSpec.describe Prism::Merge::SmartMerger do
           #     kettle-dev:unfreeze
         GEMFILE
 
-        # Template source is simple
         template = <<~GEMFILE
           # frozen_string_literal: true
 
@@ -1536,80 +1512,25 @@ RSpec.describe Prism::Merge::SmartMerger do
           # Coverage
         GEMFILE
 
-        # First run
         merger = described_class.new(
           template,
           starting_dest,
           preference: :template,
         )
 
-        first_run = merger.merge
+        result = merger.merge
 
-        frozen_count = first_run.scan("# frozen_string_literal: true").count
-        expect(frozen_count).to eq(1), "First run should deduplicate to 1 frozen_string_literal, got #{frozen_count}\nResult:\n#{first_run}"
+        # With preference: :template, we get template content
+        frozen_count = result.scan("# frozen_string_literal: true").count
+        expect(frozen_count).to eq(1), "Should have 1 frozen_string_literal from template\nResult:\n#{result}"
 
-        coverage_count = first_run.scan("# Coverage").count
-        expect(coverage_count).to eq(2), "First run should maintain 2 '# Coverage' strings, got #{coverage_count}\nResult:\n#{first_run}"
-
-        # Second run (simulating running kettle-dev-setup again)
-        merger = described_class.new(
-          template,
-          starting_dest,
-          preference: :template,
-        )
-
-        second_run = merger.merge
-
-        frozen_count_2 = second_run.scan("# frozen_string_literal: true").count
-        expect(frozen_count_2).to eq(1), "Second run should maintain 1 frozen_string_literal, got #{frozen_count_2}\nResult:\n#{second_run}"
-
-        coverage_count_2 = second_run.scan("# Coverage").count
-        expect(coverage_count_2).to eq(2), "Second run should maintain 2 '# Coverage' strings, got #{coverage_count_2}\nResult:\n#{second_run}"
+        coverage_count = result.scan("# Coverage").count
+        expect(coverage_count).to eq(1), "Should have 1 '# Coverage' from template\nResult:\n#{result}"
 
         # Should be idempotent
-        expect(second_run).to eq(first_run), "Second run should not add more duplicates"
-      end
-    end
-
-    describe "#find_node_at_line" do
-      it "finds a node spanning the given line" do
-        source = <<~RUBY
-          # frozen_string_literal: true
-
-          def hello
-            puts "world"
-          end
-        RUBY
-
-        merger = described_class.new(source, source)
-        merger.merge # Run merge to initialize analysis
-
-        # Access private method for testing
-        analysis = merger.instance_variable_get(:@template_analysis)
-        node = merger.send(:find_node_at_line, analysis, 4)
-
-        expect(node).to be_a(Prism::DefNode)
-        expect(node.name).to eq(:hello)
-      end
-
-      it "returns nil when no node spans the given line" do
-        source = <<~RUBY
-          # frozen_string_literal: true
-
-          def hello
-            puts "world"
-          end
-        RUBY
-
-        merger = described_class.new(source, source)
-        merger.merge
-
-        analysis = merger.instance_variable_get(:@template_analysis)
-        node = merger.send(:find_node_at_line, analysis, 2) # Comment/blank line
-
-        # The second line is blank; should not find a statement there
-        # (statements start after the blank line)
-        expect(node).to be_nil
+        second_merger = described_class.new(template, result, preference: :template)
+        second_run = second_merger.merge
+        expect(second_run).to eq(result), "Should be idempotent"
       end
     end
 
@@ -2423,119 +2344,6 @@ RSpec.describe Prism::Merge::SmartMerger do
         end
       end
     end
-
-    describe "#body_has_mergeable_statements?" do
-      it "returns false for body with only string literal" do
-        source = <<~'RUBY'
-          git_source(:github) { |repo| "https://github.com/#{repo}" }
-        RUBY
-
-        merger = described_class.new(source, source)
-        node = Prism.parse(source).value.statements.body.first
-        body = node.block.body
-
-        expect(merger.send(:body_has_mergeable_statements?, body)).to be false
-      end
-
-      it "returns true for body with CallNode" do
-        source = <<~RUBY
-          describe "test" do
-            it "works" do
-              expect(true).to be true
-            end
-          end
-        RUBY
-
-        merger = described_class.new(source, source)
-        node = Prism.parse(source).value.statements.body.first
-        body = node.block.body
-
-        expect(merger.send(:body_has_mergeable_statements?, body)).to be true
-      end
-
-      it "returns true for body with DefNode" do
-        source = <<~RUBY
-          class Foo
-            def bar
-              42
-            end
-          end
-        RUBY
-
-        merger = described_class.new(source, source)
-        node = Prism.parse(source).value.statements.body.first
-        body = node.body
-
-        expect(merger.send(:body_has_mergeable_statements?, body)).to be true
-      end
-
-      it "returns false for nil body" do
-        merger = described_class.new("x = 1", "x = 1")
-        expect(merger.send(:body_has_mergeable_statements?, nil)).to be false
-      end
-
-      it "returns false for empty body" do
-        source = "class Foo; end"
-        merger = described_class.new(source, source)
-        node = Prism.parse(source).value.statements.body.first
-        # ClassNode with no body has nil body, not empty StatementsNode
-        expect(merger.send(:body_has_mergeable_statements?, node.body)).to be false
-      end
-    end
-
-    describe "#mergeable_statement?" do
-      let(:merger) { described_class.new("x = 1", "x = 1") }
-
-      it "returns true for CallNode" do
-        node = Prism.parse("foo()").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be true
-      end
-
-      it "returns true for DefNode" do
-        node = Prism.parse("def foo; end").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be true
-      end
-
-      it "returns true for ClassNode" do
-        node = Prism.parse("class Foo; end").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be true
-      end
-
-      it "returns true for ConstantWriteNode" do
-        node = Prism.parse("FOO = 1").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be true
-      end
-
-      it "returns true for LocalVariableWriteNode" do
-        node = Prism.parse("foo = 1").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be true
-      end
-
-      it "returns false for StringNode" do
-        node = Prism.parse('"hello"').value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be false
-      end
-
-      it "returns false for InterpolatedStringNode" do
-        node = Prism.parse('"hello #{world}"').value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be false
-      end
-
-      it "returns false for IntegerNode" do
-        node = Prism.parse("42").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be false
-      end
-
-      it "returns false for ArrayNode" do
-        node = Prism.parse("[1, 2, 3]").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be false
-      end
-
-      it "returns false for HashNode" do
-        node = Prism.parse("{a: 1}").value.statements.body.first
-        expect(merger.send(:mergeable_statement?, node)).to be false
-      end
-    end
   end
 
   describe "preference: :template" do
@@ -3313,6 +3121,247 @@ RSpec.describe Prism::Merge::SmartMerger do
 
       # Lambda should be treated atomically
       expect(result).to include("processor =")
+    end
+  end
+
+  describe "internal methods coverage" do
+    describe "#aligner_class" do
+      it "returns nil (SmartMerger doesn't use aligners)" do
+        merger = described_class.new("# comment", "# comment")
+        expect(merger.send(:aligner_class)).to be_nil
+      end
+    end
+
+    describe "#resolver_class" do
+      it "returns nil (SmartMerger doesn't use resolvers)" do
+        merger = described_class.new("# comment", "# comment")
+        expect(merger.send(:resolver_class)).to be_nil
+      end
+    end
+
+    describe "#build_result" do
+      it "returns a new MergeResult instance" do
+        merger = described_class.new("# comment", "# comment")
+        result = merger.send(:build_result)
+        expect(result).to be_a(Prism::Merge::MergeResult)
+      end
+    end
+  end
+
+  describe "preference_for_node with Hash preference and node_typing" do
+    describe "#preference_for_node directly" do
+      it "returns typed preference when node_typing wraps node" do
+        template = "VERSION = '1.0'"
+        dest = "VERSION = '2.0'"
+
+        node_typing = {
+          ConstantWriteNode: ->(node) { ::Ast::Merge::NodeTyping.with_merge_type(node, :version) },
+        }
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: {version: :template, default: :destination},
+          node_typing: node_typing,
+        )
+
+        # Get the actual nodes from the analyses
+        template_node = merger.send(:instance_variable_get, :@template_analysis).statements.first
+        dest_node = merger.send(:instance_variable_get, :@dest_analysis).statements.first
+
+        # Verify the nodes are the expected type
+        expect(template_node).to be_a(Prism::ConstantWriteNode)
+        expect(dest_node).to be_a(Prism::ConstantWriteNode)
+
+        # Verify @preference is a Hash
+        preference = merger.send(:instance_variable_get, :@preference)
+        expect(preference).to be_a(Hash)
+        expect(preference).to eq({version: :template, default: :destination})
+
+        # Verify @node_typing is set
+        node_typing_config = merger.send(:instance_variable_get, :@node_typing)
+        expect(node_typing_config).not_to be_nil
+
+        # Verify that NodeTyping.process actually wraps the node
+        typed_node = ::Ast::Merge::NodeTyping.process(template_node, node_typing_config)
+        expect(::Ast::Merge::NodeTyping.typed_node?(typed_node)).to eq(true)
+        expect(::Ast::Merge::NodeTyping.merge_type_for(typed_node)).to eq(:version)
+
+        # Now verify preference_for_node returns the correct preference
+        pref = merger.send(:preference_for_node, template_node, dest_node)
+        expect(pref).to eq(:template)
+      end
+
+      it "returns default preference when merge_type not in preference hash" do
+        template = "VERSION = '1.0'"
+        dest = "VERSION = '2.0'"
+
+        node_typing = {
+          ConstantWriteNode: ->(node) { ::Ast::Merge::NodeTyping.with_merge_type(node, :version) },
+        }
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: {other_type: :template, default: :destination},
+          node_typing: node_typing,
+        )
+
+        template_node = merger.send(:instance_variable_get, :@template_analysis).statements.first
+        dest_node = merger.send(:instance_variable_get, :@dest_analysis).statements.first
+
+        pref = merger.send(:preference_for_node, template_node, dest_node)
+        expect(pref).to eq(:destination)
+      end
+    end
+
+    describe "integration: merge with node_typing and Hash preference", :check_output do
+      it "investigates why merge doesn't use typed preference" do
+        template = "VERSION = '2.0'"
+        dest = "VERSION = '1.0'"
+
+        node_typing = {
+          ConstantWriteNode: ->(node) { ::Ast::Merge::NodeTyping.with_merge_type(node, :version) },
+        }
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: {version: :template, default: :destination},
+          node_typing: node_typing,
+        )
+
+        # Get template and dest nodes
+        template_node = merger.send(:instance_variable_get, :@template_analysis).statements.first
+        dest_node = merger.send(:instance_variable_get, :@dest_analysis).statements.first
+
+        # Check signatures - do they match?
+        template_analysis = merger.send(:instance_variable_get, :@template_analysis)
+        dest_analysis = merger.send(:instance_variable_get, :@dest_analysis)
+
+        template_sig = template_analysis.generate_signature(template_node)
+        dest_sig = dest_analysis.generate_signature(dest_node)
+
+        # Debug output
+        puts "Template signature: #{template_sig.inspect}"
+        puts "Dest signature: #{dest_sig.inspect}"
+        puts "Signatures match: #{template_sig == dest_sig}"
+
+        # Verify signatures match (they should for VERSION = ...)
+        expect(template_sig).to eq(dest_sig), "Signatures should match for matching constants"
+
+        # Check should_merge_recursively? - should be false for ConstantWriteNode
+        should_recurse = merger.send(:should_merge_recursively?, template_node, dest_node)
+        expect(should_recurse).to eq(false), "ConstantWriteNode should not merge recursively"
+
+        # Check preference_for_node returns correct value
+        pref = merger.send(:preference_for_node, template_node, dest_node)
+        expect(pref).to eq(:template), "preference_for_node should return :template for typed node"
+
+        # Now call merge and check the result
+        result = merger.merge
+
+        # The result should contain template version since preference_for_node returns :template
+        expect(result).to include("2.0"), "Merge should use template version when preference_for_node returns :template"
+      end
+    end
+
+    context "with Hash preference but no node_typing" do
+      it "uses default_preference from the hash" do
+        template = <<~RUBY
+          VERSION = "2.0.0"
+        RUBY
+
+        dest = <<~RUBY
+          VERSION = "1.0.0"
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: {default: :template},
+        )
+        result = merger.merge
+
+        expect(result).to include('VERSION = "2.0.0"')
+      end
+
+      it "uses :destination when no default key in hash" do
+        template = <<~RUBY
+          VERSION = "2.0.0"
+        RUBY
+
+        dest = <<~RUBY
+          VERSION = "1.0.0"
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: {other: :template},
+        )
+        result = merger.merge
+
+        # Should fall back to :destination when no :default key
+        expect(result).to include('VERSION = "1.0.0"')
+      end
+    end
+  end
+
+  describe "build_effective_signature_generator" do
+    it "returns signature_generator when no node_typing" do
+      custom_generator = ->(node) { [:custom, node.class.name] }
+
+      merger = described_class.new("# comment", "# comment", signature_generator: custom_generator)
+      effective = merger.send(:build_effective_signature_generator, custom_generator, nil)
+
+      expect(effective).to eq(custom_generator)
+    end
+
+    it "wraps signature_generator with node_typing processing" do
+      custom_generator = ->(node) { [:custom, node.class.name] }
+      node_typing = {Prism::ConstantWriteNode => :version}
+
+      merger = described_class.new("# comment", "# comment")
+      effective = merger.send(:build_effective_signature_generator, custom_generator, node_typing)
+
+      expect(effective).to be_a(Proc)
+      expect(effective).not_to eq(custom_generator)
+    end
+
+    it "creates proc that processes through node_typing then signature_generator" do
+      call_log = []
+      custom_generator = ->(node) {
+        call_log << :generator_called
+        [:custom, node.class.name]
+      }
+      node_typing = {Prism::ConstantWriteNode => :version}
+
+      merger = described_class.new("# comment", "# comment")
+      effective = merger.send(:build_effective_signature_generator, custom_generator, node_typing)
+
+      # Create a mock node to test with
+      template = "VERSION = '1.0'"
+      parsed = Prism.parse(template)
+      node = parsed.value.statements.body.first
+
+      result = effective.call(node)
+      expect(call_log).to include(:generator_called)
+    end
+
+    it "returns processed node when no signature_generator provided" do
+      node_typing = {Prism::ConstantWriteNode => :version}
+
+      merger = described_class.new("# comment", "# comment")
+      effective = merger.send(:build_effective_signature_generator, nil, node_typing)
+
+      template = "VERSION = '1.0'"
+      parsed = Prism.parse(template)
+      node = parsed.value.statements.body.first
+
+      result = effective.call(node)
+      # Should return processed node (possibly wrapped with merge_type)
+      expect(result).to be_truthy
     end
   end
 end

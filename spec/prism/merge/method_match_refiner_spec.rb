@@ -225,4 +225,187 @@ RSpec.describe Prism::Merge::MethodMatchRefiner do
       expect(template_nodes.uniq.size).to eq(template_nodes.size)
     end
   end
+
+  describe "#param_similarity edge cases" do
+    it "returns 1.0 when both methods have no parameters" do
+      template_code = "def foo; end"
+      dest_code = "def bar; end"
+
+      t_analysis = Prism::Merge::FileAnalysis.new(template_code)
+      d_analysis = Prism::Merge::FileAnalysis.new(dest_code)
+
+      t_method = t_analysis.statements.first
+      d_method = d_analysis.statements.first
+
+      similarity = refiner.send(:param_similarity, t_method, d_method)
+      expect(similarity).to eq(1.0)
+    end
+
+    it "returns 0.0 when template has no params but dest has params" do
+      template_code = "def foo; end"
+      dest_code = "def bar(a, b); end"
+
+      t_analysis = Prism::Merge::FileAnalysis.new(template_code)
+      d_analysis = Prism::Merge::FileAnalysis.new(dest_code)
+
+      t_method = t_analysis.statements.first
+      d_method = d_analysis.statements.first
+
+      similarity = refiner.send(:param_similarity, t_method, d_method)
+      expect(similarity).to eq(0.0)
+    end
+
+    it "returns 0.0 when dest has no params but template has params" do
+      template_code = "def foo(a, b); end"
+      dest_code = "def bar; end"
+
+      t_analysis = Prism::Merge::FileAnalysis.new(template_code)
+      d_analysis = Prism::Merge::FileAnalysis.new(dest_code)
+
+      t_method = t_analysis.statements.first
+      d_method = d_analysis.statements.first
+
+      similarity = refiner.send(:param_similarity, t_method, d_method)
+      expect(similarity).to eq(0.0)
+    end
+  end
+
+  describe "#extract_param_names with various parameter types" do
+    it "extracts rest parameter name" do
+      code = "def foo(*args); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      expect(names).to include(:args)
+    end
+
+    it "extracts post parameters" do
+      code = "def foo(*rest, final); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      expect(names).to include(:rest)
+      expect(names).to include(:final)
+    end
+
+    it "extracts keyword rest parameter name" do
+      code = "def foo(**kwargs); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      expect(names).to include(:kwargs)
+    end
+
+    it "extracts block parameter name" do
+      code = "def foo(&block); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      expect(names).to include(:block)
+    end
+
+    it "handles anonymous rest parameter" do
+      code = "def foo(*); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      # Anonymous rest doesn't have a name, should not cause error
+      expect(names).to be_an(Array)
+    end
+
+    it "handles anonymous keyword rest parameter" do
+      code = "def foo(**); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      # Anonymous kwrest doesn't have a name, should not cause error
+      expect(names).to be_an(Array)
+    end
+
+    it "extracts all parameter types together" do
+      code = "def foo(req, opt = 1, *rest, post, key:, **kwargs, &block); end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      method_node = analysis.statements.first
+
+      names = refiner.send(:extract_param_names, method_node)
+      expect(names).to include(:req)
+      expect(names).to include(:opt)
+      expect(names).to include(:rest)
+      expect(names).to include(:post)
+      expect(names).to include(:key)
+      expect(names).to include(:kwargs)
+      expect(names).to include(:block)
+    end
+  end
+
+  describe "#levenshtein_distance edge cases" do
+    it "returns length of str2 when str1 is empty" do
+      distance = refiner.send(:levenshtein_distance, "", "hello")
+      expect(distance).to eq(5)
+    end
+
+    it "returns length of str1 when str2 is empty" do
+      distance = refiner.send(:levenshtein_distance, "hello", "")
+      expect(distance).to eq(5)
+    end
+
+    it "swaps strings when str1 is longer for optimization" do
+      # This tests line 160-161 - the swap for space optimization
+      # Both should give same result regardless of order
+      distance1 = refiner.send(:levenshtein_distance, "abc", "abcdefghij")
+      distance2 = refiner.send(:levenshtein_distance, "abcdefghij", "abc")
+      expect(distance1).to eq(distance2)
+    end
+  end
+
+  describe "#string_similarity with empty strings" do
+    it "returns 0.0 when first string is empty" do
+      similarity = refiner.send(:string_similarity, "", "hello")
+      expect(similarity).to eq(0.0)
+    end
+
+    it "returns 0.0 when second string is empty" do
+      similarity = refiner.send(:string_similarity, "hello", "")
+      expect(similarity).to eq(0.0)
+    end
+  end
+
+  describe "#compute_method_similarity with score below threshold" do
+    let(:options) { {threshold: 0.99} }
+
+    it "returns low score for very different methods" do
+      template_code = "def completely_different_name; end"
+      dest_code = "def xyz; end"
+
+      t_analysis = Prism::Merge::FileAnalysis.new(template_code)
+      d_analysis = Prism::Merge::FileAnalysis.new(dest_code)
+
+      t_method = t_analysis.statements.first
+      d_method = d_analysis.statements.first
+
+      score = refiner.send(:compute_method_similarity, t_method, d_method)
+      expect(score).to be < 0.5
+    end
+
+    it "filters out low-scoring matches in call" do
+      template_code = "def completely_different_name; end"
+      dest_code = "def xyz; end"
+
+      t_analysis = Prism::Merge::FileAnalysis.new(template_code)
+      d_analysis = Prism::Merge::FileAnalysis.new(dest_code)
+
+      t_methods = t_analysis.statements.select { |n| n.is_a?(Prism::DefNode) }
+      d_methods = d_analysis.statements.select { |n| n.is_a?(Prism::DefNode) }
+
+      # With high threshold, no matches should be returned
+      matches = refiner.call(t_methods, d_methods)
+      expect(matches).to be_empty
+    end
+  end
 end

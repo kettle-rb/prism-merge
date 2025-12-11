@@ -5,11 +5,10 @@ CONFIG = {
   name: "template",
 }
 
-# kettle-dev:freeze
+# Template version of CUSTOM_CONFIG (no freeze marker)
 CUSTOM_CONFIG = {
   secret: "should be preserved",
 }
-# kettle-dev:unfreeze
 
 def standard_method
   puts "template version"

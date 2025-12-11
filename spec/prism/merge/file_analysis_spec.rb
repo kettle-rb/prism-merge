@@ -51,8 +51,8 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
-  describe "freeze blocks" do
-    it "extracts freeze blocks with enclosed statements" do
+  describe "frozen nodes" do
+    it "detects frozen nodes via leading comment freeze marker" do
       code = <<~RUBY
         def method_a
           "a"
@@ -62,7 +62,6 @@ RSpec.describe Prism::Merge::FileAnalysis do
         def frozen_method
           "frozen"
         end
-        # prism-merge:unfreeze
 
         def method_b
           "b"
@@ -71,122 +70,81 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       analysis = described_class.new(code)
 
-      expect(analysis.freeze_blocks.size).to eq(1)
-      freeze_node = analysis.freeze_blocks.first
-
-      expect(freeze_node).to be_a(Prism::Merge::FreezeNode)
-      expect(freeze_node.start_line).to eq(5)
-      expect(freeze_node.end_line).to eq(9)
-      expect(freeze_node.nodes.size).to eq(1)
-      expect(freeze_node.nodes.first).to be_a(Prism::DefNode)
-    end
-
-    it "filters out statements inside freeze blocks from main statements list" do
-      code = <<~RUBY
-        def method_a
-          "a"
-        end
-
-        # prism-merge:freeze
-        def frozen_method
-          "frozen"
-        end
-        # prism-merge:unfreeze
-
-        def method_b
-          "b"
-        end
-      RUBY
-
-      analysis = described_class.new(code)
-
-      # Should have 3 total nodes: 2 methods + 1 freeze block
+      # All 3 methods are in statements
       expect(analysis.statements.size).to eq(3)
 
-      # The freeze block contains the frozen method
-      freeze_node = analysis.freeze_blocks.first
-      expect(freeze_node.nodes.size).to eq(1)
-
-      # Regular statements should only include method_a and method_b
-      regular_methods = analysis.statements.select { |n| n.is_a?(Prism::DefNode) }
-      expect(regular_methods.size).to eq(2)
-      expect(regular_methods.map { |m| m.name }).to contain_exactly(:method_a, :method_b)
+      # Only the one with freeze marker is frozen
+      expect(analysis.frozen_nodes.size).to eq(1)
+      expect(analysis.frozen_nodes.first).to be_a(Prism::DefNode)
+      expect(analysis.frozen_nodes.first.name).to eq(:frozen_method)
     end
 
-    it "uses custom freeze token when provided" do
+    it "detects frozen nodes with custom freeze token" do
       code = <<~RUBY
         # kettle-dev:freeze
         def frozen_method
           "frozen"
         end
-        # kettle-dev:unfreeze
       RUBY
 
       analysis = described_class.new(code, freeze_token: "kettle-dev")
 
-      expect(analysis.freeze_blocks.size).to eq(1)
-      expect(analysis.freeze_blocks.first.nodes.size).to eq(1)
+      expect(analysis.frozen_nodes.size).to eq(1)
+      expect(analysis.frozen_node?(analysis.statements.first)).to be true
     end
 
-    it "raises error for unclosed freeze block inside nested structure" do
+    it "detects nested freeze markers inside block content" do
       code = <<~RUBY
-        class MyClass
+        Gem::Specification.new do |spec|
           # prism-merge:freeze
-          def frozen_method
-            "frozen"
-          end
+          spec.name = "my-gem"
         end
       RUBY
 
-      expect {
-        described_class.new(code)
-      }.to raise_error(Prism::Merge::FreezeNode::InvalidStructureError, /Unclosed freeze block.*inside a nested structure/)
+      analysis = described_class.new(code)
+
+      # The entire Gem::Specification block contains a freeze marker
+      expect(analysis.frozen_nodes.size).to eq(1)
+      expect(analysis.frozen_node?(analysis.statements.first)).to be true
     end
 
-    it "allows unclosed freeze block at root level (extends to EOF)" do
+    it "ignores closing freeze markers (unfreeze has no effect)" do
       code = <<~RUBY
         # prism-merge:freeze
         def frozen_method
           "frozen"
         end
+        # prism-merge:unfreeze
+
+        def not_frozen
+          "not frozen"
+        end
       RUBY
 
       analysis = described_class.new(code)
-      expect(analysis.freeze_blocks.length).to eq(1)
-      freeze_block = analysis.freeze_blocks.first
-      expect(freeze_block.start_line).to eq(1)
-      expect(freeze_block.end_line).to eq(4) # extends to end of file
+
+      # Both methods are in statements
+      expect(analysis.statements.size).to eq(2)
+
+      # Only the first method is frozen (unfreeze marker is ignored)
+      expect(analysis.frozen_nodes.size).to eq(1)
+      expect(analysis.frozen_nodes.first.name).to eq(:frozen_method)
+
+      # Verify frozen_node? behavior
+      expect(analysis.frozen_node?(analysis.statements[0])).to be true
+      expect(analysis.frozen_node?(analysis.statements[1])).to be false
     end
 
-    it "raises error for unfreeze without freeze" do
+    it "returns empty when no freeze token is configured" do
       code = <<~RUBY
+        # prism-merge:freeze
         def method
           "test"
         end
-        # prism-merge:unfreeze
       RUBY
 
-      expect {
-        described_class.new(code)
-      }.to raise_error(Prism::Merge::FreezeNode::InvalidStructureError, /without matching freeze/)
-    end
-
-    it "raises error for nested freeze blocks" do
-      code = <<~RUBY
-        # prism-merge:freeze
-        def outer
-          "outer"
-        end
-        # prism-merge:freeze
-        def inner
-          "inner"
-        end
-        # prism-merge:unfreeze
-      RUBY
-
-      expect {
-        described_class.new(code)
-      }.to raise_error(Prism::Merge::FreezeNode::InvalidStructureError, /Nested freeze block/)
+      analysis = described_class.new(code, freeze_token: nil)
+      expect(analysis.frozen_nodes).to be_empty
     end
   end
 
@@ -236,27 +194,30 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(node_info[:line_range]).to eq(1..3)
     end
 
-    it "does not include freeze markers as leading comments for nodes" do
+    it "includes freeze markers as leading comments (they mark the node as frozen)" do
       code = <<~RUBY
         # prism-merge:freeze
         def frozen
           "f"
         end
-        # prism-merge:unfreeze
 
         # Regular leading comment
-        # Another regular line
         def not_frozen
           "nf"
         end
       RUBY
 
       analysis = described_class.new(code)
-      node_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::DefNode) && n[:node].name == :not_frozen }
+      frozen_node_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::DefNode) && n[:node].name == :frozen }
+      not_frozen_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::DefNode) && n[:node].name == :not_frozen }
 
-      # Ensure no leading comment is a prism-merge marker
-      expect(node_info[:leading_comments].map(&:slice).join("\n")).not_to include("prism-merge:freeze")
-      expect(node_info[:leading_comments].map(&:slice).join("\n")).not_to include("prism-merge:unfreeze")
+      # Freeze marker IS a leading comment - it marks the node as frozen
+      expect(frozen_node_info[:leading_comments].map(&:slice).join("\n")).to include("prism-merge:freeze")
+      expect(analysis.frozen_node?(frozen_node_info[:node])).to be true
+
+      # Regular comments are still attached
+      expect(not_frozen_info[:leading_comments].map(&:slice).join("\n")).to include("Regular leading comment")
+      expect(analysis.frozen_node?(not_frozen_info[:node])).to be false
     end
   end
 
@@ -400,71 +361,10 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
-  describe "#in_freeze_block?" do
-    it "returns true for lines inside freeze block" do
-      code = <<~RUBY
-        # prism-merge:freeze
-        def frozen
-          "frozen"
-        end
-        # prism-merge:unfreeze
-      RUBY
-
-      analysis = described_class.new(code)
-
-      expect(analysis.in_freeze_block?(2)).to be true  # def line
-      expect(analysis.in_freeze_block?(3)).to be true  # method body
-    end
-
-    it "returns false for lines outside freeze block" do
-      code = <<~RUBY
-        def regular
-          "regular"
-        end
-
-        # prism-merge:freeze
-        def frozen
-          "frozen"
-        end
-        # prism-merge:unfreeze
-      RUBY
-
-      analysis = described_class.new(code)
-
-      expect(analysis.in_freeze_block?(1)).to be false
-      expect(analysis.in_freeze_block?(2)).to be false
-    end
-  end
-
-  describe "#freeze_block_at" do
-    it "returns freeze block containing the line" do
-      code = <<~RUBY
-        # prism-merge:freeze
-        def frozen
-          "frozen"
-        end
-        # prism-merge:unfreeze
-      RUBY
-
-      analysis = described_class.new(code)
-      freeze_node = analysis.freeze_block_at(2)
-
-      expect(freeze_node).to be_a(Prism::Merge::FreezeNode)
-      expect(freeze_node.start_line).to eq(1)
-    end
-
-    it "returns nil for lines outside freeze blocks" do
-      code = <<~RUBY
-        def regular
-          "regular"
-        end
-      RUBY
-
-      analysis = described_class.new(code)
-
-      expect(analysis.freeze_block_at(1)).to be_nil
-    end
-  end
+  # NOTE: #in_freeze_block? and #freeze_block_at are inherited from FileAnalyzable
+  # but depend on freeze_blocks returning FreezeNodeBase instances.
+  # With simplified freeze semantics (freeze marker = frozen node), these methods
+  # always return false/nil. Use frozen_node? instead.
 
   describe "#compute_node_signature" do
     # Test node signature generation for various node types
@@ -930,25 +830,22 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
-  describe "#compute_node_signature with FreezeNode" do
-    it "generates signature for FreezeNode" do
+  describe "signature generation for frozen nodes" do
+    it "generates standard signatures for frozen nodes" do
       code = <<~RUBY
         # prism-merge:freeze
         def frozen_method
           "frozen"
         end
-        # prism-merge:unfreeze
       RUBY
 
       analysis = described_class.new(code)
-      freeze_node = analysis.freeze_blocks.first
 
-      expect(freeze_node).to be_a(Prism::Merge::FreezeNode)
-
-      # The FreezeNode should have a signature
-      node_info = analysis.nodes_with_comments.find { |n| n[:node].is_a?(Prism::Merge::FreezeNode) }
-      expect(node_info).not_to be_nil
-      expect(node_info[:signature]).not_to be_nil
+      # Frozen nodes get standard Prism node signatures
+      node_info = analysis.nodes_with_comments.first
+      expect(node_info[:node]).to be_a(Prism::DefNode)
+      expect(analysis.frozen_node?(node_info[:node])).to be true
+      expect(node_info[:signature]).to eq([:def, :frozen_method, []])
     end
   end
 
@@ -1453,11 +1350,13 @@ RSpec.describe Prism::Merge::FileAnalysis do
   describe "single statement body handling" do
     it "handles parse result with single non-StatementsNode body" do
       # This covers line 146: else branch when body is not StatementsNode
+      # __END__ is treated as a comment line, not Ruby code
       code = "__END__"
 
       analysis = described_class.new(code)
-      # __END__ creates a program with no statements
-      expect(analysis.statements).to eq([])
+      # __END__ creates a program with no Ruby statements, but is parsed as a comment line
+      expect(analysis.statements.size).to eq(1)
+      expect(analysis.statements.first).to be_a(Ast::Merge::Comment::Line)
     end
   end
 
@@ -1698,17 +1597,15 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
-  describe "freeze block marker filtering" do
-    it "filters freeze markers from leading comments when freeze_token is set" do
-      # This covers line 297: freeze_marker_pattern being truthy
+  describe "freeze marker comment handling" do
+    it "includes freeze markers as leading comments (they are how nodes are marked frozen)" do
       code = <<~RUBY
         # prism-merge:freeze
         def frozen_method
           "frozen"
         end
-        # prism-merge:unfreeze
 
-        # Regular comment after freeze block
+        # Regular comment
         def after_freeze
           "after"
         end
@@ -1716,15 +1613,19 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       analysis = described_class.new(code, freeze_token: "prism-merge")
 
-      # The after_freeze method should not have freeze markers as leading comments
+      # The frozen_method should have the freeze marker as a leading comment
+      frozen_info = analysis.nodes_with_comments.find { |n|
+        n[:node].is_a?(Prism::DefNode) && n[:node].name == :frozen_method
+      }
+      expect(frozen_info[:leading_comments].map(&:slice).join("\n")).to include("prism-merge:freeze")
+      expect(analysis.frozen_node?(frozen_info[:node])).to be true
+
+      # The after_freeze method has regular comments
       after_info = analysis.nodes_with_comments.find { |n|
         n[:node].is_a?(Prism::DefNode) && n[:node].name == :after_freeze
       }
-
-      comments_text = after_info[:leading_comments].map(&:slice).join("\n")
-      expect(comments_text).not_to include("prism-merge:freeze")
-      expect(comments_text).not_to include("prism-merge:unfreeze")
-      expect(comments_text).to include("Regular comment")
+      expect(after_info[:leading_comments].map(&:slice).join("\n")).to include("Regular comment")
+      expect(analysis.frozen_node?(after_info[:node])).to be false
     end
   end
 
@@ -1758,6 +1659,103 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       # Should still work and produce statements
       expect(analysis.statements).not_to be_empty
+    end
+  end
+
+  describe "extract_nodes_with_comments branch coverage" do
+    it "handles Ast::Merge::AstNode custom nodes" do
+      # This tests line 247 - the branch for custom AST nodes
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+
+      # Check that nodes_with_comments handles the standard case properly
+      # (The AstNode branch is exercised when comment-only lines are promoted)
+      nodes = analysis.nodes_with_comments
+      expect(nodes).to be_an(Array)
+      expect(nodes).not_to be_empty
+    end
+
+    it "handles FrozenWrapper nodes by unwrapping them" do
+      # Tests the unwrap branch in extract_nodes_with_comments
+      code = <<~RUBY
+        # prism-merge:freeze
+        def frozen_method
+          "frozen"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      nodes = analysis.nodes_with_comments
+
+      # The frozen method should be wrapped, and extract_nodes_with_comments
+      # should unwrap it to provide the underlying Prism node
+      frozen_node_info = nodes.find { |n| n[:node].is_a?(Prism::DefNode) }
+      expect(frozen_node_info).not_to be_nil
+      expect(frozen_node_info[:node].name).to eq(:frozen_method)
+    end
+  end
+
+  describe "generate_signature fallback branches" do
+    it "handles nodes without respond_to?(:leading_comments) for inline_comments check" do
+      code = "VERSION = '1.0'"
+      analysis = described_class.new(code)
+
+      # This exercises the respond_to? checks in extract_nodes_with_comments
+      nodes = analysis.nodes_with_comments
+      node_info = nodes.find { |n| n[:node].is_a?(Prism::ConstantWriteNode) }
+
+      expect(node_info).not_to be_nil
+      expect(node_info[:leading_comments]).to be_an(Array)
+      expect(node_info[:inline_comments]).to be_an(Array)
+    end
+  end
+
+  describe "nodes_with_comments line_range handling" do
+    it "handles node with no comments" do
+      code = "def simple; end"
+      analysis = described_class.new(code)
+
+      node_info = analysis.nodes_with_comments.first
+      # line_range is computed in extract_nodes_with_comments
+      expect(node_info[:line_range]).to be_a(Range)
+      expect(node_info[:line_range].begin).to eq(1)
+      expect(node_info[:line_range].end).to eq(1)
+    end
+
+    it "handles node with leading comments" do
+      code = <<~RUBY
+        # Comment line 1
+        # Comment line 2
+        def with_comments
+          "body"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # The node's line_range is based on node location, not comments
+      # Comments are in leading_comments array
+      expect(node_info[:line_range]).to be_a(Range)
+      expect(node_info[:leading_comments]).not_to be_empty
+    end
+  end
+
+  describe "leading_comments retrieval" do
+    it "returns empty array when node has no comments" do
+      code = "def simple; end"
+      analysis = described_class.new(code)
+
+      node_info = analysis.nodes_with_comments.first
+      # leading_comments should be an array (possibly empty)
+      expect(node_info[:leading_comments]).to be_an(Array)
     end
   end
 end

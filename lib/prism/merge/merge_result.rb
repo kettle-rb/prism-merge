@@ -86,15 +86,11 @@ module Prism
         # Use source_analysis.line_at to preserve original indentation
         if source_analysis
           # Get full lines from source to preserve indentation
-          inline_comments = node_info[:inline_comments]
+          # Note: inline comments are already part of the source line from line_at(),
+          # so we don't need to append them separately. The inline_comments in node_info
+          # are just metadata about comments that were attached to the node by Prism.
           (start_line..end_line).each do |line_num|
             line = source_analysis.line_at(line_num)&.chomp || ""
-
-            # Handle inline comments on the last line
-            if line_num == end_line && inline_comments.any?
-              inline_text = inline_comments.map { |c| c.slice.strip }.join(" ")
-              line = line.rstrip + " " + inline_text
-            end
 
             if source == :template
               add_line(line, decision: decision, template_line: line_num)

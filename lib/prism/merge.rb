@@ -32,8 +32,8 @@ module Prism
   # rather than treating files as plain text.
   #
   # @see SmartMerger Main entry point for merge operations
-  # @see FileAligner Identifies matching sections and boundaries
-  # @see ConflictResolver Resolves content within boundaries
+  # @see FileAnalysis Parses and analyzes Ruby source files
+  # @see MergeResult Tracks merged content and decisions
   module Merge
     # Base error class for Prism::Merge
     # Inherits from Ast::Merge::Error for consistency across merge gems.
@@ -79,12 +79,11 @@ module Prism
     #   end
     class DestinationParseError < ParseError; end
 
+    autoload :Comment, "prism/merge/comment"
     autoload :DebugLogger, "prism/merge/debug_logger"
     autoload :FreezeNode, "prism/merge/freeze_node"
     autoload :FileAnalysis, "prism/merge/file_analysis"
     autoload :MergeResult, "prism/merge/merge_result"
-    autoload :FileAligner, "prism/merge/file_aligner"
-    autoload :ConflictResolver, "prism/merge/conflict_resolver"
     autoload :SmartMerger, "prism/merge/smart_merger"
     autoload :MethodMatchRefiner, "prism/merge/method_match_refiner"
   end

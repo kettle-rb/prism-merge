@@ -6,11 +6,11 @@ CONFIG = {
 }
 
 # kettle-dev:freeze
+# Destination has freeze marker - this node should be preserved
 CUSTOM_CONFIG = {
   secret: "destination secret",
   api_key: "abc123",
 }
-# kettle-dev:unfreeze
 
 def standard_method
   puts "destination version"

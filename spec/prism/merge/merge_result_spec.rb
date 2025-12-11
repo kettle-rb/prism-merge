@@ -575,4 +575,50 @@ RSpec.describe Prism::Merge::MergeResult do
       expect(result.line_metadata.first[:dest_line]).not_to be_nil
     end
   end
+
+  describe "add_node fallback path branch coverage" do
+    let(:result) { described_class.new }
+
+    it "uses source_analysis.line_at else branch when line_at returns nil" do
+      # Tests line 74 else branch - when source_analysis exists but line_at returns nil
+      code = "# Comment\ndef test; end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      # Create a stub that returns nil for line_at
+      allow(analysis).to receive(:line_at).and_return(nil)
+
+      result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: analysis)
+
+      # Should fall back to comment.slice.rstrip
+      output = result.to_s
+      expect(output).to include("Comment")
+    end
+
+    it "handles inline comments in fallback path (no source_analysis)" do
+      # Tests line 93 and 111 else branches - inline_comments handling without source_analysis
+      code = "VERSION = '1.0' # inline"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: nil)
+
+      output = result.to_s
+      expect(output).to include("VERSION")
+      # Inline comment should be appended in fallback path
+      expect(output).to include("inline")
+    end
+
+    it "handles empty inline_comments in fallback path" do
+      # Tests when inline_comments is empty in the else branch
+      code = "def simple; end"
+      analysis = Prism::Merge::FileAnalysis.new(code)
+      node_info = analysis.nodes_with_comments.first
+
+      result.add_node(node_info, decision: :kept_destination, source: :destination, source_analysis: nil)
+
+      output = result.to_s
+      expect(output).to include("def simple")
+    end
+  end
 end

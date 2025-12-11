@@ -132,8 +132,8 @@ RSpec.describe "Magic Comment and Directive Handling" do
     end
   end
 
-  describe "freeze marker filtering" do
-    it "creates FreezeNodes without treating markers as regular comments" do
+  describe "freeze marker handling" do
+    it "detects frozen nodes via freeze markers in leading comments" do
       content = <<~RUBY
         # frozen_string_literal: true
         
@@ -141,22 +141,34 @@ RSpec.describe "Magic Comment and Directive Handling" do
         
         # prism-merge:freeze
         CONST = "value"
-        # prism-merge:unfreeze
         
         # Regular comment after
+        OTHER = "other"
       RUBY
 
       analysis = Prism::Merge::FileAnalysis.new(content)
 
-      # V2: No CommentNodes - should have FreezeNode and comments attach to adjacent nodes
-      freeze_nodes = analysis.statements.select { |s| s.is_a?(Prism::Merge::FreezeNode) }
-      expect(freeze_nodes.length).to eq(1)
+      # All statements are regular Prism nodes (some may be wrapped as FrozenWrapper)
+      expect(analysis.statements.length).to eq(2)
 
-      # Freeze node content includes the constant
-      freeze_node = freeze_nodes.first
-      expect(freeze_node.slice).to include("CONST")
-      expect(freeze_node.slice).to include("prism-merge:freeze")
-      expect(freeze_node.slice).to include("prism-merge:unfreeze")
+      # Helper to get the actual node (unwrap if needed)
+      unwrap = ->(node) { node.respond_to?(:unwrap) ? node.unwrap : node }
+      
+      # Helper to check if node is a ConstantWriteNode with a specific name
+      is_const = ->(node, name) {
+        actual = unwrap.call(node)
+        actual.is_a?(Prism::ConstantWriteNode) && actual.name == name
+      }
+
+      # First constant is frozen (has freeze marker in leading comments)
+      const_node = analysis.statements.find { |s| is_const.call(s, :CONST) }
+      expect(const_node).not_to be_nil
+      expect(analysis.frozen_node?(const_node)).to be true
+
+      # Second constant is not frozen
+      other_node = analysis.statements.find { |s| is_const.call(s, :OTHER) }
+      expect(other_node).not_to be_nil
+      expect(analysis.frozen_node?(other_node)).to be false
     end
   end
 
@@ -171,7 +183,6 @@ RSpec.describe "Magic Comment and Directive Handling" do
         class MyClass
           # prism-merge:freeze
           CUSTOM = "value"
-          # prism-merge:unfreeze
           
           # steep:ignore
           def method_one
@@ -184,16 +195,20 @@ RSpec.describe "Magic Comment and Directive Handling" do
 
       analysis = Prism::Merge::FileAnalysis.new(content)
 
-      # V2: Should have ClassNode with FreezeNode inside it
-      # No standalone CommentNodes
-      freeze_nodes = analysis.freeze_blocks
-      expect(freeze_nodes.length).to eq(1)
-
-      # The class node should have leading comments attached
+      # Should have one statement (ClassNode or FrozenWrapper around ClassNode)
+      expect(analysis.statements.length).to eq(1)
       class_node = analysis.statements.first
-      expect(class_node).to be_a(Prism::ClassNode)
+      
+      # The class contains a nested freeze marker, so it may be wrapped
+      # Unwrap if needed to get the actual ClassNode
+      actual_node = class_node.respond_to?(:unwrap) ? class_node.unwrap : class_node
+      expect(actual_node).to be_a(Prism::ClassNode)
 
-      leading_comments = class_node.location.leading_comments
+      # The class contains a nested freeze marker, so the whole class is frozen
+      expect(analysis.frozen_node?(class_node)).to be true
+
+      # Leading comments are attached to the class
+      leading_comments = actual_node.location.leading_comments
       leading_text = leading_comments.map(&:slice).join
       expect(leading_text).to include("actual documentation")
     end

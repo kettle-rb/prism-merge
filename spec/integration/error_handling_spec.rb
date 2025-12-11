@@ -76,68 +76,7 @@ RSpec.describe "Error Handling and Edge Cases" do
     end
   end
 
-  describe "FileAligner boundary edge cases" do
-    context "with nil ranges in boundaries" do
-      let(:template_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          # Only comments
-        RUBY
-      end
-
-      let(:dest_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-
-          class DestClass
-          end
-        RUBY
-      end
-
-      it "handles boundaries with nil template range" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
-
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        expect(boundaries).not_to be_empty
-        expect(boundaries).to all(be_a(Prism::Merge::FileAligner::Boundary))
-      end
-    end
-
-    context "with completely empty files" do
-      let(:template_code) { "" }
-      let(:dest_code) { "" }
-
-      it "handles both empty files" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
-
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        expect(boundaries).to be_an(Array)
-      end
-    end
-
-    context "with only whitespace" do
-      let(:template_code) { "   \n\n  \n  " }
-      let(:dest_code) { "  \n  \n  " }
-
-      it "handles whitespace-only files" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
-
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        expect(boundaries).to be_an(Array)
-      end
-    end
-  end
-
-  describe "ConflictResolver with edge cases" do
+  describe "SmartMerger with edge cases" do
     context "with very long method bodies" do
       let(:template_code) do
         code = +"# frozen_string_literal: true\n\ndef long_method\n"

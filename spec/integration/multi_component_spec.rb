@@ -3,165 +3,50 @@
 require "spec_helper"
 
 # Integration tests that test multiple components together
-# These test the interaction between FileAnalysis, FileAligner, and ConflictResolver
 RSpec.describe "Multi-component integration" do
-  describe "FileAnalysis, FileAligner, and ConflictResolver" do
-    context "with empty template range" do
-      let(:template_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          # Just a comment, no actual nodes
-        RUBY
-      end
+  describe "SmartMerger with anchors at file boundaries" do
+    let(:template_code) do
+      <<~RUBY
+        # frozen_string_literal: true
 
-      let(:dest_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          class DestClass
-            def method
-              "dest"
-            end
+        VERSION = "1.0.0"
+
+        class MyClass
+          def method1
+            "one"
           end
-        RUBY
-      end
-
-      it "handles nil/empty template range gracefully" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
-
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        resolver = Prism::Merge::ConflictResolver.new(template_analysis, dest_analysis)
-        result = Prism::Merge::MergeResult.new
-
-        boundaries.each do |boundary|
-          resolver.resolve(boundary, result)
         end
-
-        expect(result.to_s).to include("DestClass")
-      end
+      RUBY
     end
 
-    context "with no common anchors" do
-      let(:template_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          class TemplateClass
-            def template_method
-              "template"
-            end
+    let(:dest_code) do
+      <<~RUBY
+        # frozen_string_literal: true
+
+        VERSION = "1.0.0"
+
+        class MyClass
+          def method1
+            "one"
           end
-        RUBY
-      end
 
-      let(:dest_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          class DestinationClass
-            def dest_method
-              "dest"
-            end
+          def custom
+            "custom"
           end
-        RUBY
-      end
-
-      it "creates boundaries for completely different files" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
-
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        boundaries = aligner.align
-
-        expect(boundaries).not_to be_empty
-        expect(boundaries.first.template_range).not_to be_nil
-        expect(boundaries.first.dest_range).not_to be_nil
-      end
+        end
+      RUBY
     end
 
-    context "with anchors at file boundaries" do
-      let(:template_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          VERSION = "1.0.0"
-          
-          class MyClass
-            def method1
-              "one"
-            end
-          end
-        RUBY
-      end
+    it "handles anchors at beginning and end of files" do
+      merger = Prism::Merge::SmartMerger.new(
+        template_code,
+        dest_code,
+      )
 
-      let(:dest_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          VERSION = "1.0.0"
-          
-          class MyClass
-            def method1
-              "one"
-            end
-          
-            def custom
-              "custom"
-            end
-          end
-        RUBY
-      end
-
-      it "handles anchors at beginning and end of files" do
-        merger = Prism::Merge::SmartMerger.new(
-          template_code,
-          dest_code,
-        )
-
-        result = merger.merge
-        expect(result).to include('VERSION = "1.0.0"')
-        expect(result).to include("method1")
-        expect(result).to include("custom")
-      end
-    end
-
-    context "with signature match anchors" do
-      let(:template_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          VERSION = "2.0.0"
-          if ENV["DEBUG"]
-            puts "debug"
-          end
-        RUBY
-      end
-
-      let(:dest_code) do
-        <<~RUBY
-          # frozen_string_literal: true
-          
-          VERSION = "1.0.0"
-          if ENV["DEBUG"]
-            puts "debug"
-          end
-        RUBY
-      end
-
-      it "creates signature_match anchor type" do
-        template_analysis = Prism::Merge::FileAnalysis.new(template_code)
-        dest_analysis = Prism::Merge::FileAnalysis.new(dest_code)
-        aligner = Prism::Merge::FileAligner.new(template_analysis, dest_analysis)
-        aligner.align
-
-        # Should have signature match anchors
-        sig_match_anchors = aligner.anchors.select { |a| a.match_type == :signature_match }
-        expect(sig_match_anchors).not_to be_empty
-      end
+      result = merger.merge
+      expect(result).to include('VERSION = "1.0.0"')
+      expect(result).to include("method1")
+      expect(result).to include("custom")
     end
   end
 
@@ -170,7 +55,7 @@ RSpec.describe "Multi-component integration" do
       let(:code) do
         <<~RUBY
           # frozen_string_literal: true
-          
+
           module Outer
             module Inner
               class DeepClass
@@ -203,47 +88,47 @@ RSpec.describe "Multi-component integration" do
       let(:code) do
         <<~RUBY
           # frozen_string_literal: true
-          
+
           # Constants
           CONSTANT = 42
-          
+
           # Class with inheritance
           class Child < Parent
             include Mixin
             extend Extension
-            
+
             attr_reader :name
             attr_accessor :value
-            
+
             # Class method
             def self.class_method
               "class"
             end
-            
+
             # Instance method
             def instance_method(arg, keyword: nil)
               @value = arg
             end
-            
+
             # Private methods
             private
-            
+
             def private_method
               "private"
             end
           end
-          
+
           # Module
           module MyModule
             def module_method
               "module"
             end
           end
-          
+
           # Lambda and Proc
           my_lambda = ->(x) { x * 2 }
           my_proc = proc { |x| x * 2 }
-          
+
           # Block
           [1, 2, 3].each do |n|
             puts n
@@ -259,7 +144,7 @@ RSpec.describe "Multi-component integration" do
     end
   end
 
-  describe "Trailing blank lines in ConflictResolver" do
+  describe "Trailing blank lines in SmartMerger" do
     let(:fixture_dir) { File.expand_path("../support/fixtures/smart_merge", __dir__) }
     let(:template_path) { File.join(fixture_dir, "trailing_blanks.template.rb") }
     let(:dest_path) { File.join(fixture_dir, "trailing_blanks.destination.rb") }
@@ -287,11 +172,11 @@ RSpec.describe "Multi-component integration" do
       let(:template_code) do
         <<~RUBY
           # frozen_string_literal: true
-          
+
           # kettle-dev:freeze
           FIRST = "template"
           # kettle-dev:unfreeze
-          
+
           # kettle-dev:freeze
           SECOND = "template"
           # kettle-dev:unfreeze
@@ -301,12 +186,12 @@ RSpec.describe "Multi-component integration" do
       let(:dest_code) do
         <<~RUBY
           # frozen_string_literal: true
-          
+
           # kettle-dev:freeze
           FIRST = "dest"
           EXTRA = "dest extra"
           # kettle-dev:unfreeze
-          
+
           # kettle-dev:freeze
           SECOND = "dest"
           # kettle-dev:unfreeze
