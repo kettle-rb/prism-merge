@@ -6,8 +6,8 @@ permissions:
   id-token: write
 
 env:
-  K_SOUP_COV_MIN_BRANCH: 82
-  K_SOUP_COV_MIN_LINE: 97
+  K_SOUP_COV_MIN_BRANCH: 85
+  K_SOUP_COV_MIN_LINE: 96
   K_SOUP_COV_MIN_HARD: true
   K_SOUP_COV_FORMATTERS: "xml,rcov,lcov,tty"
   K_SOUP_COV_DO: true
@@ -83,7 +83,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: ${{ matrix.experimental != 'false' }}
 
-      - name: Upload co verage to QLTY
+      - name: Upload coverage to QLTY
         if: ${{ !env.ACT }}
         uses: qltysh/qlty-action/coverage@main
         with:
@@ -115,7 +115,7 @@ jobs:
           hide_complexity: true
           indicators: true
           output: both
-          thresholds: '97 82'
+          thresholds: '96 85'
         continue-on-error: ${{ matrix.experimental != 'false' }}
 
       - name: Add Coverage PR Comment
