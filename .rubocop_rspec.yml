@@ -25,6 +25,9 @@ RSpec/ExpectInHook:
 RSpec/DescribeClass:
   Exclude:
     - 'spec/examples/*'
+    - 'spec/integration/*'
+    - 'spec/system/*'
+    - 'spec/e2e/*'
 
 RSpec/MultipleMemoizedHelpers:
   Enabled: false
