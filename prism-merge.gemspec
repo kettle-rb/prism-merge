@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.description = "☯️ Intelligently merge two versions of a Ruby file using Prism AST analysis, similar to a smart 'git merge' specifically designed for Ruby code."
   spec.homepage = "https://github.com/kettle-rb/prism-merge"
   spec.licenses = ["MIT"]
-  spec.required_ruby_version = ">= 2.7.0"
+  spec.required_ruby_version = ">= 3.2.0"
 
   # Linux distros often package gems and securely certify them independent
   #   of the official RubyGem certification process. Allowed via ENV["SKIP_GEM_SIGNING"]
