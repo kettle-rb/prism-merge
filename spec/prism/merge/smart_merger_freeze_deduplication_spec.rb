@@ -45,7 +45,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).not_to include('gem_version = "1.0.0"')
 
         # The freeze marker comment should appear exactly once
-        freeze_count = result.scan(/kettle-dev:freeze/).length
+        freeze_count = result.scan("kettle-dev:freeze").length
         expect(freeze_count).to eq(1), <<~MSG
           Expected 1 freeze marker but got #{freeze_count}.
           The freeze marker is a leading comment on gem_version assignment.
@@ -89,7 +89,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         result = merger.merge
 
         # Should have exactly 1 freeze marker (not duplicated)
-        freeze_count = result.scan(/kettle-dev:freeze/).length
+        freeze_count = result.scan("kettle-dev:freeze").length
         expect(freeze_count).to eq(1), <<~MSG
           Expected 1 freeze marker but got #{freeze_count}.
           When template and dest have the same frozen node, it should appear once.
@@ -99,7 +99,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         MSG
 
         # gem_version should appear exactly once
-        gem_version_count = result.scan(/gem_version = /).length
+        gem_version_count = result.scan("gem_version = ").length
         expect(gem_version_count).to eq(1), <<~MSG
           Expected gem_version assignment to appear once but got #{gem_version_count}.
 
@@ -141,7 +141,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include(":preserved")
 
         # Should have exactly 1 freeze marker
-        freeze_count = result.scan(/kettle-dev:freeze/).length
+        freeze_count = result.scan("kettle-dev:freeze").length
         expect(freeze_count).to eq(1)
       end
     end
@@ -180,7 +180,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         result = merger.merge
 
         # Count freeze markers - should have exactly 1
-        freeze_count = result.scan(/kettle-dev:freeze/).length
+        freeze_count = result.scan("kettle-dev:freeze").length
 
         expect(freeze_count).to eq(1), <<~MSG
           Expected 1 freeze marker but got #{freeze_count}.

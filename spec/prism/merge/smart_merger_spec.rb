@@ -3155,7 +3155,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         dest = "VERSION = '2.0'"
 
         node_typing = {
-          ConstantWriteNode: ->(node) { ::Ast::Merge::NodeTyping.with_merge_type(node, :version) },
+          ConstantWriteNode: ->(node) { Ast::Merge::NodeTyping.with_merge_type(node, :version) },
         }
 
         merger = described_class.new(
@@ -3183,9 +3183,9 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(node_typing_config).not_to be_nil
 
         # Verify that NodeTyping.process actually wraps the node
-        typed_node = ::Ast::Merge::NodeTyping.process(template_node, node_typing_config)
-        expect(::Ast::Merge::NodeTyping.typed_node?(typed_node)).to eq(true)
-        expect(::Ast::Merge::NodeTyping.merge_type_for(typed_node)).to eq(:version)
+        typed_node = Ast::Merge::NodeTyping.process(template_node, node_typing_config)
+        expect(Ast::Merge::NodeTyping.typed_node?(typed_node)).to eq(true)
+        expect(Ast::Merge::NodeTyping.merge_type_for(typed_node)).to eq(:version)
 
         # Now verify preference_for_node returns the correct preference
         pref = merger.send(:preference_for_node, template_node, dest_node)
@@ -3197,7 +3197,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         dest = "VERSION = '2.0'"
 
         node_typing = {
-          ConstantWriteNode: ->(node) { ::Ast::Merge::NodeTyping.with_merge_type(node, :version) },
+          ConstantWriteNode: ->(node) { Ast::Merge::NodeTyping.with_merge_type(node, :version) },
         }
 
         merger = described_class.new(
@@ -3221,7 +3221,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         dest = "VERSION = '1.0'"
 
         node_typing = {
-          ConstantWriteNode: ->(node) { ::Ast::Merge::NodeTyping.with_merge_type(node, :version) },
+          ConstantWriteNode: ->(node) { Ast::Merge::NodeTyping.with_merge_type(node, :version) },
         }
 
         merger = described_class.new(
@@ -3345,7 +3345,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       parsed = Prism.parse(template)
       node = parsed.value.statements.body.first
 
-      result = effective.call(node)
+      effective.call(node)
       expect(call_log).to include(:generator_called)
     end
 

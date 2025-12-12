@@ -124,9 +124,9 @@ module Prism
             dest_statements: @dest_analysis&.statements&.size || 0,
             preference: @preference,
             add_template_only_nodes: @add_template_only_nodes,
-            freeze_token: @freeze_token
+            freeze_token: @freeze_token,
           },
-          statistics: result.respond_to?(:statistics) ? result.statistics : {}
+          statistics: result.respond_to?(:statistics) ? result.statistics : {},
         }
       end
 
@@ -186,7 +186,7 @@ module Prism
 
         # Build signature maps for quick lookup
         template_by_signature = build_signature_map(@template_analysis)
-        dest_by_signature = build_signature_map(@dest_analysis)
+        build_signature_map(@dest_analysis)
 
         # Track which signatures we've output (to avoid duplicates)
         output_signatures = Set.new
@@ -317,7 +317,7 @@ module Prism
           raise TemplateParseError.new(
             "Template file has parsing errors",
             content: @template_content,
-            parse_result: @template_analysis.parse_result
+            parse_result: @template_analysis.parse_result,
           )
         end
 
@@ -325,7 +325,7 @@ module Prism
           raise DestinationParseError.new(
             "Destination file has parsing errors",
             content: @dest_content,
-            parse_result: @dest_analysis.parse_result
+            parse_result: @dest_analysis.parse_result,
           )
         end
       end
@@ -342,7 +342,7 @@ module Prism
         text_options = {
           preference: default_preference,
           add_template_only_nodes: @add_template_only_nodes,
-          freeze_token: @freeze_token || ::Ast::Merge::Text::SmartMerger::DEFAULT_FREEZE_TOKEN
+          freeze_token: @freeze_token || ::Ast::Merge::Text::SmartMerger::DEFAULT_FREEZE_TOKEN,
         }
         text_options.merge!(@text_merger_options) if @text_merger_options
 
@@ -350,7 +350,7 @@ module Prism
         text_merger = ::Ast::Merge::Text::SmartMerger.new(
           @template_content,
           @dest_content,
-          **text_options
+          **text_options,
         )
 
         text_result = text_merger.merge
@@ -360,7 +360,7 @@ module Prism
           @result.add_line(
             line.chomp,
             decision: MergeResult::DECISION_KEPT_DEST, # Text merger handles decisions internally
-            dest_line: idx + 1
+            dest_line: idx + 1,
           )
         end
 
@@ -463,18 +463,33 @@ module Prism
       # @param source [Symbol] :template or :destination
       def add_node_to_result(result, node, analysis, source)
         decision = case source
-                   when :template
-                     MergeResult::DECISION_KEPT_TEMPLATE
-                   else
-                     MergeResult::DECISION_KEPT_DEST
-                   end
+        when :template
+          MergeResult::DECISION_KEPT_TEMPLATE
+        else
+          MergeResult::DECISION_KEPT_DEST
+        end
 
         # Get leading comments attached to the node
         leading_comments = node.location.respond_to?(:leading_comments) ? node.location.leading_comments : []
 
         # Add leading comments first (includes freeze markers if present)
+        # Also add any blank lines between consecutive comments
+        prev_comment_line = nil
         leading_comments.each do |comment|
           line_num = comment.location.start_line
+
+          # Add blank lines between this comment and the previous one
+          if prev_comment_line && line_num > prev_comment_line + 1
+            ((prev_comment_line + 1)...line_num).each do |blank_line_num|
+              line = analysis.line_at(blank_line_num)&.chomp || ""
+              if source == :template
+                result.add_line(line, decision: decision, template_line: blank_line_num)
+              else
+                result.add_line(line, decision: decision, dest_line: blank_line_num)
+              end
+            end
+          end
+
           line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
 
           if source == :template
@@ -482,6 +497,8 @@ module Prism
           else
             result.add_line(line, decision: decision, dest_line: line_num)
           end
+
+          prev_comment_line = line_num
         end
 
         # Add blank line before node if there's a gap after comments
@@ -656,7 +673,7 @@ module Prism
           freeze_token: @freeze_token,
           max_recursion_depth: @max_recursion_depth,
           current_depth: @current_depth + 1,
-          node_typing: @node_typing
+          node_typing: @node_typing,
         )
         merged_body = body_merger.merge.rstrip
 
@@ -690,15 +707,31 @@ module Prism
         source_node = (node_preference == :template) ? actual_template : actual_dest
         decision = MergeResult::DECISION_REPLACED
 
-        # Add leading comments
+        # Add leading comments with blank lines between them preserved
+        prev_comment_line = nil
         leading_comments.each do |comment|
           line_num = comment.location.start_line
+
+          # Add blank lines between this comment and the previous one
+          if prev_comment_line && line_num > prev_comment_line + 1
+            ((prev_comment_line + 1)...line_num).each do |blank_line_num|
+              line = comment_analysis.line_at(blank_line_num)&.chomp || ""
+              if comment_source == :template
+                @result.add_line(line, decision: decision, template_line: blank_line_num)
+              else
+                @result.add_line(line, decision: decision, dest_line: blank_line_num)
+              end
+            end
+          end
+
           line = comment_analysis.line_at(line_num)&.chomp || comment.slice.rstrip
           if comment_source == :template
             @result.add_line(line, decision: decision, template_line: line_num)
           else
             @result.add_line(line, decision: decision, dest_line: line_num)
           end
+
+          prev_comment_line = line_num
         end
 
         # Add blank lines between comments and node if needed
@@ -724,7 +757,7 @@ module Prism
           opening_line.chomp,
           decision: decision,
           template_line: (node_preference == :template) ? source_node.location.start_line : nil,
-          dest_line: (node_preference == :destination) ? source_node.location.start_line : nil
+          dest_line: (node_preference == :destination) ? source_node.location.start_line : nil,
         )
 
         # Add the merged body
@@ -733,7 +766,7 @@ module Prism
             line.chomp,
             decision: decision,
             template_line: nil,
-            dest_line: nil
+            dest_line: nil,
           )
         end
 
@@ -743,7 +776,7 @@ module Prism
           end_line.chomp,
           decision: decision,
           template_line: (node_preference == :template) ? source_node.location.end_line : nil,
-          dest_line: (node_preference == :destination) ? source_node.location.end_line : nil
+          dest_line: (node_preference == :destination) ? source_node.location.end_line : nil,
         )
       end
 

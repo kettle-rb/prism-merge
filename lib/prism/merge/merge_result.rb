@@ -66,9 +66,23 @@ module Prism
         start_line = node.location.start_line
         end_line = node.location.end_line
 
-        # Add leading comments
+        # Add leading comments with blank lines between them preserved
+        prev_comment_line = nil
         node_info[:leading_comments].each do |comment|
           comment_line = comment.location.start_line
+
+          # Add blank lines between this comment and the previous one
+          if prev_comment_line && comment_line > prev_comment_line + 1
+            ((prev_comment_line + 1)...comment_line).each do |blank_line_num|
+              line = source_analysis&.line_at(blank_line_num)&.chomp || ""
+              if source == :template
+                add_line(line, decision: decision, template_line: blank_line_num)
+              else
+                add_line(line, decision: decision, dest_line: blank_line_num)
+              end
+            end
+          end
+
           # Use source_analysis to get full line with indentation if available
           line = if source_analysis
             source_analysis.line_at(comment_line)&.chomp || comment.slice.rstrip
@@ -79,6 +93,23 @@ module Prism
             add_line(line, decision: decision, template_line: comment_line)
           else
             add_line(line, decision: decision, dest_line: comment_line)
+          end
+
+          prev_comment_line = comment_line
+        end
+
+        # Add blank lines between last comment and node if needed
+        if node_info[:leading_comments].any?
+          last_comment_line = node_info[:leading_comments].last.location.start_line
+          if start_line > last_comment_line + 1
+            ((last_comment_line + 1)...start_line).each do |blank_line_num|
+              line = source_analysis&.line_at(blank_line_num)&.chomp || ""
+              if source == :template
+                add_line(line, decision: decision, template_line: blank_line_num)
+              else
+                add_line(line, decision: decision, dest_line: blank_line_num)
+              end
+            end
           end
         end
 

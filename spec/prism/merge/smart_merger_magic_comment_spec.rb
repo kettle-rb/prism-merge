@@ -12,7 +12,7 @@ RSpec.describe "Magic comment handling", type: :integration do
     merger = Prism::Merge::SmartMerger.new(
       template,
       destination,
-      preference: preference
+      preference: preference,
     )
     merger.merge
   end
@@ -124,7 +124,7 @@ RSpec.describe "Magic comment handling", type: :integration do
       it "does not duplicate magic comments" do
         result = merge(template: template, destination: destination, preference: :template)
 
-        magic_comment_count = result.scan(/frozen_string_literal/).size
+        magic_comment_count = result.scan("frozen_string_literal").size
         expect(magic_comment_count).to eq(1)
       end
     end
@@ -251,7 +251,7 @@ RSpec.describe "Magic comment handling", type: :integration do
         expect(result).to be_a(String)
 
         # Should not have duplicate magic comments
-        magic_count = result.scan(/frozen_string_literal/).size
+        magic_count = result.scan("frozen_string_literal").size
         expect(magic_count).to be <= 2 # At most one from each source, ideally 1
       end
     end

@@ -114,7 +114,7 @@ module Prism
         # Prism node types. Statements may be wrapped in FrozenWrapper; unwrap
         # them here.
         statements.select { |node| node.is_a?(Ast::Merge::Freezable) }
-                  .map { |node| node.respond_to?(:unwrap) ? node.unwrap : node }
+          .map { |node| node.respond_to?(:unwrap) ? node.unwrap : node }
       end
 
       private

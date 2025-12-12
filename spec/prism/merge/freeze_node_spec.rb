@@ -97,9 +97,7 @@ RSpec.describe Prism::Merge::FreezeNode do
       location = Struct.new(:start_line, :end_line).new(1, 10)
       encompassing_node = double("EncompassingIfNode", location: location)
       # Make it NOT a valid encompassing type by returning false for all valid types
-      allow(encompassing_node).to receive(:is_a?) do |klass|
-        false # Not ClassNode, ModuleNode, DefNode, etc.
-      end
+      allow(encompassing_node).to receive(:is_a?).and_return(false)
       allow(encompassing_node).to receive_message_chain(:class, :name).and_return("Prism::IfNode")
 
       # Freeze block is lines 3-5, encompassing node is 1-10

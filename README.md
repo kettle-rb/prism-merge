@@ -410,7 +410,7 @@ node_typing = {
     else
       node  # Return unchanged for other gems
     end
-  }
+  },
 }
 
 # Use the node typing with per-type preferences
@@ -456,7 +456,7 @@ node_typing = {
     else
       node
     end
-  }
+  },
 }
 
 signature_generator = ->(node) {
@@ -473,7 +473,7 @@ merger = Prism::Merge::SmartMerger.new(
   destination,
   node_typing: node_typing,
   signature_generator: signature_generator,
-  preference: { default: :destination, lint_gem: :template },
+  preference: {default: :destination, lint_gem: :template},
 )
 ```
 

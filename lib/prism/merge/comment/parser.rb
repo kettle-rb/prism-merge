@@ -53,7 +53,7 @@ module Prism
               # Ruby comment line
               current_block << Line.new(
                 text: stripped,
-                line_number: line_number
+                line_number: line_number,
               )
             else
               # Non-comment content (shouldn't happen in comment-only files)
@@ -65,7 +65,7 @@ module Prism
               nodes << Ast::Merge::Comment::Line.new(
                 text: stripped,
                 line_number: line_number,
-                style: :hash_comment
+                style: :hash_comment,
               )
             end
           end
@@ -78,12 +78,14 @@ module Prism
           nodes
         end
 
-        # Class method for convenient one-shot parsing.
-        #
-        # @param lines [Array<String>] Source lines
-        # @return [Array<Ast::Merge::AstNode>] Parsed nodes
-        def self.parse(lines)
-          new(lines).parse
+        class << self
+          # Class method for convenient one-shot parsing.
+          #
+          # @param lines [Array<String>] Source lines
+          # @return [Array<Ast::Merge::AstNode>] Parsed nodes
+          def parse(lines)
+            new(lines).parse
+          end
         end
 
         private

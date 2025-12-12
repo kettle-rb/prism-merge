@@ -153,7 +153,7 @@ RSpec.describe "Magic Comment and Directive Handling" do
 
       # Helper to get the actual node (unwrap if needed)
       unwrap = ->(node) { node.respond_to?(:unwrap) ? node.unwrap : node }
-      
+
       # Helper to check if node is a ConstantWriteNode with a specific name
       is_const = ->(node, name) {
         actual = unwrap.call(node)
@@ -198,7 +198,7 @@ RSpec.describe "Magic Comment and Directive Handling" do
       # Should have one statement (ClassNode or FrozenWrapper around ClassNode)
       expect(analysis.statements.length).to eq(1)
       class_node = analysis.statements.first
-      
+
       # The class contains a nested freeze marker, so it may be wrapped
       # Unwrap if needed to get the actual ClassNode
       actual_node = class_node.respond_to?(:unwrap) ? class_node.unwrap : class_node

@@ -7,7 +7,5 @@ class MyClass
     @name = name
   end
 
-  def name
-    @name
-  end
+  attr_reader :name
 end

@@ -7,9 +7,7 @@ class MyClass
     @name = name
   end
 
-  def name
-    @name
-  end
+  attr_reader :name
 
   def custom_method(options = {})
     options.fetch(:default, @name)
