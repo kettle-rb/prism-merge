@@ -1,25 +1,9 @@
 # coding: utf-8
 # frozen_string_literal: true
 
-gem_version =
-  if RUBY_VERSION >= "3.1" # rubocop:disable Gemspec/RubyVersionGlobalsUsage
-    # Loading Version into an anonymous module allows version.rb to get code coverage from SimpleCov!
-    # See: https://github.com/simplecov-ruby/simplecov/issues/557#issuecomment-2630782358
-    # See: https://github.com/panorama-ed/memo_wise/pull/397
-    Module.new.tap { |mod| Kernel.load("#{__dir__}/lib/prism/merge/version.rb", mod) }::Prism::Merge::Version::VERSION
-  else
-    # NOTE: Use __FILE__ or __dir__ until removal of Ruby 1.x support
-    # __dir__ introduced in Ruby 1.9.1
-    # lib = File.expand_path("../lib", __FILE__)
-    lib = File.expand_path("lib", __dir__)
-    $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-    require "prism/merge/version"
-    Prism::Merge::Version::VERSION
-  end
-
 Gem::Specification.new do |spec|
   spec.name = "prism-merge"
-  spec.version = gem_version
+  spec.version = Module.new.tap { |mod| Kernel.load("#{__dir__}/lib/prism/merge/version.rb", mod) }::Prism::Merge::Version::VERSION
   spec.authors = ["Peter H. Boling"]
   spec.email = ["floss@galtzo.com"]
 

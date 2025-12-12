@@ -20,6 +20,8 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- Many new features inherited from `ast-merge`, and updated behaviors.
+
 ### Changed
 
 - **BREAKING**: Error classes now inherit from `Ast::Merge` base classes:
