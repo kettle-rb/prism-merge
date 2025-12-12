@@ -195,17 +195,17 @@ RSpec.describe "Magic Comment and Directive Handling" do
 
       analysis = Prism::Merge::FileAnalysis.new(content)
 
-      # Should have one statement (ClassNode or FrozenWrapper around ClassNode)
+      # Should have one statement (ClassNode)
       expect(analysis.statements.length).to eq(1)
       class_node = analysis.statements.first
 
-      # The class contains a nested freeze marker, so it may be wrapped
       # Unwrap if needed to get the actual ClassNode
       actual_node = class_node.respond_to?(:unwrap) ? class_node.unwrap : class_node
       expect(actual_node).to be_a(Prism::ClassNode)
 
-      # The class contains a nested freeze marker, so the whole class is frozen
-      expect(analysis.frozen_node?(class_node)).to be true
+      # The class should NOT be frozen because the freeze marker is INSIDE the class body,
+      # not in leading comments. The freeze marker applies to the CUSTOM constant, not the class.
+      expect(analysis.frozen_node?(class_node)).to be false
 
       # Leading comments are attached to the class
       leading_comments = actual_node.location.leading_comments

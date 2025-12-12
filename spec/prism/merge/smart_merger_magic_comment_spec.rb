@@ -34,7 +34,7 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
           RUBY
         end
 
-        it "preserves magic comment at top with template preference", pending: "magic comment preservation not yet implemented for comment-only files" do
+        it "preserves magic comment at top with template preference" do
           result = merge(template: template, destination: destination, preference: :template)
           lines = result.lines
 
@@ -116,7 +116,7 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
           RUBY
         end
 
-        it "uses template's magic comment with template preference", pending: "magic comment preservation not yet implemented for comment-only files" do
+        it "uses template's magic comment with template preference" do
           result = merge(template: template, destination: destination, preference: :template)
           lines = result.lines
 

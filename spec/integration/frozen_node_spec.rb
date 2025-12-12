@@ -18,7 +18,9 @@ RSpec.describe "Frozen Node Detection" do
       expect(analysis.frozen_node?(method_node)).to be true
     end
 
-    it "detects freeze marker nested inside node content" do
+    it "does NOT freeze outer node when freeze marker is nested inside" do
+      # A freeze marker INSIDE a block applies to the nested statement it precedes,
+      # not to the enclosing block. This is the correct Ruby semantics.
       code = <<~RUBY
         Gem::Specification.new do |spec|
           # prism-merge:freeze
@@ -29,7 +31,8 @@ RSpec.describe "Frozen Node Detection" do
       analysis = Prism::Merge::FileAnalysis.new(code)
       call_node = analysis.statements.first
 
-      expect(analysis.frozen_node?(call_node)).to be true
+      # The outer block should NOT be frozen - the freeze marker applies to the nested spec.name assignment
+      expect(analysis.frozen_node?(call_node)).to be false
     end
 
     it "returns false for nodes without freeze marker" do

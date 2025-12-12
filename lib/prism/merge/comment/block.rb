@@ -34,11 +34,32 @@ module Prism
           children.any? { |c| c.is_a?(Line) && c.magic_comment? }
         end
 
+        # Alias for consistency with Line#magic_comment?
+        alias_method :magic_comment?, :contains_magic_comment?
+
         # Get all magic comments in this block.
         #
         # @return [Array<Line>] Magic comment lines
         def magic_comments
           children.select { |c| c.is_a?(Line) && c.magic_comment? }
+        end
+
+        # Generate signature for matching.
+        #
+        # For blocks containing magic comments, uses the FIRST magic comment's
+        # signature (by type) so that blocks with the same type of magic comment
+        # will match regardless of value (e.g., true vs false).
+        #
+        # For non-magic blocks, uses the parent implementation.
+        #
+        # @return [Array] Signature for matching
+        def signature
+          if contains_magic_comment?
+            # Use the first magic comment's signature
+            magic_comments.first.signature
+          else
+            super
+          end
         end
 
         # @return [String] Human-readable representation

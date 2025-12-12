@@ -434,8 +434,10 @@ module Prism
             else
               add_comment_node_to_result(dest_node, :destination)
             end
-          elsif @add_template_only_nodes
+          elsif @add_template_only_nodes || (default_preference == :template && template_node.respond_to?(:magic_comment?) && template_node.magic_comment?)
             # Template-only node - output it at its template position
+            # Magic comments are ALWAYS output from template when preference is :template
+            # to ensure they remain at the top of the file
             add_comment_node_to_result(template_node, :template)
             output_template_signatures << template_signature if template_signature
           end
@@ -885,20 +887,16 @@ module Prism
           prev_comment_line = line_num
         end
 
-        # Add blank lines between comments and node if needed
-        # Note: blank lines come from comment_analysis to match the comment source
+        # Add a single blank line between comments and node if needed for separation.
+        # IMPORTANT: We only add a blank line, not content from either source.
+        # When comments come from dest but node comes from template (or vice versa),
+        # filling the "gap" with lines from the comment source would incorrectly
+        # include unrelated content (potentially entire nodes) from that source.
         if leading_comments.any?
           last_comment_line = leading_comments.last.location.start_line
-          # Calculate the gap based on source_node's start line
+          # Only add blank line if there's a gap and we need separation
           if source_node.location.start_line > last_comment_line + 1
-            ((last_comment_line + 1)...source_node.location.start_line).each do |line_num|
-              line = comment_analysis.line_at(line_num)&.chomp || ""
-              if comment_source == :template
-                @result.add_line(line, decision: decision, template_line: line_num)
-              else
-                @result.add_line(line, decision: decision, dest_line: line_num)
-              end
-            end
+            @result.add_line("", decision: decision)
           end
         end
 

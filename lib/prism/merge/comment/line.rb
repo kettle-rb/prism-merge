@@ -73,6 +73,24 @@ module Prism
           nil
         end
 
+        # Generate signature for matching.
+        #
+        # For magic comments, uses the magic comment TYPE as the signature
+        # so that `# frozen_string_literal: true` matches `# frozen_string_literal: false`.
+        # This allows preference to be applied when both template and dest have
+        # the same type of magic comment with different values.
+        #
+        # For non-magic comments, uses the parent implementation (normalized content).
+        #
+        # @return [Array] Signature for matching
+        def signature
+          if magic_comment?
+            [:magic_comment, magic_comment_type]
+          else
+            super
+          end
+        end
+
         # @return [String] Human-readable representation
         def inspect
           magic = magic_comment? ? " magic=#{magic_comment_type}" : ""

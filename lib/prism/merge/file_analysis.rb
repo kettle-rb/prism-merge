@@ -70,16 +70,19 @@ module Prism
         value.is_a?(::Prism::Node) || super
       end
 
-      # Check if a node has a freeze marker in its leading comments OR
-      # contains a freeze marker anywhere in its content.
+      # Determine if a node is frozen (has a freeze marker in its leading comments).
       #
-      # This supports both:
-      # 1. Simple freeze markers as leading comments on a node
-      # 2. Nested freeze markers inside block bodies
-      # 3. Already-wrapped FrozenWrapper nodes
+      # For Ruby AST nodes, a freeze marker applies only to the node it directly
+      # precedes in leading comments. If a freeze marker appears INSIDE a block
+      # (nested in the body), it applies to that nested statement, NOT the outer
+      # block. This is different from comment-only formats like Markdown where
+      # checking content containment makes sense.
+      #
+      # Nested freeze markers inside the node's body are handled during recursive
+      # body merging, where each nested statement gets its own freeze detection.
       #
       # @param node [Prism::Node, Ast::Merge::NodeTyping::FrozenWrapper] The node to check
-      # @return [Boolean] true if the node has or contains a freeze marker
+      # @return [Boolean] true if the node has a freeze marker in its leading comments
       def frozen_node?(node)
         # Already wrapped as frozen
         return true if node.is_a?(Ast::Merge::Freezable)
@@ -91,14 +94,9 @@ module Prism
 
         freeze_pattern = /#{Regexp.escape(@freeze_token)}:freeze/i
 
-        # Check for freeze marker in leading comments
+        # Check for freeze marker in leading comments ONLY
         if actual_node.respond_to?(:location) && actual_node.location.respond_to?(:leading_comments)
           return true if actual_node.location.leading_comments.any? { |c| c.slice.match?(freeze_pattern) }
-        end
-
-        # Check if node content contains a freeze marker (for nested freeze blocks)
-        if actual_node.respond_to?(:slice)
-          return true if actual_node.slice.match?(freeze_pattern)
         end
 
         false
@@ -117,23 +115,36 @@ module Prism
           .map { |node| node.respond_to?(:unwrap) ? node.unwrap : node }
       end
 
+      class << self
+        # Safely attach comments to nodes, handling JRuby compatibility issues.
+        # On JRuby, the Prism::ParseResult::Comments class may not be autoloaded,
+        # so we need to explicitly require it.
+        #
+        # This is a class method so it can be used anywhere in prism-merge code
+        # that needs to attach comments to a parse result.
+        #
+        # @param parse_result [Prism::ParseResult] The parse result to attach comments to
+        # @return [void]
+        def attach_comments_safely!(parse_result)
+          parse_result.attach_comments!
+        # :nocov: defensive - JRuby compatibility for Comments class autoloading
+        rescue NameError => e
+          if e.message.include?("Comments")
+            # On JRuby, the Comments class needs to be explicitly required
+            require "prism/parse_result/comments"
+            parse_result.attach_comments!
+          else
+            raise
+          end
+          # :nocov:
+        end
+      end
+
       private
 
-      # Safely attach comments to nodes, handling JRuby compatibility issues
-      # On JRuby, the Prism::ParseResult::Comments class may not be autoloaded,
-      # so we need to explicitly require it
+      # Instance method wrapper for class method
       def attach_comments_safely!
-        @parse_result.attach_comments!
-      # :nocov: defensive - JRuby compatibility for Comments class autoloading
-      rescue NameError => e
-        if e.message.include?("Comments")
-          # On JRuby, the Comments class needs to be explicitly required
-          require "prism/parse_result/comments"
-          @parse_result.attach_comments!
-        else
-          raise
-        end
-        # :nocov:
+        self.class.attach_comments_safely!(@parse_result)
       end
 
       # Extract all top-level AST nodes from the parsed source.
