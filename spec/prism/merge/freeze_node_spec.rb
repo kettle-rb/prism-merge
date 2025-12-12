@@ -95,10 +95,10 @@ RSpec.describe Prism::Merge::FreezeNode do
       # Create a mock node that fully encompasses the freeze block but is not a valid type
       # (not ClassNode, ModuleNode, DefNode, etc.)
       location = Struct.new(:start_line, :end_line).new(1, 10)
-      encompassing_node = double("EncompassingIfNode", location: location)
+      node_class = Class.new { define_method(:name) { "Prism::IfNode" } }.new
+      encompassing_node = double("EncompassingIfNode", location: location, class: node_class)
       # Make it NOT a valid encompassing type by returning false for all valid types
       allow(encompassing_node).to receive(:is_a?).and_return(false)
-      allow(encompassing_node).to receive_message_chain(:class, :name).and_return("Prism::IfNode")
 
       # Freeze block is lines 3-5, encompassing node is 1-10
       expect {
@@ -115,9 +115,9 @@ RSpec.describe Prism::Merge::FreezeNode do
     it "reports overlap type correctly in error message" do
       # Test line 135 - overlap type description
       location = Struct.new(:start_line, :end_line).new(1, 5)
-      overlapping_node = double("OverlappingNode", location: location)
+      node_class = Class.new { define_method(:name) { "Prism::IfNode" } }.new
+      overlapping_node = double("OverlappingNode", location: location, class: node_class)
       allow(overlapping_node).to receive(:is_a?).and_return(false)
-      allow(overlapping_node).to receive_message_chain(:class, :name).and_return("Prism::IfNode")
 
       expect {
         described_class.new(
@@ -135,9 +135,9 @@ RSpec.describe Prism::Merge::FreezeNode do
     it "reports end overlap type correctly" do
       # Test line 135 else branch - node starts inside and ends after
       location = Struct.new(:start_line, :end_line).new(3, 10)
-      overlapping_node = double("OverlappingNode", location: location)
+      node_class = Class.new { define_method(:name) { "Prism::DefNode" } }.new
+      overlapping_node = double("OverlappingNode", location: location, class: node_class)
       allow(overlapping_node).to receive(:is_a?).and_return(false)
-      allow(overlapping_node).to receive_message_chain(:class, :name).and_return("Prism::DefNode")
 
       expect {
         described_class.new(

@@ -3184,7 +3184,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         # Verify that NodeTyping.process actually wraps the node
         typed_node = Ast::Merge::NodeTyping.process(template_node, node_typing_config)
-        expect(Ast::Merge::NodeTyping.typed_node?(typed_node)).to eq(true)
+        expect(Ast::Merge::NodeTyping.typed_node?(typed_node)).to be(true)
         expect(Ast::Merge::NodeTyping.merge_type_for(typed_node)).to eq(:version)
 
         # Now verify preference_for_node returns the correct preference
@@ -3252,7 +3252,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         # Check should_merge_recursively? - should be false for ConstantWriteNode
         should_recurse = merger.send(:should_merge_recursively?, template_node, dest_node)
-        expect(should_recurse).to eq(false), "ConstantWriteNode should not merge recursively"
+        expect(should_recurse).to be(false), "ConstantWriteNode should not merge recursively"
 
         # Check preference_for_node returns correct value
         pref = merger.send(:preference_for_node, template_node, dest_node)

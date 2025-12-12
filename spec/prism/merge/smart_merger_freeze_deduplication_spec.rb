@@ -146,7 +146,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
-    context "regression: gemspec-like content" do
+    context "with gemspec-like content regression" do
       it "handles gemspec with frozen gem_version" do
         template = <<~RUBY
           # frozen_string_literal: true
