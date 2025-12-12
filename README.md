@@ -736,6 +736,72 @@ Freeze blocks are **always preserved** from the destination file during merge, r
 
 This allows you to protect entire methods, portions of method implementations, or sections within DSL blocks.
 
+#### Inline Freeze Comments
+
+In addition to freeze blocks (with matching `freeze`/`unfreeze` markers), you can freeze a **single Ruby statement** by placing a freeze comment immediately before it:
+
+```ruby
+# prism-merge:freeze
+gem "my-custom-gem", path: "../local-fork"
+```
+
+When a freeze comment appears in the leading comments of a Ruby statement, that **entire statement is frozen**. This has important implications:
+
+##### Simple Statements
+
+For simple statements like method calls, assignments, or single expressions, the entire line is frozen:
+
+```ruby
+# prism-merge:freeze
+gem "example", "~> 1.0"  # This entire gem declaration is frozen
+
+# prism-merge:freeze
+VERSION = "1.2.3"  # This constant assignment is frozen
+```
+
+##### Block Statements
+
+**⚠️ Important:** When a freeze comment precedes a block-based statement (like a class, module, method definition, or DSL block), the **entire block is frozen**, preventing any template updates to that section:
+
+```ruby
+# prism-merge:freeze
+class MyCustomClass
+  # EVERYTHING inside this class is frozen!
+  # Template changes to this class will be ignored.
+  def custom_method
+    # ...
+  end
+end
+
+# prism-merge:freeze
+module MyModule
+  # The entire module body is frozen
+end
+
+# prism-merge:freeze
+def my_method(arg)
+  # The entire method body is frozen
+end
+
+# prism-merge:freeze
+describe "My Feature" do
+  # All specs inside this describe block are frozen
+  it "does something" do
+    # ...
+  end
+end
+```
+
+##### Matching Behavior
+
+Frozen statements are matched by their **structural identity**, not their content. This means:
+
+- A frozen `gem "example"` in the destination will match `gem "example"` in the template (by gem name)
+- A frozen `def my_method` will match `def my_method` in the template (by method name)
+- A frozen `class Foo` will match `class Foo` in the template (by class name)
+
+The destination's frozen version is always preserved, regardless of changes in the template.
+
 ### Integration with Existing Systems
 
 If you're integrating with an existing system that has its own signature logic:
