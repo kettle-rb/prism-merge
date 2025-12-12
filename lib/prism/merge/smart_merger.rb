@@ -112,6 +112,41 @@ module Prism
         )
       end
 
+      # Determine whether the given analysis represents a comment-only file.
+      #
+      # Returns true when every top-level statement is a comment/block/empty
+      # node produced by the comment parsers. This is used to decide whether to
+      # delegate to the comment-only merger logic.
+      #
+      # @param analysis [FileAnalysis]
+      # @return [Boolean]
+      def comment_only_file?(analysis)
+        stmts = analysis.statements
+        return false if stmts.nil? || stmts.empty?
+
+        stmts.all? do |s|
+          # Generic AST comment nodes
+          next true if defined?(Ast::Merge::Comment::Empty) && s.is_a?(Ast::Merge::Comment::Empty)
+          next true if defined?(Ast::Merge::Comment::Block) && s.is_a?(Ast::Merge::Comment::Block)
+          next true if defined?(Ast::Merge::Comment::Line) && s.is_a?(Ast::Merge::Comment::Line)
+
+          # Prism-specific comment nodes
+          if defined?(Prism::Merge::Comment)
+            next true if defined?(Prism::Merge::Comment::Block) && s.is_a?(Prism::Merge::Comment::Block)
+            next true if defined?(Prism::Merge::Comment::Line) && s.is_a?(Prism::Merge::Comment::Line)
+          end
+
+          # Empty/whitespace lines produced by FileAnalysis
+          begin
+            next true if s.is_a?(Ast::Merge::Comment::Empty)
+          rescue
+            false
+          end
+
+          false
+        end
+      end
+
       # Perform the merge and return a hash with content, debug info, and statistics.
       #
       # @return [Hash] Hash with :content, :debug, and :statistics keys
@@ -174,19 +209,25 @@ module Prism
 
       # Perform the SmartMerger's section-based merge with recursive body merging.
       #
+      # The algorithm processes nodes in destination order to preserve user additions
+      # in their original positions, while injecting template-only nodes at the beginning.
+      #
+      # For comment-only files (no Ruby code statements), FileAnalysis parses the content
+      # into Comment::Block and Comment::Empty nodes. We detect this case by checking if
+      # ALL statements are comment nodes, and delegate to merge_comment_only_files.
+      #
       # @return [MergeResult] The merge result
       def perform_merge
         validate_files!
 
-        # Handle special case: files with no statements (comment-only files)
-        # This happens with files that only contain comments like `# frozen_string_literal: true`
-        if @template_analysis.statements.empty? && @dest_analysis.statements.empty?
+        # Handle special case: files that are comment-only (no code statements)
+        if comment_only_file?(@template_analysis) && comment_only_file?(@dest_analysis)
           return merge_comment_only_files
         end
 
         # Build signature maps for quick lookup
         template_by_signature = build_signature_map(@template_analysis)
-        build_signature_map(@dest_analysis)
+        dest_by_signature = build_signature_map(@dest_analysis)
 
         # Track which signatures we've output (to avoid duplicates)
         output_signatures = Set.new
@@ -194,16 +235,30 @@ module Prism
         # Track which dest line ranges have been output (to avoid duplicating nested content)
         output_dest_line_ranges = []
 
-        # Process destination nodes in their original order to preserve dest-only node positions
-        # This ensures dest-only nodes appear in their natural position relative to matched nodes
+        # Phase 1: Output template-only nodes first (nodes in template but not in dest)
+        # This ensures template-only nodes (like `source` in Gemfiles) appear at the top
+        if @add_template_only_nodes
+          @template_analysis.statements.each do |template_node|
+            template_signature = @template_analysis.generate_signature(template_node)
+
+            # Skip if this template node has a match in dest
+            next if template_signature && dest_by_signature.key?(template_signature)
+
+            # Template-only node - output it at its template position
+            add_node_to_result(@result, template_node, @template_analysis, :template)
+            output_signatures << template_signature if template_signature
+          end
+        end
+
+        # Phase 2: Process dest nodes in their original order
+        # This preserves dest-only nodes in their original position relative to matched nodes
         @dest_analysis.statements.each do |dest_node|
           dest_signature = @dest_analysis.generate_signature(dest_node)
 
-          # Skip if already output (shouldn't happen but safety check)
+          # Skip if already output
           next if dest_signature && output_signatures.include?(dest_signature)
 
           # Skip if this dest node is inside a dest range we've already output
-          # (e.g., a nested node inside a Gem::Specification block)
           node_range = dest_node.location.start_line..dest_node.location.end_line
           next if output_dest_line_ranges.any? { |range| range.cover?(node_range.begin) && range.cover?(node_range.end) }
 
@@ -211,6 +266,9 @@ module Prism
             # Matched node - merge with template version
             template_node = template_by_signature[dest_signature]
             output_signatures << dest_signature
+
+            # Track the dest node's line range to avoid re-outputting it later
+            output_dest_line_ranges << node_range
 
             if should_merge_recursively?(template_node, dest_node)
               # Recursively merge class/module/block bodies
@@ -225,26 +283,11 @@ module Prism
                 add_node_to_result(@result, dest_node, @dest_analysis, :destination)
               end
             end
-
-            output_dest_line_ranges << node_range
           else
-            # Dest-only node - output it in place
+            # Dest-only node - output it in its original position
             add_node_to_result(@result, dest_node, @dest_analysis, :destination)
             output_dest_line_ranges << node_range
             output_signatures << dest_signature if dest_signature
-          end
-        end
-
-        # Add template-only nodes if configured
-        if @add_template_only_nodes
-          @template_analysis.statements.each do |template_node|
-            signature = @template_analysis.generate_signature(template_node)
-
-            # Skip if already output (matched with dest)
-            next if signature && output_signatures.include?(signature)
-
-            add_node_to_result(@result, template_node, @template_analysis, :template)
-            output_signatures << signature if signature
           end
         end
 
@@ -333,38 +376,146 @@ module Prism
       # Handle merging of files that contain only comments (no code statements).
       #
       # For comment-only files (like files with just `# frozen_string_literal: true`),
-      # there are no AST nodes to match. We delegate to Ast::Merge::Text::SmartMerger
-      # which provides intelligent line-based merging with freeze block support.
+      # there are no Prism AST nodes to match. We use Prism::Merge::Comment::Parser
+      # to parse comments into AST nodes, then apply the same two-phase merge algorithm
+      # used by perform_merge:
+      #
+      # Phase 1: Process template comment nodes in order
+      #   - Match by signature (normalized content)
+      #   - Apply preference for matched pairs
+      #   - Add template-only nodes if add_template_only_nodes is true
+      #
+      # Phase 2: Add dest-only comment nodes
+      #   - Preserves user additions (comments not in template)
+      #   - Uses index-based tracking to preserve duplicate comments
+      #
+      # This ensures consistent preference-based behavior across all merge operations.
+      # Comment nodes match by their normalized content (signature). When multiple
+      # dest nodes have the same signature, only the first matches; the rest are
+      # treated as dest-only and preserved in Phase 2.
       #
       # @return [MergeResult] The merge result
       def merge_comment_only_files
-        # Build options for text merger, merging defaults with any custom options
-        text_options = {
-          preference: default_preference,
-          add_template_only_nodes: @add_template_only_nodes,
-          freeze_token: @freeze_token || ::Ast::Merge::Text::SmartMerger::DEFAULT_FREEZE_TOKEN,
-        }
-        text_options.merge!(@text_merger_options) if @text_merger_options
+        # Parse comments into AST nodes
+        template_lines = @template_content.lines.map(&:chomp)
+        dest_lines = @dest_content.lines.map(&:chomp)
 
-        # Delegate to text merger for intelligent line-based merging
-        text_merger = ::Ast::Merge::Text::SmartMerger.new(
-          @template_content,
-          @dest_content,
-          **text_options,
-        )
+        template_nodes = Comment::Parser.parse(template_lines)
+        dest_nodes = Comment::Parser.parse(dest_lines)
 
-        text_result = text_merger.merge
+        # Build signature -> [indices] map for dest nodes (to find first unmatched)
+        dest_indices_by_signature = build_comment_indices_map(dest_nodes)
 
-        # Convert text merge result to our result format
-        text_result.to_s.each_line.with_index do |line, idx|
-          @result.add_line(
-            line.chomp,
-            decision: MergeResult::DECISION_KEPT_DEST, # Text merger handles decisions internally
-            dest_line: idx + 1,
-          )
+        # Track which template signatures we've output (to avoid duplicate template nodes)
+        output_template_signatures = Set.new
+
+        # Track which dest node indices have been matched (to preserve unmatched duplicates)
+        matched_dest_indices = Set.new
+
+        # Phase 1: Process template nodes in their original order
+        template_nodes.each do |template_node|
+          template_signature = template_node.respond_to?(:signature) ? template_node.signature : nil
+
+          # Skip if this template signature was already output
+          next if template_signature && output_template_signatures.include?(template_signature)
+
+          # Find first unmatched dest node with same signature
+          dest_index = find_first_unmatched_index(dest_indices_by_signature, template_signature, matched_dest_indices)
+
+          if dest_index
+            # Matched node - apply preference
+            dest_node = dest_nodes[dest_index]
+            matched_dest_indices << dest_index
+            output_template_signatures << template_signature if template_signature
+
+            # Use preference to decide which version to output
+            if default_preference == :template
+              add_comment_node_to_result(template_node, :template)
+            else
+              add_comment_node_to_result(dest_node, :destination)
+            end
+          elsif @add_template_only_nodes
+            # Template-only node - output it at its template position
+            add_comment_node_to_result(template_node, :template)
+            output_template_signatures << template_signature if template_signature
+          end
+        end
+
+        # Phase 2: Add dest-only nodes (nodes not matched in Phase 1)
+        # Only add dest-only nodes when preference is :destination (to preserve user additions)
+        # When preference is :template, we only want template content
+        if default_preference == :destination
+          dest_nodes.each_with_index do |dest_node, index|
+            next if matched_dest_indices.include?(index)
+
+            # Dest-only node - output it
+            add_comment_node_to_result(dest_node, :destination)
+          end
         end
 
         @result
+      end
+
+      # Build a map of signature -> [indices] for comment nodes.
+      #
+      # @param nodes [Array<Ast::Merge::Comment::*>] Comment nodes
+      # @return [Hash{Array => Array<Integer>}] Map of signatures to node indices
+      def build_comment_indices_map(nodes)
+        map = Hash.new { |h, k| h[k] = [] }
+        nodes.each_with_index do |node, index|
+          sig = node.respond_to?(:signature) ? node.signature : nil
+          map[sig] << index if sig
+        end
+        map
+      end
+
+      # Find the first unmatched index for a given signature.
+      #
+      # @param indices_map [Hash] Map of signature -> [indices]
+      # @param signature [Array, nil] The signature to look up
+      # @param matched_indices [Set] Already matched indices
+      # @return [Integer, nil] First unmatched index or nil
+      def find_first_unmatched_index(indices_map, signature, matched_indices)
+        return unless signature
+        indices = indices_map[signature]
+        return unless indices
+        indices.find { |i| !matched_indices.include?(i) }
+      end
+
+      # Add a comment node to the result.
+      #
+      # @param node [Ast::Merge::Comment::*] The comment node
+      # @param source [Symbol] :template or :destination
+      def add_comment_node_to_result(node, source)
+        decision = (source == :template) ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
+
+        content = if node.respond_to?(:text)
+          node.text
+        elsif node.respond_to?(:content)
+          node.content
+        else
+          node.to_s
+        end
+
+        # Handle Block nodes that contain multiple lines
+        if node.respond_to?(:children) && node.children.any?
+          node.children.each do |child|
+            child_content = child.respond_to?(:text) ? child.text : child.to_s
+            line_num = child.respond_to?(:line_number) ? child.line_number : nil
+            if source == :template
+              @result.add_line(child_content, decision: decision, template_line: line_num)
+            else
+              @result.add_line(child_content, decision: decision, dest_line: line_num)
+            end
+          end
+        else
+          line_num = node.respond_to?(:line_number) ? node.line_number : nil
+          if source == :template
+            @result.add_line(content, decision: decision, template_line: line_num)
+          else
+            @result.add_line(content, decision: decision, dest_line: line_num)
+          end
+        end
       end
 
       # Build a map of signature -> node for an analysis.
