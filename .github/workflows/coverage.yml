@@ -83,7 +83,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: ${{ matrix.experimental != 'false' }}
 
-      - name: Upload co verage to QLTY
+      - name: Upload coverage to QLTY
         if: ${{ !env.ACT }}
         uses: qltysh/qlty-action/coverage@main
         with:

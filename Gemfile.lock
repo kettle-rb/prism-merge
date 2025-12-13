@@ -11,12 +11,6 @@ GIT
       yard
 
 PATH
-  remote: ../..
-  specs:
-    ast-merge (1.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
   remote: .
   specs:
     prism-merge (2.0.0)
@@ -35,6 +29,8 @@ GEM
       rake (>= 10)
       thor (>= 0.14)
     ast (2.4.3)
+    ast-merge (1.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     backports (3.25.2)
     benchmark (0.5.0)
     bigdecimal (3.3.1)
@@ -91,7 +87,7 @@ GEM
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     json (2.18.0)
-    kettle-dev (1.1.60)
+    kettle-dev (1.2.4)
     kettle-soup-cover (1.0.10)
       simplecov (~> 0.22)
       simplecov-cobertura (~> 3.0)
@@ -324,7 +320,6 @@ PLATFORMS
 DEPENDENCIES
   addressable (>= 2.8, < 3)
   appraisal2 (~> 3.0)
-  ast-merge!
   benchmark (~> 0.4, >= 0.4.1)
   bundler-audit (~> 0.9.2)
   debug (>= 1.1)
@@ -332,7 +327,7 @@ DEPENDENCIES
   gem_bench (~> 2.0, >= 2.0.5)
   gitmoji-regex (~> 1.0, >= 1.0.3)
   irb (~> 1.15, >= 1.15.2)
-  kettle-dev (~> 1.1.60)
+  kettle-dev (~> 1.1)
   kettle-soup-cover (~> 1.0, >= 1.0.10)
   kettle-test (~> 1.0, >= 1.0.6)
   kramdown (~> 2.5, >= 2.5.1)
@@ -364,7 +359,7 @@ CHECKSUMS
   ansi (1.5.0) sha256=5408253274e33d9d27d4a98c46d2998266fd51cba58a7eb9d08f50e57ed23592
   appraisal2 (3.0.0) sha256=f1b4e742cf8ebef5e9fbb76c416a8c16edfe0727964a5a17b44adfc37b701aed
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
-  ast-merge (1.0.0)
+  ast-merge (1.0.0) sha256=37b113bae4e2c3e082957d16429a105aaf391bdcb87b5abb7313968e05817dab
   backports (3.25.2) sha256=4852613b0336f950a811b545a447ac273823578bb7bd1d3126a6ff9d5f840ff7
   benchmark (0.5.0) sha256=465df122341aedcb81a2a24b4d3bd19b6c67c1530713fd533f3ff034e419236c
   bigdecimal (3.3.1) sha256=eaa01e228be54c4f9f53bf3cc34fe3d5e845c31963e7fcc5bedb05a4e7d52218
@@ -389,7 +384,7 @@ CHECKSUMS
   io-console (0.8.1) sha256=1e15440a6b2f67b6ea496df7c474ed62c860ad11237f29b3bd187f054b925fcb
   irb (1.15.3) sha256=4349edff1efa7ff7bfd34cb9df74a133a588ba88c2718098b3b4468b81184aaa
   json (2.18.0) sha256=b10506aee4183f5cf49e0efc48073d7b75843ce3782c68dbeb763351c08fd505
-  kettle-dev (1.1.60) sha256=e155e60912c171b4fab24cfce1dc6f00e87cb3e62803a235c8524516d1ba1850
+  kettle-dev (1.2.4) sha256=71373c67fe7eb0a9656e70dfd10cf226a15083b6d1be18dafcb5360f21ee98b6
   kettle-soup-cover (1.0.10) sha256=2674fe2d87cbe2961847396f4f8d1e5c0165ae9999ffa8e94e8491215e0b8c3d
   kettle-test (1.0.7) sha256=16fcb8b1bc12366f443d0ec9d125c1865249865c7afff7ef856e602436d4cdc7
   kramdown (2.5.1) sha256=87bbb6abd9d3cebe4fc1f33e367c392b4500e6f8fa19dd61c0972cf4afe7368c
