@@ -23,6 +23,7 @@ appraise "unlocked_deps" do
   eval_gemfile "modular/coverage.gemfile"
   eval_gemfile "modular/documentation.gemfile"
   eval_gemfile "modular/optional.gemfile"
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/style.gemfile"
   eval_gemfile "modular/x_std_libs.gemfile"
 end
@@ -33,25 +34,30 @@ appraise "head" do
   # Why is gem "cgi" here? See: https://github.com/vcr/vcr/issues/1057
   #  gem "cgi", ">= 0.5"
   gem "benchmark", "~> 0.4", ">= 0.4.1"
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/x_std_libs.gemfile"
 end
 
 # Used for current releases of ruby, truffleruby, and jruby.
 # Split into discrete appraisals if one of them needs a dependency locked discretely.
 appraise "current" do
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/x_std_libs.gemfile"
 end
 
 # Test current Rubies against head versions of runtime dependencies
 appraise "dep-heads" do
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/runtime_heads.gemfile"
 end
 
 appraise "ruby-3-2" do
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/x_std_libs/r3/libs.gemfile"
 end
 
 appraise "ruby-3-3" do
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/x_std_libs/r3/libs.gemfile"
 end
 
@@ -64,6 +70,7 @@ end
 appraise "coverage" do
   eval_gemfile "modular/coverage.gemfile"
   eval_gemfile "modular/optional.gemfile"
+  eval_gemfile "modular/rspec.gemfile"
   eval_gemfile "modular/x_std_libs.gemfile"
 end
 
