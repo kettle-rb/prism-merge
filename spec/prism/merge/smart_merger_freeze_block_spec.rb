@@ -27,7 +27,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       RUBY
 
       dest_content = <<~RUBY
-        source "https://rubygems.org"
+        source "https://gem.coop"
         # kettle-dev:freeze
         gem "bar", "~> 1.0"
         # kettle-dev:unfreeze

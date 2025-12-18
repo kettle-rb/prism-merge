@@ -2159,7 +2159,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
           dest = <<~'DEST'
             # Header
-            source "https://rubygems.org"
+            source "https://gem.coop"
             git_source(:bitbucket) { |repo_name| "https://bb.org/#{repo_name}" }
           DEST
 
