@@ -91,23 +91,23 @@ File.write("merged.rb", result)
 
 ### The `*-merge` Gem Family
 
-This gem is part of a family of gems that provide intelligent merging for various file formats:
+The `*-merge` gem family provides intelligent, AST-based merging for various file formats. At the foundation is [tree_haver][tree_haver], which provides a unified cross-Ruby parsing API that works seamlessly across MRI, JRuby, and TruffleRuby.
 
 | Gem | Format | Parser Backend(s) | Description |
 |-----|--------|-------------------|-------------|
 | [tree_haver][tree_haver] | Multi | MRI C, Rust, FFI, Java, Prism, Psych, Commonmarker, Markly, Citrus | **Foundation**: Cross-Ruby adapter for parsing libraries (like Faraday for HTTP) |
 | [ast-merge][ast-merge] | Text | internal | **Infrastructure**: Shared base classes and merge logic for all `*-merge` gems |
-| [prism-merge][prism-merge] | Ruby | [Prism][prism] (via [tree_haver][tree_haver]) | Smart merge for Ruby source files |
-| [psych-merge][psych-merge] | YAML | [Psych][psych] (via [tree_haver][tree_haver]) | Smart merge for YAML files |
-| [json-merge][json-merge] | JSON | [tree-sitter-json][ts-json] (via [tree_haver][tree_haver]) | Smart merge for JSON files |
-| [jsonc-merge][jsonc-merge] | JSONC | [tree-sitter-jsonc][ts-jsonc] (via [tree_haver][tree_haver]) | ⚠️ Proof of concept; Smart merge for JSON with Comments |
-| [bash-merge][bash-merge] | Bash | [tree-sitter-bash][ts-bash] (via [tree_haver][tree_haver]) | Smart merge for Bash scripts |
+| [prism-merge][prism-merge] | Ruby | [Prism][prism] | Smart merge for Ruby source files |
+| [psych-merge][psych-merge] | YAML | [Psych][psych] | Smart merge for YAML files |
+| [json-merge][json-merge] | JSON | [tree-sitter-json][ts-json] (via tree_haver) | Smart merge for JSON files |
+| [jsonc-merge][jsonc-merge] | JSONC | [tree-sitter-json][ts-json] (via tree_haver) | ⚠️ Proof of concept; Smart merge for JSON with Comments |
+| [bash-merge][bash-merge] | Bash | [tree-sitter-bash][ts-bash] (via tree_haver) | Smart merge for Bash scripts |
 | [rbs-merge][rbs-merge] | RBS | [RBS][rbs] | Smart merge for Ruby type signatures |
-| [dotenv-merge][dotenv-merge] | Dotenv | internal ([dotenv][dotenv]) | Smart merge for `.env` files |
-| [toml-merge][toml-merge] | TOML | [tree-sitter-toml][ts-toml] (via [tree_haver][tree_haver]) | Smart merge for TOML files |
-| [markdown-merge][markdown-merge] | Markdown | [Commonmarker][commonmarker] / [Markly][markly] (via [tree_haver][tree_haver]) | **Foundation**: Shared base for Markdown mergers with inner code block merging |
-| [markly-merge][markly-merge] | Markdown | [Markly][markly] (via [tree_haver][tree_haver]) | Smart merge for Markdown (CommonMark via cmark-gfm C) |
-| [commonmarker-merge][commonmarker-merge] | Markdown | [Commonmarker][commonmarker] (via [tree_haver][tree_haver]) | Smart merge for Markdown (CommonMark via comrak Rust) |
+| [dotenv-merge][dotenv-merge] | Dotenv | internal | Smart merge for `.env` files |
+| [toml-merge][toml-merge] | TOML | [Citrus + toml-rb][toml-rb] (default, via tree_haver), [tree-sitter-toml][ts-toml] (via tree_haver) | Smart merge for TOML files |
+| [markdown-merge][markdown-merge] | Markdown | [Commonmarker][commonmarker] / [Markly][markly] (via tree_haver) | **Foundation**: Shared base for Markdown mergers with inner code block merging |
+| [markly-merge][markly-merge] | Markdown | [Markly][markly] (via tree_haver) | Smart merge for Markdown (CommonMark via cmark-gfm C) |
+| [commonmarker-merge][commonmarker-merge] | Markdown | [Commonmarker][commonmarker] (via tree_haver) | Smart merge for Markdown (CommonMark via comrak Rust) |
 
 **Example implementations** for the gem templating use case:
 
@@ -134,22 +134,11 @@ This gem is part of a family of gems that provide intelligent merging for variou
 [prism]: https://github.com/ruby/prism
 [psych]: https://github.com/ruby/psych
 [ts-json]: https://github.com/tree-sitter/tree-sitter-json
-[ts-jsonc]: https://gitlab.com/WhyNotHugo/tree-sitter-jsonc
 [ts-bash]: https://github.com/tree-sitter/tree-sitter-bash
 [ts-toml]: https://github.com/tree-sitter-grammars/tree-sitter-toml
 [rbs]: https://github.com/ruby/rbs
-[dotenv]: https://github.com/bkeepers/dotenv
+[toml-rb]: https://github.com/emancu/toml-rb
 [markly]: https://github.com/ioquatix/markly
-[commonmarker]: https://github.com/gjtorikian/commonmarker
-[prism]: https://github.com/ruby/prism
-[psych]: https://github.com/ruby/psych
-[ts-json]: https://github.com/tree-sitter/tree-sitter-json
-[ts-jsonc]: https://gitlab.com/WhyNotHugo/tree-sitter-jsonc
-[ts-bash]: https://github.com/tree-sitter/tree-sitter-bash
-[ts-toml]: https://github.com/tree-sitter-grammars/tree-sitter-toml
-[rbs]: https://github.com/ruby/rbs
-[dotenv]: https://github.com/bkeepers/dotenv
-[markly]: https://github.com/kivikakk/markly
 [commonmarker]: https://github.com/gjtorikian/commonmarker
 
 ## 💡 Info you can shake a stick at
