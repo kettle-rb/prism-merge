@@ -14,8 +14,8 @@ gem "citrus"
 
 # Set KETTLE_RB_DEV=true for local development
 if ENV.fetch("KETTLE_RB_DEV", "false").casecmp?("true")
-  gem "tree_haver",
-    path: "../../../tree_haver"
+  gem "tree_haver", path: "../../../tree_haver"
+  gem "ast-merge", path: "../../../../"
 end
 
 platform :mri do

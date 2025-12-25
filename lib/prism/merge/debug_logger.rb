@@ -24,7 +24,7 @@ module Prism
       # @return [Hash] Node information
       class << self
         def extract_node_info(node)
-          if defined?(Prism::Merge::FreezeNode) && node.is_a?(Prism::Merge::FreezeNode)
+          if node.is_a?(Prism::Merge::FreezeNode)
             return {type: "FreezeNode", lines: "#{node.start_line}..#{node.end_line}"}
           end
 

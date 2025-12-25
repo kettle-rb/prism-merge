@@ -43,15 +43,18 @@ module Prism
     # Inherits from Ast::Merge::ParseError for consistency across merge gems.
     # Provides Prism-specific `parse_result` attribute.
     class ParseError < Ast::Merge::ParseError
-      # @return [Prism::ParseResult] The Prism parse result containing error details
+      # @return [Prism::ParseResult, nil] The Prism parse result containing error details
       attr_reader :parse_result
 
-      # @param message [String] Error message
-      # @param content [String] The Ruby source that failed to parse
-      # @param parse_result [Prism::ParseResult] Parse result with error information
-      def initialize(message, content:, parse_result:)
+      # @param message [String, nil] Error message (auto-generated if nil)
+      # @param errors [Array] Array of error objects (for base class compatibility)
+      # @param content [String, nil] The Ruby source that failed to parse
+      # @param parse_result [Prism::ParseResult, nil] Parse result with error information
+      def initialize(message = nil, errors: [], content: nil, parse_result: nil)
         @parse_result = parse_result
-        super(message, errors: parse_result.errors, content: content)
+        # If we have a parse_result, use its errors
+        effective_errors = parse_result&.errors || errors
+        super(message, errors: effective_errors, content: content)
       end
     end
 

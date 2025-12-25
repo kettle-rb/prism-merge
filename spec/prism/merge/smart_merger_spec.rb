@@ -396,11 +396,12 @@ RSpec.describe Prism::Merge::SmartMerger do
         template = "this is not valid ruby {{"
         dest = "def hello; end"
 
-        merger = described_class.new(template, dest)
-
-        expect { merger.merge }.to raise_error(Prism::Merge::TemplateParseError) do |error|
+        # Parse errors are raised during initialization when FileAnalysis detects invalid syntax
+        expect {
+          described_class.new(template, dest)
+        }.to raise_error(Prism::Merge::TemplateParseError) do |error|
           expect(error.content).to eq(template)
-          expect(error.parse_result).not_to be_nil
+          expect(error.errors).not_to be_empty
         end
       end
 
@@ -408,11 +409,12 @@ RSpec.describe Prism::Merge::SmartMerger do
         template = "def hello; end"
         dest = "this is not valid ruby {{"
 
-        merger = described_class.new(template, dest)
-
-        expect { merger.merge }.to raise_error(Prism::Merge::DestinationParseError) do |error|
+        # Parse errors are raised during initialization when FileAnalysis detects invalid syntax
+        expect {
+          described_class.new(template, dest)
+        }.to raise_error(Prism::Merge::DestinationParseError) do |error|
           expect(error.content).to eq(dest)
-          expect(error.parse_result).not_to be_nil
+          expect(error.errors).not_to be_empty
         end
       end
     end

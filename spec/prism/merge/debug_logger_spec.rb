@@ -13,7 +13,7 @@ RSpec.describe Prism::Merge::DebugLogger do
       stub_env("PRISM_MERGE_DEBUG" => "1")
     end
 
-    it "handles FreezeNode when defined" do
+    it "handles FreezeNode" do
       # Create a mock FreezeNode-like object
       freeze_node_class = Class.new do
         attr_reader :start_line, :end_line

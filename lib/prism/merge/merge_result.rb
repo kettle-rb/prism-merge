@@ -16,8 +16,9 @@ module Prism
 
       attr_reader :line_metadata
 
-      def initialize
-        super
+      # @param options [Hash] Additional options for forward compatibility
+      def initialize(**options)
+        super(**options)
         @line_metadata = []
       end
 

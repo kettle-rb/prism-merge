@@ -76,6 +76,7 @@ module Prism
       #   merging comment-only files (files with no Ruby code statements). Supported options:
       #   - :freeze_token - Token for freeze block markers (defaults to @freeze_token or "text-merge")
       #   - Any other options supported by Ast::Merge::Text::SmartMerger
+      # @param options [Hash] Additional options for forward compatibility
       def initialize(
         template_content,
         dest_content,
@@ -89,9 +90,9 @@ module Prism
         match_refiner: nil,
         regions: nil,
         region_placeholder: nil,
-        text_merger_options: nil
+        text_merger_options: nil,
+        **options
       )
-        @node_typing = node_typing
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
         @text_merger_options = text_merger_options
@@ -108,7 +109,9 @@ module Prism
           freeze_token: freeze_token,
           match_refiner: match_refiner,
           regions: regions,
-          region_placeholder: region_placeholder
+          region_placeholder: region_placeholder,
+          node_typing: node_typing,
+          **options
         )
       end
 
@@ -125,25 +128,10 @@ module Prism
         return false if stmts.nil? || stmts.empty?
 
         stmts.all? do |s|
-          # Generic AST comment nodes
-          next true if defined?(Ast::Merge::Comment::Empty) && s.is_a?(Ast::Merge::Comment::Empty)
-          next true if defined?(Ast::Merge::Comment::Block) && s.is_a?(Ast::Merge::Comment::Block)
-          next true if defined?(Ast::Merge::Comment::Line) && s.is_a?(Ast::Merge::Comment::Line)
-
-          # Prism-specific comment nodes
-          if defined?(Prism::Merge::Comment)
-            next true if defined?(Prism::Merge::Comment::Block) && s.is_a?(Prism::Merge::Comment::Block)
-            next true if defined?(Prism::Merge::Comment::Line) && s.is_a?(Prism::Merge::Comment::Line)
-          end
-
-          # Empty/whitespace lines produced by FileAnalysis
-          begin
-            next true if s.is_a?(Ast::Merge::Comment::Empty)
-          rescue
-            false
-          end
-
-          false
+          # AST comment nodes (Prism-specific ones inherit from these)
+          s.is_a?(Ast::Merge::Comment::Empty) ||
+            s.is_a?(Ast::Merge::Comment::Block) ||
+            s.is_a?(Ast::Merge::Comment::Line)
         end
       end
 

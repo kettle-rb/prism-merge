@@ -29,11 +29,13 @@ module Prism
       # @param source [String] Ruby source code to analyze
       # @param freeze_token [String] Token for freeze block markers (default: "prism-merge")
       # @param signature_generator [Proc, nil] Custom signature generator
-      def initialize(source, freeze_token: DEFAULT_FREEZE_TOKEN, signature_generator: nil)
+      # @param options [Hash] Additional options for forward compatibility
+      def initialize(source, freeze_token: DEFAULT_FREEZE_TOKEN, signature_generator: nil, **options)
         @source = source
         @lines = source.lines
         @freeze_token = freeze_token
         @signature_generator = signature_generator
+        # **options captured for forward compatibility
         @parse_result = DebugLogger.time("FileAnalysis#parse") { Prism.parse(source) }
 
         # Use Prism's native comment attachment
@@ -54,6 +56,12 @@ module Prism
       # @return [Boolean]
       def valid?
         @parse_result.success?
+      end
+
+      # Get parse errors for compatibility with SmartMergerBase.
+      # @return [Array<Prism::ParseError>] Array of parse errors
+      def errors
+        @parse_result.errors
       end
 
       # Get nodes with their associated comments and metadata

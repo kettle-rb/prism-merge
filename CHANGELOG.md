@@ -21,8 +21,23 @@ Please file a bug if you notice a violation of semantic versioning.
 ### Added
 
 - Many new features inherited from `ast-merge`, and updated behaviors.
+- **FileAnalysis**: Added `#errors` method for compatibility with SmartMergerBase
+  - Returns `@parse_result.errors` for consistency with other FileAnalysis classes
+  - Enables SmartMergerBase to properly create parse errors when `valid?` is false
 
 ### Changed
+
+- **SmartMerger**: Added `**options` for forward compatibility
+  - Now passes `node_typing` explicitly to `SmartMergerBase` instead of storing locally
+  - Accepts additional options that may be added to base class in future
+- **FileAnalysis**: Added `**options` for forward compatibility
+  - Accepts additional options that may be added in future
+  - Consistent with other `*-merge` gems' FileAnalysis classes
+- **MergeResult**: Added `**options` for forward compatibility
+- **ParseError**: Updated constructor to accept base class signature
+  - Now accepts optional `message`, `errors:`, `content:`, and `parse_result:` keywords
+  - Compatible with `Ast::Merge::ParseError` signature while preserving `parse_result` attribute
+  - Enables SmartMergerBase to create parse errors without Prism-specific knowledge
 
 - **BREAKING**: Error classes now inherit from `Ast::Merge` base classes:
   - `Prism::Merge::Error` now inherits from `Ast::Merge::Error` (was `StandardError`)
