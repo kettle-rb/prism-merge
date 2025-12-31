@@ -56,34 +56,6 @@ end
 # External gems that define tasks - add here!
 require "kettle/dev"
 
-### SPEC TASKS
-# Override spec and test tasks to ensure RSpec runs correctly in CI.
-# This works around a bug in kettle-dev where the test task runs minitest loader
-# instead of rspec in CI environments.
-begin
-  require "rspec/core/rake_task"
-
-  # Clear any existing spec/test tasks defined by kettle-dev
-  Rake::Task[:spec].clear if Rake::Task.task_defined?(:spec)
-  Rake::Task[:test].clear if Rake::Task.task_defined?(:test)
-
-  desc "Run RSpec code examples"
-  RSpec::Core::RakeTask.new(:spec)
-
-  desc "Run tests (alias for spec)"
-  task test: :spec
-rescue LoadError
-  desc "(stub) spec is unavailable"
-  task(:spec) do
-    warn("NOTE: rspec isn't installed, or is disabled for #{RUBY_VERSION} in the current environment")
-  end
-
-  desc "(stub) test is unavailable"
-  task(:test) do
-    warn("NOTE: rspec isn't installed, or is disabled for #{RUBY_VERSION} in the current environment")
-  end
-end
-
 ### RELEASE TASKS
 # Setup stone_checksums
 begin

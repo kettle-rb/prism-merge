@@ -41,7 +41,7 @@ jobs:
           # ruby-head
           - ruby: "ruby-head"
             appraisal: "head"
-            exec_cmd: "rake test"
+            exec_cmd: "rake spec"
             gemfile: "Appraisal.root"
             rubygems: default
             bundler: default
@@ -49,7 +49,7 @@ jobs:
           # truffleruby-head
           - ruby: "truffleruby-head"
             appraisal: "head"
-            exec_cmd: "rake test"
+            exec_cmd: "rake spec"
             gemfile: "Appraisal.root"
             rubygems: default
             bundler: default
@@ -57,7 +57,7 @@ jobs:
           # jruby-head
           - ruby: "jruby-head"
             appraisal: "head"
-            exec_cmd: "rake test"
+            exec_cmd: "rake spec"
             gemfile: "Appraisal.root"
             rubygems: default
             bundler: default
@@ -81,12 +81,12 @@ jobs:
       # NOTE: This does not use the primary Gemfile at all.
       - name: Install Root Appraisal
         if: ${{ !env.ACT || (! startsWith(matrix.ruby, 'jruby') && !startsWith(matrix.ruby, 'truffleruby')) }}
-        run: bundle
+        run: bundle install
 
       - name: "[Attempt 1] Install Root Appraisal"
         id: bundleAttempt1
         if: ${{ !env.ACT || (! startsWith(matrix.ruby, 'jruby') && !startsWith(matrix.ruby, 'truffleruby')) }}
-        run: bundle
+        run: bundle install
         # Continue to the next step on failure
         continue-on-error: true
 
@@ -95,7 +95,7 @@ jobs:
         id: bundleAttempt2
         # If bundleAttempt1 failed, try again here; Otherwise skip.
         if: ${{ steps.bundleAttempt1.outcome == 'failure' && (!env.ACT || (! startsWith(matrix.ruby, 'jruby') && !startsWith(matrix.ruby, 'truffleruby'))) }}
-        run: bundle
+        run: bundle install
 
       - name: "[Attempt 1] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
         id: bundleAppraisalAttempt1
