@@ -8,8 +8,15 @@ plugins: rubocop-on-rbs
 
 AllCops:
   Exclude:
-    - 'pkg/**/*'
-    - 'vendor/**/*'
+    - certs/**/*
+    - checksums/**/*
+    - docs/**/*
+    - fixtures/**/*
+    - pkg/**/*
+    - results/**/*
+    - spec/fixtures/**/*
+    - tmp/**/*
+    - vendor/**/*
 
 RBS:
   Enabled: true
