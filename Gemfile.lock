@@ -14,7 +14,7 @@ PATH
   remote: .
   specs:
     prism-merge (2.0.0)
-      ast-merge (~> 1.0)
+      ast-merge (>= 1, < 5)
       prism (~> 1.6)
       version_gem (~> 1.1, >= 1.1.9)
 
@@ -29,8 +29,8 @@ GEM
       rake (>= 10)
       thor (>= 0.14)
     ast (2.4.3)
-    ast-merge (1.1.0)
-      tree_haver (~> 3.1, >= 3.1.0)
+    ast-merge (4.0.4)
+      tree_haver (~> 5.0, >= 5.0.2)
       version_gem (~> 1.1, >= 1.1.9)
     backports (3.25.3)
     benchmark (0.5.0)
@@ -290,7 +290,7 @@ GEM
       delegate (~> 0.1)
       rspec (~> 3.0)
       timecop (>= 0.7, < 1)
-    tree_haver (3.1.0)
+    tree_haver (5.0.2)
       version_gem (~> 1.1, >= 1.1.9)
     tsort (0.2.0)
     ttfunk (1.8.0)
@@ -362,7 +362,7 @@ CHECKSUMS
   ansi (1.5.0) sha256=5408253274e33d9d27d4a98c46d2998266fd51cba58a7eb9d08f50e57ed23592
   appraisal2 (3.0.0) sha256=f1b4e742cf8ebef5e9fbb76c416a8c16edfe0727964a5a17b44adfc37b701aed
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
-  ast-merge (1.1.0) sha256=c2b79859c5e1b9d600ba3dbab94abe92bebbd855c16ccada130d00eb2ba335f2
+  ast-merge (4.0.4) sha256=f7d4c60c3105fd28a4cd4523ca1f7bfdf7413dd5ba79087caccbb359cd4a19d9
   backports (3.25.3) sha256=94298d32dc3c40ca15633b54e282780b49e2db0c045f602ea1907e4f63a17235
   benchmark (0.5.0) sha256=465df122341aedcb81a2a24b4d3bd19b6c67c1530713fd533f3ff034e419236c
   bigdecimal (3.3.1) sha256=eaa01e228be54c4f9f53bf3cc34fe3d5e845c31963e7fcc5bedb05a4e7d52218
@@ -462,7 +462,7 @@ CHECKSUMS
   thor (1.4.0) sha256=8763e822ccb0f1d7bee88cde131b19a65606657b847cc7b7b4b82e772bcd8a3d
   timecop (0.9.10) sha256=12ba45ce57cdcf6b1043cb6cdffa6381fd89ce10d369c28a7f6f04dc1b0cd8eb
   timecop-rspec (1.0.3) sha256=005f14841bb606dcaefb060e321b5388e2e59537742bee8b3a9a9a40e598fab9
-  tree_haver (3.1.0) sha256=ff5f78ac463427442294b469c4b9f621272f0e66af888afc524f0deb33910d81
+  tree_haver (5.0.2) sha256=992f2f5b920c4f1e6dad3c27ff9d00990f75e1699c171d93a24e2a8586bcb1f0
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
   ttfunk (1.8.0) sha256=a7cbc7e489cc46e979dde04d34b5b9e4f5c8f1ee5fc6b1a7be39b829919d20ca
   unicode-display_width (3.2.0) sha256=0cdd96b5681a5949cdbc2c55e7b420facae74c4aaf9a9815eee1087cb1853c42
