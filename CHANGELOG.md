@@ -38,7 +38,8 @@ Please file a bug if you notice a violation of semantic versioning.
   - Now accepts optional `message`, `errors:`, `content:`, and `parse_result:` keywords
   - Compatible with `Ast::Merge::ParseError` signature while preserving `parse_result` attribute
   - Enables SmartMergerBase to create parse errors without Prism-specific knowledge
-
+- Updated documentation on hostile takeover of RubyGems
+  - https://dev.to/galtzo/hostile-takeover-of-rubygems-my-thoughts-5hlo
 - **BREAKING**: Error classes now inherit from `Ast::Merge` base classes:
   - `Prism::Merge::Error` now inherits from `Ast::Merge::Error` (was `StandardError`)
   - `Prism::Merge::ParseError` now inherits from `Ast::Merge::ParseError` (was `Prism::Merge::Error`)
