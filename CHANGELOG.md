@@ -20,13 +20,40 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.0.0] - 2026-02-19
+
+- TAG: [v2.0.0][2.0.0t]
+- COVERAGE: 97.26% -- 780/802 lines in 12 files
+- BRANCH COVERAGE: 82.07% -- 412/502 branches in 12 files
+- 93.59% documented
+
+### Added
+
 - Many new features inherited from `ast-merge`, and updated behaviors.
 - **FileAnalysis**: Added `#errors` method for compatibility with SmartMergerBase
   - Returns `@parse_result.errors` for consistency with other FileAnalysis classes
   - Enables SmartMergerBase to properly create parse errors when `valid?` is false
+- AGENTS.md
 
 ### Changed
 
+- appraisal2 v3.0.6
+- kettle-test v1.0.10
+- stone_checksums v1.0.3
+- ast-merge v4.0.6
+- tree_haver v5.0.5
+- tree_stump v0.2.0
+  - fork no longer required, updates all applied upstream
 - **SmartMerger**: Added `**options` for forward compatibility
   - Now passes `node_typing` explicitly to `SmartMergerBase` instead of storing locally
   - Accepts additional options that may be added to base class in future
@@ -46,14 +73,6 @@ Please file a bug if you notice a violation of semantic versioning.
   - `ParseError#errors` attribute added (array of error objects from `parse_result.errors`)
   - Code using `e.parse_result.errors` should now use `e.errors` directly
   - `parse_result` attribute is still available for Prism-specific access
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [1.1.6] - 2025-12-05
 
@@ -262,7 +281,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v1.1.6...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/kettle-rb/prism-merge/compare/v1.1.6...v2.0.0
+[2.0.0t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.0
 [1.1.6]: https://github.com/kettle-rb/prism-merge/compare/v1.1.5...v1.1.6
 [1.1.6t]: https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.6
 [1.1.5]: https://github.com/kettle-rb/prism-merge/compare/v1.1.4...v1.1.5
