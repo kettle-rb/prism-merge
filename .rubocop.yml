@@ -27,6 +27,7 @@ AllCops:
     - tmp/**/*
     - vendor/**/*
     - AGENTS.md
+    - spec/support/fixtures/smart_merge/parse_error.template.rb
 
 RBS:
   Enabled: true

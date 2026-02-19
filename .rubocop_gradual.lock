@@ -1,5 +1,0 @@
-{
-  "spec/support/fixtures/smart_merge/parse_error.template.rb:115595435": [
-    [5, 8, 1, "Lint/Syntax: unterminated string meets end of file\n(Using Ruby 3.2 parser; configure using `TargetRubyVersion` parameter, under `AllCops`)", 177543]
-  ]
-}

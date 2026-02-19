@@ -53,3 +53,6 @@ RSpec/Output:
     - 'spec/support/**/*'
     - 'spec/config/**/*'
     - 'spec/fixtures/**/*'
+    - 'spec/integration/**/*'
+    - 'spec/prism/merge/smart_merger_freeze_block_spec.rb'
+    - 'spec/prism/merge/smart_merger_spec.rb'
