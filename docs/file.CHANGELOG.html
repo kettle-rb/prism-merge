@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+  File: CHANGELOG
+  
+    &mdash; Documentation by YARD 0.9.38
+  
+</title>
+
+  <link rel="stylesheet" href="css/style.css" type="text/css" />
+
+  <link rel="stylesheet" href="css/common.css" type="text/css" />
+
+<script type="text/javascript">
+  pathId = "CHANGELOG";
+  relpath = '';
+</script>
+
+
+  <script type="text/javascript" charset="utf-8" src="js/jquery.js"></script>
+
+  <script type="text/javascript" charset="utf-8" src="js/app.js"></script>
+
+
+  </head>
+  <body>
+    <div class="nav_wrap">
+      <iframe id="nav" src="file_list.html?1"></iframe>
+      <div id="resizer"></div>
+    </div>
+
+    <div id="main" tabindex="-1">
+      <div id="header">
+        <div id="menu">
+  
+    <a href="_index.html">Index</a> &raquo; 
+    <span class="title">File: CHANGELOG</span>
+  
+</div>
+
+        <div id="search">
+  
+    <a class="full_list_link" id="class_list_link"
+        href="class_list.html">
+
+        <svg width="24" height="24">
+          <rect x="0" y="4" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="12" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="20" width="24" height="4" rx="1" ry="1"></rect>
+        </svg>
+    </a>
+  
+</div>
+        <div class="clear"></div>
+      </div>
+
+      <div id="content"><div id='filecontents'><h1 id="changelog">Changelog</h1>
+
+<p><a href="https://semver.org/spec/v2.0.0.html"><img src="https://img.shields.io/badge/semver-2.0.0-FFDD67.svg?style=flat" alt="SemVer 2.0.0"></a> <a href="https://keepachangelog.com/en/1.0.0/"><img src="https://img.shields.io/badge/keep--a--changelog-1.0.0-FFDD67.svg?style=flat" alt="Keep-A-Changelog 1.0.0"></a></p>
+
+<p>All notable changes to this project will be documented in this file.</p>
+
+<p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,<br>
+and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>,<br>
+and <a href="https://tom.preston-werner.com/2022/05/23/major-version-numbers-are-not-sacred.html">yes</a>, platform and engine support are part of the <a href="https://github.com/semver/semver/issues/716#issuecomment-869336139">public API</a>.<br>
+Please file a bug if you notice a violation of semantic versioning.</p>
+
+<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v2.0.0...HEAD">Unreleased</a></h2>
+
+<h3 id="added">Added</h3>
+
+<h3 id="changed">Changed</h3>
+
+<h3 id="deprecated">Deprecated</h3>
+
+<h3 id="removed">Removed</h3>
+
+<h3 id="fixed">Fixed</h3>
+
+<h3 id="security">Security</h3>
+
+<h2 id="200---2026-02-19">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.6...v2.0.0">2.0.0</a> - 2026-02-19</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.0">v2.0.0</a>
+</li>
+  <li>COVERAGE: 97.26% – 780/802 lines in 12 files</li>
+  <li>BRANCH COVERAGE: 82.07% – 412/502 branches in 12 files</li>
+  <li>93.59% documented</li>
+</ul>
+
+<h3 id="added-1">Added</h3>
+
+<ul>
+  <li>Many new features inherited from <code>ast-merge</code>, and updated behaviors.</li>
+  <li>
+<strong>FileAnalysis</strong>: Added <code>#errors</code> method for compatibility with SmartMergerBase
+    <ul>
+      <li>Returns <code>@parse_result.errors</code> for consistency with other FileAnalysis classes</li>
+      <li>Enables SmartMergerBase to properly create parse errors when <code>valid?</code> is false</li>
+    </ul>
+  </li>
+  <li>AGENTS.md</li>
+</ul>
+
+<h3 id="changed-1">Changed</h3>
+
+<ul>
+  <li>appraisal2 v3.0.6</li>
+  <li>kettle-test v1.0.10</li>
+  <li>stone_checksums v1.0.3</li>
+  <li>ast-merge v4.0.6</li>
+  <li>tree_haver v5.0.5</li>
+  <li>tree_stump v0.2.0
+    <ul>
+      <li>fork no longer required, updates all applied upstream</li>
+    </ul>
+  </li>
+  <li>
+<strong>SmartMerger</strong>: Added <code>**options</code> for forward compatibility
+    <ul>
+      <li>Now passes <code>node_typing</code> explicitly to <code>SmartMergerBase</code> instead of storing locally</li>
+      <li>Accepts additional options that may be added to base class in future</li>
+    </ul>
+  </li>
+  <li>
+<strong>FileAnalysis</strong>: Added <code>**options</code> for forward compatibility
+    <ul>
+      <li>Accepts additional options that may be added in future</li>
+      <li>Consistent with other <code>*-merge</code> gems’ FileAnalysis classes</li>
+    </ul>
+  </li>
+  <li>
+<strong>MergeResult</strong>: Added <code>**options</code> for forward compatibility</li>
+  <li>
+<strong>ParseError</strong>: Updated constructor to accept base class signature
+    <ul>
+      <li>Now accepts optional <code>message</code>, <code>errors:</code>, <code>content:</code>, and <code>parse_result:</code> keywords</li>
+      <li>Compatible with <code>Ast::Merge::ParseError</code> signature while preserving <code>parse_result</code> attribute</li>
+      <li>Enables SmartMergerBase to create parse errors without Prism-specific knowledge</li>
+    </ul>
+  </li>
+  <li>Updated documentation on hostile takeover of RubyGems
+    <ul>
+      <li>https://dev.to/galtzo/hostile-takeover-of-rubygems-my-thoughts-5hlo</li>
+    </ul>
+  </li>
+  <li>
+<strong>BREAKING</strong>: Error classes now inherit from <code>Ast::Merge</code> base classes:
+    <ul>
+      <li>
+<code>Prism::Merge::Error</code> now inherits from <code>Ast::Merge::Error</code> (was <code>StandardError</code>)</li>
+      <li>
+<code>Prism::Merge::ParseError</code> now inherits from <code>Ast::Merge::ParseError</code> (was <code>Prism::Merge::Error</code>)</li>
+      <li>
+<code>ParseError#errors</code> attribute added (array of error objects from <code>parse_result.errors</code>)</li>
+      <li>Code using <code>e.parse_result.errors</code> should now use <code>e.errors</code> directly</li>
+      <li>
+<code>parse_result</code> attribute is still available for Prism-specific access</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="116---2025-12-05">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.5...v1.1.6">1.1.6</a> - 2025-12-05</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.6">v1.1.6</a>
+</li>
+  <li>COVERAGE: 98.31% – 929/945 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 87.08% – 391/449 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="fixed-1">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed duplicate content when freeze blocks precede nodes with leading comments</strong>: When a freeze block appeared before a node that had leading comments attached from earlier in the file, the merge would output duplicate content. Fixed by:
+    <ul>
+      <li>Filtering out comments inside freeze blocks from being attached as leading comments to subsequent nodes</li>
+      <li>Not including leading comments in anchor ranges when other nodes exist between the comments and the node</li>
+      <li>Extending <code>extract_node_body</code> to include content after the last statement up to the closing line, ensuring freeze blocks at the end of block bodies are preserved</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="115---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.4...v1.1.5">1.1.5</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.5">v1.1.5</a>
+</li>
+  <li>COVERAGE: 98.26% – 906/922 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 87.27% – 384/440 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="changed-2">Changed</h3>
+
+<ul>
+  <li>
+<strong>Recursive merge now preserves freeze blocks</strong>: When recursively merging nested block bodies (e.g., <code>Gem::Specification.new do ... end</code>), freeze blocks inside the body are now properly preserved. Previously, nested mergers were created with <code>freeze_token: nil</code>, causing freeze blocks to be lost.</li>
+</ul>
+
+<h3 id="fixed-2">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed freeze blocks lost in nested block bodies</strong>: Freeze blocks inside class, module, or call-with-block bodies were being lost during recursive merge. The fix passes <code>freeze_token</code> to nested mergers and ensures <code>extract_node_body</code> includes leading comments/freeze markers that appear between the node’s opening line and the first statement.</li>
+  <li>
+<strong>Fixed duplicate freeze markers in output</strong>: Freeze/unfreeze marker comments were incorrectly attached as leading comments to subsequent nodes, causing duplicate markers in merged output. These markers are now filtered from leading comments since they belong to FreezeNode boundaries.</li>
+</ul>
+
+<h2 id="114---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.3...v1.1.4">1.1.4</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.4">v1.1.4</a>
+</li>
+  <li>COVERAGE: 98.26% – 902/918 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 87.59% – 381/435 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-2">Added</h3>
+
+<ul>
+  <li>
+<strong>Custom signature generator fallthrough support</strong>: Custom signature generators can now return a <code>Prism::Node</code> or <code>FreezeNode</code> to fall through to the default signature computation. This allows custom generators to only override specific node types while delegating others to the built-in logic. Previously, returning <code>nil</code> was the only way to skip custom handling, but that prevented proper matching for unhandled node types.</li>
+  <li>
+<strong>Variable assignment node signatures</strong>: Added signature support for all variable write node types:
+    <ul>
+      <li>
+<code>LocalVariableWriteNode</code> → <code>[:local_var, name]</code>
+</li>
+      <li>
+<code>InstanceVariableWriteNode</code> → <code>[:ivar, name]</code>
+</li>
+      <li>
+<code>ClassVariableWriteNode</code> → <code>[:cvar, name]</code>
+</li>
+      <li>
+<code>GlobalVariableWriteNode</code> → <code>[:gvar, name]</code>
+</li>
+      <li>
+<code>MultiWriteNode</code> → <code>[:multi_write, [target_names]]</code>
+</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="removed-1">Removed</h3>
+
+<ul>
+  <li>Removed pre-prism code in <code>ConflictResolver</code> that compared template node line numbers against destination freeze block line numbers (cross-file line comparison makes no sense)</li>
+</ul>
+
+<h3 id="fixed-3">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed template-only nodes not being added when destination has freeze blocks</strong>: When <code>add_template_only_nodes: true</code>, template nodes with no matching signature in destination were incorrectly skipped if the destination contained freeze blocks. The bug was caused by comparing template node line numbers against destination freeze block line numbers, which is a meaningless cross-file comparison. Template-only nodes are now correctly added regardless of freeze block presence.</li>
+</ul>
+
+<h2 id="113---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.2...v1.1.3">1.1.3</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.3">v1.1.3</a>
+</li>
+  <li>COVERAGE: 96.71% – 881/911 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 82.86% – 348/420 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="fixed-4">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed indentation loss</strong> when adding nodes to merge result - the <code>add_node</code> method was using <code>node.slice</code> which loses leading indentation. Now uses <code>source_analysis.line_at</code> to get full lines from the source file, preserving original indentation.</li>
+</ul>
+
+<h2 id="112---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.1...v1.1.2">1.1.2</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.2">v1.1.2</a>
+</li>
+  <li>COVERAGE: 96.66% – 868/898 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 82.84% – 338/408 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-3">Added</h3>
+
+<ul>
+  <li>
+<code>body_has_mergeable_statements?</code> private method to check if a block body contains statements that can be signature-matched</li>
+  <li>
+<code>mergeable_statement?</code> private method to determine if a node type can generate signatures for merging</li>
+  <li>
+<code>max_recursion_depth</code> option (defaults to <code>Float::INFINITY</code>) as a safety valve for edge cases</li>
+</ul>
+
+<h3 id="fixed-5">Fixed</h3>
+
+<ul>
+  <li>
+<strong>Fixed infinite recursion</strong> when merging <code>CallNode</code> blocks (like <code>git_source</code>) that have matching signatures but non-mergeable body content (e.g., just string literals). The fix detects when a block body contains only literals/expressions with no signature-matchable statements and treats the node atomically instead of recursing.</li>
+</ul>
+
+<h2 id="111---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.1.0...v1.1.1">1.1.1</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.1">v1.1.1</a>
+</li>
+  <li>COVERAGE: 96.62% – 857/887 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 82.75% – 331/400 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-4">Added</h3>
+
+<ul>
+  <li>Documented comparison of this tool, git-merge, and IDE “Smart Merge” in README.md</li>
+  <li>Comprehensive node signature support for all Prism node types with nested content:
+    <ul>
+      <li>
+<code>SingletonClassNode</code> - singleton class definitions (<code>class &lt;&lt; self</code>)</li>
+      <li>
+<code>CaseNode</code> / <code>CaseMatchNode</code> - case statements and pattern matching</li>
+      <li>
+<code>WhileNode</code> / <code>UntilNode</code> / <code>ForNode</code> - loop constructs</li>
+      <li>
+<code>BeginNode</code> - exception handling blocks</li>
+      <li>
+<code>SuperNode</code> / <code>ForwardingSuperNode</code> - super calls with blocks</li>
+      <li>
+<code>LambdaNode</code> - lambda expressions</li>
+      <li>
+<code>PreExecutionNode</code> / <code>PostExecutionNode</code> - BEGIN/END blocks</li>
+      <li>
+<code>ParenthesesNode</code> / <code>EmbeddedStatementsNode</code> - parenthesized expressions</li>
+    </ul>
+  </li>
+  <li>Smart signature matching for assignment method calls (<code>config.setting = value</code>) now matches by receiver and method name, not by value, enabling proper merging of configuration blocks</li>
+</ul>
+
+<h3 id="changed-3">Changed</h3>
+
+<ul>
+  <li>Improved boundary ordering in merge timeline - destination-only content appearing after all template content now correctly appears at the end of merged output (was incorrectly appearing at the beginning)</li>
+  <li>Extended recursive merge support to handle <code>SingletonClassNode</code> and <code>BeginNode</code> in addition to existing <code>ClassNode</code>, <code>ModuleNode</code>, and <code>CallNode</code> types</li>
+  <li>
+<strong>Freeze block validation expanded</strong> - freeze blocks can now be placed inside more container node types:
+    <ul>
+      <li>
+<code>SingletonClassNode</code> (<code>class &lt;&lt; self ... end</code>)</li>
+      <li>
+<code>DefNode</code> (method definitions)</li>
+      <li>
+<code>LambdaNode</code> (lambda/proc definitions)</li>
+      <li>
+<code>CallNode</code> with blocks (e.g., RSpec <code>describe</code>/<code>context</code> blocks)</li>
+      <li>This allows protecting portions of method implementations or DSL block contents</li>
+    </ul>
+  </li>
+  <li>Added README documentation comparing Prism::Merge algorithm to git merge and IDE smart merge strategies</li>
+  <li>Added RBS type definitions for <code>FreezeNode</code> class</li>
+</ul>
+
+<h3 id="fixed-6">Fixed</h3>
+
+<ul>
+  <li>Documentation of freeze blocks, and configuration to customize the freeze token</li>
+</ul>
+
+<h2 id="110---2025-12-04">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.0.3...v1.1.0">1.1.0</a> - 2025-12-04</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.1.0">v1.1.0</a>
+</li>
+  <li>COVERAGE: 95.65% – 770/805 lines in 9 files</li>
+  <li>BRANCH COVERAGE: 81.13% – 245/302 branches in 9 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-5">Added</h3>
+
+<ul>
+  <li>Recursive merge support for class and module bodies - nested structures are now merged intelligently</li>
+  <li>Conditional signature matching for <code>if</code>/<code>unless</code> blocks based on condition expression</li>
+  <li>Freeze block validation for partial/incomplete nodes and freeze blocks inside non-class/module contexts</li>
+  <li>Freeze blocks now match by position/order when both files have multiple freeze blocks</li>
+  <li>
+<code>add_template_only_nodes</code> option now properly respected in recursive merges and boundary processing</li>
+  <li>
+<code>DebugLogger</code>, controlled by <code>ENV["PRISM_MERGE_DEBUG"]</code> set to true or false</li>
+  <li>more specs</li>
+</ul>
+
+<h3 id="changed-4">Changed</h3>
+
+<ul>
+  <li>Migrated to Prism v1.6.0 native comment attachment (removed custom comment association logic)</li>
+  <li>Simplified FileAnalysis implementation using Prism’s built-in features</li>
+  <li>Improved node lookup to handle anchors with leading comments (e.g., magic comments)</li>
+</ul>
+
+<h3 id="fixed-7">Fixed</h3>
+
+<ul>
+  <li>Template-only nodes are now correctly excluded in all contexts when <code>add_template_only_nodes: false</code>
+</li>
+  <li>Freeze blocks inside methods now properly raise InvalidStructureError (only class/module-level freeze blocks allowed)</li>
+  <li>Freeze block matching now works correctly with multiple consecutive freeze blocks (matches by index/order)</li>
+  <li>Duplicate freeze blocks from template no longer appear when destination has matching freeze blocks</li>
+  <li>Magic comments at file top no longer prevent node lookup in recursive merges</li>
+</ul>
+
+<h2 id="103---2025-12-03">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.0.2...v1.0.3">1.0.3</a> - 2025-12-03</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.3">v1.0.3</a>
+</li>
+  <li>COVERAGE: 95.48% – 613/642 lines in 7 files</li>
+  <li>BRANCH COVERAGE: 81.39% – 188/231 branches in 7 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-6">Added</h3>
+
+<ul>
+  <li>Improved synopsis documentation</li>
+</ul>
+
+<h3 id="fixed-8">Fixed</h3>
+
+<ul>
+  <li>More fixes to Ruby compatibility documentation (down to Ruby 2.7)</li>
+</ul>
+
+<h2 id="102---2025-12-03">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.0.1...v1.0.2">1.0.2</a> - 2025-12-03</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.2">v1.0.2</a>
+</li>
+  <li>COVERAGE: 95.48% – 613/642 lines in 7 files</li>
+  <li>BRANCH COVERAGE: 81.39% – 188/231 branches in 7 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-7">Added</h3>
+
+<ul>
+  <li>specs covering existing support for end-of-line comments</li>
+</ul>
+
+<h3 id="fixed-9">Fixed</h3>
+
+<ul>
+  <li>Ruby compatibility documentation</li>
+</ul>
+
+<h2 id="101---2025-12-03">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v1.0.0...v1.0.1">1.0.1</a> - 2025-12-03</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v1.0.1">v1.0.1</a>
+</li>
+  <li>COVERAGE: 95.48% – 613/642 lines in 7 files</li>
+  <li>BRANCH COVERAGE: 81.39% – 188/231 branches in 7 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="fixed-10">Fixed</h3>
+
+<ul>
+  <li>
+<code>SmartMerger</code> now correctly handles merge conflicts that involve <code>kettle-dev:freeze</code> blocks
+    <ul>
+      <li>Entire freeze block from destination is preserved</li>
+      <li>Still allows template-only nodes to be added</li>
+      <li>Resolves an issue where template-only nodes were dropped if destination contained a freeze block</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="100---2025-12-03">
+<a href="https://github.com/kettle-rb/prism-merge/compare/71fcddaa659cd6e9e94053e67524e5a400423ced...v1.0.0">1.0.0</a> - 2025-12-03</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/tags/v1.0.0">v1.0.0</a>
+</li>
+  <li>COVERAGE: 95.44% – 607/636 lines in 7 files</li>
+  <li>BRANCH COVERAGE: 81.94% – 186/227 branches in 7 files</li>
+  <li>100.00% documented</li>
+</ul>
+
+<h3 id="added-8">Added</h3>
+
+<ul>
+  <li>Initial release</li>
+</ul>
+
+</div></div>
+
+      <div id="footer">
+  Generated on Thu Feb 19 05:15:59 2026 by
+  <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
+  0.9.38 (ruby-4.0.1).
+</div>
+
+    </div>
+  </body>
+</html>

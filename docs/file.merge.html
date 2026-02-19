@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+  File: merge
+  
+    &mdash; Documentation by YARD 0.9.38
+  
+</title>
+
+  <link rel="stylesheet" href="css/style.css" type="text/css" />
+
+  <link rel="stylesheet" href="css/common.css" type="text/css" />
+
+<script type="text/javascript">
+  pathId = "merge";
+  relpath = '';
+</script>
+
+
+  <script type="text/javascript" charset="utf-8" src="js/jquery.js"></script>
+
+  <script type="text/javascript" charset="utf-8" src="js/app.js"></script>
+
+
+  </head>
+  <body>
+    <div class="nav_wrap">
+      <iframe id="nav" src="file_list.html?1"></iframe>
+      <div id="resizer"></div>
+    </div>
+
+    <div id="main" tabindex="-1">
+      <div id="header">
+        <div id="menu">
+  
+    <a href="_index.html">Index</a> &raquo; 
+    <span class="title">File: merge</span>
+  
+</div>
+
+        <div id="search">
+  
+    <a class="full_list_link" id="class_list_link"
+        href="class_list.html">
+
+        <svg width="24" height="24">
+          <rect x="0" y="4" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="12" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="20" width="24" height="4" rx="1" ry="1"></rect>
+        </svg>
+    </a>
+  
+</div>
+        <div class="clear"></div>
+      </div>
+
+      <div id="content"><div id='filecontents'><p>module Prism<br>
+  module Merge<br>
+    VERSION: String</p>
+
+<pre class="code ruby"><code class="ruby">module Version
+  VERSION: String
+end
+
+class Error &lt; StandardError
+end
+
+class ParseError &lt; Error
+  attr_reader content: String
+  attr_reader parse_result: untyped
+
+  def initialize: (String message, content: String, parse_result: untyped) -&gt; void
+end
+
+class TemplateParseError &lt; ParseError
+end
+
+class DestinationParseError &lt; ParseError
+end
+
+# Wrapper to represent freeze blocks as first-class nodes.
+# Freeze blocks can be placed inside:
+# - ClassNode, ModuleNode, SingletonClassNode (class/module definitions)
+# - DefNode (method definitions)
+# - LambdaNode (lambda/proc definitions)
+# - CallNode with blocks (e.g., RSpec describe/context blocks)
+class FreezeNode
+  class InvalidStructureError &lt; StandardError
+    attr_reader start_line: Integer?
+    attr_reader end_line: Integer?
+    attr_reader unclosed_nodes: Array[untyped]
+
+    def initialize: (String message, ?start_line: Integer?, ?end_line: Integer?, ?unclosed_nodes: Array[untyped]) -&gt; void
+  end
+
+  class Location
+    attr_reader start_line: Integer
+    attr_reader end_line: Integer
+
+    def initialize: (Integer start_line, Integer end_line) -&gt; void
+  end
+
+  attr_reader start_line: Integer
+  attr_reader end_line: Integer
+  attr_reader content: String
+  attr_reader nodes: Array[untyped]
+  attr_reader start_marker: String?
+  attr_reader end_marker: String?
+
+  def initialize: (
+    start_line: Integer,
+    end_line: Integer,
+    analysis: FileAnalysis,
+    ?nodes: Array[untyped],
+    ?overlapping_nodes: Array[untyped]?,
+    ?start_marker: String?,
+    ?end_marker: String?
+  ) -&gt; void
+
+  def location: () -&gt; Location
+
+  def signature: () -&gt; Array[Symbol | Integer]
+
+  def line_range: () -&gt; Range[Integer]
+
+  def contains_line?: (Integer line_num) -&gt; bool
+
+  def overlaps?: (untyped other) -&gt; bool
+
+  def to_s: () -&gt; String
+
+  def inspect: () -&gt; String
+
+  private
+
+  def validate_structure!: () -&gt; void
+end
+
+class FileAnalysis
+  FREEZE_START: Regexp
+  FREEZE_END: Regexp
+  FREEZE_BLOCK: Regexp
+
+  type freeze_block = {
+    range: Range[Integer],
+    line_range: Range[Integer],
+    text: String,
+    start_marker: String?
+  }
+
+  type node_info = {
+    node: untyped,
+    index: Integer,
+    leading_comments: Array[untyped],
+    inline_comments: Array[untyped],
+    signature: Array[untyped]?,
+    line_range: Range[Integer]
+  }
+
+  attr_reader content: String
+  attr_reader parse_result: untyped
+  attr_reader lines: Array[String]
+  attr_reader statements: Array[untyped]
+  attr_reader freeze_blocks: Array[freeze_block]
+
+  # Custom signature generator return types:
+  # - Array[untyped]: Used as the node&#39;s signature for matching
+  # - nil: Node gets no signature (won&#39;t be matched by signature)
+  # - Prism::Node or FreezeNode: Falls through to default signature computation
+  def initialize: (String content, ?signature_generator: (^(untyped) -&gt; (Array[untyped] | untyped | nil))?, ?freeze_token: String?) -&gt; void
+
+  def valid?: () -&gt; bool
+
+  def extract_statements: () -&gt; Array[untyped]
+
+  def extract_freeze_blocks: () -&gt; Array[freeze_block]
+
+  def line_to_node_map: () -&gt; Hash[Integer, Array[untyped]]
+
+  def node_to_line_map: () -&gt; Hash[untyped, Range[Integer]]
+
+  def nodes_with_comments: () -&gt; Array[node_info]
+
+  def comment_map: () -&gt; Hash[Integer, Array[untyped]]
+
+  def signature_at: (Integer index) -&gt; Array[untyped]?
+
+  def generate_signature: (untyped node) -&gt; Array[untyped]?
+
+  def in_freeze_block?: (Integer line_num) -&gt; bool
+
+  def freeze_block_at: (Integer line_num) -&gt; freeze_block?
+
+  def normalized_line: (Integer line_num) -&gt; String?
+
+  def line_at: (Integer line_num) -&gt; String?
+
+  private
+
+  def build_line_to_node_map: () -&gt; Hash[Integer, Array[untyped]]
+
+  def build_node_to_line_map: () -&gt; Hash[untyped, Range[Integer]]
+
+  def extract_nodes_with_comments: () -&gt; Array[node_info]
+
+  def find_leading_comments: (untyped current_stmt, untyped? prev_stmt, untyped body_node) -&gt; Array[untyped]
+
+  def inline_comments_for_node: (untyped stmt) -&gt; Array[untyped]
+
+  def build_comment_map: () -&gt; Hash[Integer, Array[untyped]]
+
+  def default_signature: (untyped node) -&gt; Array[untyped]
+
+  # Compute structural signature for node matching
+  # Returns signature arrays like:
+  #   [:def, Symbol, Array[Symbol]]           - method definitions
+  #   [:class, String]                        - class definitions
+  #   [:module, String]                       - module definitions
+  #   [:singleton_class, String]              - singleton class definitions
+  #   [:const, Symbol | String]               - constant assignments
+  #   [:local_var, Symbol]                    - local variable assignments
+  #   [:ivar, Symbol]                         - instance variable assignments
+  #   [:cvar, Symbol]                         - class variable assignments
+  #   [:gvar, Symbol]                         - global variable assignments
+  #   [:multi_write, Array[Symbol | String]]  - multiple assignment
+  #   [:if, String] | [:unless, String]       - conditionals
+  #   [:case, String] | [:case_match, String] - case statements
+  #   [:while, String] | [:until, String]     - while/until loops
+  #   [:for, String, String]                  - for loops
+  #   [:begin, String]                        - begin blocks
+  #   [:call, Symbol, String?]                - method calls
+  #   [:call_with_block, Symbol, String?]     - method calls with blocks
+  #   [:super, Symbol]                        - super calls
+  #   [:forwarding_super, Symbol]             - forwarding super calls
+  #   [:lambda, String]                       - lambda expressions
+  #   [:pre_execution, Integer]               - BEGIN blocks
+  #   [:post_execution, Integer]              - END blocks
+  #   [:parens, String]                       - parenthesized expressions
+  #   [:embedded, String]                     - embedded statements
+  #   [:other, String, Integer]               - fallback for unknown nodes
+  def compute_node_signature: (untyped node) -&gt; Array[untyped]
+
+  # Extract first argument value from a CallNode
+  def extract_first_argument_value: (untyped node) -&gt; (String | Symbol | nil)
+end
+
+class FileAligner
+  class Anchor &lt; Struct[untyped]
+    attr_accessor template_start: Integer
+    attr_accessor template_end: Integer
+    attr_accessor dest_start: Integer
+    attr_accessor dest_end: Integer
+    attr_accessor match_type: Symbol
+    attr_accessor score: Integer
+
+    def template_range: () -&gt; Range[Integer]
+
+    def dest_range: () -&gt; Range[Integer]
+
+    def length: () -&gt; Integer
+  end
+
+  class Boundary &lt; Struct[untyped]
+    attr_accessor template_range: Range[Integer]?
+    attr_accessor dest_range: Range[Integer]?
+    attr_accessor prev_anchor: Anchor?
+    attr_accessor next_anchor: Anchor?
+
+    def template_lines: () -&gt; Array[Integer]
+
+    def dest_lines: () -&gt; Array[Integer]
+  end
+
+  attr_reader template_analysis: FileAnalysis
+  attr_reader dest_analysis: FileAnalysis
+  attr_reader anchors: Array[Anchor]
+  attr_reader boundaries: Array[Boundary]
+
+  def initialize: (FileAnalysis template_analysis, FileAnalysis dest_analysis) -&gt; void
+
+  def align: () -&gt; Array[Boundary]
+
+  private
+
+  def find_anchors: () -&gt; void
+
+  def build_line_map: (FileAnalysis analysis) -&gt; Hash[Integer, String]
+
+  def find_exact_line_matches: (Hash[Integer, String] template_map, Hash[Integer, String] dest_map) -&gt; Array[Hash[Symbol, untyped]]
+
+  def merge_consecutive_matches: (Array[Hash[Symbol, untyped]] matches) -&gt; Array[Anchor]
+
+  def add_node_signature_anchors: () -&gt; void
+
+  def add_freeze_block_anchors: () -&gt; void
+
+  def compute_boundaries: () -&gt; void
+
+  def ranges_overlap?: (Range[Integer]? range1, Range[Integer]? range2) -&gt; bool
+end
+
+class MergeResult
+  DECISION_KEPT_TEMPLATE: Symbol
+  DECISION_KEPT_DEST: Symbol
+  DECISION_APPENDED: Symbol
+  DECISION_REPLACED: Symbol
+  DECISION_FREEZE_BLOCK: Symbol
+
+  type line_metadata = {
+    decision: Symbol,
+    template_line: Integer?,
+    dest_line: Integer?,
+    comment: String?,
+    result_line: Integer
+  }
+
+  attr_reader lines: Array[String]
+  attr_reader line_metadata: Array[line_metadata]
+
+  def initialize: () -&gt; void
+
+  def add_line: (String content, decision: Symbol, ?template_line: Integer?, ?dest_line: Integer?, ?comment: String?) -&gt; void
+
+  def add_lines_from: (Array[String] source_lines, decision: Symbol, source: Symbol, start_line: Integer, ?comment: String?) -&gt; void
+
+  def add_node: (FileAnalysis::node_info node_info, decision: Symbol, source: Symbol, ?source_analysis: FileAnalysis?) -&gt; void
+
+  def to_s: () -&gt; String
+
+  def statistics: () -&gt; Hash[Symbol, Integer]
+
+  def lines_by_decision: (Symbol decision) -&gt; Array[line_metadata]
+
+  def debug_output: () -&gt; String
+end
+
+class ConflictResolver
+  type boundary_content = {
+    lines: Array[String],
+    nodes: Array[FileAnalysis::node_info],
+    has_freeze_block: bool,
+    line_range: Range[Integer]?
+  }
+
+  attr_reader template_analysis: FileAnalysis
+  attr_reader dest_analysis: FileAnalysis
+  attr_reader add_template_only_nodes: bool
+
+  def initialize: (FileAnalysis template_analysis, FileAnalysis dest_analysis, ?preference: (Symbol | Hash[Symbol, Symbol]), ?add_template_only_nodes: bool) -&gt; void
+
+  def resolve: (FileAligner::Boundary boundary, MergeResult result) -&gt; void
+
+  private
+
+  def extract_boundary_content: (FileAnalysis analysis, Range[Integer]? line_range) -&gt; boundary_content
+
+  def ranges_overlap?: (Range[Integer] range1, Range[Integer] range2) -&gt; bool
+
+  def add_content_to_result: (boundary_content content, MergeResult result, Symbol source, Symbol decision) -&gt; void
+
+  def merge_boundary_content: (boundary_content template_content, boundary_content dest_content, FileAligner::Boundary boundary, MergeResult result) -&gt; void
+
+  def build_signature_map: (Array[FileAnalysis::node_info] nodes) -&gt; Hash[Array[untyped], Array[FileAnalysis::node_info]]
+
+  def add_line_safe: (MergeResult result, String content, **untyped kwargs) -&gt; void
+
+  def handle_orphan_lines: (boundary_content template_content, boundary_content dest_content, MergeResult result) -&gt; void
+
+  def find_orphan_lines: (FileAnalysis analysis, Range[Integer]? line_range, Array[FileAnalysis::node_info] nodes) -&gt; Array[Integer]
+end
+
+class SmartMerger
+  attr_reader template_analysis: FileAnalysis
+  attr_reader dest_analysis: FileAnalysis
+  attr_reader aligner: FileAligner
+  attr_reader resolver: ConflictResolver
+  attr_reader result: MergeResult
+
+  type merge_debug_result = {
+    content: String,
+    debug: String,
+    statistics: Hash[Symbol, Integer]
+  }
+
+  # Custom signature generator return types:
+  # - Array[untyped]: Used as the node&#39;s signature for matching
+  # - nil: Node gets no signature (won&#39;t be matched by signature)
+  # - Prism::Node or FreezeNode: Falls through to default signature computation
+  def initialize: (
+    String template_content,
+    String dest_content,
+    ?signature_generator: (^(untyped) -&gt; (Array[untyped] | untyped | nil))?,
+    ?preference: (Symbol | Hash[Symbol, Symbol]),
+    ?add_template_only_nodes: bool,
+    ?freeze_token: String?,
+    ?max_recursion_depth: (Integer | Float),
+    ?current_depth: Integer,
+    ?node_typing: Hash[Symbol, untyped]?
+  ) -&gt; void
+
+  def merge: () -&gt; String
+
+  def merge_with_debug: () -&gt; merge_debug_result
+
+  private
+
+  def process_merge: (Array[FileAligner::Boundary] boundaries) -&gt; void
+
+  def build_timeline: (Array[FileAligner::Boundary] boundaries) -&gt; Array[Hash[Symbol, untyped]]
+
+  def process_anchor: (FileAligner::Anchor anchor) -&gt; void
+
+  def add_freeze_block_from_dest: (FileAligner::Anchor anchor) -&gt; void
+
+  def add_signature_match_from_dest: (FileAligner::Anchor anchor) -&gt; void
+
+  def add_exact_match_from_template: (FileAligner::Anchor anchor) -&gt; void
+
+  def process_boundary: (FileAligner::Boundary boundary) -&gt; void
+
+  # Find a node that overlaps with a line range
+  def find_node_in_range: (FileAnalysis analysis, Integer start_line, Integer end_line) -&gt; untyped?
+
+  # Find a node at a specific line (deprecated)
+  def find_node_at_line: (FileAnalysis analysis, Integer line_num) -&gt; untyped?
+
+  # Determine if two matching nodes should be recursively merged
+  # Returns true for ClassNode, ModuleNode, SingletonClassNode, and CallNode/BeginNode
+  # with blocks that contain mergeable statements.
+  # Returns false if max_recursion_depth has been reached (safety valve).
+  def should_merge_recursively?: (untyped? template_node, untyped? dest_node) -&gt; bool
+
+  # Check if a body (StatementsNode) contains statements that could be merged
+  # Returns true if body contains CallNode, DefNode, ClassNode, assignments, etc.
+  def body_has_mergeable_statements?: (untyped? body) -&gt; bool
+
+  # Check if a statement is mergeable (can generate a signature)
+  # Returns true for CallNode, DefNode, ClassNode, ModuleNode, assignments, conditionals, etc.
+  def mergeable_statement?: (untyped node) -&gt; bool
+
+  # Check if a node&#39;s body contains freeze block markers
+  # @param node The node to check for freeze markers
+  # @param analysis The FileAnalysis for the file containing the node
+  def node_contains_freeze_blocks?: (untyped node, FileAnalysis analysis) -&gt; bool
+
+  # Recursively merge the body of matching class, module, or call-with-block nodes
+  def merge_node_body_recursively: (untyped template_node, untyped dest_node, FileAligner::Anchor anchor) -&gt; void
+
+  # Extract the body content of a node (without declaration and closing &#39;end&#39;)
+  def extract_node_body: (untyped node, FileAnalysis analysis) -&gt; String
+end   end end
+</code></pre>
+</div></div>
+
+      <div id="footer">
+  Generated on Thu Feb 19 05:15:59 2026 by
+  <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
+  0.9.38 (ruby-4.0.1).
+</div>
+
+    </div>
+  </body>
+</html>
