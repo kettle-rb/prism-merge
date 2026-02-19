@@ -26,6 +26,7 @@ AllCops:
     - spec/fixtures/**/*
     - tmp/**/*
     - vendor/**/*
+    - AGENTS.md
 
 RBS:
   Enabled: true
