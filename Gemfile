@@ -14,7 +14,3 @@ eval_gemfile "gemfiles/modular/style.gemfile"
 eval_gemfile "gemfiles/modular/documentation.gemfile"
 eval_gemfile "gemfiles/modular/optional.gemfile"
 eval_gemfile "gemfiles/modular/x_std_libs.gemfile"
-
-if ENV.fetch("KETTLE_RB_DEV", "false").casecmp?("true")
-  gem "ast-merge", path: "../../"
-end
