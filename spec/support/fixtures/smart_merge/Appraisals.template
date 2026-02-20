@@ -7,7 +7,7 @@
 # kettle-dev:unfreeze
 
 # HOW TO UPDATE APPRAISALS (will run rubocop_gradual's autocorrect afterward):
-#   bin/rake appraisals:update
+#   bin/rake appraisal:update
 
 # Lock/Unlock Deps Pattern
 #
