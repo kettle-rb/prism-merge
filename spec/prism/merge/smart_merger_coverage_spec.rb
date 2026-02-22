@@ -242,6 +242,41 @@ RSpec.describe Prism::Merge::SmartMerger do
       result = merger.merge
       expect(result).to include('gem "foo"')
     end
+
+    it "uses typed dest when only dest node gets typed" do
+      template = <<~RUBY
+        x = 1
+      RUBY
+
+      dest = <<~RUBY
+        x = 1
+      RUBY
+
+      # Since template and dest nodes are different objects, and the node_typing lambda
+      # is called twice in preference_for_node (once for template, once for dest),
+      # we can use a simple call counter scoped to preference_for_node calls only.
+      call_in_pref = 0
+      node_typing = {
+        LocalVariableWriteNode: ->(node) {
+          call_in_pref += 1
+          # Calls 1-2 are during signature building (template + dest)
+          # Call 3 is preference_for_node template, Call 4 is preference_for_node dest
+          if call_in_pref == 4
+            Ast::Merge::NodeTyping.with_merge_type(node, :dest_typed)
+          end
+        },
+      }
+
+      merger = described_class.new(
+        template,
+        dest,
+        preference: {default: :destination, dest_typed: :template},
+        node_typing: node_typing,
+      )
+
+      result = merger.merge
+      expect(result).to include("x = 1")
+    end
   end
 
   describe "add_comment_node_to_result fallback branches" do
@@ -351,6 +386,47 @@ RSpec.describe Prism::Merge::SmartMerger do
       node = merger.template_analysis.statements.first
 
       expect(merger.send(:node_contains_freeze_blocks?, node)).to be(false)
+    end
+  end
+
+  describe "frozen_node?" do
+    it "returns false when freeze_token is nil" do
+      merger = described_class.new("x = 1", "x = 1", freeze_token: nil)
+      node = merger.template_analysis.statements.first
+
+      expect(merger.send(:frozen_node?, node)).to be(false)
+    end
+  end
+end
+
+RSpec.describe Prism::Merge::FileAnalysis do
+  describe "#nodes_with_comments" do
+    context "with comment-only files" do
+      it "returns AstNode entries for comment-only files" do
+        content = "# Just a comment\n# Another comment\n"
+        analysis = described_class.new(content)
+
+        nodes = analysis.nodes_with_comments
+
+        nodes.each do |node_info|
+          expect(node_info[:node]).to be_a(Ast::Merge::AstNode)
+          expect(node_info[:leading_comments]).to eq([])
+          expect(node_info[:inline_comments]).to eq([])
+          expect(node_info).to have_key(:signature)
+          expect(node_info).to have_key(:line_range)
+        end
+      end
+
+      it "produces proper index for each AstNode" do
+        content = "# First\n\n# Second\n"
+        analysis = described_class.new(content)
+
+        nodes = analysis.nodes_with_comments
+
+        nodes.each_with_index do |node_info, idx|
+          expect(node_info[:index]).to eq(idx)
+        end
+      end
     end
   end
 end
