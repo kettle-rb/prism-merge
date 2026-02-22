@@ -93,6 +93,7 @@ module Prism
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
         @text_merger_options = text_merger_options
+        @dest_prefix_comment_lines = nil
 
         # Store the raw (unwrapped) signature_generator so that
         # merge_node_body_recursively can pass it to inner SmartMergers
@@ -228,6 +229,10 @@ module Prism
         # Track which dest line ranges have been output (to avoid duplicating nested content)
         output_dest_line_ranges = []
 
+        # Emit dest magic comments first — they must always be at the very
+        # top of the output, before any template-only nodes from Phase 1.
+        last_output_dest_line = emit_dest_prefix_lines(@result, @dest_analysis)
+
         # Phase 1: Output template-only nodes first (nodes in template but not in dest)
         # This ensures template-only nodes (like `source` in Gemfiles) appear at the top
         if @add_template_only_nodes
@@ -246,8 +251,6 @@ module Prism
         # Phase 2: Process dest nodes in their original order
         # This preserves dest-only nodes in their original position relative to matched nodes
 
-        # Emit prefix lines from the dest source (magic comments, blank lines before first node)
-        last_output_dest_line = emit_dest_prefix_lines(@result, @dest_analysis)
 
         @dest_analysis.statements.each do |dest_node|
           dest_signature = @dest_analysis.generate_signature(dest_node)
@@ -614,32 +617,105 @@ module Prism
         }
       end
 
-      # Emit prefix lines from the destination source that appear before the first node.
-      # This preserves magic comments (e.g., `# frozen_string_literal: true`) and blank
-      # lines that precede any AST statements.
+      # Emit destination magic comments and any lines that precede the first
+      # AST node's leading comments.
+      #
+      # Magic comments (frozen_string_literal, encoding, etc.) are file-level
+      # metadata managed by Prism. The destination is the real file on disk,
+      # so its magic comments must always be preserved — regardless of merge
+      # preference. This method:
+      #
+      # 1. Emits any lines before the first leading comment (shebangs, etc.)
+      # 2. Emits magic comments from the first dest node's leading comments
+      # 3. Emits blank lines between the last magic comment and the first
+      #    non-magic leading comment (or the node itself)
+      # 4. Records which dest line numbers were emitted so that
+      #    add_node_to_result can skip them (preventing duplication)
       #
       # @param result [MergeResult] The merge result
       # @param analysis [FileAnalysis] The destination file analysis
       # @return [Integer] The last line number emitted (0 if none)
       def emit_dest_prefix_lines(result, analysis)
+        @dest_prefix_comment_lines = Set.new
         return 0 if analysis.statements.empty?
 
         first_node = analysis.statements.first
-        # Find the first line of content: either leading comment or node start
         leading_comments = first_node.location.respond_to?(:leading_comments) ? first_node.location.leading_comments : []
         first_content_line = leading_comments.any? ? leading_comments.first.location.start_line : first_node.location.start_line
 
-        return 0 if first_content_line <= 1
-
-        # Emit lines before the first node (magic comments, blank lines)
         last_emitted = 0
-        (1...first_content_line).each do |line_num|
-          line = analysis.line_at(line_num)&.chomp || ""
+
+        # Step 1: Emit lines before first leading comment (shebangs, etc.)
+        if first_content_line > 1
+          (1...first_content_line).each do |line_num|
+            line = analysis.line_at(line_num)&.chomp || ""
+            result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+            @dest_prefix_comment_lines << line_num
+            last_emitted = line_num
+          end
+        end
+
+        # Step 2: Emit contiguous magic comments from the top of the
+        # leading comments list, plus blank lines between them and the
+        # next non-magic content.
+        magic_end_index = -1
+        leading_comments.each_with_index do |comment, idx|
+          break unless prism_magic_comment?(comment)
+          magic_end_index = idx
+        end
+
+        return last_emitted if magic_end_index < 0
+
+        # Emit magic comment lines
+        (0..magic_end_index).each do |idx|
+          comment = leading_comments[idx]
+          line_num = comment.location.start_line
+          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+
+          # Emit gap lines between consecutive magic comments
+          if last_emitted > 0 && line_num > last_emitted + 1
+            ((last_emitted + 1)...line_num).each do |gap_num|
+              gap = analysis.line_at(gap_num)&.chomp || ""
+              result.add_line(gap, decision: MergeResult::DECISION_KEPT_DEST, dest_line: gap_num)
+              @dest_prefix_comment_lines << gap_num
+            end
+          end
+
           result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+          @dest_prefix_comment_lines << line_num
           last_emitted = line_num
         end
+
+        # Emit blank lines between last magic comment and next content
+        next_content_line = if magic_end_index + 1 < leading_comments.size
+          leading_comments[magic_end_index + 1].location.start_line
+        else
+          first_node.location.start_line
+        end
+
+        if next_content_line > last_emitted + 1
+          ((last_emitted + 1)...next_content_line).each do |gap_num|
+            gap_line = analysis.line_at(gap_num)&.chomp || ""
+            next unless gap_line.strip.empty?
+
+            result.add_line(gap_line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: gap_num)
+            @dest_prefix_comment_lines << gap_num
+            last_emitted = gap_num
+          end
+        end
+
         last_emitted
       end
+
+      # Check if a Prism comment object is a Ruby magic comment.
+      #
+      # @param comment [Prism::Comment] A Prism comment object
+      # @return [Boolean]
+      def prism_magic_comment?(comment)
+        text = comment.slice.sub(/\A#\s*/, "").strip
+        Comment::Line::MAGIC_COMMENT_PATTERNS.any? { |_, pat| text.match?(pat) }
+      end
+
 
       # Emit blank/gap lines from the destination source between the last output line
       # and the next node (including its leading comments). This preserves blank lines
@@ -686,18 +762,49 @@ module Prism
           MergeResult::DECISION_KEPT_DEST
         end
 
-        # Get leading comments attached to the node
-        leading_comments = node.location.respond_to?(:leading_comments) ? node.location.leading_comments : []
+        # Get leading comments attached to the node, skipping any that were
+        # already emitted by emit_dest_prefix_lines (dest magic comments at
+        # the top of the file). Non-top-of-file magic comments are left alone
+        # — they may be documentation or intentional repetition.
+        #
+        # For dest nodes: skip by exact line number match.
+        # For template nodes: skip magic comments if dest prefix already
+        # emitted magic comments (to avoid duplication).
+        all_leading_comments = node.location.respond_to?(:leading_comments) ? node.location.leading_comments : []
+        last_skipped_line = nil
+        if source == :destination
+          leading_comments = all_leading_comments.reject do |c|
+            if @dest_prefix_comment_lines&.include?(c.location.start_line)
+              last_skipped_line = c.location.start_line
+              true
+            end
+          end
+        elsif @dest_prefix_comment_lines&.any?
+          leading_comments = all_leading_comments.reject do |c|
+            if prism_magic_comment?(c)
+              last_skipped_line = c.location.start_line
+              true
+            end
+          end
+        else
+          leading_comments = all_leading_comments
+        end
 
         # Add leading comments first (includes freeze markers if present)
-        # Also add any blank lines between consecutive comments
-        prev_comment_line = nil
+        # Also add any blank lines between consecutive comments.
+        # For template nodes where magic comments were skipped, seed
+        # prev_comment_line so gap lines between the stripped comment and
+        # the next remaining comment are properly emitted.
+        prev_comment_line = (source == :template) ? last_skipped_line : nil
         leading_comments.each do |comment|
           line_num = comment.location.start_line
 
           # Add blank lines between this comment and the previous one
           if prev_comment_line && line_num > prev_comment_line + 1
             ((prev_comment_line + 1)...line_num).each do |blank_line_num|
+              # Skip lines already emitted by emit_dest_prefix_lines
+              next if @dest_prefix_comment_lines&.include?(blank_line_num)
+
               line = analysis.line_at(blank_line_num)&.chomp || ""
               if source == :template
                 result.add_line(line, decision: decision, template_line: blank_line_num)
@@ -724,6 +831,9 @@ module Prism
           if node.location.start_line > last_comment_line + 1
             # There's a gap - add blank lines
             ((last_comment_line + 1)...node.location.start_line).each do |line_num|
+              # Skip lines already emitted by emit_dest_prefix_lines
+              next if @dest_prefix_comment_lines&.include?(line_num)
+
               line = analysis.line_at(line_num)&.chomp || ""
               if source == :template
                 result.add_line(line, decision: decision, template_line: line_num)
@@ -906,12 +1016,23 @@ module Prism
         # Get preference for this specific node pair
         node_preference = preference_for_node(template_node, dest_node)
 
-        # Determine which comments to use:
+        # Determine which comments to use (skipping any already emitted
+        # by emit_dest_prefix_lines):
         # - If template preference and template has comments, use template's
         # - If template preference but template has NO comments, preserve dest's comments
         # - If dest preference, use dest's comments
         template_comments = actual_template.location.respond_to?(:leading_comments) ? actual_template.location.leading_comments : []
         dest_comments = actual_dest.location.respond_to?(:leading_comments) ? actual_dest.location.leading_comments : []
+        dest_comments = dest_comments.reject { |c| @dest_prefix_comment_lines&.include?(c.location.start_line) }
+        last_skipped_template_line = nil
+        if @dest_prefix_comment_lines&.any?
+          template_comments = template_comments.reject do |c|
+            if prism_magic_comment?(c)
+              last_skipped_template_line = c.location.start_line
+              true
+            end
+          end
+        end
 
         # Choose comment source: prefer dest comments if template has none (to preserve existing headers)
         if node_preference == :template && template_comments.empty? && dest_comments.any?
@@ -933,14 +1054,19 @@ module Prism
         source_node = (node_preference == :template) ? actual_template : actual_dest
         decision = MergeResult::DECISION_REPLACED
 
-        # Add leading comments with blank lines between them preserved
-        prev_comment_line = nil
+        # Add leading comments with blank lines between them preserved.
+        # Seed prev_comment_line for template source so gap lines between
+        # stripped magic comments and remaining comments are preserved.
+        prev_comment_line = (comment_source == :template) ? last_skipped_template_line : nil
         leading_comments.each do |comment|
           line_num = comment.location.start_line
 
           # Add blank lines between this comment and the previous one
           if prev_comment_line && line_num > prev_comment_line + 1
             ((prev_comment_line + 1)...line_num).each do |blank_line_num|
+              # Skip lines already emitted by emit_dest_prefix_lines
+              next if @dest_prefix_comment_lines&.include?(blank_line_num)
+
               line = comment_analysis.line_at(blank_line_num)&.chomp || ""
               if comment_source == :template
                 @result.add_line(line, decision: decision, template_line: blank_line_num)

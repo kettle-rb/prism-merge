@@ -28,6 +28,23 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- Always preserve destination magic comments (`# frozen_string_literal: true`,
+  `# encoding: UTF-8`, etc.) at the top of merged output, regardless of merge
+  preference. Magic comments are file-level metadata managed by Prism and must
+  not be lost when the template side lacks them (e.g. after filtering).
+  `emit_dest_prefix_lines` now detects contiguous magic comments from the first
+  destination node's leading comments, emits them before any template-only nodes
+  (Phase 1), and records the emitted line numbers so `add_node_to_result` and
+  `merge_node_body_recursively` skip them to prevent duplication.
+- Non-top-of-file magic comments (e.g. used as documentation) are left alone and
+  treated as regular comments.
+- Fix blank line preservation between magic comments and subsequent comments when
+  template preference is used. Gap lines between a stripped magic comment and the
+  next remaining comment are now correctly emitted from the template source.
+- Fix idempotency issue where repeated merges of Gemfile-like content could
+  introduce extra blank lines due to the trailing `\n\n` in filtered template
+  output.
+
 ### Security
 
 ## [2.0.3] - 2026-02-22
@@ -354,7 +371,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.3...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.4...HEAD
+[2.0.4]: https://github.com/kettle-rb/prism-merge/compare/v2.0.3...v2.0.4
+[2.0.4t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.4
 [2.0.3]: https://github.com/kettle-rb/prism-merge/compare/v2.0.2...v2.0.3
 [2.0.3t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.3
 [2.0.2]: https://github.com/kettle-rb/prism-merge/compare/v2.0.1...v2.0.2
