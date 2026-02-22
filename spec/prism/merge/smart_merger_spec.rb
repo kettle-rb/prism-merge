@@ -3997,6 +3997,81 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
+    context "with trailing blank lines between recursively merged blocks" do
+      # Regression: merge_node_body_recursively didn't emit trailing blank lines
+      # after the closing 'end', so blank lines between consecutive blocks were
+      # stripped. add_node_to_result handles this for non-recursive nodes, but
+      # the recursive path assembled its own output without the trailing blank.
+
+      it "preserves blank lines between consecutive call-with-block nodes" do
+        code = <<~RUBY
+          appraise "a" do
+            eval_gemfile "x.gemfile"
+          end
+
+          appraise "b" do
+            eval_gemfile "y.gemfile"
+          end
+        RUBY
+
+        merger = described_class.new(
+          code, code,
+          preference: :template,
+          add_template_only_nodes: true,
+        )
+        result = merger.merge
+
+        expect(result).to include("end\n\nappraise")
+      end
+
+      it "preserves blank lines between blocks with leading comments" do
+        code = <<~RUBY
+          appraise "a" do
+            eval_gemfile "x.gemfile"
+          end
+
+          # Comment for b
+          appraise "b" do
+            eval_gemfile "y.gemfile"
+          end
+
+          appraise "c" do
+            eval_gemfile "z.gemfile"
+          end
+        RUBY
+
+        merger = described_class.new(
+          code, code,
+          preference: :template,
+          add_template_only_nodes: true,
+        )
+        result = merger.merge
+
+        # All blank lines between blocks should be preserved
+        expect(result).to include("end\n\n# Comment for b")
+        expect(result).to include("end\n\nappraise \"c\"")
+      end
+
+      it "preserves blank line between end and trailing non-block node" do
+        code = <<~RUBY
+          group :development do
+            gem "debug", "~> 1.0"
+          end
+
+          gem "gem_bench", "~> 2.0"
+        RUBY
+
+        merger = described_class.new(
+          code, code,
+          preference: :template,
+          add_template_only_nodes: true,
+        )
+        result = merger.merge
+
+        expect(result).to include("end\n\ngem \"gem_bench\"")
+      end
+    end
+
     it "stores raw_signature_generator separately from effective generator" do
       merger = described_class.new(
         "x = 1",

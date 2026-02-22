@@ -1000,6 +1000,17 @@ module Prism
           template_line: (node_preference == :template) ? source_node.location.end_line : nil,
           dest_line: (node_preference == :destination) ? source_node.location.end_line : nil,
         )
+
+        # Add trailing blank line if needed for separation (same logic as add_node_to_result)
+        trailing_line = source_node.location.end_line + 1
+        trailing_content = source_analysis.line_at(trailing_line)
+        if trailing_content && trailing_content.strip.empty?
+          if node_preference == :template
+            @result.add_line("", decision: decision, template_line: trailing_line)
+          else
+            @result.add_line("", decision: decision, dest_line: trailing_line)
+          end
+        end
       end
 
       # Extracts the body content of a node (without declaration and closing 'end').

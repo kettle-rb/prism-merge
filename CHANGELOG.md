@@ -28,6 +28,13 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- Fix blank lines between blocks being stripped during recursive body merging.
+  `merge_node_body_recursively` assembled its output (opening line, merged body,
+  closing `end`) without emitting the trailing blank line that separates
+  consecutive blocks. `add_node_to_result` already handles this for non-recursive
+  nodes, but the recursive path was missing the same logic. Now emits a trailing
+  blank line after the closing `end` when the source has one.
+
 ### Security
 
 ## [2.0.2] - 2026-02-22
