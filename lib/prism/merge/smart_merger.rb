@@ -46,9 +46,6 @@ module Prism
     #   result = merger.merge
     #
     class SmartMerger < ::Ast::Merge::SmartMergerBase
-      # @return [Hash{Symbol,String => #call}, nil] Node typing configuration
-      attr_reader :node_typing
-
       # @return [Integer, Float] Maximum recursion depth for body merging
       attr_reader :max_recursion_depth
 
@@ -139,9 +136,9 @@ module Prism
       #
       # @return [Hash] Hash with :content, :debug, and :statistics keys
       def merge_with_debug
-        result = merge
+        result_obj = merge_result
         {
-          content: result.to_s,
+          content: result_obj.to_s,
           debug: {
             template_statements: @template_analysis&.statements&.size || 0,
             dest_statements: @dest_analysis&.statements&.size || 0,
@@ -149,7 +146,7 @@ module Prism
             add_template_only_nodes: @add_template_only_nodes,
             freeze_token: @freeze_token,
           },
-          statistics: result.respond_to?(:statistics) ? result.statistics : {},
+          statistics: result_obj.respond_to?(:statistics) ? result_obj.statistics : result_obj.decision_summary,
         }
       end
 
@@ -180,9 +177,12 @@ module Prism
         nil
       end
 
-      # Build the result (no-arg constructor for Prism)
+      # Build the result with analysis references
       def build_result
-        MergeResult.new
+        MergeResult.new(
+          template_analysis: @template_analysis,
+          dest_analysis: @dest_analysis,
+        )
       end
 
       # @return [Class] The template parse error class for Ruby
@@ -240,6 +240,10 @@ module Prism
 
         # Phase 2: Process dest nodes in their original order
         # This preserves dest-only nodes in their original position relative to matched nodes
+
+        # Emit prefix lines from the dest source (magic comments, blank lines before first node)
+        last_output_dest_line = emit_dest_prefix_lines(@result, @dest_analysis)
+
         @dest_analysis.statements.each do |dest_node|
           dest_signature = @dest_analysis.generate_signature(dest_node)
 
@@ -249,6 +253,9 @@ module Prism
           # Skip if this dest node is inside a dest range we've already output
           node_range = dest_node.location.start_line..dest_node.location.end_line
           next if output_dest_line_ranges.any? { |range| range.cover?(node_range.begin) && range.cover?(node_range.end) }
+
+          # Emit inter-node gap lines from the dest source (blank lines between blocks)
+          last_output_dest_line = emit_dest_gap_lines(@result, @dest_analysis, last_output_dest_line, dest_node)
 
           if dest_signature && template_by_signature.key?(dest_signature)
             # Matched node - merge with template version
@@ -277,6 +284,12 @@ module Prism
             output_dest_line_ranges << node_range
             output_signatures << dest_signature if dest_signature
           end
+
+          # Update last_output_dest_line to track trailing blank line from add_node_to_result
+          last_output_dest_line = dest_node.location.end_line
+          trailing_line = last_output_dest_line + 1
+          trailing_content = @dest_analysis.line_at(trailing_line)
+          last_output_dest_line = trailing_line if trailing_content && trailing_content.strip.empty?
         end
 
         @result
@@ -594,6 +607,64 @@ module Prism
             processed_node
           end
         }
+      end
+
+      # Emit prefix lines from the destination source that appear before the first node.
+      # This preserves magic comments (e.g., `# frozen_string_literal: true`) and blank
+      # lines that precede any AST statements.
+      #
+      # @param result [MergeResult] The merge result
+      # @param analysis [FileAnalysis] The destination file analysis
+      # @return [Integer] The last line number emitted (0 if none)
+      def emit_dest_prefix_lines(result, analysis)
+        return 0 if analysis.statements.empty?
+
+        first_node = analysis.statements.first
+        # Find the first line of content: either leading comment or node start
+        leading_comments = first_node.location.respond_to?(:leading_comments) ? first_node.location.leading_comments : []
+        first_content_line = leading_comments.any? ? leading_comments.first.location.start_line : first_node.location.start_line
+
+        return 0 if first_content_line <= 1
+
+        # Emit lines before the first node (magic comments, blank lines)
+        last_emitted = 0
+        (1...first_content_line).each do |line_num|
+          line = analysis.line_at(line_num)&.chomp || ""
+          result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+          last_emitted = line_num
+        end
+        last_emitted
+      end
+
+      # Emit blank/gap lines from the destination source between the last output line
+      # and the next node (including its leading comments). This preserves blank lines
+      # that separate top-level blocks.
+      #
+      # @param result [MergeResult] The merge result
+      # @param analysis [FileAnalysis] The destination file analysis
+      # @param last_output_line [Integer] The last dest line number that was output
+      # @param next_node [Prism::Node] The next node about to be output
+      # @return [Integer] The updated last output line number
+      def emit_dest_gap_lines(result, analysis, last_output_line, next_node)
+        return last_output_line if last_output_line == 0
+
+        # Find where the next node's content starts (leading comment or node itself)
+        leading_comments = next_node.location.respond_to?(:leading_comments) ? next_node.location.leading_comments : []
+        next_start_line = leading_comments.any? ? leading_comments.first.location.start_line : next_node.location.start_line
+
+        # Emit gap lines (blank lines between last output and next node)
+        gap_start = last_output_line + 1
+        return last_output_line if gap_start >= next_start_line
+
+        (gap_start...next_start_line).each do |line_num|
+          line = analysis.line_at(line_num)&.chomp || ""
+          # Only emit blank lines in the gap (don't re-emit content)
+          next unless line.strip.empty?
+
+          result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+        end
+
+        last_output_line
       end
 
       # Add a node to the result, including its leading and trailing comments.

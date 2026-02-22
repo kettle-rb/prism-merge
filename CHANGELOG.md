@@ -20,13 +20,32 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- `SmartMerger#emit_dest_prefix_lines` preserves magic comments (e.g., `# frozen_string_literal: true`)
+  and blank lines that appear before the first AST node in the destination file
+- `SmartMerger#emit_dest_gap_lines` preserves blank lines between consecutive top-level blocks
+  in the destination, preventing them from being silently stripped during merge
+
 ### Changed
+
+- `SmartMerger#merge_with_debug` now uses `merge_result` (returns `MergeResult` object)
+  instead of `merge` (returns `String`), so `statistics` and `decision_summary` are accessible
+- `SmartMerger#build_result` now passes `template_analysis` and `dest_analysis` to
+  `MergeResult.new` for consistency with `SmartMergerBase` API
 
 ### Deprecated
 
 ### Removed
 
+- Removed redundant `attr_reader :node_typing` from `SmartMerger` — already provided
+  by `SmartMergerBase`
+
 ### Fixed
+
+- Inter-node blank line stripping: blank lines between top-level blocks (e.g., between
+  `appraise` blocks in Appraisals, between `gem` calls in Gemfiles) are now preserved
+  from the destination source during merge
+- Prefix line stripping: magic comments and blank lines before the first AST statement
+  (e.g., `# frozen_string_literal: true` in Appraisal.root.gemfile) are now preserved
 
 ### Security
 
