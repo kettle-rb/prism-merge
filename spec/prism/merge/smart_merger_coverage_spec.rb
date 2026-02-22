@@ -193,7 +193,8 @@ RSpec.describe Prism::Merge::SmartMerger do
       }
 
       merger = described_class.new(
-        template, dest,
+        template,
+        dest,
         preference: {default: :destination, special: :template},
         node_typing: node_typing,
       )
@@ -219,7 +220,8 @@ RSpec.describe Prism::Merge::SmartMerger do
       }
 
       merger = described_class.new(
-        template, dest,
+        template,
+        dest,
         preference: {default: :destination},
         node_typing: node_typing,
       )

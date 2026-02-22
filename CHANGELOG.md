@@ -20,6 +20,25 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.0.1] - 2026-02-22
+
+- TAG: [v2.0.1][2.0.1t]
+- COVERAGE: 97.95% -- 813/830 lines in 12 files
+- BRANCH COVERAGE: 84.98% -- 447/526 branches in 12 files
+- 93.51% documented
+
+### Added
+
 - `SmartMerger#emit_dest_prefix_lines` preserves magic comments (e.g., `# frozen_string_literal: true`)
   and blank lines that appear before the first AST node in the destination file
 - `SmartMerger#emit_dest_gap_lines` preserves blank lines between consecutive top-level blocks
@@ -31,8 +50,6 @@ Please file a bug if you notice a violation of semantic versioning.
   instead of `merge` (returns `String`), so `statistics` and `decision_summary` are accessible
 - `SmartMerger#build_result` now passes `template_analysis` and `dest_analysis` to
   `MergeResult.new` for consistency with `SmartMergerBase` API
-
-### Deprecated
 
 ### Removed
 
@@ -46,8 +63,6 @@ Please file a bug if you notice a violation of semantic versioning.
   from the destination source during merge
 - Prefix line stripping: magic comments and blank lines before the first AST statement
   (e.g., `# frozen_string_literal: true` in Appraisal.root.gemfile) are now preserved
-
-### Security
 
 ## [2.0.0] - 2026-02-19
 
@@ -300,7 +315,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/kettle-rb/prism-merge/compare/v2.0.0...v2.0.1
+[2.0.1t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.1
 [2.0.0]: https://github.com/kettle-rb/prism-merge/compare/v1.1.6...v2.0.0
 [2.0.0t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.0
 [1.1.6]: https://github.com/kettle-rb/prism-merge/compare/v1.1.5...v1.1.6

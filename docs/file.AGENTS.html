@@ -69,6 +69,45 @@
 <strong>Current Version</strong>: 2.0.0<br>
 <strong>Required Ruby</strong>: &gt;= 3.2.0 (currently developed against Ruby 4.0.1)</p>
 
+<h2 id="️-ai-agent-terminal-limitations">⚠️ AI Agent Terminal Limitations</h2>
+
+<h3 id="terminal-output-is-not-visible">Terminal Output Is Not Visible</h3>
+
+<p><strong>CRITICAL</strong>: AI agents using <code>run_in_terminal</code> almost never see the command output. The terminal tool sends commands to a persistent Copilot terminal, but output is frequently lost or invisible to the agent.</p>
+
+<p><strong>Workaround</strong>: Always redirect output to a file in the project’s local <code>tmp/</code> directory, then read it back with <code>read_file</code>:</p>
+
+<pre class="code language-bash"><code class="language-bash">bundle exec rspec spec/some_spec.rb &gt; tmp/test_output.txt 2&gt;&amp;1
+</code></pre>
+
+<p><strong>NEVER</strong> use <code>/tmp</code> or other system directories — always use the project’s own <code>tmp/</code> directory.</p>
+
+<h3 id="direnv-requires-separate-cd-command">direnv Requires Separate <code>cd</code> Command</h3>
+
+<p><strong>CRITICAL</strong>: Never chain <code>cd</code> with other commands via <code>&amp;&amp;</code>. The <code>direnv</code> environment won’t initialize until after all chained commands finish. Run <code>cd</code> alone first:</p>
+
+<p>✅ <strong>CORRECT</strong>:</p>
+<pre class="code language-bash"><code class="language-bash">cd /home/pboling/src/kettle-rb/ast-merge/vendor/prism-merge
+</code></pre>
+<pre class="code language-bash"><code class="language-bash">bundle exec rspec &gt; tmp/test_output.txt 2&gt;&amp;1
+</code></pre>
+
+<p>❌ <strong>WRONG</strong>:</p>
+<pre class="code language-bash"><code class="language-bash">cd /home/pboling/src/kettle-rb/ast-merge/vendor/prism-merge &amp;&amp; bundle exec rspec
+</code></pre>
+
+<h3 id="prefer-internal-tools-over-terminal">Prefer Internal Tools Over Terminal</h3>
+
+<p>Use <code>read_file</code>, <code>list_dir</code>, <code>grep_search</code>, <code>file_search</code> instead of terminal commands for gathering information. Only use terminal for running tests, installing dependencies, and git operations.</p>
+
+<h3 id="grep_search-cannot-search-nested-git-projects">grep_search Cannot Search Nested Git Projects</h3>
+
+<p>This project is a nested git project inside the <code>ast-merge</code> workspace. The <code>grep_search</code> tool <strong>cannot</strong> search inside it. Use <code>read_file</code> and <code>list_dir</code> instead.</p>
+
+<h3 id="never-pipe-test-commands-through-headtail">NEVER Pipe Test Commands Through head/tail</h3>
+
+<p>Always redirect to a file in <code>tmp/</code> instead of truncating output.</p>
+
 <h2 id="️-architecture-format-specific-implementation">🏗️ Architecture: Format-Specific Implementation</h2>
 
 <h3 id="what-prism-merge-provides">What prism-merge Provides</h3>
@@ -502,7 +541,7 @@ end
 </div></div>
 
       <div id="footer">
-  Generated on Thu Feb 19 09:35:04 2026 by
+  Generated on Sun Feb 22 04:43:59 2026 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.38 (ruby-4.0.1).
 </div>

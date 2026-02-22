@@ -211,34 +211,6 @@ updates to nested methods/constants to be merged with destination customizations
       <li class="public ">
   <span class="summary_signature">
     
-      <a href="#node_typing-instance_method" title="#node_typing (instance method)">#<strong>node_typing</strong>  &#x21d2; Hash{Symbol,String =&gt; #call}<sup>?</sup> </a>
-    
-
-    
-  </span>
-  
-  
-  
-    
-      <span class="note title readonly">readonly</span>
-    
-    
-  
-  
-  
-  
-  
-
-  
-    <span class="summary_desc"><div class='inline'><p>Node typing configuration.</p>
-</div></span>
-  
-</li>
-
-    
-      <li class="public ">
-  <span class="summary_signature">
-    
       <a href="#text_merger_options-instance_method" title="#text_merger_options (instance method)">#<strong>text_merger_options</strong>  &#x21d2; Hash<sup>?</sup> </a>
     
 
@@ -624,6 +596,9 @@ merging comment-only files (files with no Ruby code statements). Supported optio
       <pre class="lines">
 
 
+77
+78
+79
 80
 81
 82
@@ -657,13 +632,10 @@ merging comment-only files (files with no Ruby code statements). Supported optio
 110
 111
 112
-113
-114
-115
-116</pre>
+113</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 80</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 77</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span>
   <span class='id identifier rubyid_template_content'>template_content</span><span class='comma'>,</span>
@@ -756,65 +728,6 @@ merging comment-only files (files with no Ruby code statements). Supported optio
       <pre class="lines">
 
 
-53
-54
-55</pre>
-    </td>
-    <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 53</span>
-
-<span class='kw'>def</span> <span class='id identifier rubyid_max_recursion_depth'>max_recursion_depth</span>
-  <span class='ivar'>@max_recursion_depth</span>
-<span class='kw'>end</span></pre>
-    </td>
-  </tr>
-</table>
-</div>
-    
-      
-      <span id=""></span>
-      <div class="method_details ">
-  <h3 class="signature " id="node_typing-instance_method">
-  
-    #<strong>node_typing</strong>  &#x21d2; <tt>Hash{Symbol,String =&gt; #call}</tt><sup>?</sup>  <span class="extras">(readonly)</span>
-  
-
-  
-
-  
-</h3><div class="docstring">
-  <div class="discussion">
-    <p>Returns Node typing configuration.</p>
-
-
-  </div>
-</div>
-<div class="tags">
-  
-<p class="tag_title">Returns:</p>
-<ul class="return">
-  
-    <li>
-      
-      
-        <span class='type'>(<tt>Hash{Symbol,String =&gt; #call}</tt>, <tt>nil</tt>)</span>
-      
-      
-      
-        &mdash;
-        <div class='inline'><p>Node typing configuration</p>
-</div>
-      
-    </li>
-  
-</ul>
-
-</div><table class="source_code">
-  <tr>
-    <td>
-      <pre class="lines">
-
-
 50
 51
 52</pre>
@@ -822,8 +735,8 @@ merging comment-only files (files with no Ruby code statements). Supported optio
     <td>
       <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 50</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_node_typing'>node_typing</span>
-  <span class='ivar'>@node_typing</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_max_recursion_depth'>max_recursion_depth</span>
+  <span class='ivar'>@max_recursion_depth</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -874,12 +787,12 @@ merging comment-only files (files with no Ruby code statements). Supported optio
       <pre class="lines">
 
 
-56
-57
-58</pre>
+53
+54
+55</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 56</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 53</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_text_merger_options'>text_merger_options</span>
   <span class='ivar'>@text_merger_options</span>
@@ -953,6 +866,9 @@ delegate to the comment-only merger logic.</p>
       <pre class="lines">
 
 
+123
+124
+125
 126
 127
 128
@@ -960,13 +876,10 @@ delegate to the comment-only merger logic.</p>
 130
 131
 132
-133
-134
-135
-136</pre>
+133</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 126</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 123</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_comment_only_file?'>comment_only_file?</span><span class='lparen'>(</span><span class='id identifier rubyid_analysis'>analysis</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_stmts'>stmts</span> <span class='op'>=</span> <span class='id identifier rubyid_analysis'>analysis</span><span class='period'>.</span><span class='id identifier rubyid_statements'>statements</span>
@@ -1026,6 +939,9 @@ delegate to the comment-only merger logic.</p>
       <pre class="lines">
 
 
+138
+139
+140
 141
 142
 143
@@ -1036,18 +952,15 @@ delegate to the comment-only merger logic.</p>
 148
 149
 150
-151
-152
-153
-154</pre>
+151</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 141</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 138</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge_with_debug'>merge_with_debug</span>
-  <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='id identifier rubyid_merge'>merge</span>
+  <span class='id identifier rubyid_result_obj'>result_obj</span> <span class='op'>=</span> <span class='id identifier rubyid_merge_result'>merge_result</span>
   <span class='lbrace'>{</span>
-    <span class='label'>content:</span> <span class='id identifier rubyid_result'>result</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span>
+    <span class='label'>content:</span> <span class='id identifier rubyid_result_obj'>result_obj</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='comma'>,</span>
     <span class='label'>debug:</span> <span class='lbrace'>{</span>
       <span class='label'>template_statements:</span> <span class='ivar'>@template_analysis</span><span class='op'>&amp;.</span><span class='id identifier rubyid_statements'>statements</span><span class='op'>&amp;.</span><span class='id identifier rubyid_size'>size</span> <span class='op'>||</span> <span class='int'>0</span><span class='comma'>,</span>
       <span class='label'>dest_statements:</span> <span class='ivar'>@dest_analysis</span><span class='op'>&amp;.</span><span class='id identifier rubyid_statements'>statements</span><span class='op'>&amp;.</span><span class='id identifier rubyid_size'>size</span> <span class='op'>||</span> <span class='int'>0</span><span class='comma'>,</span>
@@ -1055,7 +968,7 @@ delegate to the comment-only merger logic.</p>
       <span class='label'>add_template_only_nodes:</span> <span class='ivar'>@add_template_only_nodes</span><span class='comma'>,</span>
       <span class='label'>freeze_token:</span> <span class='ivar'>@freeze_token</span><span class='comma'>,</span>
     <span class='rbrace'>}</span><span class='comma'>,</span>
-    <span class='label'>statistics:</span> <span class='id identifier rubyid_result'>result</span><span class='period'>.</span><span class='id identifier rubyid_respond_to?'>respond_to?</span><span class='lparen'>(</span><span class='symbol'>:statistics</span><span class='rparen'>)</span> <span class='op'>?</span> <span class='id identifier rubyid_result'>result</span><span class='period'>.</span><span class='id identifier rubyid_statistics'>statistics</span> <span class='op'>:</span> <span class='lbrace'>{</span><span class='rbrace'>}</span><span class='comma'>,</span>
+    <span class='label'>statistics:</span> <span class='id identifier rubyid_result_obj'>result_obj</span><span class='period'>.</span><span class='id identifier rubyid_respond_to?'>respond_to?</span><span class='lparen'>(</span><span class='symbol'>:statistics</span><span class='rparen'>)</span> <span class='op'>?</span> <span class='id identifier rubyid_result_obj'>result_obj</span><span class='period'>.</span><span class='id identifier rubyid_statistics'>statistics</span> <span class='op'>:</span> <span class='id identifier rubyid_result_obj'>result_obj</span><span class='period'>.</span><span class='id identifier rubyid_decision_summary'>decision_summary</span><span class='comma'>,</span>
   <span class='rbrace'>}</span>
 <span class='kw'>end</span></pre>
     </td>
@@ -1068,7 +981,7 @@ delegate to the comment-only merger logic.</p>
 </div>
 
       <div id="footer">
-  Generated on Thu Feb 19 09:35:04 2026 by
+  Generated on Sun Feb 22 04:43:59 2026 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.38 (ruby-4.0.1).
 </div>

@@ -1,0 +1,6 @@
+{
+  "spec/prism/merge/merge_result_coverage_spec.rb:1315063833": [
+    [7, 13, 59, "RSpec/ContextWording: Context description should match /^when\\b/, /^with\\b/, or /^without\\b/.", 2731078587],
+    [29, 13, 62, "RSpec/ContextWording: Context description should match /^when\\b/, /^with\\b/, or /^without\\b/.", 1602592983]
+  ]
+}
