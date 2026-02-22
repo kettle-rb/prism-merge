@@ -222,6 +222,34 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(not_frozen_info[:leading_comments].map(&:slice).join("\n")).to include("Regular leading comment")
       expect(analysis.frozen_node?(not_frozen_info[:node])).to be false
     end
+
+    context "with comment-only files" do
+      it "returns AstNode entries for comment-only files" do
+        content = "# Just a comment\n# Another comment\n"
+        analysis = described_class.new(content)
+
+        nodes = analysis.nodes_with_comments
+
+        nodes.each do |node_info|
+          expect(node_info[:node]).to be_a(Ast::Merge::AstNode)
+          expect(node_info[:leading_comments]).to eq([])
+          expect(node_info[:inline_comments]).to eq([])
+          expect(node_info).to have_key(:signature)
+          expect(node_info).to have_key(:line_range)
+        end
+      end
+
+      it "produces proper index for each AstNode" do
+        content = "# First\n\n# Second\n"
+        analysis = described_class.new(content)
+
+        nodes = analysis.nodes_with_comments
+
+        nodes.each_with_index do |node_info, idx|
+          expect(node_info[:index]).to eq(idx)
+        end
+      end
+    end
   end
 
   describe "comment attachment behavior" do
