@@ -3769,4 +3769,336 @@ RSpec.describe Prism::Merge::SmartMerger do
       expect(result).to be_truthy
     end
   end
+
+  describe "recursive body merging with node_typing and signature_generator" do
+    # Regression tests for two related bugs in merge_node_body_recursively:
+    #
+    # Bug 1 (double-wrapping): The effective signature generator wraps the raw one.
+    # merge_node_body_recursively passed the effective (wrapped) generator to the
+    # inner SmartMerger, causing build_effective_signature_generator to wrap it
+    # AGAIN when node_typing is also present.
+    #
+    # Bug 2 (inline trailing comment duplication): add_node_to_result output the
+    # node's source lines (which include inline comments via analysis.line_at),
+    # then ALSO output trailing_comments separately. For inline comments on the
+    # same line as the node, this duplicated the entire line.
+
+    let(:sig_gen) do
+      ->(node) {
+        actual = Ast::Merge::NodeTyping.unwrap(node)
+        return node unless defined?(Prism) && actual.is_a?(Prism::CallNode)
+
+        method_name = actual.name.to_s
+        if method_name.end_with?("=")
+          return [:spec_attr, actual.name]
+        end
+
+        if %i[add_dependency add_development_dependency].include?(actual.name)
+          first_arg = actual.arguments&.arguments&.first
+          if first_arg.is_a?(Prism::StringNode)
+            return [actual.name, first_arg.unescaped]
+          end
+        end
+
+        if actual.name == :new
+          return [:gem_specification_new]
+        end
+
+        node
+      }
+    end
+
+    let(:node_typing) do
+      {
+        CallNode: ->(node) {
+          receiver = node.receiver
+          is_spec_call = receiver.respond_to?(:name) && receiver.name == :spec
+          return node unless is_spec_call
+
+          Ast::Merge::NodeTyping.with_merge_type(node, :spec_dependency)
+        },
+      }
+    end
+
+    context "when template and destination have identical block bodies" do
+      it "does not duplicate add_dependency calls inside a block" do
+        code = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "test"
+            spec.add_dependency("foo", "~> 1.0")
+            spec.add_dependency("bar", "~> 2.0")
+          end
+        RUBY
+
+        merger = described_class.new(
+          code,
+          code,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(2)
+        expect(result).to include('spec.add_dependency("foo"')
+        expect(result).to include('spec.add_dependency("bar"')
+      end
+    end
+
+    context "when template has a new dependency not in destination" do
+      it "adds the template-only dependency without duplicating existing ones" do
+        template = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "test"
+            spec.add_dependency("foo", "~> 1.0")
+            spec.add_dependency("bar", "~> 2.0")
+            spec.add_dependency("baz", "~> 3.0")
+          end
+        RUBY
+
+        dest = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "test"
+            spec.add_dependency("foo", "~> 1.0")
+            spec.add_dependency("bar", "~> 2.0")
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(3)
+        expect(result).to include('"baz"')
+      end
+    end
+
+    context "when dependencies have comments between them" do
+      it "does not duplicate dependencies separated by comments" do
+        code = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "test"
+
+            # Infrastructure
+            spec.add_dependency("foo", "~> 1.0")
+
+            # Utilities
+            spec.add_dependency("bar", "~> 2.0")
+          end
+        RUBY
+
+        merger = described_class.new(
+          code,
+          code,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(2)
+      end
+    end
+
+    context "when template updates a dependency version" do
+      it "uses template version without duplicating" do
+        template = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.add_dependency("foo", "~> 2.0")
+          end
+        RUBY
+
+        dest = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.add_dependency("foo", "~> 1.0")
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(1)
+        expect(result).to include("~> 2.0")
+        expect(result).not_to include("~> 1.0")
+      end
+    end
+
+    context "with development dependencies" do
+      it "does not duplicate add_development_dependency calls" do
+        code = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.add_dependency("foo", "~> 1.0")
+            spec.add_development_dependency("rspec", "~> 3.0")
+            spec.add_development_dependency("rake", "~> 13.0")
+          end
+        RUBY
+
+        merger = described_class.new(
+          code,
+          code,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(1)
+        expect(result.scan(/add_development_dependency/).length).to eq(2)
+      end
+    end
+
+    context "with class/module bodies" do
+      it "does not duplicate methods inside a class when node_typing is configured" do
+        code = <<~RUBY
+          class Foo
+            def bar
+              1
+            end
+
+            def baz
+              2
+            end
+          end
+        RUBY
+
+        node_typing_for_class = {
+          DefNode: ->(node) {
+            Ast::Merge::NodeTyping.with_merge_type(node, :method)
+          },
+        }
+
+        merger = described_class.new(
+          code,
+          code,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing_for_class,
+        )
+        result = merger.merge
+
+        expect(result.scan(/def bar/).length).to eq(1)
+        expect(result.scan(/def baz/).length).to eq(1)
+      end
+    end
+
+    it "stores raw_signature_generator separately from effective generator" do
+      merger = described_class.new(
+        "x = 1",
+        "x = 1",
+        signature_generator: sig_gen,
+        node_typing: node_typing,
+      )
+
+      raw = merger.instance_variable_get(:@raw_signature_generator)
+      effective = merger.signature_generator
+
+      # Raw should be the original lambda we passed in
+      expect(raw).to eq(sig_gen)
+
+      # Effective should be different (wrapped with node_typing)
+      expect(effective).not_to eq(sig_gen)
+      expect(effective).to be_a(Proc)
+    end
+
+    context "with inline trailing comments (same-line comments)" do
+      # Regression: add_node_to_result output node source lines (which include
+      # inline comments via analysis.line_at), then ALSO output trailing_comments
+      # separately. For inline comments like `# ruby >= 3.2.0`, this duplicated
+      # the entire source line.
+
+      it "does not duplicate lines when dependencies have inline comments" do
+        code = <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "test"
+
+            # Infrastructure
+            spec.add_dependency("foo", "~> 1.0")                # ruby >= 3.2.0
+
+            # Utilities
+            spec.add_dependency("bar", "~> 2.0")                # ruby >= 3.2.0
+          end
+        RUBY
+
+        merger = described_class.new(
+          code,
+          code,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(2)
+        expect(result).to include("# ruby >= 3.2.0")
+      end
+
+      it "does not duplicate flat body nodes with inline comments" do
+        # No wrapping block — just the body statements directly
+        code = <<~RUBY
+          spec.name = "test"
+
+          # Infrastructure
+          spec.add_dependency("foo", "~> 1.0")                # ruby >= 3.2.0
+
+          # Utilities
+          spec.add_dependency("bar", "~> 2.0")                # ruby >= 3.2.0
+        RUBY
+
+        merger = described_class.new(
+          code,
+          code,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(2)
+        # Inline comments should appear exactly once per dependency
+        expect(result.scan(/# ruby >= 3\.2\.0/).length).to eq(2)
+      end
+
+      it "preserves inline comments when template updates dependency version" do
+        template = <<~RUBY
+          spec.add_dependency("foo", "~> 2.0")                # ruby >= 3.2.0
+        RUBY
+
+        dest = <<~RUBY
+          spec.add_dependency("foo", "~> 1.0")                # ruby >= 3.1.0
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          signature_generator: sig_gen,
+          preference: :template,
+          add_template_only_nodes: true,
+          node_typing: node_typing,
+        )
+        result = merger.merge
+
+        expect(result.scan(/add_dependency/).length).to eq(1)
+        expect(result).to include("~> 2.0")
+        expect(result).to include("# ruby >= 3.2.0")
+      end
+    end
+  end
 end

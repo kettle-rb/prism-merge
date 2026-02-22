@@ -28,6 +28,20 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- Fix node duplication when merging files with inline trailing comments (e.g.,
+  gemspec `add_dependency` lines with `# ruby >= 3.2.0`). `add_node_to_result`
+  output the full source line (which already includes inline comments via
+  `analysis.line_at`), then also iterated `trailing_comments` and re-emitted any
+  comment on the same line — duplicating the entire line. Now skips trailing
+  comments whose `start_line` falls within the node's own line range. This was the
+  root cause of every `add_dependency` / `add_development_dependency` being
+  duplicated in gemspec and gemfile merges when inline comments were present.
+- Prevent potential double-wrapping in `merge_node_body_recursively` — store the
+  raw (unwrapped) `signature_generator` as `@raw_signature_generator` and pass it
+  (instead of the already-effective generator) to inner `SmartMerger` instances.
+  This ensures `build_effective_signature_generator` wraps it only once when
+  `node_typing` is also configured.
+
 ### Security
 
 ## [2.0.1] - 2026-02-22

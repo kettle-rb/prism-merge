@@ -94,6 +94,11 @@ module Prism
         @current_depth = current_depth
         @text_merger_options = text_merger_options
 
+        # Store the raw (unwrapped) signature_generator so that
+        # merge_node_body_recursively can pass it to inner SmartMergers
+        # without double-wrapping.
+        @raw_signature_generator = signature_generator
+
         # Wrap signature_generator to include node_typing processing
         effective_signature_generator = build_effective_signature_generator(signature_generator, node_typing)
 
@@ -751,10 +756,15 @@ module Prism
           end
         end
 
-        # Add trailing comments attached to the node (e.g., end-of-file comments)
+        # Add trailing comments attached to the node (e.g., end-of-file comments).
+        # Skip comments on the same line as the node — inline comments are already
+        # included when we output the node's source lines via analysis.line_at.
         trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
+        node_line_range = node.location.start_line..node.location.end_line
         trailing_comments.each do |comment|
           line_num = comment.location.start_line
+          next if node_line_range.cover?(line_num)
+
           line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
 
           if source == :template
@@ -875,11 +885,15 @@ module Prism
         template_body = extract_node_body(actual_template, @template_analysis)
         dest_body = extract_node_body(actual_dest, @dest_analysis)
 
-        # Recursively merge the bodies with incremented depth
+        # Recursively merge the bodies with incremented depth.
+        # Use the raw (unwrapped) signature_generator so the inner SmartMerger
+        # can wrap it fresh via build_effective_signature_generator. Using the
+        # already-effective generator would cause double-wrapping when
+        # node_typing is also passed, making is_a? checks fail.
         body_merger = SmartMerger.new(
           template_body,
           dest_body,
-          signature_generator: @template_analysis.instance_variable_get(:@signature_generator),
+          signature_generator: @raw_signature_generator,
           preference: @preference,
           add_template_only_nodes: @add_template_only_nodes,
           freeze_token: @freeze_token,
