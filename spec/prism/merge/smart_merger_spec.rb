@@ -3840,7 +3840,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(2)
+        expect(result.scan("add_dependency").length).to eq(2)
         expect(result).to include('spec.add_dependency("foo"')
         expect(result).to include('spec.add_dependency("bar"')
       end
@@ -3875,7 +3875,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(3)
+        expect(result.scan("add_dependency").length).to eq(3)
         expect(result).to include('"baz"')
       end
     end
@@ -3904,7 +3904,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(2)
+        expect(result.scan("add_dependency").length).to eq(2)
       end
     end
 
@@ -3932,7 +3932,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(1)
+        expect(result.scan("add_dependency").length).to eq(1)
         expect(result).to include("~> 2.0")
         expect(result).not_to include("~> 1.0")
       end
@@ -3958,8 +3958,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(1)
-        expect(result.scan(/add_development_dependency/).length).to eq(2)
+        expect(result.scan("add_dependency").length).to eq(1)
+        expect(result.scan("add_development_dependency").length).to eq(2)
       end
     end
 
@@ -3992,8 +3992,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/def bar/).length).to eq(1)
-        expect(result.scan(/def baz/).length).to eq(1)
+        expect(result.scan("def bar").length).to eq(1)
+        expect(result.scan("def baz").length).to eq(1)
       end
     end
 
@@ -4045,7 +4045,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(2)
+        expect(result.scan("add_dependency").length).to eq(2)
         expect(result).to include("# ruby >= 3.2.0")
       end
 
@@ -4071,9 +4071,9 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(2)
+        expect(result.scan("add_dependency").length).to eq(2)
         # Inline comments should appear exactly once per dependency
-        expect(result.scan(/# ruby >= 3\.2\.0/).length).to eq(2)
+        expect(result.scan("# ruby >= 3.2.0").length).to eq(2)
       end
 
       it "preserves inline comments when template updates dependency version" do
@@ -4095,7 +4095,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result.scan(/add_dependency/).length).to eq(1)
+        expect(result.scan("add_dependency").length).to eq(1)
         expect(result).to include("~> 2.0")
         expect(result).to include("# ruby >= 3.2.0")
       end

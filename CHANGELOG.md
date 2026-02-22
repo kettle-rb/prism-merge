@@ -28,6 +28,17 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+### Security
+
+## [2.0.2] - 2026-02-22
+
+- TAG: [v2.0.2][2.0.2t]
+- COVERAGE: 98.80% -- 823/833 lines in 12 files
+- BRANCH COVERAGE: 85.61% -- 452/528 branches in 12 files
+- 93.51% documented
+
+### Fixed
+
 - Fix node duplication when merging files with inline trailing comments (e.g.,
   gemspec `add_dependency` lines with `# ruby >= 3.2.0`). `add_node_to_result`
   output the full source line (which already includes inline comments via
@@ -41,8 +52,6 @@ Please file a bug if you notice a violation of semantic versioning.
   (instead of the already-effective generator) to inner `SmartMerger` instances.
   This ensures `build_effective_signature_generator` wraps it only once when
   `node_typing` is also configured.
-
-### Security
 
 ## [2.0.1] - 2026-02-22
 
@@ -329,7 +338,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Initial release
 
-[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/kettle-rb/prism-merge/compare/v2.0.2...HEAD
+[2.0.2]: https://github.com/kettle-rb/prism-merge/compare/v2.0.1...v2.0.2
+[2.0.2t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.2
 [2.0.1]: https://github.com/kettle-rb/prism-merge/compare/v2.0.0...v2.0.1
 [2.0.1t]: https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.1
 [2.0.0]: https://github.com/kettle-rb/prism-merge/compare/v1.1.6...v2.0.0
