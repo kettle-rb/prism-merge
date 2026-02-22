@@ -4015,7 +4015,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
 
         merger = described_class.new(
-          code, code,
+          code,
+          code,
           preference: :template,
           add_template_only_nodes: true,
         )
@@ -4041,7 +4042,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
 
         merger = described_class.new(
-          code, code,
+          code,
+          code,
           preference: :template,
           add_template_only_nodes: true,
         )
@@ -4062,7 +4064,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
 
         merger = described_class.new(
-          code, code,
+          code,
+          code,
           preference: :template,
           add_template_only_nodes: true,
         )
