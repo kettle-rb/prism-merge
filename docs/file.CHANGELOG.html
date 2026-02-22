@@ -68,7 +68,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 and <a href="https://tom.preston-werner.com/2022/05/23/major-version-numbers-are-not-sacred.html">yes</a>, platform and engine support are part of the <a href="https://github.com/semver/semver/issues/716#issuecomment-869336139">public API</a>.<br>
 Please file a bug if you notice a violation of semantic versioning.</p>
 
-<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v2.0.3...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/kettle-rb/prism-merge/compare/v2.0.4...HEAD">Unreleased</a></h2>
 
 <h3 id="added">Added</h3>
 
@@ -82,6 +82,39 @@ Please file a bug if you notice a violation of semantic versioning.</p>
 
 <h3 id="security">Security</h3>
 
+<h2 id="204---2026-02-22">
+<a href="https://github.com/kettle-rb/prism-merge/compare/v2.0.3...v2.0.4">2.0.4</a> - 2026-02-22</h2>
+
+<ul>
+  <li>TAG: <a href="https://github.com/kettle-rb/prism-merge/releases/tag/v2.0.4">v2.0.4</a>
+</li>
+  <li>COVERAGE: 98.34% – 891/906 lines in 12 files</li>
+  <li>BRANCH COVERAGE: 84.34% – 501/594 branches in 12 files</li>
+  <li>93.51% documented</li>
+</ul>
+
+<h3 id="fixed-1">Fixed</h3>
+
+<ul>
+  <li>Always preserve destination magic comments (<code># frozen_string_literal: true</code>,<br>
+<code># encoding: UTF-8</code>, etc.) at the top of merged output, regardless of merge<br>
+preference. Magic comments are file-level metadata managed by Prism and must<br>
+not be lost when the template side lacks them (e.g. after filtering).<br>
+<code>emit_dest_prefix_lines</code> now detects contiguous magic comments from the first<br>
+destination node’s leading comments, emits them before any template-only nodes<br>
+(Phase 1), and records the emitted line numbers so <code>add_node_to_result</code> and<br>
+<code>merge_node_body_recursively</code> skip them to prevent duplication.</li>
+  <li>Non-top-of-file magic comments (e.g. used as documentation) are left alone and<br>
+treated as regular comments.</li>
+  <li>Fix blank line preservation between magic comments and subsequent comments when<br>
+template preference is used. Gap lines between a stripped magic comment and the<br>
+next remaining comment are now correctly emitted from the template source.</li>
+  <li>Fix inter-node gap line preservation when a matched node is output from the<br>
+template source. <code>perform_merge</code> now checks whether the output source’s<br>
+analysis had a trailing blank before advancing <code>last_output_dest_line</code>, so<br>
+<code>emit_dest_gap_lines</code> correctly emits dest gap lines that the template lacked.</li>
+</ul>
+
 <h2 id="203---2026-02-22">
 <a href="https://github.com/kettle-rb/prism-merge/compare/v2.0.2...v2.0.3">2.0.3</a> - 2026-02-22</h2>
 
@@ -93,7 +126,7 @@ Please file a bug if you notice a violation of semantic versioning.</p>
   <li>93.51% documented</li>
 </ul>
 
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 
 <ul>
   <li>Fix blank lines between blocks being stripped during recursive body merging.<br>
@@ -115,7 +148,7 @@ blank line after the closing <code>end</code> when the source has one.</li>
   <li>93.51% documented</li>
 </ul>
 
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 
 <ul>
   <li>Fix node duplication when merging files with inline trailing comments (e.g.,<br>
@@ -174,7 +207,7 @@ by <code>SmartMergerBase</code>
 </li>
 </ul>
 
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 
 <ul>
   <li>Inter-node blank line stripping: blank lines between top-level blocks (e.g., between<br>
@@ -278,7 +311,7 @@ from the destination source during merge</li>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 
 <ul>
   <li>
@@ -309,7 +342,7 @@ from the destination source during merge</li>
 <strong>Recursive merge now preserves freeze blocks</strong>: When recursively merging nested block bodies (e.g., <code>Gem::Specification.new do ... end</code>), freeze blocks inside the body are now properly preserved. Previously, nested mergers were created with <code>freeze_token: nil</code>, causing freeze blocks to be lost.</li>
 </ul>
 
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-6">Fixed</h3>
 
 <ul>
   <li>
@@ -362,7 +395,7 @@ from the destination source during merge</li>
   <li>Removed pre-prism code in <code>ConflictResolver</code> that compared template node line numbers against destination freeze block line numbers (cross-file line comparison makes no sense)</li>
 </ul>
 
-<h3 id="fixed-6">Fixed</h3>
+<h3 id="fixed-7">Fixed</h3>
 
 <ul>
   <li>
@@ -380,7 +413,7 @@ from the destination source during merge</li>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="fixed-7">Fixed</h3>
+<h3 id="fixed-8">Fixed</h3>
 
 <ul>
   <li>
@@ -409,7 +442,7 @@ from the destination source during merge</li>
 <code>max_recursion_depth</code> option (defaults to <code>Float::INFINITY</code>) as a safety valve for edge cases</li>
 </ul>
 
-<h3 id="fixed-8">Fixed</h3>
+<h3 id="fixed-9">Fixed</h3>
 
 <ul>
   <li>
@@ -477,7 +510,7 @@ from the destination source during merge</li>
   <li>Added RBS type definitions for <code>FreezeNode</code> class</li>
 </ul>
 
-<h3 id="fixed-9">Fixed</h3>
+<h3 id="fixed-10">Fixed</h3>
 
 <ul>
   <li>Documentation of freeze blocks, and configuration to customize the freeze token</li>
@@ -516,7 +549,7 @@ from the destination source during merge</li>
   <li>Improved node lookup to handle anchors with leading comments (e.g., magic comments)</li>
 </ul>
 
-<h3 id="fixed-10">Fixed</h3>
+<h3 id="fixed-11">Fixed</h3>
 
 <ul>
   <li>Template-only nodes are now correctly excluded in all contexts when <code>add_template_only_nodes: false</code>
@@ -544,7 +577,7 @@ from the destination source during merge</li>
   <li>Improved synopsis documentation</li>
 </ul>
 
-<h3 id="fixed-11">Fixed</h3>
+<h3 id="fixed-12">Fixed</h3>
 
 <ul>
   <li>More fixes to Ruby compatibility documentation (down to Ruby 2.7)</li>
@@ -567,7 +600,7 @@ from the destination source during merge</li>
   <li>specs covering existing support for end-of-line comments</li>
 </ul>
 
-<h3 id="fixed-12">Fixed</h3>
+<h3 id="fixed-13">Fixed</h3>
 
 <ul>
   <li>Ruby compatibility documentation</li>
@@ -584,7 +617,7 @@ from the destination source during merge</li>
   <li>100.00% documented</li>
 </ul>
 
-<h3 id="fixed-13">Fixed</h3>
+<h3 id="fixed-14">Fixed</h3>
 
 <ul>
   <li>
@@ -617,7 +650,7 @@ from the destination source during merge</li>
 </div></div>
 
       <div id="footer">
-  Generated on Sun Feb 22 08:14:45 2026 by
+  Generated on Sun Feb 22 10:30:09 2026 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.38 (ruby-4.0.1).
 </div>

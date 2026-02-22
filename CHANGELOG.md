@@ -28,6 +28,17 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+### Security
+
+## [2.0.4] - 2026-02-22
+
+- TAG: [v2.0.4][2.0.4t]
+- COVERAGE: 98.34% -- 891/906 lines in 12 files
+- BRANCH COVERAGE: 84.34% -- 501/594 branches in 12 files
+- 93.51% documented
+
+### Fixed
+
 - Always preserve destination magic comments (`# frozen_string_literal: true`,
   `# encoding: UTF-8`, etc.) at the top of merged output, regardless of merge
   preference. Magic comments are file-level metadata managed by Prism and must
@@ -45,8 +56,6 @@ Please file a bug if you notice a violation of semantic versioning.
   template source. `perform_merge` now checks whether the output source's
   analysis had a trailing blank before advancing `last_output_dest_line`, so
   `emit_dest_gap_lines` correctly emits dest gap lines that the template lacked.
-
-### Security
 
 ## [2.0.3] - 2026-02-22
 

@@ -637,7 +637,8 @@ merging comment-only files (files with no Ruby code statements). Supported optio
 115
 116
 117
-118</pre>
+118
+119</pre>
     </td>
     <td>
       <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 77</span>
@@ -661,6 +662,7 @@ merging comment-only files (files with no Ruby code statements). Supported optio
   <span class='ivar'>@max_recursion_depth</span> <span class='op'>=</span> <span class='id identifier rubyid_max_recursion_depth'>max_recursion_depth</span>
   <span class='ivar'>@current_depth</span> <span class='op'>=</span> <span class='id identifier rubyid_current_depth'>current_depth</span>
   <span class='ivar'>@text_merger_options</span> <span class='op'>=</span> <span class='id identifier rubyid_text_merger_options'>text_merger_options</span>
+  <span class='ivar'>@dest_prefix_comment_lines</span> <span class='op'>=</span> <span class='kw'>nil</span>
 
   <span class='comment'># Store the raw (unwrapped) signature_generator so that
 </span>  <span class='comment'># merge_node_body_recursively can pass it to inner SmartMergers
@@ -876,7 +878,6 @@ delegate to the comment-only merger logic.</p>
       <pre class="lines">
 
 
-128
 129
 130
 131
@@ -886,10 +887,11 @@ delegate to the comment-only merger logic.</p>
 135
 136
 137
-138</pre>
+138
+139</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 128</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 129</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_comment_only_file?'>comment_only_file?</span><span class='lparen'>(</span><span class='id identifier rubyid_analysis'>analysis</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_stmts'>stmts</span> <span class='op'>=</span> <span class='id identifier rubyid_analysis'>analysis</span><span class='period'>.</span><span class='id identifier rubyid_statements'>statements</span>
@@ -949,7 +951,6 @@ delegate to the comment-only merger logic.</p>
       <pre class="lines">
 
 
-143
 144
 145
 146
@@ -962,10 +963,11 @@ delegate to the comment-only merger logic.</p>
 153
 154
 155
-156</pre>
+156
+157</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 143</span>
+      <pre class="code"><span class="info file"># File 'lib/prism/merge/smart_merger.rb', line 144</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_merge_with_debug'>merge_with_debug</span>
   <span class='id identifier rubyid_result_obj'>result_obj</span> <span class='op'>=</span> <span class='id identifier rubyid_merge_result'>merge_result</span>
@@ -991,7 +993,7 @@ delegate to the comment-only merger logic.</p>
 </div>
 
       <div id="footer">
-  Generated on Sun Feb 22 08:14:46 2026 by
+  Generated on Sun Feb 22 10:30:09 2026 by
   <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.38 (ruby-4.0.1).
 </div>
