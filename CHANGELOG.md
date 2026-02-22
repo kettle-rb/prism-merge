@@ -41,9 +41,10 @@ Please file a bug if you notice a violation of semantic versioning.
 - Fix blank line preservation between magic comments and subsequent comments when
   template preference is used. Gap lines between a stripped magic comment and the
   next remaining comment are now correctly emitted from the template source.
-- Fix idempotency issue where repeated merges of Gemfile-like content could
-  introduce extra blank lines due to the trailing `\n\n` in filtered template
-  output.
+- Fix inter-node gap line preservation when a matched node is output from the
+  template source. `perform_merge` now checks whether the output source's
+  analysis had a trailing blank before advancing `last_output_dest_line`, so
+  `emit_dest_gap_lines` correctly emits dest gap lines that the template lacked.
 
 ### Security
 

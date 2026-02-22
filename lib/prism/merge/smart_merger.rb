@@ -251,7 +251,6 @@ module Prism
         # Phase 2: Process dest nodes in their original order
         # This preserves dest-only nodes in their original position relative to matched nodes
 
-
         @dest_analysis.statements.each do |dest_node|
           dest_signature = @dest_analysis.generate_signature(dest_node)
 
@@ -265,6 +264,11 @@ module Prism
           # Emit inter-node gap lines from the dest source (blank lines between blocks)
           last_output_dest_line = emit_dest_gap_lines(@result, @dest_analysis, last_output_dest_line, dest_node)
 
+          # Track which source/analysis was used for output so we can check
+          # whether a trailing blank was emitted from that source's analysis.
+          output_node = dest_node
+          output_analysis = @dest_analysis
+
           if dest_signature && template_by_signature.key?(dest_signature)
             # Matched node - merge with template version
             template_node = template_by_signature[dest_signature]
@@ -276,12 +280,19 @@ module Prism
             if should_merge_recursively?(template_node, dest_node)
               # Recursively merge class/module/block bodies
               merge_node_body_recursively(template_node, dest_node)
+              node_pref = preference_for_node(template_node, dest_node)
+              if node_pref == :template
+                output_node = template_node.respond_to?(:unwrap) ? template_node.unwrap : template_node
+                output_analysis = @template_analysis
+              end
             else
               # Output based on preference
               node_preference = preference_for_node(template_node, dest_node)
 
               if node_preference == :template
                 add_node_to_result(@result, template_node, @template_analysis, :template)
+                output_node = template_node
+                output_analysis = @template_analysis
               else
                 add_node_to_result(@result, dest_node, @dest_analysis, :destination)
               end
@@ -293,11 +304,20 @@ module Prism
             output_signatures << dest_signature if dest_signature
           end
 
-          # Update last_output_dest_line to track trailing blank line from add_node_to_result
+          # Update last_output_dest_line. Advance past the trailing blank
+          # only if the output source actually has a trailing blank (meaning
+          # add_node_to_result / merge_node_body_recursively emitted it).
           last_output_dest_line = dest_node.location.end_line
-          trailing_line = last_output_dest_line + 1
-          trailing_content = @dest_analysis.line_at(trailing_line)
-          last_output_dest_line = trailing_line if trailing_content && trailing_content.strip.empty?
+          actual_output_end = output_node.respond_to?(:unwrap) ? output_node.unwrap.location.end_line : output_node.location.end_line
+          trailing_line_num = actual_output_end + 1
+          trailing_content = output_analysis.line_at(trailing_line_num)
+          if trailing_content && trailing_content.strip.empty?
+            # The output source had a trailing blank that was emitted.
+            # Advance last_output_dest_line so emit_dest_gap_lines doesn't re-emit it.
+            trailing_dest_line = dest_node.location.end_line + 1
+            dest_trailing = @dest_analysis.line_at(trailing_dest_line)
+            last_output_dest_line = trailing_dest_line if dest_trailing && dest_trailing.strip.empty?
+          end
         end
 
         @result
@@ -716,7 +736,6 @@ module Prism
         Comment::Line::MAGIC_COMMENT_PATTERNS.any? { |_, pat| text.match?(pat) }
       end
 
-
       # Emit blank/gap lines from the destination source between the last output line
       # and the next node (including its leading comments). This preserves blank lines
       # that separate top-level blocks.
@@ -772,22 +791,22 @@ module Prism
         # emitted magic comments (to avoid duplication).
         all_leading_comments = node.location.respond_to?(:leading_comments) ? node.location.leading_comments : []
         last_skipped_line = nil
-        if source == :destination
-          leading_comments = all_leading_comments.reject do |c|
+        leading_comments = if source == :destination
+          all_leading_comments.reject do |c|
             if @dest_prefix_comment_lines&.include?(c.location.start_line)
               last_skipped_line = c.location.start_line
               true
             end
           end
         elsif @dest_prefix_comment_lines&.any?
-          leading_comments = all_leading_comments.reject do |c|
+          all_leading_comments.reject do |c|
             if prism_magic_comment?(c)
               last_skipped_line = c.location.start_line
               true
             end
           end
         else
-          leading_comments = all_leading_comments
+          all_leading_comments
         end
 
         # Add leading comments first (includes freeze markers if present)
