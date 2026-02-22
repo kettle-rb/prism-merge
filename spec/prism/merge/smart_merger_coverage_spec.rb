@@ -80,6 +80,19 @@ RSpec.describe Prism::Merge::SmartMerger do
 
       expect(result).to start_with("x = 1")
     end
+
+    it "preserves blank lines at the start of a file before any code" do
+      template = "x = 1"
+      dest = "\n\nx = 1\n"
+
+      merger = described_class.new(template, dest)
+      result = merger.merge
+
+      # The blank lines before x = 1 should be preserved from dest
+      lines = result.split("\n", -1)
+      x_idx = lines.index { |l| l.include?("x = 1") }
+      expect(x_idx).to be >= 2
+    end
   end
 
   describe "emit_dest_gap_lines" do
