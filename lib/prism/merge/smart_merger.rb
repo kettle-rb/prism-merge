@@ -223,8 +223,12 @@ module Prism
         template_by_signature = build_signature_map(@template_analysis)
         dest_by_signature = build_signature_map(@dest_analysis)
 
-        # Track which signatures we've output (to avoid duplicates)
-        output_signatures = Set.new
+        # Track consumed individual template node indices (not just signatures)
+        # so that multiple nodes with the same signature are matched 1:1 in
+        # order rather than collapsed.
+        consumed_template_indices = Set.new
+        # Per-signature cursor for sequential matching of duplicates
+        sig_cursor = Hash.new(0)
 
         # Track which dest line ranges have been output (to avoid duplicating nested content)
         output_dest_line_ranges = []
@@ -236,7 +240,7 @@ module Prism
         # Phase 1: Output template-only nodes first (nodes in template but not in dest)
         # This ensures template-only nodes (like `source` in Gemfiles) appear at the top
         if @add_template_only_nodes
-          @template_analysis.statements.each do |template_node|
+          @template_analysis.statements.each_with_index do |template_node, t_idx|
             template_signature = @template_analysis.generate_signature(template_node)
 
             # Skip if this template node has a match in dest
@@ -244,7 +248,7 @@ module Prism
 
             # Template-only node - output it at its template position
             add_node_to_result(@result, template_node, @template_analysis, :template)
-            output_signatures << template_signature if template_signature
+            consumed_template_indices << t_idx
           end
         end
 
@@ -253,9 +257,6 @@ module Prism
 
         @dest_analysis.statements.each do |dest_node|
           dest_signature = @dest_analysis.generate_signature(dest_node)
-
-          # Skip if already output
-          next if dest_signature && output_signatures.include?(dest_signature)
 
           # Skip if this dest node is inside a dest range we've already output
           node_range = dest_node.location.start_line..dest_node.location.end_line
@@ -270,38 +271,57 @@ module Prism
           output_analysis = @dest_analysis
 
           if dest_signature && template_by_signature.key?(dest_signature)
-            # Matched node - merge with template version
-            template_node = template_by_signature[dest_signature]
-            output_signatures << dest_signature
+            # Find the next unconsumed template node with this signature
+            candidates = template_by_signature[dest_signature]
+            cursor = sig_cursor[dest_signature]
+            template_info = nil
 
-            # Track the dest node's line range to avoid re-outputting it later
-            output_dest_line_ranges << node_range
+            while cursor < candidates.size
+              candidate = candidates[cursor]
+              unless consumed_template_indices.include?(candidate[:index])
+                template_info = candidate
+                break
+              end
+              cursor += 1
+            end
 
-            if should_merge_recursively?(template_node, dest_node)
-              # Recursively merge class/module/block bodies
-              merge_node_body_recursively(template_node, dest_node)
-              node_pref = preference_for_node(template_node, dest_node)
-              if node_pref == :template
-                output_node = template_node.respond_to?(:unwrap) ? template_node.unwrap : template_node
-                output_analysis = @template_analysis
+            if template_info
+              template_node = template_info[:node]
+              consumed_template_indices << template_info[:index]
+              sig_cursor[dest_signature] = cursor + 1
+
+              # Track the dest node's line range to avoid re-outputting it later
+              output_dest_line_ranges << node_range
+
+              if should_merge_recursively?(template_node, dest_node)
+                # Recursively merge class/module/block bodies
+                merge_node_body_recursively(template_node, dest_node)
+                node_pref = preference_for_node(template_node, dest_node)
+                if node_pref == :template
+                  output_node = template_node.respond_to?(:unwrap) ? template_node.unwrap : template_node
+                  output_analysis = @template_analysis
+                end
+              else
+                # Output based on preference
+                node_preference = preference_for_node(template_node, dest_node)
+
+                if node_preference == :template
+                  add_node_to_result(@result, template_node, @template_analysis, :template)
+                  output_node = template_node
+                  output_analysis = @template_analysis
+                else
+                  add_node_to_result(@result, dest_node, @dest_analysis, :destination)
+                end
               end
             else
-              # Output based on preference
-              node_preference = preference_for_node(template_node, dest_node)
-
-              if node_preference == :template
-                add_node_to_result(@result, template_node, @template_analysis, :template)
-                output_node = template_node
-                output_analysis = @template_analysis
-              else
-                add_node_to_result(@result, dest_node, @dest_analysis, :destination)
-              end
+              # All template copies with this signature consumed — dest-only duplicate
+              add_node_to_result(@result, dest_node, @dest_analysis, :destination)
+              output_dest_line_ranges << node_range
             end
           else
             # Dest-only node - output it in its original position
             add_node_to_result(@result, dest_node, @dest_analysis, :destination)
             output_dest_line_ranges << node_range
-            output_signatures << dest_signature if dest_signature
           end
 
           # Update last_output_dest_line. Advance past the trailing blank
@@ -554,11 +574,10 @@ module Prism
       # @param analysis [FileAnalysis] The file analysis
       # @return [Hash{Array => Prism::Node}] Map of signatures to nodes
       def build_signature_map(analysis)
-        map = {}
-        analysis.statements.each do |node|
+        map = Hash.new { |h, k| h[k] = [] }
+        analysis.statements.each_with_index do |node, idx|
           sig = analysis.generate_signature(node)
-          # Only map nodes with signatures, and keep first occurrence
-          map[sig] ||= node if sig
+          map[sig] << {node: node, index: idx} if sig
         end
         map
       end

@@ -28,6 +28,13 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- `build_signature_map` now stores all occurrences per signature (not just first),
+  and `perform_merge` uses cursor-based positional matching. This prevents collapsing
+  nodes that share the same signature at the same tree level (e.g., two `attr_reader`
+  calls with the same argument in separate classes). Recursive body merging already
+  scopes signatures to their container, but this fix handles edge cases at the same
+  nesting level.
+
 ### Security
 
 ## [2.0.4] - 2026-02-22
