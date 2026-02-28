@@ -109,7 +109,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency("simplecov-lcov", "~> 0.8") # GHA, Jenkins X, CircleCI, Travis CI, TeamCity, GCOV compatibility
   spec.add_dependency("simplecov-rcov", "~> 0.3", ">= 0.3.7") # Hudson compatibility
 
-  spec.add_development_dependency("kettle-dev", "~> 1.2")                           # ruby >= 2.3.0
+  spec.add_development_dependency("kettle-dev", "~> 2.0")                           # ruby >= 2.3.0
   # ruby >= 2.3.0
 
   # Release Tasks
