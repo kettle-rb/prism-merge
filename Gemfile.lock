@@ -22,7 +22,7 @@ PATH
 GEM
   remote: https://gem.coop/
   specs:
-    addressable (2.8.8)
+    addressable (2.8.9)
       public_suffix (>= 2.0.2, < 8.0)
     ansi (1.5.0)
     appraisal2 (3.0.6)
@@ -363,7 +363,7 @@ DEPENDENCIES
   yard-yaml (~> 0.1)
 
 CHECKSUMS
-  addressable (2.8.8) sha256=7c13b8f9536cf6364c03b9d417c19986019e28f7c00ac8132da4eb0fe393b057
+  addressable (2.8.9) sha256=cc154fcbe689711808a43601dee7b980238ce54368d23e127421753e46895485
   ansi (1.5.0) sha256=5408253274e33d9d27d4a98c46d2998266fd51cba58a7eb9d08f50e57ed23592
   appraisal2 (3.0.6) sha256=09387896b6c8c8c0ff0749af691ddff5e3168de2f06b591a80d8fd8b6394d147
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
