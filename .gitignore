@@ -37,7 +37,7 @@ Appraisal.*.gemfile.lock
 # Debugger detritus
 .byebug_history
 
-# direnv - brew install direnv
+# Local environment overrides (loaded by mise and passed off to the direnvy crate)
 .env.local
 
 # OS Detritus

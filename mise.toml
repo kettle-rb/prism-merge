@@ -1,0 +1,25 @@
+# Shared development environment for prism-merge.
+# Local overrides belong in .env.local (loaded via dotenvy through mise).
+
+[env]
+K_SOUP_COV_DO = "true"
+K_SOUP_COV_COMMAND_NAME = "Test Coverage"
+K_SOUP_COV_FORMATTERS = "html,xml,rcov,lcov,json,tty"
+K_SOUP_COV_MIN_BRANCH = "82"
+K_SOUP_COV_MIN_LINE = "97"
+K_SOUP_COV_MIN_HARD = "true"
+K_SOUP_COV_MULTI_FORMATTERS = "true"
+K_SOUP_COV_OPEN_BIN = ""
+MAX_ROWS = "1"
+KETTLE_TEST_SILENT = "true"
+KETTLE_DEV_DEBUG = "false"
+KETTLE_RB_DEV = "false"
+DEBUG = "false"
+FLOSS_CFG_FUND_DEBUG = "false"
+FLOSS_CFG_FUND_LOGFILE = "tmp/log/debug.log"
+YARD_FENCE_CLEAN_DOCS = "true"
+RUBOCOP_LTS_LOCAL = "false"
+OPENCOLLECTIVE_HANDLE = "kettle-rb"
+FUNDING_ORG = "kettle-rb"
+_.path = ["exe", "bin"]
+_.file = { path = ".env.local", redact = true }

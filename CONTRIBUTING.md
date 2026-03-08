@@ -52,7 +52,7 @@ General/runtime
 - CI: When set to true, adjusts default rake tasks toward CI behavior
 
 Coverage (kettle-soup-cover / SimpleCov)
-- K_SOUP_COV_DO: Enable coverage collection (default: true in .envrc)
+- K_SOUP_COV_DO: Enable coverage collection (default: true in `mise.toml`)
 - K_SOUP_COV_FORMATTERS: Comma-separated list of formatters (html, xml, rcov, lcov, json, tty)
 - K_SOUP_COV_MIN_LINE: Minimum line coverage threshold (integer, e.g., 100)
 - K_SOUP_COV_MIN_BRANCH: Minimum branch coverage threshold (integer, e.g., 100)
@@ -78,7 +78,7 @@ Git hooks and commit message helpers (exe/kettle-commit-msg)
 - GIT_HOOK_FOOTER_SENTINEL: Required when footer append is enabled — a unique first-line sentinel to prevent duplicates
 - GIT_HOOK_FOOTER_APPEND_DEBUG: Extra debug output in the footer template (true/false)
 
-For a quick starting point, this repository’s `.envrc` shows sane defaults, and `.env.local` can override them locally.
+For a quick starting point, this repository’s `mise.toml` defines the shared defaults, and `.env.local` can override them locally. Copy `.env.local.example` to `.env.local`, use `KEY=value` lines, and either activate `mise` in your shell or run commands through `mise exec -C /home/pboling/src/kettle-rb/ast-merge/vendor/prism-merge -- ...`.
 
 ## Appraisals
 
