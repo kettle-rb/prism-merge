@@ -227,6 +227,78 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include('VERSION = "2.0.0"')
         expect(result).to include("# Updated version")
       end
+
+      it "falls back to destination leading comments for matched template-preferred nodes" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          def example
+            :template
+          end
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          # User documentation
+          def example
+            :destination
+          end
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to include("# User documentation")
+        expect(result).to include(":template")
+        expect(result).not_to include(":destination")
+      end
+
+      it "falls back to destination inline comments for matched template-preferred nodes" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "1.0.0" # Keep this explanation
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to include('VERSION = "2.0.0" # Keep this explanation')
+      end
+
+      it "preserves destination leading spacing and inline comments for matched template-preferred atomic nodes" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          # User documentation
+
+          VERSION = "1.0.0" # Keep this explanation
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          # User documentation
+
+          VERSION = "2.0.0" # Keep this explanation
+        RUBY
+      end
     end
 
     context "with end-of-line comments" do
@@ -356,6 +428,1093 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         expect(result).to include("def hello")
         expect(result).to include("# Custom trailing comment")
+      end
+
+      it "preserves destination trailing comment spacing for matched template-preferred atomic nodes" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "1.0.0"
+
+          # Custom trailing comment
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+
+          # Custom trailing comment
+        RUBY
+      end
+
+      context "with recursively merged containers and trailing comments" do
+        it "falls back to destination trailing comments after a recursive merge" do
+          template = <<~RUBY
+            class Config
+              def updated
+                :template_updated
+              end
+            end
+          RUBY
+
+          dest = <<~RUBY
+            class Config
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+            # Destination trailing docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+            # Destination trailing docs
+          RUBY
+        end
+
+        it "falls back to destination inline comments on the wrapper opening line" do
+          template = <<~RUBY
+            class Config
+              def updated
+                :template_updated
+              end
+            end
+          RUBY
+
+          dest = <<~RUBY
+            class Config # Destination wrapper docs
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config # Destination wrapper docs
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+          RUBY
+        end
+
+        it "preserves the gap after destination trailing comments before the next destination node" do
+          template = <<~RUBY
+            class Config
+              def updated
+                :template_updated
+              end
+            end
+          RUBY
+
+          dest = <<~RUBY
+            class Config
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+            # Destination trailing docs
+
+            EXTRA = true
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+            # Destination trailing docs
+
+            EXTRA = true
+          RUBY
+        end
+
+
+        it "falls back to destination inline comments on the wrapper closing line" do
+          template = <<~RUBY
+            class Config
+              def updated
+                :template_updated
+              end
+            end
+          RUBY
+
+          dest = <<~RUBY
+            class Config
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Destination wrapper end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Destination wrapper end docs
+          RUBY
+        end
+
+        it "keeps template opening inline comments while still falling back to destination closing inline comments" do
+          template = <<~RUBY
+            class Config # Template wrapper docs
+              def updated
+                :template_updated
+              end
+            end
+          RUBY
+
+          dest = <<~RUBY
+            class Config # Destination wrapper docs
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Destination wrapper end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config # Template wrapper docs
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Destination wrapper end docs
+          RUBY
+        end
+
+        it "falls back to destination opening inline comments while still keeping template closing inline comments" do
+          template = <<~RUBY
+            class Config
+              def updated
+                :template_updated
+              end
+            end # Template wrapper end docs
+          RUBY
+
+          dest = <<~RUBY
+            class Config # Destination wrapper docs
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config # Destination wrapper docs
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Template wrapper end docs
+          RUBY
+        end
+
+        it "preserves destination inline comments on recursive singleton-class wrapper lines" do
+          template = <<~RUBY
+            class << self
+              def updated
+                :template_updated
+              end
+            end
+          RUBY
+
+          dest = <<~RUBY
+            class << self # Destination singleton docs
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Destination singleton end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class << self # Destination singleton docs
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end # Destination singleton end docs
+          RUBY
+        end
+
+        it "preserves destination inline comments on recursive begin wrapper lines" do
+          template = <<~RUBY
+            begin
+              shared = :same
+              updated = :template_updated
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin # Destination begin docs
+              shared = :same
+              updated = :destination_updated
+
+              custom = :destination_custom
+            end # Destination begin end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin # Destination begin docs
+              shared = :same
+              updated = :template_updated
+
+              custom = :destination_custom
+            end # Destination begin end docs
+          RUBY
+        end
+
+        it "preserves rescue and ensure clauses for recursive begin wrappers" do
+          template = <<~RUBY
+            begin
+              shared = :same
+              updated = :template_updated
+            rescue StandardError => e # Template rescue docs
+              handle_template(e)
+            ensure # Template ensure docs
+              cleanup_template
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin # Destination begin docs
+              shared = :same
+              updated = :destination_updated
+
+              custom = :destination_custom
+            rescue StandardError => e # Destination rescue docs
+              handle_destination(e)
+            ensure # Destination ensure docs
+              cleanup_destination
+            end # Destination end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin # Destination begin docs
+              shared = :same
+              updated = :template_updated
+
+              custom = :destination_custom
+            rescue StandardError => e # Template rescue docs
+              handle_template(e)
+            ensure # Template ensure docs
+              cleanup_template
+            end # Destination end docs
+          RUBY
+        end
+
+        it "falls back to destination inline comments on recursive rescue and ensure clause headers" do
+          template = <<~RUBY
+            begin
+              shared = :same
+              updated = :template_updated
+            rescue StandardError => e
+              handle_template(e)
+            ensure
+              cleanup_template
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin # Destination begin docs
+              shared = :same
+              updated = :destination_updated
+
+              custom = :destination_custom
+            rescue StandardError => e # Destination rescue docs
+              handle_destination(e)
+            ensure # Destination ensure docs
+              cleanup_destination
+            end # Destination end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin # Destination begin docs
+              shared = :same
+              updated = :template_updated
+
+              custom = :destination_custom
+            rescue StandardError => e # Destination rescue docs
+              handle_template(e)
+            ensure # Destination ensure docs
+              cleanup_template
+            end # Destination end docs
+          RUBY
+        end
+
+        it "falls back to destination rescue and ensure clauses when template has no clause tail" do
+          template = <<~RUBY
+            begin
+              shared = :same
+              updated = :template_updated
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin # Destination begin docs
+              shared = :same
+              updated = :destination_updated
+
+              custom = :destination_custom
+            rescue StandardError => e # Destination rescue docs
+              handle_destination(e)
+            ensure # Destination ensure docs
+              cleanup_destination
+            end # Destination end docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin # Destination begin docs
+              shared = :same
+              updated = :template_updated
+
+              custom = :destination_custom
+            rescue StandardError => e # Destination rescue docs
+              handle_destination(e)
+            ensure # Destination ensure docs
+              cleanup_destination
+            end # Destination end docs
+          RUBY
+        end
+
+        it "keeps destination-only specific rescue branches ahead of broader shared rescues" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              template_recover(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+
+              custom_task
+            rescue StandardError => e
+              dest_recover(e)
+            rescue IOError => e
+              io_recover(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+
+              custom_task
+            rescue IOError => e
+              io_recover(e)
+            rescue StandardError => e
+              template_recover(e)
+            end
+          RUBY
+        end
+
+        it "keeps destination-only narrow rescues ahead of broad StandardError rescues" do
+          template = <<~RUBY
+            begin
+              work
+            rescue StandardError => e
+              broad_template(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              work
+            rescue IOError => e
+              narrow_destination(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              work
+            rescue IOError => e
+              narrow_destination(e)
+            rescue StandardError => e
+              broad_template(e)
+            end
+          RUBY
+        end
+
+        it "keeps rescue clauses ahead of ensure when the preferred side contributes only ensure" do
+          template = <<~RUBY
+            begin
+              work
+            ensure
+              cleanup
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              work
+            rescue StandardError => e
+              recover(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              work
+            rescue StandardError => e
+              recover(e)
+            ensure
+              cleanup
+            end
+          RUBY
+        end
+
+        it "keeps narrower subclass rescues ahead of broader superclass rescues" do
+          template = <<~RUBY
+            begin
+              work
+            rescue SystemCallError => e
+              broad_template(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              work
+            rescue Errno::ENOENT => e
+              narrow_destination(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              work
+            rescue Errno::ENOENT => e
+              narrow_destination(e)
+            rescue SystemCallError => e
+              broad_template(e)
+            end
+          RUBY
+        end
+
+        it "keeps narrower overlapping rescue lists ahead of broader overlapping rescue lists" do
+          template = <<~RUBY
+            begin
+              work
+            rescue IOError => e
+              subset_template(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              work
+            rescue IOError, SystemCallError => e
+              superset_destination(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :destination)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              work
+            rescue IOError => e
+              subset_template(e)
+            rescue IOError, SystemCallError => e
+              superset_destination(e)
+            end
+          RUBY
+        end
+
+        it "preserves multiline rescue headers while recursively merging shared clause bodies" do
+          template = <<~RUBY
+            begin
+              work
+            rescue Foo,
+                   Bar => e
+              shared_call
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              work
+            rescue Foo, Bar => e
+              shared_call
+              custom_call(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              work
+            rescue Foo,
+                   Bar => e
+              shared_call
+              custom_call(e)
+            end
+          RUBY
+        end
+
+        it "keeps source-defined custom subclass rescues ahead of broader source-defined custom rescues" do
+          template = <<~RUBY
+            module QuxMergeSpec
+              class BaseError < StandardError
+              end
+
+              class SpecificError < BaseError
+              end
+            end
+
+            begin
+              work
+            rescue QuxMergeSpec::BaseError => e
+              broad_template(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            module QuxMergeSpec
+              class BaseError < StandardError
+              end
+
+              class SpecificError < BaseError
+              end
+            end
+
+            begin
+              work
+            rescue QuxMergeSpec::SpecificError => e
+              narrow_destination(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            module QuxMergeSpec
+              class BaseError < StandardError
+              end
+
+              class SpecificError < BaseError
+              end
+            end
+
+            begin
+              work
+            rescue QuxMergeSpec::SpecificError => e
+              narrow_destination(e)
+            rescue QuxMergeSpec::BaseError => e
+              broad_template(e)
+            end
+          RUBY
+        end
+
+        it "does not duplicate a statement that migrated from rescue to ensure" do
+          template = <<~RUBY
+            begin
+              work
+            rescue StandardError => e
+              cleanup
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              work
+            rescue StandardError => e
+              handle(e)
+            ensure
+              cleanup
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              work
+            rescue StandardError => e
+              cleanup
+            end
+          RUBY
+        end
+
+        it "recursively merges shared rescue and ensure clause bodies" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              status = :template
+            ensure
+              cleanup = :template
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              status = :destination
+              custom_recover(e)
+            ensure
+              cleanup = :destination
+              custom_cleanup
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue StandardError => e
+              status = :template
+              custom_recover(e)
+            ensure
+              cleanup = :template
+              custom_cleanup
+            end
+          RUBY
+        end
+
+        it "preserves leading comments when recursively merging shared rescue and ensure clause bodies" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              # Template rescue docs
+              status = :template
+            ensure
+              # Template ensure docs
+              cleanup = :template
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              # Destination rescue docs
+              status = :destination
+              custom_recover(e)
+            ensure
+              # Destination ensure docs
+              cleanup = :destination
+              custom_cleanup
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue StandardError => e
+              # Template rescue docs
+              status = :template
+              custom_recover(e)
+            ensure
+              # Template ensure docs
+              cleanup = :template
+              custom_cleanup
+            end
+          RUBY
+        end
+
+        it "preserves footer comments when recursively merging shared ensure clause bodies" do
+          template = <<~RUBY
+            begin
+              perform_task
+            ensure
+              cleanup = :template
+
+              # Shared ensure footer
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            ensure
+              cleanup = :destination
+              custom_cleanup
+
+              # Shared ensure footer
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            ensure
+              cleanup = :template
+              custom_cleanup
+
+              # Shared ensure footer
+            end
+          RUBY
+        end
+
+        it "treats bare rescue and explicit StandardError rescue as the same shared clause while preserving required bindings" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue
+              status = :template
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              status = :destination
+              custom_recover(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue StandardError => e
+              status = :template
+              custom_recover(e)
+            end
+          RUBY
+        end
+
+        it "rewrites preserved rescue-local references onto the chosen binding when both sides survive" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => error
+              shared = :template
+              template_only(error)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              shared = :destination
+              destination_only(e)
+            end
+          RUBY
+
+          merger = described_class.new(
+            template,
+            dest,
+            preference: :template,
+            add_template_only_nodes: true,
+          )
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue StandardError => error
+              template_only(error)
+              shared = :template
+              destination_only(error)
+            end
+          RUBY
+        end
+
+        it "preserves destination-owned leading rescue docs when shared clause-body recursion is skipped" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              template_recover(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              # Destination rescue docs
+
+              destination_only_call(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue StandardError => e
+              # Destination rescue docs
+
+              template_recover(e)
+            end
+          RUBY
+        end
+
+        it "preserves a freeze-marked destination clause body atomically during shared clause fallback" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              recover_template(e)
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue StandardError => e
+              # prism-merge:freeze
+              recover_destination(e)
+              # prism-merge:unfreeze
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template, freeze_token: "prism-merge")
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue StandardError => e
+              # prism-merge:freeze
+              recover_destination(e)
+              # prism-merge:unfreeze
+            end
+          RUBY
+        end
+
+        it "treats reordered equivalent rescue exception lists as the same shared clause" do
+          template = <<~RUBY
+            begin
+              perform_task
+            rescue IOError, SystemCallError => e
+              status = :template
+            end
+          RUBY
+
+          dest = <<~RUBY
+            begin
+              perform_task
+            rescue SystemCallError, IOError => e
+              status = :destination
+              custom_recover(e)
+            end
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            begin
+              perform_task
+            rescue IOError, SystemCallError => e
+              status = :template
+              custom_recover(e)
+            end
+          RUBY
+        end
+
+        it "preserves template trailing comments after a recursive merge when template preference wins" do
+          template = <<~RUBY
+            class Config
+              def updated
+                :template_updated
+              end
+            end
+            # Template trailing docs
+          RUBY
+
+          dest = <<~RUBY
+            class Config
+              def updated
+                :destination_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+            # Destination trailing docs
+          RUBY
+
+          merger = described_class.new(template, dest, preference: :template)
+          result = merger.merge
+
+          expect(result).to eq(<<~RUBY)
+            class Config
+              def updated
+                :template_updated
+              end
+
+              def custom
+                :destination_custom
+              end
+            end
+            # Template trailing docs
+          RUBY
+        end
+      end
+
+      it "does not duplicate preserved destination trailing gaps before the next destination node" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "1.0.0"
+
+          # Custom trailing comment
+
+          EXTRA = true
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+
+          # Custom trailing comment
+
+          EXTRA = true
+        RUBY
       end
     end
 
@@ -1709,7 +2868,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to be true
       end
 
-      it "returns false for BeginNode without statements" do
+      it "returns true for clause-only BeginNode wrappers without main statements" do
         source = <<~RUBY
           begin
           rescue
@@ -1722,7 +2881,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         node = Prism.parse(source).value.statements.body.first
         result = merger.send(:should_merge_recursively?, node, node)
-        expect(result).to be false
+        expect(result).to be true
       end
 
       it "returns false for CaseNode" do
@@ -2637,6 +3796,77 @@ RSpec.describe Prism::Merge::SmartMerger do
       result = merger.merge
 
       expect(result).to include("def inner_method")
+    end
+
+    it "preserves the rescue binding required by a recursively merged clause body" do
+      template = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          handle
+        end
+      RUBY
+
+      destination = <<~RUBY
+        begin
+          work
+        rescue StandardError => e
+          handle
+          notify(e)
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        preference: :template,
+      )
+      result = merger.merge
+
+      expect(result).to eq(<<~RUBY)
+        begin
+          work
+        rescue StandardError => e
+          handle
+          notify(e)
+        end
+      RUBY
+    end
+
+    it "recursively merges clause-only begin wrappers with rescue and ensure tails" do
+      template = <<~RUBY
+        begin
+        rescue StandardError
+          recover
+        end
+      RUBY
+
+      destination = <<~RUBY
+        begin
+        rescue StandardError => e
+          recover
+          audit(e)
+        ensure
+          cleanup
+        end
+      RUBY
+
+      merger = described_class.new(
+        template,
+        destination,
+        preference: :template,
+      )
+      result = merger.merge
+
+      expect(result).to eq(<<~RUBY)
+        begin
+        rescue StandardError => e
+          recover
+          audit(e)
+        ensure
+          cleanup
+        end
+      RUBY
     end
 
     it "handles ParenthesesNode" do
@@ -3710,6 +4940,25 @@ RSpec.describe Prism::Merge::SmartMerger do
       node = merger.template_analysis.statements.first
 
       expect(merger.send(:frozen_node?, node)).to be(false)
+    end
+
+    it "does not treat an outer container as frozen when the freeze marker belongs to a nested child" do
+      source = <<~RUBY
+        class Config
+          # kettle-dev:freeze
+          def preserved
+            :destination_preserved
+          end
+        end
+      RUBY
+
+      merger = described_class.new(source, source, freeze_token: "kettle-dev")
+      merger.merge
+
+      outer_node = merger.template_analysis.statements.first
+
+      expect(merger.send(:frozen_node?, outer_node)).to be(false)
+      expect(merger.send(:node_contains_freeze_blocks?, outer_node, merger.template_analysis)).to be(true)
     end
   end
 

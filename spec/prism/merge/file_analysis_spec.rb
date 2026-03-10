@@ -312,6 +312,96 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
+  describe "shared comment capability" do
+    it "reports native shared comment capability" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+
+      expect(analysis.comment_capability).to be_a(Ast::Merge::Comment::Capability)
+      expect(analysis.comment_capability.native_full?).to be true
+      expect(analysis.comment_capability.attachment_hints?).to be true
+    end
+
+    it "builds native Ruby comment nodes from Prism-owned comments" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello"
+        end
+
+        # Trailing documentation
+      RUBY
+
+      analysis = described_class.new(code)
+
+      expect(analysis.comment_nodes.map(&:line_number)).to eq([1, 7])
+      expect(analysis.comment_node_at(1)).to be_a(Prism::Merge::Comment::Line)
+      expect(analysis.comment_node_at(1).magic_comment?).to be true
+    end
+
+    it "builds shared comment attachments from native Prism ownership" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello" # inline docs
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      owner = analysis.statements.first
+      attachment = analysis.comment_attachment_for(owner)
+
+      expect(attachment.leading_region.normalized_content).to eq("frozen_string_literal: true")
+      expect(attachment.inline_region).to be_nil
+
+      string_node = owner.body.body.first
+      inline_attachment = analysis.comment_attachment_for(string_node)
+      expect(inline_attachment.inline_region.normalized_content).to eq("inline docs")
+    end
+
+    it "builds a native augmenter with postlude support" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello"
+        end
+
+        # Trailing documentation
+      RUBY
+
+      analysis = described_class.new(code)
+      owner = analysis.statements.first
+      augmenter = analysis.comment_augmenter(owners: [owner])
+
+      expect(augmenter.capability.native_full?).to be true
+      expect(augmenter.attachment_for(owner).leading_region.normalized_content).to eq("frozen_string_literal: true")
+      expect(augmenter.postlude_region.normalized_content).to eq("Trailing documentation")
+    end
+
+    it "treats comment-only files as preamble-only shared comment content" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+        # Comment-only file
+      RUBY
+
+      analysis = described_class.new(code)
+      augmenter = analysis.comment_augmenter
+
+      expect(analysis.comment_nodes.map(&:line_number)).to eq([1, 2])
+      expect(augmenter.preamble_region.normalized_content).to eq("frozen_string_literal: true\nComment-only file")
+    end
+  end
+
   describe "#signature_at" do
     it "returns signature for valid index" do
       code = <<~RUBY

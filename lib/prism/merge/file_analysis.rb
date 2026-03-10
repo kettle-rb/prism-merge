@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "ast/merge/comment"
 require_relative "comment"
 
 module Prism
@@ -17,6 +18,65 @@ module Prism
     # - Enhanced freeze block validation (detects partial nodes and non-class/module contexts)
     class FileAnalysis
       include Ast::Merge::FileAnalyzable
+
+      class NativeCommentAugmenter
+        attr_reader :capability, :attachments_by_owner, :preamble_region, :postlude_region, :orphan_regions
+
+        def initialize(analysis, owners: [], **details)
+          @analysis = analysis
+          @owners = Array(owners)
+          @capability = Ast::Merge::Comment::Capability.native_full(
+            source: :prism,
+            style: :hash_comment,
+            attachment_hints: true,
+            comment_nodes: true,
+            owner_count: @owners.size,
+            comment_count: @analysis.comment_nodes.size,
+            **details,
+          )
+          @attachments_by_owner = {}
+          @preamble_region = nil
+          @postlude_region = nil
+          @orphan_regions = []
+          build!
+        end
+
+        def attachment_for(owner)
+          @attachments_by_owner[owner]
+        end
+
+        private
+
+        def build!
+          if @analysis.send(:comment_only_file?)
+            entries = @analysis.send(:native_comment_entries_in_range, 1..@analysis.lines.length).select { |entry| entry[:full_line] }
+            @preamble_region = @analysis.send(:build_comment_region, :preamble, entries) if entries.any?
+            return
+          end
+
+          @owners.each do |owner|
+            @attachments_by_owner[owner] = @analysis.comment_attachment_for(owner)
+          end
+
+          if @owners.empty?
+            @preamble_region = @analysis.comment_region_for_range(1..@analysis.lines.length, kind: :preamble, full_line_only: true)
+            return
+          end
+
+          first_owner_start = @analysis.send(:owner_start_line, @owners.first)
+          last_owner_end = @analysis.send(:owner_end_line, @owners.last)
+
+          if first_owner_start && first_owner_start > 1
+            preamble_entries = @analysis.send(:native_comment_entries_in_range, 1..(first_owner_start - 1)).select { |entry| entry[:full_line] }
+            @preamble_region = @analysis.send(:build_comment_region, :preamble, preamble_entries) if preamble_entries.any?
+          end
+
+          if last_owner_end && last_owner_end < @analysis.lines.length
+            postlude_entries = @analysis.send(:native_comment_entries_in_range, (last_owner_end + 1)..@analysis.lines.length).select { |entry| entry[:full_line] }
+            @postlude_region = @analysis.send(:build_comment_region, :postlude, postlude_entries) if postlude_entries.any?
+          end
+        end
+      end
 
       # Default freeze token for identifying freeze blocks
       DEFAULT_FREEZE_TOKEN = "prism-merge"
@@ -62,6 +122,75 @@ module Prism
       # @return [Array<Prism::ParseError>] Array of parse errors
       def errors
         @parse_result.errors
+      end
+
+      # Get shared comment capability information for this analysis.
+      #
+      # @return [Ast::Merge::Comment::Capability]
+      def comment_capability
+        @comment_capability ||= Ast::Merge::Comment::Capability.native_full(
+          source: :prism,
+          style: :hash_comment,
+          attachment_hints: true,
+          comment_nodes: true,
+          comment_count: comment_nodes.size,
+        )
+      end
+
+      # Get all supported comments converted to shared/native Ruby comment nodes.
+      #
+      # @return [Array<Prism::Merge::Comment::Line>]
+      def comment_nodes
+        native_comment_entries.map { |entry| entry[:node] }
+      end
+
+      # Get a shared/native Ruby comment node at a specific line.
+      #
+      # @param line_num [Integer] 1-based line number
+      # @return [Prism::Merge::Comment::Line, nil]
+      def comment_node_at(line_num)
+        native_comment_entries.find { |entry| entry[:line] == line_num }&.dig(:node)
+      end
+
+      # Get comments in a line range converted to a shared comment region.
+      #
+      # @param range [Range] Range of 1-based line numbers
+      # @param kind [Symbol] Region kind (:leading, :inline, :orphan, etc.)
+      # @param full_line_only [Boolean] Whether to keep only full-line comments
+      # @return [Ast::Merge::Comment::Region]
+      def comment_region_for_range(range, kind:, full_line_only: false)
+        entries = native_comment_entries_in_range(range)
+        entries = entries.select { |entry| entry[:full_line] } if full_line_only
+        build_comment_region(kind, entries, metadata: {range: range, full_line_only: full_line_only})
+      end
+
+      # Build a native shared comment attachment for an owner.
+      #
+      # @param owner [Object] Structural owner for the attachment
+      # @param options [Hash] Additional metadata preserved on the attachment
+      # @return [Ast::Merge::Comment::Attachment]
+      def comment_attachment_for(owner, **options)
+        leading_region = build_comment_region(:leading, owner_leading_comment_entries(owner))
+        inline_region = build_comment_region(:inline, owner_inline_comment_entries(owner))
+
+        Ast::Merge::Comment::Attachment.new(
+          owner: owner,
+          leading_region: leading_region,
+          inline_region: inline_region,
+          metadata: {
+            source: :prism_native,
+            line_num: owner_start_line(owner),
+          }.merge(options),
+        )
+      end
+
+      # Build a native shared comment augmenter for this analysis.
+      #
+      # @param owners [Array<#start_line,#end_line>, nil] Owners used for attachment exposure
+      # @param options [Hash] Additional capability details
+      # @return [NativeCommentAugmenter]
+      def comment_augmenter(owners: nil, **options)
+        NativeCommentAugmenter.new(self, owners: owners || comment_augmenter_default_owners, **options)
       end
 
       # Get nodes with their associated comments and metadata
@@ -149,6 +278,143 @@ module Prism
       end
 
       private
+
+      def comment_augmenter_default_owners
+        @comment_augmenter_default_owners ||= statements.select do |stmt|
+          owner_start_line(stmt) && owner_end_line(stmt)
+        end
+      end
+
+      def native_comment_entries
+        @native_comment_entries ||= begin
+          if comment_only_file?
+            comment_entries_from_comment_only_statements
+          else
+            unique_comment_entries(comment_entries_from_attached_nodes)
+          end
+        end
+      end
+
+      def native_comment_entries_in_range(range)
+        native_comment_entries.select { |entry| range.cover?(entry[:line]) }
+      end
+
+      def build_comment_region(kind, entries, metadata: {})
+        return if entries.empty?
+
+        Ast::Merge::Comment::Region.new(
+          kind: kind,
+          nodes: entries.map { |entry| entry[:node] },
+          metadata: {
+            source: :prism_native,
+            entries: entries,
+          }.merge(metadata),
+        )
+      end
+
+      def owner_start_line(owner)
+        if owner.respond_to?(:location) && owner.location
+          owner.location.start_line
+        elsif owner.respond_to?(:start_line)
+          owner.start_line
+        elsif owner.respond_to?(:line_number)
+          owner.line_number
+        end
+      end
+
+      def owner_end_line(owner)
+        if owner.respond_to?(:location) && owner.location
+          owner.location.end_line
+        elsif owner.respond_to?(:end_line)
+          owner.end_line
+        elsif owner.respond_to?(:line_number)
+          owner.line_number
+        end
+      end
+
+      def owner_leading_comment_entries(owner)
+        native_comments_for(owner, :leading_comments).map do |comment|
+          native_comment_entry(comment, attached_as: :leading)
+        end
+      end
+
+      def owner_inline_comment_entries(owner)
+        owner_last_line = owner_end_line(owner)
+        native_comments_for(owner, :trailing_comments).filter_map do |comment|
+          entry = native_comment_entry(comment, attached_as: :trailing)
+          entry unless entry[:full_line] || (owner_last_line && entry[:line] > owner_last_line)
+        end
+      end
+
+      def native_comments_for(owner, kind)
+        return [] unless owner.respond_to?(:location) && owner.location.respond_to?(kind)
+
+        Array(owner.location.public_send(kind))
+      end
+
+      def comment_entries_from_attached_nodes
+        nodes_with_comments.flat_map do |node_info|
+          Array(node_info[:leading_comments]).map { |comment| native_comment_entry(comment, attached_as: :leading) } +
+            Array(node_info[:inline_comments]).map { |comment| native_comment_entry(comment, attached_as: :trailing) }
+        end
+      end
+
+      def comment_entries_from_comment_only_statements
+        statements.filter_map do |stmt|
+          case stmt
+          when Prism::Merge::Comment::Block
+            stmt.children.filter_map { |child| comment_entry_from_comment_ast_node(child) }
+          when Prism::Merge::Comment::Line
+            comment_entry_from_comment_ast_node(stmt)
+          end
+        end.flatten
+      end
+
+      def comment_entry_from_comment_ast_node(node)
+        return unless node.is_a?(Prism::Merge::Comment::Line)
+
+        {
+          line: node.line_number,
+          text: node.content,
+          raw: node.text,
+          full_line: true,
+          attached_as: :comment_only,
+          node: node,
+        }
+      end
+
+      def native_comment_entry(comment, attached_as:)
+        line = comment.location.start_line
+        {
+          line: line,
+          text: comment_content(comment),
+          raw: comment.slice.chomp,
+          full_line: full_line_comment?(comment, attached_as: attached_as),
+          attached_as: attached_as,
+          node: Prism::Merge::Comment::Line.new(text: comment.slice.chomp, line_number: line),
+        }
+      end
+
+      def full_line_comment?(comment, attached_as:)
+        return true if attached_as == :leading
+
+        line = @lines[comment.location.start_line - 1].to_s
+        line.lstrip.start_with?("#")
+      end
+
+      def comment_content(comment)
+        comment.slice.sub(/\A\s*#\s?/, "")
+      end
+
+      def unique_comment_entries(entries)
+        entries.uniq do |entry|
+          [entry[:line], entry[:raw], entry[:attached_as]]
+        end.sort_by { |entry| [entry[:line], entry[:attached_as] == :trailing ? 1 : 0] }
+      end
+
+      def comment_only_file?
+        statements.any? && statements.all? { |stmt| stmt.is_a?(Ast::Merge::AstNode) }
+      end
 
       # Instance method wrapper for class method
       def attach_comments_safely!

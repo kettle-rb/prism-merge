@@ -10,6 +10,7 @@ gemspec
 
 eval_gemfile "gemfiles/modular/debug.gemfile"
 eval_gemfile "gemfiles/modular/coverage.gemfile"
+eval_gemfile "gemfiles/modular/tree_sitter.gemfile"
 eval_gemfile "gemfiles/modular/style.gemfile"
 eval_gemfile "gemfiles/modular/documentation.gemfile"
 eval_gemfile "gemfiles/modular/optional.gemfile"

@@ -80,22 +80,10 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
 
         it "preserves destination's magic comment at top with template preference" do
           result = merge(template: template, destination: destination, preference: :template)
-          lines = result.lines
+          expect(result).to eq(<<~RUBY)
+            # frozen_string_literal: true
 
-          # Current behavior: When template has no matching signatures with dest,
-          # and add_template_only_nodes is false (default), unmatched template nodes
-          # aren't output. With preference: :template, Phase 2 (dest-only nodes) is
-          # also skipped. This results in only matched content being output.
-          #
-          # In this case, template "# Template comment" doesn't match dest's
-          # "# frozen_string_literal: true" or "# Destination comment" (different signatures),
-          # so the result may be minimal or empty.
-          #
-          # Future improvement: Consider special handling for magic comments.
-          first_content_line = lines.find { |l| !l.strip.empty? }
-          # Result may be nil/empty when no signatures match - this is expected
-          # behavior for signature-based merging with mismatched content
-          expect(first_content_line).to be_nil.or be_a(String)
+          RUBY
         end
       end
 
@@ -118,10 +106,10 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
 
         it "uses template's magic comment with template preference" do
           result = merge(template: template, destination: destination, preference: :template)
-          lines = result.lines
+          expect(result).to eq(<<~RUBY)
+            # frozen_string_literal: false
 
-          first_content_line = lines.find { |l| !l.strip.empty? }
-          expect(first_content_line).to match(/frozen_string_literal: true/)
+          RUBY
         end
 
         it "uses destination's magic comment with destination preference" do
@@ -134,20 +122,37 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
 
         it "does not duplicate magic comments" do
           result = merge(template: template, destination: destination, preference: :template)
-
-          # Current behavior: When template and dest have different magic comment values
-          # (true vs false), their signatures don't match. With preference: :template
-          # and add_template_only_nodes: false (default), unmatched template nodes
-          # aren't output and Phase 2 is skipped.
-          #
-          # The result contains only nodes where signatures matched (the empty lines).
-          # This effectively deduplicates by not including mismatched content.
-          #
-          # Future improvement: Consider special handling for magic comments to
-          # prefer template's value when preference is :template.
           magic_comment_count = result.scan("frozen_string_literal").size
-          # With mismatched signatures, neither magic comment may be in output
-          expect(magic_comment_count).to be <= 1
+          expect(magic_comment_count).to eq(1)
+          expect(result).to include("frozen_string_literal: false")
+          expect(result).not_to include("frozen_string_literal: true")
+        end
+      end
+
+      context "when destination has shebang plus magic comment and template doesn't" do
+        let(:template) do
+          <<~RUBY
+            # Template comment
+          RUBY
+        end
+
+        let(:destination) do
+          <<~RUBY
+            #!/usr/bin/env ruby
+            # frozen_string_literal: true
+
+            # Destination comment
+          RUBY
+        end
+
+        it "preserves shebang before the destination magic comment with template preference" do
+          result = merge(template: template, destination: destination, preference: :template)
+
+          expect(result).to eq(<<~RUBY)
+            #!/usr/bin/env ruby
+            # frozen_string_literal: true
+
+          RUBY
         end
       end
 
@@ -220,6 +225,26 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
           class_pos = result.index("class Foo")
 
           expect(magic_pos).to be < class_pos
+        end
+
+        it "keeps destination magic comment value when template preference differs" do
+          template = <<~RUBY
+            # frozen_string_literal: true
+
+            class Foo
+            end
+          RUBY
+
+          destination = <<~RUBY
+            # frozen_string_literal: false
+
+            class Foo
+            end
+          RUBY
+
+          result = merge(template: template, destination: destination, preference: :template)
+
+          expect(result).to start_with("# frozen_string_literal: false\n\n")
         end
       end
 

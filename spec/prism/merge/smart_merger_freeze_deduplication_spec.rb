@@ -194,5 +194,51 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include('gem_version = "1.0.0"')
       end
     end
+
+    context "when a nested child is frozen inside a recursively merged container" do
+      it "keeps template-owned outer comments while preserving the frozen child from destination" do
+        template = <<~RUBY
+          # Template class docs
+          class Config
+            def preserved
+              :template_preserved
+            end
+
+            def updated
+              :template_updated
+            end
+          end
+        RUBY
+
+        dest = <<~RUBY
+          # Destination class docs
+          class Config
+            # kettle-dev:freeze
+            def preserved
+              :destination_preserved
+            end
+
+            def updated
+              :destination_updated
+            end
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: :template,
+          freeze_token: "kettle-dev",
+        )
+        result = merger.merge
+
+        expect(result).to include("# Template class docs")
+        expect(result).not_to include("# Destination class docs")
+        expect(result).to include("# kettle-dev:freeze")
+        expect(result).to include(":destination_preserved")
+        expect(result).to include(":template_updated")
+        expect(result).not_to include(":destination_updated")
+      end
+    end
   end
 end

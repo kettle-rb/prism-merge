@@ -249,6 +249,115 @@ RSpec.describe Prism::Merge::SmartMerger, ".merge" do
       end
     end
 
+    context "when recursively merging a block wrapper with destination inline comments" do
+      let(:template) do
+        <<~RUBY
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec|
+            spec.name = "my-gem"
+            spec.summary = "Template summary"
+          end
+        RUBY
+      end
+
+      let(:dest) do
+        <<~RUBY
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec| # Destination wrapper docs
+            spec.name = "my-gem"
+            spec.summary = "Dest summary"
+            spec.authors = ["Author"]
+          end # Destination wrapper end docs
+        RUBY
+      end
+
+      it "falls back to destination inline comments on block wrapper lines" do
+        merger = described_class.new(
+          template,
+          dest,
+          signature_generator: gemspec_signature_generator,
+          preference: :template,
+          add_template_only_nodes: true,
+          freeze_token: "test",
+        )
+        result = merger.merge
+
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec| # Destination wrapper docs
+            spec.name = "my-gem"
+            spec.summary = "Template summary"
+            spec.authors = ["Author"]
+          end # Destination wrapper end docs
+        RUBY
+      end
+
+      it "keeps template opening inline comments while still falling back to destination closing inline comments" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec| # Template wrapper docs
+            spec.name = "my-gem"
+            spec.summary = "Template summary"
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          signature_generator: gemspec_signature_generator,
+          preference: :template,
+          add_template_only_nodes: true,
+          freeze_token: "test",
+        )
+        result = merger.merge
+
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec| # Template wrapper docs
+            spec.name = "my-gem"
+            spec.summary = "Template summary"
+            spec.authors = ["Author"]
+          end # Destination wrapper end docs
+        RUBY
+      end
+
+      it "falls back to destination opening inline comments while still keeping template closing inline comments" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec|
+            spec.name = "my-gem"
+            spec.summary = "Template summary"
+          end # Template wrapper end docs
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          signature_generator: gemspec_signature_generator,
+          preference: :template,
+          add_template_only_nodes: true,
+          freeze_token: "test",
+        )
+        result = merger.merge
+
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec| # Destination wrapper docs
+            spec.name = "my-gem"
+            spec.summary = "Template summary"
+            spec.authors = ["Author"]
+          end # Template wrapper end docs
+        RUBY
+      end
+    end
+
     # Real-world scenario: mimics the kettle-dev fixture structure
     context "with real-world kettle-dev gemspec scenario" do
       let(:template) do
