@@ -81,7 +81,7 @@ RSpec.describe "Trailing Blank Line Handling" do
       merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
       result = merger.merge
 
-      expect(result).to include("method_a")
+      expect(result).to eq(dest_code)
     end
   end
 

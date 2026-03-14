@@ -90,6 +90,41 @@ RSpec.describe Prism::Merge::SmartMerger do
         # Should preserve custom method from destination
         expect(result).to include("def multiply(a, b)")
       end
+
+      it "tracks recursive body line metadata against the original file line numbers" do
+        template = <<~RUBY
+          class Config
+            def updated
+              :template_updated
+            end
+          end
+        RUBY
+
+        dest = <<~RUBY
+          class Config
+            def updated
+              :destination_updated
+            end
+
+            def custom
+              :destination_custom
+            end
+          end
+        RUBY
+
+        result = described_class.new(template, dest, preference: :template).merge_result
+
+        expect(result.line_metadata).to include(
+          include(decision: :replaced, template_line: 1, dest_line: nil),
+          include(decision: :kept_template, template_line: 2, dest_line: nil),
+          include(decision: :kept_template, template_line: 3, dest_line: nil),
+          include(decision: :kept_template, template_line: 4, dest_line: nil),
+          include(decision: :kept_destination, template_line: nil, dest_line: 6),
+          include(decision: :kept_destination, template_line: nil, dest_line: 7),
+          include(decision: :kept_destination, template_line: nil, dest_line: 8),
+          include(decision: :replaced, template_line: 5, dest_line: nil),
+        )
+      end
     end
 
     context "with max_recursion_depth" do
@@ -4429,6 +4464,81 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to be_a(Prism::Merge::MergeResult)
         expect(result.template_analysis).to eq(merger.template_analysis)
         expect(result.dest_analysis).to eq(merger.dest_analysis)
+      end
+    end
+
+    describe "BeginNode helper delegation" do
+      let(:source) do
+        <<~RUBY
+          module QuxMergeSpec
+            class BaseError < ::StandardError
+            end
+
+            class SpecificError < ::QuxMergeSpec::BaseError
+            end
+          end
+
+          begin
+            work
+          rescue QuxMergeSpec::SpecificError => error
+            handle(error)
+          end
+        RUBY
+      end
+
+      let(:merger) do
+        described_class.new(source, source).tap(&:merge)
+      end
+
+      it "delegates begin-node structure and local reference helpers" do
+        begin_node = merger.template_analysis.statements.find { |statement| statement.is_a?(Prism::BeginNode) }
+        rescue_node = begin_node.rescue_clause
+        read_node = Prism.parse("error = 1\nerror\n").value.statements.body.last
+
+        expect(merger.send(:begin_node_rescue_nodes, begin_node)).to eq([rescue_node])
+        expect(merger.send(:rescue_node_signature, rescue_node)).to eq(["QuxMergeSpec::SpecificError"])
+        expect(merger.send(:rescue_node_reference_name, rescue_node)).to eq("error")
+        expect(merger.send(:local_variable_read_names_in, read_node)).to eq(["error"])
+        expect(merger.send(:local_variable_read_names_in_source, "error = 1\nerror\n")).to eq(["error"])
+        expect(merger.send(:local_reference_node_named?, read_node, "error")).to be(true)
+        expect(merger.send(:local_reference_offsets_in, read_node, "error")).to eq([[10, 5]])
+        expect(merger.send(:rewrite_local_reference_in_source, "error = 1\nerror\n", from: "error", to: "e")).to eq("error = 1\ne\n")
+      end
+
+      it "delegates rescue clause ordering and exception hierarchy helpers" do
+        specific = [:rescue_clause, ["Errno::ENOENT"], 0]
+        broad = [:rescue_clause, ["SystemCallError"], 0]
+        custom_base = [:rescue_clause, ["QuxMergeSpec::BaseError"], 0]
+        custom_specific = [:rescue_clause, ["QuxMergeSpec::SpecificError"], 0]
+        definitions = []
+
+        expect(merger.send(:merge_ordered_clause_types, [:ensure_clause], [specific, :ensure_clause])).to eq([specific, :ensure_clause])
+        expect(merger.send(:rescue_clause_type?, specific)).to be(true)
+        expect(merger.send(:broad_rescue_clause_type?, [:rescue_clause, [:standard_error], 0])).to be(true)
+        expect(merger.send(:clause_kind_sort_key, :custom_clause)).to eq(3)
+        expect(merger.send(:normalize_exception_name, :standard_error)).to eq("StandardError")
+        expect(merger.send(:qualify_source_constant_name, "SpecificError", "QuxMergeSpec")).to eq("QuxMergeSpec::SpecificError")
+        expect(merger.send(:source_defined_exception_hierarchy)).to include(
+          "QuxMergeSpec::BaseError" => "StandardError",
+          "QuxMergeSpec::SpecificError" => "QuxMergeSpec::BaseError",
+        )
+
+        merger.send(:collect_source_defined_exception_definitions, merger.template_analysis.parse_result.value, nil, definitions)
+
+        expect(definitions).to include(
+          include(name: "QuxMergeSpec::BaseError", superclass: "::StandardError"),
+          include(name: "QuxMergeSpec::SpecificError", superclass: "::QuxMergeSpec::BaseError"),
+        )
+        expect(merger.send(:resolve_exception_constant, "StandardError")).to eq(StandardError)
+        expect(merger.send(:rescue_clause_exception_constants, broad)).to eq([SystemCallError])
+        expect(merger.send(:rescue_clause_exception_names, broad)).to eq(["SystemCallError"])
+        expect(merger.send(:exception_constant_covers?, StandardError, RuntimeError)).to be(true)
+        expect(merger.send(:source_defined_exception_covers?, "QuxMergeSpec::BaseError", "QuxMergeSpec::SpecificError")).to be(true)
+        expect(merger.send(:exception_name_covers?, "QuxMergeSpec::BaseError", "QuxMergeSpec::SpecificError")).to be(true)
+        expect(merger.send(:rescue_clause_covers?, custom_base, custom_specific)).to be(true)
+        expect(merger.send(:broader_rescue_clause_type_than?, broad, specific)).to be(true)
+        expect(merger.send(:canonicalize_rescue_clause_order, [broad, specific])).to eq([specific, broad])
+        expect(merger.send(:canonicalize_begin_clause_kind_order, [:ensure_clause, specific])).to eq([specific, :ensure_clause])
       end
     end
   end

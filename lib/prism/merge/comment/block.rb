@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "ast/merge/comment"
 require_relative "line"
 
 module Prism

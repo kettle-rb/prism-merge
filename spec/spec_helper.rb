@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+ast_merge_lib = File.expand_path("../../ast-merge/lib", __dir__)
+$LOAD_PATH.unshift(ast_merge_lib) if File.exist?(File.join(ast_merge_lib, "ast/merge.rb")) && !$LOAD_PATH.include?(ast_merge_lib)
+
 # External RSpec & related config
 require "kettle/test/rspec"
 require "ast/merge/rspec"

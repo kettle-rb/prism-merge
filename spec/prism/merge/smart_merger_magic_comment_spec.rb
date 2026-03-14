@@ -246,6 +246,25 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
 
           expect(result).to start_with("# frozen_string_literal: false\n\n")
         end
+
+        it "preserves a destination shebang before destination magic comments" do
+          template = <<~RUBY
+            class Foo
+            end
+          RUBY
+
+          destination = <<~RUBY
+            #!/usr/bin/env ruby
+            # frozen_string_literal: false
+
+            class Foo
+            end
+          RUBY
+
+          result = merge(template: template, destination: destination, preference: :template)
+
+          expect(result).to start_with("#!/usr/bin/env ruby\n# frozen_string_literal: false\n\n")
+        end
       end
 
       context "with block leading magic comment that might be reordered" do

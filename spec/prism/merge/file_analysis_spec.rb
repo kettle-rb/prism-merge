@@ -3,6 +3,34 @@
 require "spec_helper"
 
 RSpec.describe Prism::Merge::FileAnalysis do
+  it_behaves_like "Ast::Merge::FileAnalyzable" do
+    let(:file_analysis_class) { described_class }
+    let(:freeze_node_class) { Ast::Merge::NodeTyping::FrozenWrapper }
+    let(:sample_source) do
+      <<~RUBY
+        def example
+          :ok
+        end
+      RUBY
+    end
+    let(:sample_source_with_freeze) do
+      <<~RUBY
+        def before
+          :before
+        end
+        # prism-merge:freeze
+        CONSTANT = :keep
+        # prism-merge:unfreeze
+        def after
+          :after
+        end
+      RUBY
+    end
+    let(:build_file_analysis) do
+      ->(source, **opts) { described_class.new(source, **opts) }
+    end
+  end
+
   describe "#initialize" do
     it "parses valid Ruby code" do
       code = "def example\n  puts 'hello'\nend"
@@ -399,6 +427,59 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       expect(analysis.comment_nodes.map(&:line_number)).to eq([1, 2])
       expect(augmenter.preamble_region.normalized_content).to eq("frozen_string_literal: true\nComment-only file")
+    end
+
+    context "shared example compliance" do
+      let(:code) do
+        <<~RUBY
+          # frozen_string_literal: true
+
+          def example
+            "hello" # inline docs
+          end
+
+          # Trailing documentation
+        RUBY
+      end
+      let(:analysis) { described_class.new(code) }
+      let(:owner) { analysis.statements.first }
+
+      context "for a native region" do
+        let(:comment_region) { analysis.comment_region_for_range(1..1, kind: :leading) }
+        let(:expected_region_kind) { :leading }
+        let(:expected_region_content) { "frozen_string_literal: true" }
+        let(:expected_region_lines) { 1..1 }
+        let(:freeze_token) { "prism-merge" }
+        let(:freeze_marker_expected) { false }
+
+        it_behaves_like "Ast::Merge::Comment::Region"
+      end
+
+      context "for a native attachment" do
+        let(:comment_attachment) { analysis.comment_attachment_for(owner) }
+        let(:expected_attachment_owner) { owner }
+        let(:expected_leading_content) { "frozen_string_literal: true" }
+        let(:expected_inline_content) { nil }
+        let(:expected_trailing_content) { nil }
+        let(:expected_orphan_contents) { [] }
+        let(:freeze_token) { "prism-merge" }
+        let(:freeze_marker_expected) { false }
+
+        it_behaves_like "Ast::Merge::Comment::Attachment"
+      end
+
+      context "for the native augmenter" do
+        let(:comment_augmenter) { analysis.comment_augmenter(owners: [owner]) }
+        let(:augmenter_owner) { owner }
+        let(:expected_capability_predicate) { :native_full? }
+        let(:expected_leading_content) { "frozen_string_literal: true" }
+        let(:expected_inline_content) { nil }
+        let(:expected_preamble_content) { nil }
+        let(:expected_postlude_content) { "Trailing documentation" }
+        let(:expected_orphan_contents) { [] }
+
+        it_behaves_like "Ast::Merge::Comment::Augmenter"
+      end
     end
   end
 

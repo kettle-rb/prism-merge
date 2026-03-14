@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "ast/merge/comment"
 require_relative "comment"
 
 module Prism
@@ -67,7 +66,14 @@ module Prism
           last_owner_end = @analysis.send(:owner_end_line, @owners.last)
 
           if first_owner_start && first_owner_start > 1
-            preamble_entries = @analysis.send(:native_comment_entries_in_range, 1..(first_owner_start - 1)).select { |entry| entry[:full_line] }
+            first_owner_attachment = @attachments_by_owner[@owners.first]
+            attached_leading_lines = first_owner_attachment&.leading_region&.nodes&.map do |node|
+              node.line_number if node.respond_to?(:line_number)
+            end&.compact || []
+
+            preamble_entries = @analysis.send(:native_comment_entries_in_range, 1..(first_owner_start - 1)).select do |entry|
+              entry[:full_line] && !attached_leading_lines.include?(entry[:line])
+            end
             @preamble_region = @analysis.send(:build_comment_region, :preamble, preamble_entries) if preamble_entries.any?
           end
 
@@ -237,6 +243,31 @@ module Prism
         end
 
         false
+      end
+
+      # Check if a line falls within a frozen Prism-owned statement.
+      #
+      # Prism wrapped frozen nodes expose native locations with start/end lines,
+      # but Prism::Location does not implement Range#cover?. Use explicit line
+      # range checks rather than the FileAnalyzable default.
+      #
+      # @param line_num [Integer] 1-based line number
+      # @return [Boolean]
+      def in_freeze_block?(line_num)
+        !freeze_block_at(line_num).nil?
+      end
+
+      # Return the frozen Prism-owned statement covering the given line.
+      #
+      # @param line_num [Integer] 1-based line number
+      # @return [Ast::Merge::NodeTyping::FrozenWrapper, nil]
+      def freeze_block_at(line_num)
+        freeze_blocks.find do |block|
+          start_line = owner_start_line(block)
+          end_line = owner_end_line(block)
+
+          start_line && end_line && (start_line..end_line).cover?(line_num)
+        end
       end
 
       # Get nodes that are frozen (have a freeze marker).

@@ -10,6 +10,8 @@ Adopt the shared Comment AST & Merge capability in `prism-merge` while preservin
 - The gem has the standard merge-gem layout plus deeper Ruby-specific integration needs.
 - Ruby comments matter semantically for style, file headers, magic comments, and code readability.
 - The plan here is less about inventing comment handling and more about normalizing it around the shared `ast-merge` comment API.
+- 2026-03-12 follow-up work cleaned up autoload-boundary drift by removing direct `require "ast/merge/comment"` usage from Prism comment-integration files; this was intended as load-path hygiene rather than behavior change.
+- 2026-03-13 follow-up work completed the post-reset autoload revalidation, restored the sibling `ast-merge/lib` workspace preference in `spec/spec_helper.rb`, and pinned the shared comment compliance examples in focused Prism file-analysis coverage.
 
 ## Integration Strategy
 - Wrap Prism-native comment ownership in shared comment regions / attachments.
@@ -56,7 +58,32 @@ Adopt the shared Comment AST & Merge capability in `prism-merge` while preservin
 - Phase 1 target.
 - Recommended after `jsonc-merge` and `dotenv-merge` so the shared API is battle-tested before normalizing native Prism ownership.
 
+## Latest `ast-merge` Comment Logic Checklist (2026-03-13)
+- [x] Shared capability plumbing: `comment_capability`, `comment_augmenter`, normalized region/attachment access over native Prism ownership
+- [x] Document boundary ownership: shebang/magic-aware prelude/postlude handling
+- [x] Matched-node fallback: destination leading/inline/trailing preservation under template preference
+- [ ] Removed-node preservation: destination-only Ruby node removal path (only if/when removal is enabled)
+- [x] Recursive/fixture parity: recursive wrapper and `begin/rescue/else/ensure` clause comment stability
+- [x] Shared-example compliance + autoload revalidation: `Ast::Merge::FileAnalyzable` and shared comment region/attachment/augmenter expectations pinned; focused and full suites revalidated after the IDE reset
+
+Current parity status: near complete; only removed-node behavior remains intentionally pending behind removal enablement.
+Next execution target: keep removal behavior intentionally deferred unless destination-only removal is enabled and a real regression demands more work.
+
 ## Progress
+- 2026-03-13: Keep-green revalidation completed after the autoload cleanup follow-up.
+- Revalidated the focused shared-comment-capability plus magic-comment slice (`spec/prism/merge/file_analysis_spec.rb:343`, `spec/prism/merge/smart_merger_magic_comment_spec.rb`) and then revalidated the full `prism-merge` suite in sibling workspace mode under `KETTLE_RB_DEV=/home/pboling/src/kettle-rb` (`32 examples, 0 failures` focused; `823 examples, 0 failures` full).
+- 2026-03-13: Completed the post-reset autoload revalidation and shared compliance lock-in.
+- Fixed `spec/spec_helper.rb` so local workspace development prefers the sibling `ast-merge/lib` path instead of the non-existent workspace-root `lib` directory.
+- Switched `gemfiles/modular/tree_sitter.gemfile` to the shared `nomono` local-path pattern and added `gemfiles/modular/tree_sitter_local.gemfile`, fixing sibling `ast-merge` / `tree_haver` resolution for `KETTLE_RB_DEV=/home/pboling/src/kettle-rb` workspace runs.
+- Added focused `ast-merge` shared-example adoption for `FileAnalyzable`, `Comment::Region`, `Comment::Attachment`, and `Comment::Augmenter` in `spec/prism/merge/file_analysis_spec.rb`.
+- Tightened `NativeCommentAugmenter` preamble handling so the first owner's leading native comments are not duplicated as document preamble.
+- Overrode freeze-block line lookup to use Prism-native start/end lines rather than relying on `Prism::Location#cover?`, which Prism does not implement.
+- Revalidated focused native-comment/magic-comment coverage and the full `prism-merge` suite, including workspace-root sibling path runs under `KETTLE_RB_DEV=/home/pboling/src/kettle-rb`.
+- 2026-03-12: Status sync after the merge-family autoload audit.
+- Removed direct `require "ast/merge/comment"` usage from `prism-merge` comment-integration files so `ast-merge` autoload remains the only entry path for shared comment classes.
+- No feature-parity change was intended; the follow-up validation and shared-example pinning completed on 2026-03-13.
+- 2026-03-11: Plan sync completed.
+- Confirmed `prism-merge` is aligned with the latest shared `ast-merge` checklist except removed-node behavior, which remains intentionally deferred until destination-only removal is enabled.
 - 2026-03-09: Phase 1 / Slice 1 completed.
 - Added shared comment capability exposure over Prism-native ownership in `lib/prism/merge/file_analysis.rb`.
 - Exposed `comment_capability`, `comment_nodes`, `comment_node_at`, `comment_region_for_range`, `comment_attachment_for`, and `comment_augmenter` using native Prism comment ownership rather than source-only inference.

@@ -12,10 +12,10 @@ gem "ffi", require: false # DO NOT LOAD, because conflicts with MRI
 # gem "toml-rb"
 # gem "citrus"
 
-# Set KETTLE_RB_DEV=true for local development
+# Set KETTLE_RB_DEV=true (or a workspace path) for local development with path-based dependencies.
+# When false (default / CI), gemspec runtime dependencies are used.
 unless ENV.fetch("KETTLE_RB_DEV", "false").casecmp("false").zero?
-  gem "tree_haver", path: "../../../tree_haver"
-  gem "ast-merge", path: "../../../../"
+  eval_gemfile "tree_sitter_local.gemfile"
 end
 
 platform :mri do
