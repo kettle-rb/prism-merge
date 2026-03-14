@@ -4,27 +4,35 @@ RSpec.describe Prism::Merge::Comment do
   describe Prism::Merge::Comment::Line do
     describe "#magic_comment?" do
       it "detects frozen_string_literal magic comment" do
-        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1)
+        line = described_class.new(
+          text: "# frozen_string_literal: true",
+          line_number: 1,
+          magic_comment_type: :frozen_string_literal,
+        )
         expect(line.magic_comment?).to be true
       end
 
       it "detects encoding magic comment" do
-        line = described_class.new(text: "# encoding: UTF-8", line_number: 1)
+        line = described_class.new(text: "# encoding: UTF-8", line_number: 2, magic_comment_type: :encoding)
         expect(line.magic_comment?).to be true
       end
 
       it "detects coding magic comment (alias for encoding)" do
-        line = described_class.new(text: "# coding: UTF-8", line_number: 1)
+        line = described_class.new(text: "# coding: UTF-8", line_number: 2, magic_comment_type: :encoding)
         expect(line.magic_comment?).to be true
       end
 
       it "detects warn_indent magic comment" do
-        line = described_class.new(text: "# warn_indent: true", line_number: 1)
+        line = described_class.new(text: "# warn_indent: true", line_number: 2, magic_comment_type: :warn_indent)
         expect(line.magic_comment?).to be true
       end
 
       it "detects shareable_constant_value magic comment" do
-        line = described_class.new(text: "# shareable_constant_value: literal", line_number: 1)
+        line = described_class.new(
+          text: "# shareable_constant_value: literal",
+          line_number: 2,
+          magic_comment_type: :shareable_constant_value,
+        )
         expect(line.magic_comment?).to be true
       end
 
@@ -32,11 +40,16 @@ RSpec.describe Prism::Merge::Comment do
         line = described_class.new(text: "# This is a regular comment", line_number: 1)
         expect(line.magic_comment?).to be false
       end
+
+      it "returns false for a header-like comment that is not part of the valid file header" do
+        line = described_class.new(text: "# frozen_string_literal: true", line_number: 3)
+        expect(line.magic_comment?).to be false
+      end
     end
 
     describe "#magic_comment_type" do
       it "returns the magic comment type" do
-        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1)
+        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal)
         expect(line.magic_comment_type).to eq(:frozen_string_literal)
       end
 
@@ -48,12 +61,12 @@ RSpec.describe Prism::Merge::Comment do
 
     describe "#magic_comment_value" do
       it "extracts the value from magic comments" do
-        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1)
+        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal)
         expect(line.magic_comment_value).to eq("true")
       end
 
       it "handles encoding values" do
-        line = described_class.new(text: "# encoding: UTF-8", line_number: 1)
+        line = described_class.new(text: "# encoding: UTF-8", line_number: 2, magic_comment_type: :encoding)
         expect(line.magic_comment_value).to eq("UTF-8")
       end
     end
@@ -92,7 +105,7 @@ RSpec.describe Prism::Merge::Comment do
 
       it "handles magic comment with value" do
         # Tests the split and strip logic when pattern matches
-        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1)
+        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal)
         value = line.magic_comment_value
         expect(value).to eq("true")
       end
@@ -100,7 +113,7 @@ RSpec.describe Prism::Merge::Comment do
 
     describe "#inspect" do
       it "includes magic comment info when present" do
-        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1)
+        line = described_class.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal)
         expect(line.inspect).to include("magic=")
         expect(line.inspect).to include("frozen_string_literal")
       end
@@ -116,7 +129,7 @@ RSpec.describe Prism::Merge::Comment do
     describe "#contains_magic_comment?" do
       it "returns true when block contains a magic comment" do
         children = [
-          Prism::Merge::Comment::Line.new(text: "# frozen_string_literal: true", line_number: 1),
+          Prism::Merge::Comment::Line.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal),
           Prism::Merge::Comment::Line.new(text: "# Regular comment", line_number: 2),
         ]
         block = described_class.new(children: children)
@@ -136,8 +149,8 @@ RSpec.describe Prism::Merge::Comment do
     describe "#magic_comments" do
       it "returns all magic comment lines" do
         children = [
-          Prism::Merge::Comment::Line.new(text: "# frozen_string_literal: true", line_number: 1),
-          Prism::Merge::Comment::Line.new(text: "# encoding: UTF-8", line_number: 2),
+          Prism::Merge::Comment::Line.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal),
+          Prism::Merge::Comment::Line.new(text: "# encoding: UTF-8", line_number: 2, magic_comment_type: :encoding),
           Prism::Merge::Comment::Line.new(text: "# Regular comment", line_number: 3),
         ]
         block = described_class.new(children: children)
@@ -151,7 +164,7 @@ RSpec.describe Prism::Merge::Comment do
     describe "#inspect" do
       it "includes has_magic_comments when present" do
         children = [
-          Prism::Merge::Comment::Line.new(text: "# frozen_string_literal: true", line_number: 1),
+          Prism::Merge::Comment::Line.new(text: "# frozen_string_literal: true", line_number: 1, magic_comment_type: :frozen_string_literal),
         ]
         block = described_class.new(children: children)
         expect(block.inspect).to include("has_magic_comments")
@@ -175,6 +188,7 @@ RSpec.describe Prism::Merge::Comment do
 
         expect(nodes.first).to be_a(Prism::Merge::Comment::Block)
         expect(nodes.first.children.first).to be_a(Prism::Merge::Comment::Line)
+        expect(nodes.first.children.first.magic_comment_type).to eq(:frozen_string_literal)
       end
 
       it "produces Comment::Block nodes" do
@@ -200,6 +214,23 @@ RSpec.describe Prism::Merge::Comment do
         nodes = described_class.parse(lines)
 
         expect(nodes.first.contains_magic_comment?).to be true
+      end
+
+      it "does not treat a misplaced header-like comment as magic" do
+        lines = ["# Regular comment", "", "# frozen_string_literal: true"]
+        nodes = described_class.parse(lines)
+
+        misplaced_line = nodes.last.children.first
+        expect(misplaced_line.magic_comment?).to be false
+        expect(nodes.last.contains_magic_comment?).to be false
+      end
+
+      it "treats a shebang-following contiguous magic comment as magic" do
+        lines = ["#!/usr/bin/env ruby", "# frozen_string_literal: true"]
+        nodes = described_class.parse(lines)
+
+        magic_line = nodes.first.children.last
+        expect(magic_line.magic_comment_type).to eq(:frozen_string_literal)
       end
 
       it "returns empty array for empty input" do

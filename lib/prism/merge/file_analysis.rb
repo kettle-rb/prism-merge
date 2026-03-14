@@ -422,8 +422,16 @@ module Prism
           raw: comment.slice.chomp,
           full_line: full_line_comment?(comment, attached_as: attached_as),
           attached_as: attached_as,
-          node: Prism::Merge::Comment::Line.new(text: comment.slice.chomp, line_number: line),
+          node: Prism::Merge::Comment::Line.new(
+            text: comment.slice.chomp,
+            line_number: line,
+            magic_comment_type: native_header_magic_comment_types[line],
+          ),
         }
+      end
+
+      def native_header_magic_comment_types
+        @native_header_magic_comment_types ||= Prism::Merge::MagicCommentSupport.header_magic_comment_types_for_lines(@lines)
       end
 
       def full_line_comment?(comment, attached_as:)

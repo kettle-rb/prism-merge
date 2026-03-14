@@ -60,6 +60,23 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       expect(result).to start_with("# frozen_string_literal: true\n")
     end
 
+    it "does not give special treatment to a misplaced header-like comment" do
+      template = <<~RUBY
+        # Regular comment
+
+        # frozen_string_literal: true
+      RUBY
+
+      dest = <<~RUBY
+        # Destination note
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to eq("\n")
+    end
+
     it "matches duplicate comment content once and preserves unmatched destination duplicates with destination preference" do
       template = <<~RUBY
         # Shared
@@ -89,6 +106,28 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       result = described_class.new(merger: merger).merge.to_s
 
       expect(result).to include("# Template only")
+    end
+
+    it "drops destination-only comment nodes in removal mode while preserving destination header prefix lines" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+      RUBY
+
+      dest = <<~RUBY
+        #!/usr/bin/env ruby
+        # frozen_string_literal: false
+
+        # Destination only
+      RUBY
+
+      merger = merger_for(template, dest, preference: :destination, remove_template_missing_nodes: true)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to eq(<<~RUBY)
+        #!/usr/bin/env ruby
+        # frozen_string_literal: false
+
+      RUBY
     end
   end
 

@@ -13,6 +13,7 @@ module Prism
         all_leading_comments = node.location.respond_to?(:leading_comments) ? node.location.leading_comments : []
         last_skipped_line = nil
         dest_prefix_comment_lines = merger.instance_variable_get(:@dest_prefix_comment_lines)
+        prefix_line_numbers = Prism::Merge::MagicCommentSupport.prefix_comment_line_numbers_for_comments(all_leading_comments)
 
         comments = if source == :destination
           all_leading_comments.reject do |comment|
@@ -23,7 +24,7 @@ module Prism
           end
         elsif dest_prefix_comment_lines&.any?
           all_leading_comments.reject do |comment|
-            if comment.slice.start_with?("#!") || merger.send(:prism_magic_comment?, comment)
+            if prefix_line_numbers.include?(comment.location.start_line)
               last_skipped_line = comment.location.start_line
               true
             end

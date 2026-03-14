@@ -24,6 +24,7 @@ module Prism
           signature_generator: merger.instance_variable_get(:@raw_signature_generator),
           preference: merger.preference,
           add_template_only_nodes: merger.add_template_only_nodes,
+          remove_template_missing_nodes: merger.remove_template_missing_nodes,
           freeze_token: merger.freeze_token,
           max_recursion_depth: merger.max_recursion_depth,
           current_depth: merger.instance_variable_get(:@current_depth) + 1,
@@ -41,11 +42,12 @@ module Prism
         template_comments = actual_template.location.respond_to?(:leading_comments) ? actual_template.location.leading_comments : []
         dest_comments = actual_dest.location.respond_to?(:leading_comments) ? actual_dest.location.leading_comments : []
         dest_prefix_comment_lines = merger.instance_variable_get(:@dest_prefix_comment_lines)
+        template_prefix_line_numbers = Prism::Merge::MagicCommentSupport.prefix_comment_line_numbers_for_comments(template_comments)
         dest_comments = dest_comments.reject { |comment| dest_prefix_comment_lines&.include?(comment.location.start_line) }
         last_skipped_template_line = nil
         if dest_prefix_comment_lines&.any?
           template_comments = template_comments.reject do |comment|
-            if merger.send(:prism_magic_comment?, comment)
+            if template_prefix_line_numbers.include?(comment.location.start_line)
               last_skipped_template_line = comment.location.start_line
               true
             end

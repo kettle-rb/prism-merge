@@ -191,4 +191,38 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       expect(result.line_metadata.first[:dest_line]).to eq(2)
     end
   end
+
+  describe "#emit_removed_destination_node_comments" do
+    it "promotes leading, inline, and external trailing comments for a removed destination-only node" do
+      template = <<~RUBY
+        KEEP = true
+      RUBY
+
+      dest = <<~RUBY
+        # docs for old setting
+        OLD = true # keep inline
+
+        # trailing note
+        KEEP = true
+      RUBY
+
+      merger = merger_for(template, dest, remove_template_missing_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      removed_node = first_node(merger, :destination)
+
+      emission = support.emit_removed_destination_node_comments(
+        result: result,
+        node: removed_node,
+        analysis: merger.dest_analysis,
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: 3})
+      expect(result.to_s).to eq(<<~RUBY)
+        # docs for old setting
+        # keep inline
+
+      RUBY
+    end
+  end
 end

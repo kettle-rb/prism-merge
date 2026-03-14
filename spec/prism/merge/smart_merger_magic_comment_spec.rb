@@ -43,15 +43,12 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
           expect(first_content_line).to match(/frozen_string_literal/)
         end
 
-        it "preserves magic comment at top with destination preference" do
+        it "keeps the destination comment-only content unchanged with destination preference" do
           result = merge(template: template, destination: destination, preference: :destination)
-          lines = result.lines
 
-          # With destination preference, template's magic comment should still be considered
-          # since destination doesn't have one
-          first_content_line = lines.find { |l| !l.strip.empty? }
-          # The behavior here depends on implementation - document what happens
-          expect(first_content_line).to be_a(String)
+          expect(result).to eq(<<~RUBY)
+            # Destination comment
+          RUBY
         end
       end
 
@@ -173,13 +170,10 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
           RUBY
         end
 
-        it "documents behavior for misplaced magic comment" do
+        it "does not treat the misplaced comment specially under template preference" do
           result = merge(template: template, destination: destination, preference: :template)
 
-          # Document what happens - ideally magic comment moves to top
-          # or at minimum the merge completes without error
-          expect(result.to_s).to be_a(String)
-          expect(result).not_to be_empty
+          expect(result).to eq("\n")
         end
       end
     end
@@ -265,6 +259,35 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
 
           expect(result).to start_with("#!/usr/bin/env ruby\n# frozen_string_literal: false\n\n")
         end
+
+        it "keeps a misplaced template header-like comment as an ordinary comment after the destination header" do
+          template = <<~RUBY
+            # Some comment first
+            # frozen_string_literal: true
+
+            class Foo
+            end
+          RUBY
+
+          destination = <<~RUBY
+            # frozen_string_literal: false
+
+            class Foo
+            end
+          RUBY
+
+          result = merge(template: template, destination: destination, preference: :template)
+
+          expect(result).to eq(<<~RUBY)
+            # frozen_string_literal: false
+
+            # Some comment first
+            # frozen_string_literal: true
+
+            class Foo
+            end
+          RUBY
+        end
       end
 
       context "with block leading magic comment that might be reordered" do
@@ -308,17 +331,21 @@ RSpec.describe Prism::Merge::SmartMerger, type: :integration do
           expect(magic_pos).to be < def_pos if def_pos
         end
 
-        it "warns or handles destination's misplaced magic comment" do
-          # Destination has magic comment after other comments (invalid)
-          # Document how this is handled
+        it "preserves the destination's existing header ordering without duplicating magic comments" do
           result = merge(template: template, destination: destination, preference: :destination)
 
-          # Should complete without error
-          expect(result).to be_a(String)
+          expect(result).to eq(<<~RUBY)
+            # Destination header comment
+            # Another destination line
 
-          # Should not have duplicate magic comments
-          magic_count = result.scan("frozen_string_literal").size
-          expect(magic_count).to be <= 2 # At most one from each source, ideally 1
+            # frozen_string_literal: true
+
+            class Foo
+              def added_method
+              end
+            end
+          RUBY
+          expect(result.scan("frozen_string_literal").size).to eq(1)
         end
       end
 

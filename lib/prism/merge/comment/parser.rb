@@ -36,6 +36,7 @@ module Prism
 
           nodes = []
           current_block = []
+          header_magic_comment_types = Prism::Merge::MagicCommentSupport.header_magic_comment_types_for_lines(lines)
 
           lines.each_with_index do |line, idx|
             line_number = idx + 1
@@ -53,6 +54,7 @@ module Prism
               current_block << Line.new(
                 text: stripped,
                 line_number: line_number,
+                magic_comment_type: header_magic_comment_types[line_number],
               )
             else
               # Non-comment content (shouldn't happen in comment-only files)

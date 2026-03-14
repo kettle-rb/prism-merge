@@ -52,6 +52,9 @@ module Prism
       # @return [Hash, nil] Options to pass to Text::SmartMerger for comment-only files
       attr_reader :text_merger_options
 
+      # @return [Boolean] Whether to remove destination-only nodes that are missing from the template
+      attr_reader :remove_template_missing_nodes
+
       # Creates a new SmartMerger.
       #
       # @param template_content [String] Template Ruby source code
@@ -59,6 +62,8 @@ module Prism
       # @param signature_generator [Proc, nil] Custom signature generator
       # @param preference [Symbol, Hash] :template, :destination, or per-type Hash
       # @param add_template_only_nodes [Boolean] Whether to add template-only nodes
+      # @param remove_template_missing_nodes [Boolean] Whether to remove destination-only nodes
+      #   while preserving or promoting their attached comments
       # @param freeze_token [String, nil] Token for freeze block markers
       # @param node_typing [Hash{Symbol,String => #call}, nil] Node typing configuration
       #   for per-node-type merge preferences
@@ -80,6 +85,7 @@ module Prism
         signature_generator: nil,
         preference: :destination,
         add_template_only_nodes: false,
+        remove_template_missing_nodes: false,
         freeze_token: nil,
         node_typing: nil,
         max_recursion_depth: Float::INFINITY,
@@ -93,6 +99,7 @@ module Prism
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
         @text_merger_options = text_merger_options
+        @remove_template_missing_nodes = remove_template_missing_nodes
         @dest_prefix_comment_lines = nil
 
         # Store the raw (unwrapped) signature_generator so that
@@ -109,6 +116,7 @@ module Prism
           signature_generator: effective_signature_generator,
           preference: preference,
           add_template_only_nodes: add_template_only_nodes,
+          remove_template_missing_nodes: remove_template_missing_nodes,
           freeze_token: freeze_token,
           match_refiner: match_refiner,
           regions: regions,
@@ -505,6 +513,14 @@ module Prism
           node: node,
           analysis: analysis,
           source: source,
+        )
+      end
+
+      def emit_removed_destination_node_comments(result, node, analysis)
+        node_emission_support.emit_removed_destination_node_comments(
+          result: result,
+          node: node,
+          analysis: analysis,
         )
       end
 

@@ -87,11 +87,21 @@ module Prism
             output_node = emission[:output_node]
             output_analysis = emission[:output_analysis]
           else
-            merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+            if merger.remove_template_missing_nodes
+              emission = merger.send(:emit_removed_destination_node_comments, merger.result, dest_node, merger.dest_analysis)
+              last_output_dest_line = emission_last_output(last_output_dest_line, emission)
+            else
+              merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+            end
             output_dest_line_ranges << node_range
           end
         else
-          merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+          if merger.remove_template_missing_nodes
+            emission = merger.send(:emit_removed_destination_node_comments, merger.result, dest_node, merger.dest_analysis)
+            last_output_dest_line = emission_last_output(last_output_dest_line, emission)
+          else
+            merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+          end
           output_dest_line_ranges << node_range
         end
 

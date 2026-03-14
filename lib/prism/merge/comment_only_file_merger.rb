@@ -64,7 +64,7 @@ module Prism
           end
         end
 
-        if merger.send(:default_preference) == :destination
+        if merger.send(:default_preference) == :destination && !merger.remove_template_missing_nodes
           dest_nodes.each_with_index do |dest_node, index|
             next if matched_dest_indices.include?(index)
 
@@ -143,64 +143,11 @@ module Prism
       end
 
       def comment_only_prefix_lines_for(lines)
-        entries = []
-        suppressed_line_nums = Set.new
-        index = 0
-        pending_blanks = []
-        saw_magic = false
-        seen_magic_types = Set.new
-
-        if lines.first&.start_with?("#!")
-          entries << {line_num: 1, text: lines.first.to_s, kind: :shebang}
-          suppressed_line_nums << 1
-          index = 1
-        end
-
-        while index < lines.length
-          line_num = index + 1
-          line = lines[index].to_s
-          stripped = line.rstrip
-
-          if stripped.empty?
-            pending_blanks << {line_num: line_num, text: line, kind: :blank}
-            index += 1
-            next
-          end
-
-          magic_type = ruby_magic_comment_line_type(stripped)
-          break unless magic_type
-
-          unless seen_magic_types.include?(magic_type)
-            entries.concat(pending_blanks)
-            pending_blanks.each { |entry| suppressed_line_nums << entry[:line_num] }
-            entries << {line_num: line_num, text: stripped, kind: :magic}
-            seen_magic_types << magic_type
-          end
-
-          pending_blanks = []
-          suppressed_line_nums << line_num
-          saw_magic = true
-          index += 1
-        end
-
-        if saw_magic
-          entries.concat(pending_blanks)
-          pending_blanks.each { |entry| suppressed_line_nums << entry[:line_num] }
-        end
-
-        {
-          entries: entries,
-          suppressed_line_nums: suppressed_line_nums,
-        }
+        Prism::Merge::MagicCommentSupport.comment_only_prefix_info(lines).slice(:entries, :suppressed_line_nums)
       end
 
       def ruby_magic_comment_line_type(line)
-        text = line.sub(/\A#\s*/, "").strip
-        Comment::Line::MAGIC_COMMENT_PATTERNS.each do |type, pattern|
-          return type if text.match?(pattern)
-        end
-
-        nil
+        Prism::Merge::MagicCommentSupport.magic_comment_type_for_text(line)
       end
     end
   end

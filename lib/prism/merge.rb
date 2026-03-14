@@ -105,6 +105,7 @@ module Prism
     autoload :Comment, "prism/merge/comment"
     autoload :CommentOnlyFileMerger, "prism/merge/comment_only_file_merger"
     autoload :DebugLogger, "prism/merge/debug_logger"
+    autoload :MagicCommentSupport, "prism/merge/magic_comment_support"
     autoload :NodeEmissionSupport, "prism/merge/node_emission_support"
     autoload :NodeBodyLayout, "prism/merge/node_body_layout"
     autoload :FreezeNode, "prism/merge/freeze_node"

@@ -17,6 +17,7 @@ module Prism
         leading_comments = first_node.location.respond_to?(:leading_comments) ? first_node.location.leading_comments : []
         first_content_line = leading_comments.any? ? leading_comments.first.location.start_line : first_node.location.start_line
         last_emitted = 0
+        prefix_line_numbers = Prism::Merge::MagicCommentSupport.prefix_comment_line_numbers_for_comments(leading_comments)
 
         if first_content_line > 1
           (1...first_content_line).each do |line_num|
@@ -27,42 +28,22 @@ module Prism
           end
         end
 
-        magic_end_index = -1
-        leading_comments.each_with_index do |comment, idx|
-          if shebang_comment?(comment)
-            break unless idx.zero? && comment.location.start_line == 1
+        return last_emitted if prefix_line_numbers.empty?
 
-            magic_end_index = idx
-            next
-          end
-
-          break unless prism_magic_comment?(comment)
-
-          magic_end_index = idx
-        end
-
-        return last_emitted if magic_end_index < 0
-
-        (0..magic_end_index).each do |idx|
-          comment = leading_comments[idx]
+        leading_comments.each do |comment|
           line_num = comment.location.start_line
-          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+          next unless prefix_line_numbers.include?(line_num)
 
-          if last_emitted > 0 && line_num > last_emitted + 1
-            ((last_emitted + 1)...line_num).each do |gap_num|
-              gap = analysis.line_at(gap_num)&.chomp || ""
-              result.add_line(gap, decision: MergeResult::DECISION_KEPT_DEST, dest_line: gap_num)
-              dest_prefix_comment_lines << gap_num
-            end
-          end
+          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
 
           result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
           dest_prefix_comment_lines << line_num
           last_emitted = line_num
         end
 
-        next_content_line = if magic_end_index + 1 < leading_comments.size
-          leading_comments[magic_end_index + 1].location.start_line
+        next_content_line = if leading_comments.any? && prefix_line_numbers.any?
+          next_comment = leading_comments.find { |comment| !prefix_line_numbers.include?(comment.location.start_line) }
+          next_comment ? next_comment.location.start_line : first_node.location.start_line
         else
           first_node.location.start_line
         end
@@ -79,6 +60,73 @@ module Prism
         end
 
         last_emitted
+      end
+
+      def emit_removed_destination_node_comments(result:, node:, analysis:)
+        decision = MergeResult::DECISION_KEPT_DEST
+        last_emitted_dest_line = nil
+        leading = merger.send(:filtered_leading_comments_for, node, :destination)
+        leading_comments = leading[:comments]
+
+        merger.send(
+          :emit_leading_comments,
+          result,
+          leading_comments,
+          analysis: analysis,
+          source: :destination,
+          decision: decision,
+        )
+
+        if leading_comments.any?
+          last_emitted_dest_line = leading_comments.last.location.start_line
+          emitted_gap_line = merger.send(
+            :emit_blank_lines_between,
+            result,
+            last_comment_line: leading_comments.last.location.start_line,
+            next_content_line: node.location.start_line,
+            analysis: analysis,
+            source: :destination,
+            decision: decision,
+          )
+          last_emitted_dest_line = emitted_gap_line if emitted_gap_line
+        end
+
+        inline_entries = analysis.send(:owner_inline_comment_entries, node)
+        if inline_entries.any?
+          indentation = line_indentation(analysis, node.location.end_line)
+
+          inline_entries.each do |entry|
+            result.add_line(
+              "#{indentation}#{entry[:raw].strip}",
+              decision: decision,
+              dest_line: entry[:line],
+            )
+            last_emitted_dest_line = entry[:line]
+          end
+        end
+
+        trailing_comments = merger.send(:external_trailing_comments_for, node)
+        if trailing_comments.any?
+          emitted_dest_line = merger.send(
+            :emit_external_trailing_comments,
+            result,
+            trailing_comments,
+            source_node: node,
+            analysis: analysis,
+            source: :destination,
+            decision: decision,
+          )
+          last_emitted_dest_line = emitted_dest_line if emitted_dest_line
+        end
+
+        separator_line_num = node.location.end_line + 1
+        separator_line = analysis.line_at(separator_line_num)
+        if separator_line && separator_line.strip.empty?
+          result.add_line("", decision: decision, dest_line: separator_line_num)
+          last_emitted_dest_line = separator_line_num
+        end
+
+        {last_emitted_dest_line: last_emitted_dest_line}
       end
 
       def emit_dest_gap_lines(result:, analysis:, last_output_line:, next_node:)
@@ -321,8 +369,7 @@ module Prism
       end
 
       def prism_magic_comment?(comment)
-        text = comment.slice.sub(/\A#\s*/, "").strip
-        Comment::Line::MAGIC_COMMENT_PATTERNS.any? { |_, pattern| text.match?(pattern) }
+        !!Prism::Merge::MagicCommentSupport.magic_comment_type_for_text(comment.slice)
       end
 
       def shebang_comment?(comment)

@@ -20,7 +20,12 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- Added shared comment capability and augmenter exposure over Prism-native ownership, with normalized region / attachment access and shared-example compliance coverage for the native-full Ruby path
+
 ### Changed
+
+- Prism-native comments now flow through the shared merge-facing attachment model while preserving shebang and Ruby magic-comment semantics
+- Preserved or promoted attached leading, inline, and external trailing comments plus separator blank lines when `remove_template_missing_nodes: true` removes destination-only Ruby bodies at either the top level or the recursive level
 
 ### Deprecated
 
@@ -28,6 +33,7 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
+- Fixed Ruby magic-comment handling so only the valid contiguous file-header run (optionally after a shebang) is treated as magic; misplaced header-like comments remain ordinary comments with no special merge behavior
 - `build_signature_map` now stores all occurrences per signature (not just first),
   and `perform_merge` uses cursor-based positional matching. This prevents collapsing
   nodes that share the same signature at the same tree level (e.g., two `attr_reader`

@@ -213,5 +213,76 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
 
       expect(result).to eq("def example\n  :template\nend\n# tail\n\n\n")
     end
+
+    it "removes a destination-only top-level node while promoting its preserved comments" do
+      template = <<~RUBY
+        KEEP = true
+      RUBY
+
+      dest = <<~RUBY
+        # docs for old setting
+        OLD = true # keep inline
+
+        # trailing note
+
+        KEEP = true
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :template,
+        remove_template_missing_nodes: true,
+      )
+
+      expect(result).to eq(<<~RUBY)
+        # docs for old setting
+        # keep inline
+
+        # trailing note
+
+        KEEP = true
+      RUBY
+    end
+
+    it "removes destination-only nested nodes inside recursive merges while preserving their leading comments" do
+      template = <<~RUBY
+        class Example
+          def shared
+            :template
+          end
+        end
+      RUBY
+
+      dest = <<~RUBY
+        class Example
+          # helper docs
+          def helper
+            :dest_only
+          end
+
+          def shared
+            :destination
+          end
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :template,
+        remove_template_missing_nodes: true,
+      )
+
+      expect(result).to eq(<<~RUBY)
+        class Example
+          # helper docs
+
+          def shared
+            :template
+          end
+        end
+      RUBY
+    end
   end
 end
