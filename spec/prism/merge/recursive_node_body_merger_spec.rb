@@ -240,5 +240,36 @@ RSpec.describe Prism::Merge::RecursiveNodeBodyMerger do
         end
       RUBY
     end
+
+    it "does not duplicate template leading comments when an adjacent destination-only sibling already emitted them" do
+      template = <<~RUBY
+        appraise "head" do
+          # Why is gem "cgi" here? See: https://github.com/vcr/vcr/issues/1057
+          #  gem "cgi", ">= 0.5"
+          eval_gemfile "modular/x_std_libs.gemfile"
+        end
+      RUBY
+
+      dest = <<~RUBY
+        appraise "head" do
+          # Why is gem "cgi" here? See: https://github.com/vcr/vcr/issues/1057
+          #  gem "cgi", ">= 0.5"
+          eval_gemfile "modular/rspec.gemfile"
+          eval_gemfile "modular/x_std_libs.gemfile"
+        end
+      RUBY
+
+      result = recursive_result(template, dest, preference: :template, add_template_only_nodes: true)
+
+      expect(result).to eq(<<~RUBY)
+        appraise "head" do
+          # Why is gem "cgi" here? See: https://github.com/vcr/vcr/issues/1057
+          #  gem "cgi", ">= 0.5"
+          eval_gemfile "modular/rspec.gemfile"
+          eval_gemfile "modular/x_std_libs.gemfile"
+        end
+      RUBY
+      expect(result.scan('Why is gem "cgi" here?').size).to eq(1)
+    end
   end
 end

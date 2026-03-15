@@ -111,6 +111,36 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         [nil, 6],
       ])
     end
+
+    it "does not duplicate template leading comments already emitted by an adjacent destination-only sibling" do
+      template = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/rspec.gemfile"
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: first_node(merger, :template),
+        dest_node: second_node(merger, :destination),
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: nil})
+      expect(result.to_s).to eq(<<~RUBY)
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+    end
   end
 
   describe "#emit_node" do

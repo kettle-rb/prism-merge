@@ -156,6 +156,10 @@ module Prism
         template_leading = merger.send(:filtered_leading_comments_for, template_node, :template)
         dest_leading = merger.send(:filtered_leading_comments_for, dest_node, :destination)
 
+        if suppress_template_leading_comments?(template_node, dest_node, template_leading: template_leading[:comments], dest_leading: dest_leading[:comments])
+          template_leading = template_leading.merge(comments: [])
+        end
+
         leading_comments = template_leading[:comments]
         leading_analysis = template_analysis
         prev_comment_line = template_leading[:last_skipped_line]
@@ -310,6 +314,35 @@ module Prism
       end
 
       private
+
+      def suppress_template_leading_comments?(template_node, dest_node, template_leading:, dest_leading:)
+        return false if template_leading.empty? || dest_leading.any?
+
+        previous_dest_node = previous_destination_statement_for(dest_node)
+        return false unless previous_dest_node
+        return false unless adjacent_destination_statements?(previous_dest_node, dest_node)
+
+        previous_dest_leading = merger.send(:filtered_leading_comments_for, previous_dest_node, :destination)[:comments]
+        return false if previous_dest_leading.empty?
+
+        normalized_comment_block(previous_dest_leading) == normalized_comment_block(template_leading)
+      end
+
+      def previous_destination_statement_for(node)
+        statements = merger.dest_analysis.statements
+        index = statements.index { |statement| statement.equal?(node) }
+        return unless index && index.positive?
+
+        statements[index - 1]
+      end
+
+      def adjacent_destination_statements?(previous_node, current_node)
+        previous_node.location.end_line + 1 == current_node.location.start_line
+      end
+
+      def normalized_comment_block(comments)
+        comments.map { |comment| comment.slice.to_s.rstrip }
+      end
 
       def template_node_source_lines(node, analysis)
         node_source_lines(node, analysis)

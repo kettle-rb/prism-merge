@@ -40,6 +40,10 @@ Please file a bug if you notice a violation of semantic versioning.
   calls with the same argument in separate classes). Recursive body merging already
   scopes signatures to their container, but this fix handles edge cases at the same
   nesting level.
+- Fix matched-node emission so template leading comments are suppressed when an
+  immediately adjacent destination-only sibling has already emitted the same
+  comment block, preventing duplicate header comments in recursive body merges
+  such as `Appraisals` `eval_gemfile` sequences
 
 ### Security
 
