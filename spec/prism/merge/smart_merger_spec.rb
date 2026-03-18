@@ -1376,8 +1376,8 @@ RSpec.describe Prism::Merge::SmartMerger do
             begin
               perform_task
             rescue StandardError => error
-              template_only(error)
               shared = :template
+              template_only(error)
               destination_only(error)
             end
           RUBY

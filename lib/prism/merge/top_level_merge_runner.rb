@@ -3,6 +3,8 @@
 module Prism
   module Merge
     class TopLevelMergeRunner
+      include ::Ast::Merge::TrailingGroups::DestIterate
+
       attr_reader :merger
 
       def initialize(merger:)
@@ -19,7 +21,19 @@ module Prism
         output_dest_line_ranges = []
         last_output_dest_line = merger.send(:emit_dest_prefix_lines, merger.result, merger.dest_analysis)
 
-        emit_template_only_nodes(dest_by_signature, consumed_template_indices)
+        # Pre-compute position-aware trailing groups for template-only nodes.
+        dest_sigs = ::Set.new(dest_by_signature.keys)
+        trailing_groups, _matched_indices = build_dest_iterate_trailing_groups(
+          template_nodes: merger.template_analysis.statements,
+          dest_sigs: dest_sigs,
+          signature_for: ->(node) { merger.template_analysis.generate_signature(node) },
+          add_template_only_nodes: merger.add_template_only_nodes,
+        )
+
+        # Emit template-only nodes that precede the first matched template node
+        emit_prefix_trailing_group(trailing_groups, consumed_template_indices) do |info|
+          merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
+        end
 
         merger.dest_analysis.statements.each do |dest_node|
           last_output_dest_line = process_dest_node(
@@ -29,7 +43,16 @@ module Prism
             sig_cursor: sig_cursor,
             output_dest_line_ranges: output_dest_line_ranges,
             last_output_dest_line: last_output_dest_line,
+            trailing_groups: trailing_groups,
           )
+        end
+
+        # Safety net: emit any trailing groups whose anchor was never consumed
+        emit_remaining_trailing_groups(
+          trailing_groups: trailing_groups,
+          consumed_indices: consumed_template_indices,
+        ) do |info|
+          merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
         end
 
         emit_dest_postlude_lines(last_output_dest_line)
@@ -43,19 +66,8 @@ module Prism
         merger.comment_only_file?(merger.template_analysis) && merger.comment_only_file?(merger.dest_analysis)
       end
 
-      def emit_template_only_nodes(dest_by_signature, consumed_template_indices)
-        return unless merger.add_template_only_nodes
 
-        merger.template_analysis.statements.each_with_index do |template_node, template_index|
-          template_signature = merger.template_analysis.generate_signature(template_node)
-          next if template_signature && dest_by_signature.key?(template_signature)
-
-          merger.send(:add_node_to_result, merger.result, template_node, merger.template_analysis, :template)
-          consumed_template_indices << template_index
-        end
-      end
-
-      def process_dest_node(dest_node:, template_by_signature:, consumed_template_indices:, sig_cursor:, output_dest_line_ranges:, last_output_dest_line:)
+      def process_dest_node(dest_node:, template_by_signature:, consumed_template_indices:, sig_cursor:, output_dest_line_ranges:, last_output_dest_line:, trailing_groups: {})
         node_range = node_offset_range(dest_node)
         return last_output_dest_line if already_output?(node_range, output_dest_line_ranges)
 
@@ -86,6 +98,18 @@ module Prism
             last_output_dest_line = emission[:last_output_dest_line]
             output_node = emission[:output_node]
             output_analysis = emission[:output_analysis]
+
+            # Emit template-only nodes that follow this matched template node
+            matched_template_index = template_info[:index]
+            group = trailing_groups[matched_template_index]
+            if group
+              group.each do |info|
+                next if consumed_template_indices.include?(info[:index])
+
+                merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
+                consumed_template_indices << info[:index]
+              end
+            end
           else
             if merger.remove_template_missing_nodes
               emission = merger.send(:emit_removed_destination_node_comments, merger.result, dest_node, merger.dest_analysis)

@@ -34,7 +34,7 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       expect(result).to eq("# frozen_string_literal: true\n")
     end
 
-    it "keeps destination prefix lines ahead of template-only top-level nodes" do
+    it "inserts prefix template-only nodes before the first matched dest node" do
       template = <<~RUBY
         # frozen_string_literal: true
 
@@ -59,8 +59,15 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
         add_template_only_nodes: true,
       )
 
-      expect(result).to start_with("#!/usr/bin/env ruby\n# frozen_string_literal: false\n\nTEMPLATE_ONLY = true\n\n")
+      # Destination prefix lines (shebang + magic comment) come first
+      expect(result).to start_with("#!/usr/bin/env ruby\n# frozen_string_literal: false\n")
       expect(result).to include("class Example")
+      expect(result).to include("TEMPLATE_ONLY = true")
+      # TEMPLATE_ONLY precedes class Example in the template, so it's a prefix node
+      template_only_pos = result.index("TEMPLATE_ONLY = true")
+      class_pos = result.index("class Example")
+      expect(template_only_pos).to be < class_pos,
+        "Expected prefix template-only node before matched class Example.\nResult:\n#{result}"
     end
 
     it "preserves destination duplicate matches once template copies are exhausted" do
