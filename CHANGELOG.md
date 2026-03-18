@@ -26,6 +26,7 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Prism-native comments now flow through the shared merge-facing attachment model while preserving shebang and Ruby magic-comment semantics
 - Preserved or promoted attached leading, inline, and external trailing comments plus separator blank lines when `remove_template_missing_nodes: true` removes destination-only Ruby bodies at either the top level or the recursive level
+- Adopted `Ast::Merge::TrailingGroups::DestIterate` for position-aware template-only Ruby node insertion so unmatched template bodies stay anchored relative to surrounding matched nodes instead of being emitted by ad hoc runner logic
 
 ### Deprecated
 
