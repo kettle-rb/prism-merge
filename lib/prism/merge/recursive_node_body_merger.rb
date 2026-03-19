@@ -78,35 +78,31 @@ module Prism
         merged_body_metadata = body_result&.line_metadata&.dup || []
 
         prev_comment_line = comment_source == :template ? last_skipped_template_line : nil
-        leading_comments.each do |comment|
-          line_num = comment.location.start_line
+        merger.send(
+          :emit_leading_comments,
+          merger.result,
+          leading_comments,
+          analysis: comment_analysis,
+          source: comment_source,
+          decision: decision,
+          prev_comment_line: prev_comment_line,
+        )
 
-          if prev_comment_line && line_num > prev_comment_line + 1
-            ((prev_comment_line + 1)...line_num).each do |blank_line_num|
-              next if dest_prefix_comment_lines&.include?(blank_line_num)
-
-              line = comment_analysis.line_at(blank_line_num)&.chomp || ""
-              if comment_source == :template
-                merger.result.add_line(line, decision: decision, template_line: blank_line_num)
-              else
-                merger.result.add_line(line, decision: decision, dest_line: blank_line_num)
-              end
-            end
-          end
-
-          line = comment_analysis.line_at(line_num)&.chomp || comment.slice.rstrip
-          if comment_source == :template
-            merger.result.add_line(line, decision: decision, template_line: line_num)
-          else
-            merger.result.add_line(line, decision: decision, dest_line: line_num)
-          end
-
-          prev_comment_line = line_num
+        if comment_source == :destination && leading_comments.any?
+          last_emitted_dest_line = leading_comments.last.location.start_line
         end
 
         if leading_comments.any?
-          last_comment_line = leading_comments.last.location.start_line
-          merger.result.add_line("", decision: decision) if source_node.location.start_line > last_comment_line + 1
+          emitted_gap_line = merger.send(
+            :emit_blank_lines_between,
+            merger.result,
+            last_comment_line: leading_comments.last.location.start_line,
+            next_content_line: source_node.location.start_line,
+            analysis: comment_analysis,
+            source: comment_source,
+            decision: decision,
+          )
+          last_emitted_dest_line = emitted_gap_line if comment_source == :destination && emitted_gap_line
         end
 
         opening_line = source_layout.opening_line_text
@@ -193,11 +189,21 @@ module Prism
 
         trailing_line = source_node.location.end_line + 1
         trailing_content = source_analysis.line_at(trailing_line)
-        if trailing_content && trailing_content.strip.empty?
+        emitted_trailing_gap_line = emit_trailing_layout_gap_lines(
+          analysis: source_analysis,
+          owner: source_node,
+          source: node_preference == :template ? :template : :destination,
+          decision: decision,
+        )
+
+        if emitted_trailing_gap_line
+          last_emitted_dest_line = emitted_trailing_gap_line if node_preference == :destination
+        elsif trailing_content && trailing_content.strip.empty?
           if node_preference == :template
             merger.result.add_line("", decision: decision, template_line: trailing_line)
           else
             merger.result.add_line("", decision: decision, dest_line: trailing_line)
+            last_emitted_dest_line = trailing_line
           end
         end
 
@@ -205,6 +211,32 @@ module Prism
       end
 
       private
+
+      def emit_trailing_layout_gap_lines(analysis:, owner:, source:, decision:)
+        return unless analysis.respond_to?(:layout_attachment_for)
+
+        attachment = analysis.layout_attachment_for(owner)
+        gap = attachment&.trailing_gap
+        return unless gap
+        return unless gap.controls_output_for?(owner)
+
+        last_emitted_line = nil
+
+        (gap.start_line..gap.end_line).each do |line_num|
+          line = analysis.line_at(line_num).to_s.chomp
+          next unless line.strip.empty?
+
+          if source == :template
+            merger.result.add_line(line, decision: decision, template_line: line_num)
+          else
+            merger.result.add_line(line, decision: decision, dest_line: line_num)
+          end
+
+          last_emitted_line = line_num
+        end
+
+        last_emitted_line
+      end
 
       def remap_body_line(body_line, layout)
         layout.source_line_for_body_line(body_line)

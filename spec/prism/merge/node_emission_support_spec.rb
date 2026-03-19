@@ -39,7 +39,7 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
   end
 
   describe "#emit_dest_gap_lines" do
-    it "emits only blank lines between destination nodes" do
+    it "emits only blank lines between destination nodes using the shared leading gap" do
       source = <<~RUBY
         class A
         end
@@ -60,9 +60,35 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         next_node: second_node(merger, :destination),
       )
 
-      expect(last_output_line).to eq(2)
+      expect(last_output_line).to eq(4)
       expect(result.to_s).to eq("\n\n")
       expect(result.line_metadata.map { |meta| meta[:dest_line] }).to eq([3, 4])
+    end
+
+    it "falls back to scanning blank lines when leading comments interrupt node adjacency" do
+      source = <<~RUBY
+        class A
+        end
+
+        # docs for B
+        class B
+        end
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      last_output_line = support.emit_dest_gap_lines(
+        result: result,
+        analysis: merger.dest_analysis,
+        last_output_line: 2,
+        next_node: second_node(merger, :destination),
+      )
+
+      expect(last_output_line).to eq(3)
+      expect(result.to_s).to eq("\n")
+      expect(result.line_metadata.map { |meta| meta[:dest_line] }).to eq([3])
     end
   end
 
@@ -168,6 +194,30 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       expect(result.line_metadata.map { |meta| meta[:template_line] }).to eq([1, 2, 3, 4])
     end
 
+    it "preserves full trailing postlude blank-line runs for comment-free nodes" do
+      source = <<~RUBY
+        def example
+          :body
+        end
+
+
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      support.emit_node(
+        result: result,
+        node: first_node(merger, :template),
+        analysis: merger.template_analysis,
+        source: :template,
+      )
+
+      expect(result.to_s).to eq("def example\n  :body\nend\n\n\n")
+      expect(result.line_metadata.map { |meta| meta[:template_line] }).to eq([1, 2, 3, 4, 5])
+    end
+
     it "re-attaches owned inline comments for partial same-line destination nodes" do
       template = <<~RUBY
         shared_call
@@ -247,12 +297,11 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         analysis: merger.dest_analysis,
       )
 
-      expect(emission).to eq({last_emitted_dest_line: 3})
-      expect(result.to_s).to eq(<<~RUBY)
-        # docs for old setting
-        # keep inline
-
-      RUBY
+      expect(emission).to eq({
+        last_emitted_dest_line: 2,
+        emitted_removed_owner_comments: true,
+      })
+      expect(result.to_s).to eq("# docs for old setting\n# keep inline\n")
     end
   end
 end

@@ -77,6 +77,62 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       expect(result).to eq("\n")
     end
 
+    it "preserves blank-line gaps between matched comment blocks" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # First block
+
+        # Second block
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # First block
+
+        # Second block
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to eq(template)
+    end
+
+    it "preserves destination blank-line gaps between matched comment blocks with destination preference" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # First block
+
+        # Second block
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # First block
+
+
+        # Second block
+      RUBY
+
+      merger = merger_for(template, dest, preference: :destination)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to eq(<<~RUBY)
+        # frozen_string_literal: true
+
+        # First block
+
+
+        # Second block
+      RUBY
+    end
+
     it "matches duplicate comment content once and preserves unmatched destination duplicates with destination preference" do
       template = <<~RUBY
         # Shared
@@ -128,6 +184,38 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
         # frozen_string_literal: false
 
       RUBY
+    end
+
+    it "is stable in removal mode when the destination header prefix is followed by repeated blank-line runs" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+      RUBY
+
+      dest = <<~RUBY
+        #!/usr/bin/env ruby
+        # frozen_string_literal: false
+
+        # Destination only
+
+
+        # Another destination note
+      RUBY
+
+      first_run = described_class.new(
+        merger: merger_for(template, dest, preference: :destination, remove_template_missing_nodes: true)
+      ).merge.to_s
+      second_run = described_class.new(
+        merger: merger_for(template, first_run, preference: :destination, remove_template_missing_nodes: true)
+      ).merge.to_s
+
+      expected = <<~RUBY
+        #!/usr/bin/env ruby
+        # frozen_string_literal: false
+
+      RUBY
+
+      expect(first_run).to eq(expected)
+      expect(second_run).to eq(expected)
     end
   end
 

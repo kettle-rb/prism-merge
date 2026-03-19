@@ -340,6 +340,34 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
+  describe "layout attachment behavior" do
+    it "builds shared interstitial gaps for Prism statement owners" do
+      code = <<~RUBY
+        def method_a
+          "a"
+        end
+
+
+        def method_b
+          "b"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      first_node, second_node = analysis.statements
+      augmenter = analysis.layout_augmenter
+      interstitial_gap = augmenter.interstitial_gaps.first
+
+      expect(augmenter.interstitial_gaps.size).to eq(1)
+      expect(interstitial_gap.before_owner).to equal(first_node)
+      expect(interstitial_gap.after_owner).to equal(second_node)
+      expect(interstitial_gap.controller).to equal(second_node)
+
+      expect(analysis.layout_attachment_for(first_node).trailing_gap).to equal(interstitial_gap)
+      expect(analysis.layout_attachment_for(second_node).leading_gap).to equal(interstitial_gap)
+    end
+  end
+
   describe "shared comment capability" do
     it "reports native shared comment capability" do
       code = <<~RUBY
@@ -382,6 +410,8 @@ RSpec.describe Prism::Merge::FileAnalysis do
         def example
           "hello" # inline docs
         end
+
+        # trailing docs
       RUBY
 
       analysis = described_class.new(code)
@@ -390,6 +420,9 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       expect(attachment.leading_region.normalized_content).to eq("frozen_string_literal: true")
       expect(attachment.inline_region).to be_nil
+      expect(attachment.trailing_region.normalized_content).to eq("trailing docs")
+      expect(attachment.leading_gap).not_to be_nil
+      expect(attachment.trailing_gap).not_to be_nil
 
       string_node = owner.body.body.first
       inline_attachment = analysis.comment_attachment_for(string_node)
@@ -460,7 +493,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
         let(:expected_attachment_owner) { owner }
         let(:expected_leading_content) { "frozen_string_literal: true" }
         let(:expected_inline_content) { nil }
-        let(:expected_trailing_content) { nil }
+        let(:expected_trailing_content) { "Trailing documentation" }
         let(:expected_orphan_contents) { [] }
         let(:freeze_token) { "prism-merge" }
         let(:freeze_marker_expected) { false }

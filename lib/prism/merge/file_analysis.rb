@@ -178,11 +178,16 @@ module Prism
       def comment_attachment_for(owner, **options)
         leading_region = build_comment_region(:leading, owner_leading_comment_entries(owner))
         inline_region = build_comment_region(:inline, owner_inline_comment_entries(owner))
+        trailing_region = build_comment_region(:trailing, owner_trailing_comment_entries(owner))
+        layout_attachment = layout_attachment_for(owner, **options)
 
         Ast::Merge::Comment::Attachment.new(
           owner: owner,
           leading_region: leading_region,
           inline_region: inline_region,
+          trailing_region: trailing_region,
+          leading_gap: layout_attachment.leading_gap,
+          trailing_gap: layout_attachment.trailing_gap,
           metadata: {
             source: :prism_native,
             line_num: owner_start_line(owner),
@@ -197,6 +202,41 @@ module Prism
       # @return [NativeCommentAugmenter]
       def comment_augmenter(owners: nil, **options)
         NativeCommentAugmenter.new(self, owners: owners || comment_augmenter_default_owners, **options)
+      end
+
+      # Build a shared layout attachment for an owner using native Prism locations.
+      #
+      # @param owner [Object] Structural owner for the attachment
+      # @param options [Hash] Additional metadata preserved on the attachment
+      # @return [Ast::Merge::Layout::Attachment]
+      def layout_attachment_for(owner, **options)
+        owners = layout_augmenter_default_owners
+        augmenter = if owners.any? { |candidate| candidate.equal?(owner) }
+          layout_augmenter(**options)
+        else
+          layout_augmenter(owners: [owner], **options)
+        end
+
+        augmenter.attachment_for(owner) || Ast::Merge::Layout::Attachment.new(
+          owner: owner,
+          metadata: {
+            source: :prism_native,
+            line_num: owner_start_line(owner),
+          }.merge(options),
+        )
+      end
+
+      # Build a shared layout augmenter for this analysis using native Prism locations.
+      #
+      # @param owners [Array<Object>, nil] Owners used for gap inference
+      # @param options [Hash] Additional metadata preserved on the augmenter
+      # @return [Ast::Merge::Layout::Augmenter]
+      def layout_augmenter(owners: nil, **options)
+        if owners.nil? && options.empty?
+          @layout_augmenter ||= build_layout_augmenter(layout_augmenter_default_owners)
+        else
+          build_layout_augmenter(owners || layout_augmenter_default_owners, **options)
+        end
       end
 
       # Get nodes with their associated comments and metadata
@@ -316,6 +356,29 @@ module Prism
         end
       end
 
+      def layout_augmenter_default_owners
+        @layout_augmenter_default_owners ||= statements.select do |stmt|
+          owner_start_line(stmt) && owner_end_line(stmt)
+        end
+      end
+
+      def build_layout_augmenter(owners, **options)
+        Ast::Merge::Layout::Augmenter.new(
+          lines: layout_lines,
+          owners: owners,
+          start_line_for: method(:owner_start_line),
+          end_line_for: method(:owner_end_line),
+          metadata: {
+            source: :prism_native,
+          },
+          **options,
+        )
+      end
+
+      def layout_lines
+        @layout_lines ||= lines.map { |line| line.to_s.chomp }
+      end
+
       def native_comment_entries
         @native_comment_entries ||= begin
           if comment_only_file?
@@ -374,6 +437,14 @@ module Prism
         native_comments_for(owner, :trailing_comments).filter_map do |comment|
           entry = native_comment_entry(comment, attached_as: :trailing)
           entry unless entry[:full_line] || (owner_last_line && entry[:line] > owner_last_line)
+        end
+      end
+
+      def owner_trailing_comment_entries(owner)
+        owner_last_line = owner_end_line(owner)
+        native_comments_for(owner, :trailing_comments).filter_map do |comment|
+          entry = native_comment_entry(comment, attached_as: :trailing)
+          entry if entry[:full_line] && owner_last_line && entry[:line] > owner_last_line
         end
       end
 

@@ -2691,20 +2691,11 @@ RSpec.describe Prism::Merge::SmartMerger do
         coverage_count = result.scan("# Coverage").count
         expect(coverage_count).to eq(1), "Should have 1 '# Coverage' from template\nResult:\n#{result}"
 
-        # Note: Idempotency may not be perfect due to how Comment::Parser groups
-        # consecutive comment lines into Blocks. When empty lines between comments
-        # are deduplicated (same [:empty_line] signature), the parser may group
-        # comments differently on subsequent runs. This is a known edge case.
-        #
-        # For most practical use cases (deduplicating templated files), the first
-        # merge achieves the desired result. Perfect idempotency for comment-only
-        # files with complex whitespace patterns may be addressed in future versions.
         second_merger = described_class.new(template, result, preference: :template)
         second_run = second_merger.merge
 
-        # Verify key content is preserved even if formatting differs slightly
-        expect(second_run).to include("# frozen_string_literal: true")
-        expect(second_run).to include("# We run code coverage")
+        expect(result).to eq(template)
+        expect(second_run).to eq(template)
       end
     end
 
@@ -2758,19 +2749,11 @@ RSpec.describe Prism::Merge::SmartMerger do
         coverage_count = result.scan("# Coverage").count
         expect(coverage_count).to eq(1), "Should have 1 '# Coverage' from template\nResult:\n#{result}"
 
-        # Note: Idempotency may not be perfect due to how Comment::Parser groups
-        # consecutive comment lines into Blocks. When empty lines between comments
-        # are deduplicated (same [:empty_line] signature), the parser may group
-        # comments differently on subsequent runs. This is a known edge case.
-        #
-        # For most practical use cases (deduplicating templated files), the first
-        # merge achieves the desired result.
         second_merger = described_class.new(template, result, preference: :template)
         second_run = second_merger.merge
 
-        # Verify key content is preserved even if formatting differs slightly
-        expect(second_run).to include("# frozen_string_literal: true")
-        expect(second_run).to include("# We run code coverage")
+        expect(result).to eq(template)
+        expect(second_run).to eq(template)
       end
     end
 
@@ -5017,6 +5000,104 @@ RSpec.describe Prism::Merge::SmartMerger do
       result = merger.merge
 
       expect(result).to include("# Dest only")
+    end
+
+    it "is stable across repeated merges when matched comment blocks are separated by blank lines" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # We run code coverage on the latest version of Ruby only.
+
+        # Coverage
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # We run code coverage on the latest version of Ruby only.
+
+        # Coverage
+      RUBY
+
+      first_run = described_class.new(template, dest, preference: :template).merge
+      second_run = described_class.new(template, first_run, preference: :template).merge
+
+      expect(first_run).to eq(template)
+      expect(second_run).to eq(template)
+    end
+
+    it "keeps destination-preferred repeated blank-line gaps in comment-only merges" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # First block
+
+        # Second block
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # First block
+
+
+        # Second block
+      RUBY
+
+      expected = <<~RUBY
+        # frozen_string_literal: true
+
+        # First block
+
+
+        # Second block
+      RUBY
+
+      first_run = described_class.new(template, dest, preference: :destination).merge
+      second_run = described_class.new(template, first_run, preference: :destination).merge
+
+      expect(first_run).to eq(expected)
+      expect(second_run).to eq(expected)
+    end
+
+    it "is stable in comment-only removal mode when only the destination header prefix remains" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+      RUBY
+
+      dest = <<~RUBY
+        #!/usr/bin/env ruby
+        # frozen_string_literal: false
+
+        # Destination only
+
+
+        # Another destination note
+      RUBY
+
+      expected = <<~RUBY
+        #!/usr/bin/env ruby
+        # frozen_string_literal: false
+
+      RUBY
+
+      first_run = described_class.new(
+        template,
+        dest,
+        preference: :destination,
+        remove_template_missing_nodes: true,
+      ).merge
+      second_run = described_class.new(
+        template,
+        first_run,
+        preference: :destination,
+        remove_template_missing_nodes: true,
+      ).merge
+
+      expect(first_run).to eq(expected)
+      expect(second_run).to eq(expected)
     end
   end
 

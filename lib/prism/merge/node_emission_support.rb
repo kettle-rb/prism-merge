@@ -119,14 +119,10 @@ module Prism
           last_emitted_dest_line = emitted_dest_line if emitted_dest_line
         end
 
-        separator_line_num = node.location.end_line + 1
-        separator_line = analysis.line_at(separator_line_num)
-        if separator_line && separator_line.strip.empty?
-          result.add_line("", decision: decision, dest_line: separator_line_num)
-          last_emitted_dest_line = separator_line_num
-        end
-
-        {last_emitted_dest_line: last_emitted_dest_line}
+        {
+          last_emitted_dest_line: last_emitted_dest_line,
+          emitted_removed_owner_comments: true,
+        }
       end
 
       def emit_dest_gap_lines(result:, analysis:, last_output_line:, next_node:)
@@ -137,14 +133,27 @@ module Prism
         gap_start = last_output_line + 1
         return last_output_line if gap_start >= next_start_line
 
-        (gap_start...next_start_line).each do |line_num|
-          line = analysis.line_at(line_num)&.chomp || ""
-          next unless line.strip.empty?
-
-          result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
+        if leading_comments.empty?
+          emitted_gap_line = emit_layout_leading_gap_lines(
+            result: result,
+            analysis: analysis,
+            owner: next_node,
+            source: :destination,
+            decision: MergeResult::DECISION_KEPT_DEST,
+            last_output_line: last_output_line,
+          )
+          return [last_output_line, emitted_gap_line].max if emitted_gap_line
         end
 
-        last_output_line
+        emitted_gap_line = emit_scanned_blank_gap_lines(
+          result: result,
+          analysis: analysis,
+          source: :destination,
+          decision: MergeResult::DECISION_KEPT_DEST,
+          line_numbers: gap_start...next_start_line,
+        )
+
+        emitted_gap_line ? [last_output_line, emitted_gap_line].max : last_output_line
       end
 
       def emit_matched_template_node(result:, template_node:, dest_node:)
@@ -233,15 +242,21 @@ module Prism
           return {last_emitted_dest_line: last_emitted_dest_line}
         end
 
-        trailing_line = template_node.location.end_line + 1
-        trailing_content = template_analysis.line_at(trailing_line)
-        result.add_line("", decision: decision, template_line: trailing_line) if trailing_content && trailing_content.strip.empty?
+        emitted_dest_line = emit_layout_trailing_gap_lines(
+          result: result,
+          analysis: dest_analysis,
+          owner: dest_node,
+          source: :destination,
+          decision: decision,
+        )
+        last_emitted_dest_line = emitted_dest_line if emitted_dest_line
 
         {last_emitted_dest_line: last_emitted_dest_line}
       end
 
       def emit_node(result:, node:, analysis:, source:)
         decision = source == :template ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
+        last_emitted_dest_line = nil
         leading = merger.send(:filtered_leading_comments_for, node, source)
         leading_comments = leading[:comments]
         inline_comment_entries = analysis.send(:owner_inline_comment_entries, node)
@@ -267,6 +282,7 @@ module Prism
                 result.add_line(line, decision: decision, template_line: line_num)
               else
                 result.add_line(line, decision: decision, dest_line: line_num)
+                last_emitted_dest_line = line_num
               end
             end
           end
@@ -284,20 +300,36 @@ module Prism
             result.add_line(line, decision: decision, template_line: line_num)
           else
             result.add_line(line, decision: decision, dest_line: line_num)
-          end
-        end
-
-        trailing_line = node.location.end_line + 1
-        trailing_content = analysis.line_at(trailing_line)
-        if trailing_content && trailing_content.strip.empty?
-          if source == :template
-            result.add_line("", decision: decision, template_line: trailing_line)
-          else
-            result.add_line("", decision: decision, dest_line: trailing_line)
+            last_emitted_dest_line = line_num
           end
         end
 
         trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
+        if trailing_comments.empty?
+          emitted_trailing_gap_line = emit_layout_trailing_gap_lines(
+            result: result,
+            analysis: analysis,
+            owner: node,
+            source: source,
+            decision: decision,
+          )
+
+          if emitted_trailing_gap_line.nil?
+            trailing_line = node.location.end_line + 1
+            trailing_content = analysis.line_at(trailing_line)
+            if trailing_content && trailing_content.strip.empty?
+              if source == :template
+                result.add_line("", decision: decision, template_line: trailing_line)
+              else
+                result.add_line("", decision: decision, dest_line: trailing_line)
+                last_emitted_dest_line = trailing_line
+              end
+            end
+          elsif source == :destination
+            last_emitted_dest_line = emitted_trailing_gap_line
+          end
+        end
+
         node_line_range = node.location.start_line..node.location.end_line
         trailing_comments.each do |comment|
           line_num = comment.location.start_line
@@ -309,8 +341,11 @@ module Prism
             result.add_line(line, decision: decision, template_line: line_num)
           else
             result.add_line(line, decision: decision, dest_line: line_num)
+            last_emitted_dest_line = line_num
           end
         end
+
+        {last_emitted_dest_line: last_emitted_dest_line}
       end
 
       private
@@ -411,6 +446,61 @@ module Prism
 
       def dest_prefix_comment_lines
         merger.instance_variable_get(:@dest_prefix_comment_lines) || Set.new
+      end
+
+      def emit_layout_leading_gap_lines(result:, analysis:, owner:, source:, decision:, last_output_line:)
+        return unless analysis.respond_to?(:layout_attachment_for)
+
+        attachment = analysis.layout_attachment_for(owner)
+        gap = attachment&.leading_gap
+        return unless gap
+        return unless gap.controls_output_for?(owner)
+
+        emit_scanned_blank_gap_lines(
+          result: result,
+          analysis: analysis,
+          source: source,
+          decision: decision,
+          line_numbers: [gap.start_line, last_output_line + 1].max..gap.end_line,
+        )
+      end
+
+      def emit_layout_trailing_gap_lines(result:, analysis:, owner:, source:, decision:)
+        return unless analysis.respond_to?(:layout_attachment_for)
+
+        attachment = analysis.layout_attachment_for(owner)
+        gap = attachment&.trailing_gap
+        return unless gap
+        return unless gap.controls_output_for?(owner)
+
+        emit_scanned_blank_gap_lines(
+          result: result,
+          analysis: analysis,
+          source: source,
+          decision: decision,
+          line_numbers: gap.start_line..gap.end_line,
+        )
+      end
+
+      def emit_scanned_blank_gap_lines(result:, analysis:, source:, decision:, line_numbers:)
+        last_emitted_line = nil
+
+        line_numbers.each do |line_num|
+          next if source == :destination && dest_prefix_comment_lines.include?(line_num)
+
+          line = analysis.line_at(line_num)&.chomp || ""
+          next unless line.strip.empty?
+
+          if source == :template
+            result.add_line(line, decision: decision, template_line: line_num)
+          else
+            result.add_line(line, decision: decision, dest_line: line_num)
+          end
+
+          last_emitted_line = line_num
+        end
+
+        last_emitted_line
       end
     end
   end

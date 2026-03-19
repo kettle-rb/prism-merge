@@ -70,6 +70,40 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
         "Expected prefix template-only node before matched class Example.\nResult:\n#{result}"
     end
 
+    it "does not double-emit the interstitial blank line after a template-only prefix node" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        TEMPLATE_ONLY = true
+
+        class Example
+        end
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+
+        class Example
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :template,
+        add_template_only_nodes: true,
+      )
+
+      expect(result).to eq(<<~RUBY)
+        # frozen_string_literal: true
+
+        TEMPLATE_ONLY = true
+
+        class Example
+        end
+      RUBY
+    end
+
     it "preserves destination duplicate matches once template copies are exhausted" do
       signature_generator = lambda do |node|
         if node.is_a?(Prism::CallNode) && node.name == :puts
@@ -205,6 +239,68 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       result = merge_with_runner(template: template, dest: dest, preference: :template)
 
       expect(result).to eq("def example\n  :template\nend\n\n\n\n")
+    end
+
+    it "does not duplicate interstitial blank lines after a recursively merged wrapper node" do
+      template = <<~RUBY
+        class Example
+          def shared
+            :template
+          end
+        end
+
+        AFTER = true
+      RUBY
+
+      dest = <<~RUBY
+        class Example
+          def shared
+            :destination
+          end
+        end
+
+        AFTER = true
+      RUBY
+
+      result = merge_with_runner(template: template, dest: dest, preference: :template)
+
+      expect(result).to eq(<<~RUBY)
+        class Example
+          def shared
+            :template
+          end
+        end
+
+        AFTER = true
+      RUBY
+    end
+
+    it "preserves repeated blank lines between leading comments and a recursively merged wrapper" do
+      template = <<~RUBY
+        # docs
+
+
+        class Example
+          def shared
+            :template
+          end
+        end
+      RUBY
+
+      dest = <<~RUBY
+        # docs
+
+
+        class Example
+          def shared
+            :destination
+          end
+        end
+      RUBY
+
+      result = merge_with_runner(template: template, dest: dest, preference: :template)
+
+      expect(result).to eq(template)
     end
 
     it "preserves destination EOF blank lines after destination trailing comments" do

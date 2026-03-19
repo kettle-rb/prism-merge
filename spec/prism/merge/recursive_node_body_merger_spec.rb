@@ -53,6 +53,45 @@ RSpec.describe Prism::Merge::RecursiveNodeBodyMerger do
       expect(result).to include("def custom")
     end
 
+    it "preserves full blank-line runs between wrapper-leading comments and the opening line" do
+      template = <<~RUBY
+        # docs
+
+
+        class Example
+          def shared
+            :template
+          end
+        end
+      RUBY
+
+      dest = <<~RUBY
+        # docs
+
+
+        class Example
+          def shared
+            :destination
+          end
+        end
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template)
+
+      described_class.new(merger: merger).merge(
+        template_node: first_node(merger, :template),
+        dest_node: first_node(merger, :destination),
+      )
+
+      expect(merger.result.to_s).to eq(template)
+      expect(merger.result.line_metadata.first(4)).to match([
+        include(decision: :replaced, template_line: 1, dest_line: nil),
+        include(decision: :replaced, template_line: 2, dest_line: nil),
+        include(decision: :replaced, template_line: 3, dest_line: nil),
+        include(decision: :replaced, template_line: 4, dest_line: nil),
+      ])
+    end
+
     it "falls back to destination inline comments for template-preferred opening and closing wrapper lines" do
       template = <<~RUBY
         class Example
@@ -150,6 +189,33 @@ RSpec.describe Prism::Merge::RecursiveNodeBodyMerger do
 
 
         end
+      RUBY
+
+      result = recursive_result(template, dest, preference: :destination)
+
+      expect(result).to eq(dest)
+    end
+
+    it "preserves full destination postlude blank-line runs after a recursively merged wrapper" do
+      template = <<~RUBY
+        class Config
+          def updated
+            :template
+          end
+        end
+
+
+      RUBY
+
+      dest = <<~RUBY
+        class Config
+          def updated
+            :destination
+          end
+        end
+
+
+
       RUBY
 
       result = recursive_result(template, dest, preference: :destination)

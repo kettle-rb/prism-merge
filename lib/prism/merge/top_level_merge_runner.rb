@@ -75,6 +75,7 @@ module Prism
         last_output_dest_line = merger.send(:emit_dest_gap_lines, merger.result, merger.dest_analysis, last_output_dest_line, dest_node)
         output_node = dest_node
         output_analysis = merger.dest_analysis
+        advance_dest_output = true
 
         if dest_signature && template_by_signature.key?(dest_signature)
           template_info, cursor = next_template_match(
@@ -114,8 +115,10 @@ module Prism
             if merger.remove_template_missing_nodes
               emission = merger.send(:emit_removed_destination_node_comments, merger.result, dest_node, merger.dest_analysis)
               last_output_dest_line = emission_last_output(last_output_dest_line, emission)
+              advance_dest_output = advance_dest_output?(emission)
             else
-              merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+              emission = merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+              last_output_dest_line = emission_last_output(last_output_dest_line, emission)
             end
             output_dest_line_ranges << node_range
           end
@@ -123,8 +126,10 @@ module Prism
           if merger.remove_template_missing_nodes
             emission = merger.send(:emit_removed_destination_node_comments, merger.result, dest_node, merger.dest_analysis)
             last_output_dest_line = emission_last_output(last_output_dest_line, emission)
+            advance_dest_output = advance_dest_output?(emission)
           else
-            merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+            emission = merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+            last_output_dest_line = emission_last_output(last_output_dest_line, emission)
           end
           output_dest_line_ranges << node_range
         end
@@ -134,6 +139,7 @@ module Prism
           dest_node: dest_node,
           output_node: output_node,
           output_analysis: output_analysis,
+          advance_dest_output: advance_dest_output,
         )
       end
 
@@ -224,7 +230,7 @@ module Prism
           output_node = template_node
           output_analysis = merger.template_analysis
         else
-          merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+          emission = merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
         end
 
         {
@@ -241,7 +247,9 @@ module Prism
         [last_output_dest_line, emitted_dest_line].max
       end
 
-      def advance_last_output_dest_line(last_output_dest_line:, dest_node:, output_node:, output_analysis:)
+      def advance_last_output_dest_line(last_output_dest_line:, dest_node:, output_node:, output_analysis:, advance_dest_output: true)
+        return last_output_dest_line unless advance_dest_output
+
         updated_last_output_dest_line = [last_output_dest_line, dest_node.location.end_line].max
         actual_output_end = unwrap_node(output_node).location.end_line
         trailing_line_num = actual_output_end + 1
@@ -255,11 +263,25 @@ module Prism
         [updated_last_output_dest_line, trailing_dest_line].max
       end
 
-      def emit_dest_postlude_lines(last_output_dest_line)
-        remaining_line_range = (last_output_dest_line + 1)..merger.dest_analysis.lines.length
-        return if remaining_line_range.begin > remaining_line_range.end
+      def advance_dest_output?(emission)
+        !emission&.fetch(:emitted_removed_owner_comments, false)
+      end
 
-        remaining_line_range.each do |line_num|
+      def emit_dest_postlude_lines(last_output_dest_line)
+        postlude_gap = merger.dest_analysis.respond_to?(:layout_augmenter) ? merger.dest_analysis.layout_augmenter.postlude_gap : nil
+        if postlude_gap
+          emit_dest_blank_lines((([postlude_gap.start_line, last_output_dest_line + 1].max)..postlude_gap.end_line))
+          return
+        end
+
+        remaining_line_range = (last_output_dest_line + 1)..merger.dest_analysis.lines.length
+        emit_dest_blank_lines(remaining_line_range)
+      end
+
+      def emit_dest_blank_lines(line_range)
+        return if line_range.begin > line_range.end
+
+        line_range.each do |line_num|
           line = merger.dest_analysis.line_at(line_num).to_s.chomp
           next unless line.strip.empty?
 
