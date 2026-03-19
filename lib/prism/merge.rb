@@ -6,15 +6,7 @@ require "version_gem"
 require "set"
 
 # Shared merge infrastructure
-unless ENV.fetch("KETTLE_RB_DEV", "false").casecmp("false").zero?
-  tree_haver_lib = File.expand_path("../../../tree_haver/lib", __dir__)
-  ast_merge_lib = File.expand_path("../../../ast-merge/lib", __dir__)
-
-  require File.join(tree_haver_lib, "tree_haver") if File.exist?(File.join(tree_haver_lib, "tree_haver.rb"))
-  require File.join(ast_merge_lib, "ast/merge") if File.exist?(File.join(ast_merge_lib, "ast/merge.rb"))
-else
-  require "ast/merge"
-end
+require "ast/merge"
 
 # This gem
 require_relative "merge/version"

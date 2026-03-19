@@ -12,11 +12,8 @@ gem "ffi", require: false # DO NOT LOAD, because conflicts with MRI
 # gem "toml-rb"
 # gem "citrus"
 
-# Set KETTLE_RB_DEV=true (or a workspace path) for local development with path-based dependencies.
-# When false (default / CI), gemspec runtime dependencies are used.
-unless ENV.fetch("KETTLE_RB_DEV", "false").casecmp("false").zero?
-  eval_gemfile "tree_sitter_local.gemfile"
-end
+# Use the sibling-workspace path-based dependencies for shared kettle-rb development.
+eval_gemfile "tree_sitter_local.gemfile"
 
 platform :mri do
   # MRI Backend

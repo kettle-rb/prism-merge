@@ -268,7 +268,7 @@ module Prism
       end
 
       def emit_dest_postlude_lines(last_output_dest_line)
-        postlude_gap = merger.dest_analysis.respond_to?(:layout_augmenter) ? merger.dest_analysis.layout_augmenter.postlude_gap : nil
+        postlude_gap = merger.dest_analysis.layout_augmenter.postlude_gap
         if postlude_gap
           emit_dest_blank_lines((([postlude_gap.start_line, last_output_dest_line + 1].max)..postlude_gap.end_line))
           return

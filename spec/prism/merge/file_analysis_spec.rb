@@ -368,6 +368,44 @@ RSpec.describe Prism::Merge::FileAnalysis do
     end
   end
 
+  describe "shared layout compliance" do
+    let(:code) do
+      <<~RUBY
+
+        class A
+        end
+
+
+        class B
+        end
+
+      RUBY
+    end
+
+    let(:analysis) { described_class.new(code) }
+    let(:first_node) { analysis.statements.first }
+    let(:layout_attachment) { analysis.layout_attachment_for(first_node) }
+    let(:layout_augmenter) { analysis.layout_augmenter }
+
+    it_behaves_like "Ast::Merge::Layout::Attachment" do
+      let(:expected_attachment_owner) { first_node }
+      let(:expected_leading_gap_kind) { :preamble }
+      let(:expected_trailing_gap_kind) { :interstitial }
+      let(:expected_gap_ranges) { [1..1, 4..5] }
+      let(:expected_leading_controls_output) { true }
+      let(:expected_trailing_controls_output) { false }
+    end
+
+    it_behaves_like "Ast::Merge::Layout::Augmenter" do
+      let(:augmenter_owner) { first_node }
+      let(:expected_preamble_range) { 1..1 }
+      let(:expected_postlude_range) { 8..8 }
+      let(:expected_interstitial_ranges) { [4..5] }
+      let(:expected_owner_leading_gap_kind) { :preamble }
+      let(:expected_owner_trailing_gap_kind) { :interstitial }
+    end
+  end
+
   describe "shared comment capability" do
     it "reports native shared comment capability" do
       code = <<~RUBY
