@@ -123,17 +123,24 @@ spec/prism/merge/
 
 ## 🔧 Development Workflows
 
+### Running Commands
+
+Always make commands self-contained. Use `mise exec -C /home/pboling/src/kettle-rb/prism-merge -- ...` so the command gets the project environment in the same invocation.
+
 ### Running Tests
 
-```bash
-# Full suite (required for coverage thresholds)
-mise exec -C /home/pboling/src/kettle-rb/prism-merge -- bundle exec rspec
+A full suite spec run is required for coverage thresholds:
 
-# Single file (disable coverage threshold check)
-mise exec -C /home/pboling/src/kettle-rb/prism-merge -- env K_SOUP_COV_MIN_HARD=false bundle exec rspec spec/prism/merge/smart_merger_spec.rb
+```bash
+mise exec -C /home/pboling/src/kettle-rb/prism-merge -- bundle exec rspec
 ```
 
-**Note**: Always make commands self-contained. Use `mise exec -C /home/pboling/src/kettle-rb/prism-merge -- ...` so the command gets the project environment in the same invocation.
+For single file, targeted, or partial spec runs the coverage threshold **must** be disabled.
+Use the `K_SOUP_COV_MIN_HARD=false` environment variable to disable hard failure.
+
+```bash
+mise exec -C /home/pboling/src/kettle-rb/prism-merge -- env K_SOUP_COV_MIN_HARD=false bundle exec rspec spec/prism/merge/smart_merger_spec.rb
+```
 
 ### Coverage Reports
 
