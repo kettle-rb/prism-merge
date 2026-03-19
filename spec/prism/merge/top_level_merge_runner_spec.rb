@@ -275,6 +275,30 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       RUBY
     end
 
+    it "preserves an interstitial blank line before a later matched node when template preference is used" do
+      template = <<~RUBY
+        require "a"
+
+        VALUE = [
+          1,
+          2,
+        ]
+      RUBY
+
+      dest = <<~RUBY
+        require "a"
+
+        VALUE = [
+          1,
+          3,
+        ]
+      RUBY
+
+      result = merge_with_runner(template: template, dest: dest, preference: :template)
+
+      expect(result).to eq(template)
+    end
+
     it "preserves repeated blank lines between leading comments and a recursively merged wrapper" do
       template = <<~RUBY
         # docs

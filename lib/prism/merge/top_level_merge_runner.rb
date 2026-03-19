@@ -140,6 +140,7 @@ module Prism
           output_node: output_node,
           output_analysis: output_analysis,
           advance_dest_output: advance_dest_output,
+          preserve_trailing_blank_line_progress: emission&.fetch(:preserve_trailing_blank_line_progress, false),
         )
       end
 
@@ -217,6 +218,7 @@ module Prism
           last_output_dest_line: emission_last_output(last_output_dest_line, recursive_emission),
           output_node: output_node,
           output_analysis: output_analysis,
+          preserve_trailing_blank_line_progress: true,
         }
       end
 
@@ -237,6 +239,7 @@ module Prism
           last_output_dest_line: emission_last_output(last_output_dest_line, emission),
           output_node: output_node,
           output_analysis: output_analysis,
+          preserve_trailing_blank_line_progress: false,
         }
       end
 
@@ -247,10 +250,12 @@ module Prism
         [last_output_dest_line, emitted_dest_line].max
       end
 
-      def advance_last_output_dest_line(last_output_dest_line:, dest_node:, output_node:, output_analysis:, advance_dest_output: true)
+      def advance_last_output_dest_line(last_output_dest_line:, dest_node:, output_node:, output_analysis:, advance_dest_output: true, preserve_trailing_blank_line_progress: false)
         return last_output_dest_line unless advance_dest_output
 
         updated_last_output_dest_line = [last_output_dest_line, dest_node.location.end_line].max
+        return updated_last_output_dest_line unless preserve_trailing_blank_line_progress
+
         actual_output_end = unwrap_node(output_node).location.end_line
         trailing_line_num = actual_output_end + 1
         trailing_content = output_analysis.line_at(trailing_line_num)
