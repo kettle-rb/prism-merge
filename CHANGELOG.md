@@ -46,6 +46,9 @@ Please file a bug if you notice a violation of semantic versioning.
   immediately adjacent destination-only sibling has already emitted the same
   comment block, preventing duplicate header comments in recursive body merges
   such as `Appraisals` `eval_gemfile` sequences
+- Preserve original spacing before fallback inline comments when reattaching
+  destination-owned Ruby end-of-line comments onto merged template-preferred
+  lines, so aligned trailing comment columns survive AST merges
 
 ### Security
 

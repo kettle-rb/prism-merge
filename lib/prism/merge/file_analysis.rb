@@ -487,14 +487,16 @@ module Prism
 
       def native_comment_entry(comment, attached_as:)
         line = comment.location.start_line
+        raw = comment.slice.chomp
         {
           line: line,
           text: comment_content(comment),
-          raw: comment.slice.chomp,
+          raw: raw,
+          separator: inline_comment_separator_for(line, raw),
           full_line: full_line_comment?(comment, attached_as: attached_as),
           attached_as: attached_as,
           node: Prism::Merge::Comment::Line.new(
-            text: comment.slice.chomp,
+            text: raw,
             line_number: line,
             magic_comment_type: native_header_magic_comment_types[line],
           ),
@@ -514,6 +516,16 @@ module Prism
 
       def comment_content(comment)
         comment.slice.sub(/\A\s*#\s?/, "")
+      end
+
+      def inline_comment_separator_for(line_number, raw_comment)
+        return if raw_comment.to_s.empty?
+
+        line_text = line_at(line_number).to_s.sub(/\r?\n\z/, "")
+        prefix, separator, = line_text.rpartition(raw_comment)
+        return unless separator == raw_comment
+
+        prefix[/[ \t]+\z/]
       end
 
       def unique_comment_entries(entries)

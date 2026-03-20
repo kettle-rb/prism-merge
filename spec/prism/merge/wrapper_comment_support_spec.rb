@@ -101,5 +101,17 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
         support.append_inline_comment_entries("rescue StandardError", [{raw: "# keep this explanation"}]),
       ).to eq("rescue StandardError # keep this explanation")
     end
+
+    it "preserves the original separator before inline comments" do
+      merger = merger_for("x = 1\n", "x = 1\n")
+      support = described_class.new(merger: merger)
+
+      expect(
+        support.append_inline_comment_entries(
+          'spec.add_dependency("version_gem", "~> 1.1")',
+          [{raw: "# ruby >= 2.2.0", separator: "              "}],
+        ),
+      ).to eq('spec.add_dependency("version_gem", "~> 1.1")              # ruby >= 2.2.0')
+    end
   end
 end

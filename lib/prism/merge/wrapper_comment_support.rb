@@ -121,10 +121,25 @@ module Prism
       end
 
       def append_inline_comment_entries(line, entries)
-        suffix = entries.map { |entry| entry[:raw].strip }.join(" ")
-        return line if suffix.empty?
+        normalized_entries = Array(entries).filter_map do |entry|
+          raw = entry[:raw].to_s.lstrip
+          next if raw.empty?
 
-        [line.rstrip, suffix].reject(&:empty?).join(" ")
+          entry.merge(raw: raw)
+        end
+        return line if normalized_entries.empty?
+
+        normalized_entries.each_with_index.reduce(line.rstrip) do |memo, (entry, index)|
+          separator = if memo.empty?
+            ""
+          elsif index.zero?
+            entry[:separator].to_s.empty? ? " " : entry[:separator]
+          else
+            " "
+          end
+
+          memo + separator + entry[:raw]
+        end
       end
 
       def inline_comment_entries_by_line(entries)
@@ -141,7 +156,12 @@ module Prism
         Array(analysis.parse_result.comments).filter_map do |comment|
           next unless comment.location.start_line == line_num
 
-          {line: line_num, raw: comment.slice.chomp}
+          raw = comment.slice.chomp
+          {
+            line: line_num,
+            raw: raw,
+            separator: inline_comment_separator_for(line, raw),
+          }
         end
       end
 
@@ -156,6 +176,15 @@ module Prism
         trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
         node_line_range = node.location.start_line..node.location.end_line
         trailing_comments.reject { |comment| node_line_range.cover?(comment.location.start_line) }
+      end
+
+      def inline_comment_separator_for(line_text, raw_comment)
+        return if line_text.to_s.empty? || raw_comment.to_s.empty?
+
+        prefix, separator, = line_text.sub(/\r?\n\z/, "").rpartition(raw_comment)
+        return unless separator == raw_comment
+
+        prefix[/[ \t]+\z/]
       end
     end
   end
