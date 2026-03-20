@@ -239,7 +239,10 @@ module Prism
             decision: decision,
           )
           last_emitted_dest_line = emitted_dest_line if trailing_analysis.equal?(dest_analysis) && emitted_dest_line
-          return {last_emitted_dest_line: last_emitted_dest_line}
+          return {
+            last_emitted_dest_line: last_emitted_dest_line,
+            preserve_trailing_blank_line_progress: true,
+          }
         end
 
         emitted_dest_line = emit_layout_trailing_gap_lines(

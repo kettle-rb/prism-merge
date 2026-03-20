@@ -169,6 +169,21 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       RUBY
     end
 
+    it "does not re-emit a matched template node's interstitial blank line at EOF when trailing comments follow it" do
+      source = <<~RUBY
+        # Debugging - Ensure ENV["DEBUG"] == "true" to use debuggers within spec suite
+        # Use binding.break, binding.b, or debugger in code
+        gem "debug", ">= 1.1"                     # ruby >= 2.7
+
+        # Dev Console - Binding.pry - Irb replacement
+        # gem "pry", "~> 0.14"                     # ruby >= 2.0
+      RUBY
+
+      result = merge_with_runner(template: source, dest: source, preference: :template)
+
+      expect(result).to eq(source)
+    end
+
     it "skips destination nodes whose line range was already emitted" do
       source = <<~RUBY
         class Example

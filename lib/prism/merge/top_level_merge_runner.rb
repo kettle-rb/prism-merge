@@ -239,7 +239,7 @@ module Prism
           last_output_dest_line: emission_last_output(last_output_dest_line, emission),
           output_node: output_node,
           output_analysis: output_analysis,
-          preserve_trailing_blank_line_progress: false,
+          preserve_trailing_blank_line_progress: emission&.fetch(:preserve_trailing_blank_line_progress, false),
         }
       end
 
@@ -267,6 +267,7 @@ module Prism
 
         [updated_last_output_dest_line, trailing_dest_line].max
       end
+
 
       def advance_dest_output?(emission)
         !emission&.fetch(:emitted_removed_owner_comments, false)
