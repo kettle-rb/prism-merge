@@ -61,14 +61,14 @@ RSpec.describe Prism::Merge::SmartMerger do
         templating_pos = result.index('appraise "templating"')
         expect(templating_pos).to be > style_pos,
           "Expected 'templating' appraisal to appear after 'style' appraisal, " \
-          "but 'templating' was at position #{templating_pos} and 'style' was at #{style_pos}.\n\n" \
-          "Result:\n#{result}"
+            "but 'templating' was at position #{templating_pos} and 'style' was at #{style_pos}.\n\n" \
+            "Result:\n#{result}"
 
         # The "templating" block must NOT be between the magic comment and the freeze block
         freeze_pos = result.index("kettle-jem:freeze")
         expect(templating_pos).to be > freeze_pos,
           "Expected 'templating' appraisal to appear after freeze block, " \
-          "but it was inserted before. Result:\n#{result}"
+            "but it was inserted before. Result:\n#{result}"
       end
     end
 
@@ -127,8 +127,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         # template_only_between must come BEFORE shared_b (its successor in template)
         expect(template_only_pos).to be < shared_b_pos,
           "Expected template-only node to appear before shared_b, " \
-          "but it was at position #{template_only_pos} and shared_b was at #{shared_b_pos}.\n\n" \
-          "Result:\n#{result}"
+            "but it was at position #{template_only_pos} and shared_b was at #{shared_b_pos}.\n\n" \
+            "Result:\n#{result}"
       end
     end
 

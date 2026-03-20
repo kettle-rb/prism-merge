@@ -66,7 +66,6 @@ module Prism
         merger.comment_only_file?(merger.template_analysis) && merger.comment_only_file?(merger.dest_analysis)
       end
 
-
       def process_dest_node(dest_node:, template_by_signature:, consumed_template_indices:, sig_cursor:, output_dest_line_ranges:, last_output_dest_line:, trailing_groups: {})
         node_range = node_offset_range(dest_node)
         return last_output_dest_line if already_output?(node_range, output_dest_line_ranges)
@@ -268,7 +267,6 @@ module Prism
         [updated_last_output_dest_line, trailing_dest_line].max
       end
 
-
       def advance_dest_output?(emission)
         !emission&.fetch(:emitted_removed_owner_comments, false)
       end
@@ -276,7 +274,7 @@ module Prism
       def emit_dest_postlude_lines(last_output_dest_line)
         postlude_gap = merger.dest_analysis.layout_augmenter.postlude_gap
         if postlude_gap
-          emit_dest_blank_lines((([postlude_gap.start_line, last_output_dest_line + 1].max)..postlude_gap.end_line))
+          emit_dest_blank_lines(([postlude_gap.start_line, last_output_dest_line + 1].max)..postlude_gap.end_line)
           return
         end
 

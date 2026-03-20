@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "line"
-require_relative "block"
-
 module Prism
   module Merge
     module Comment

@@ -29,8 +29,8 @@ module Prism
           preferred_source
         end
 
-        chosen_reference = header_source == :template ? template_reference : dest_reference
-        alternate_reference = header_source == :template ? dest_reference : template_reference
+        chosen_reference = (header_source == :template) ? template_reference : dest_reference
+        alternate_reference = (header_source == :template) ? dest_reference : template_reference
         normalized_body = if chosen_reference && alternate_reference && merged_references.include?(alternate_reference)
           rewrite_local_reference_in_source(clause_body, from: alternate_reference, to: chosen_reference)
         else

@@ -202,10 +202,10 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       RUBY
 
       first_run = described_class.new(
-        merger: merger_for(template, dest, preference: :destination, remove_template_missing_nodes: true)
+        merger: merger_for(template, dest, preference: :destination, remove_template_missing_nodes: true),
       ).merge.to_s
       second_run = described_class.new(
-        merger: merger_for(template, first_run, preference: :destination, remove_template_missing_nodes: true)
+        merger: merger_for(template, first_run, preference: :destination, remove_template_missing_nodes: true),
       ).merge.to_s
 
       expected = <<~RUBY

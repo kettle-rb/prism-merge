@@ -244,7 +244,6 @@ module Prism
           return true if actual_node.location.leading_comments.any? { |c| c.slice.match?(freeze_pattern) }
         end
 
-
         false
       end
 

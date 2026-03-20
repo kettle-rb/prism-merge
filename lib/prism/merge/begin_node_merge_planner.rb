@@ -67,7 +67,7 @@ module Prism
             template_clause_node: template_clause_node,
             dest_clause_node: dest_clause_node,
           )
-            steps << unmatched_step if unmatched_step
+          steps << unmatched_step if unmatched_step
         end
       end
 
@@ -115,12 +115,12 @@ module Prism
           )
         end
 
-        preferred_clause_node = node_preference == :template ? template_clause_node : dest_clause_node
-        preferred_clause_region = node_preference == :template ? template_region : dest_region
-        preferred_clause_analysis = node_preference == :template ? merger.template_analysis : merger.dest_analysis
-        alternate_clause_node = node_preference == :template ? dest_clause_node : template_clause_node
-        alternate_clause_region = node_preference == :template ? dest_region : template_region
-        alternate_clause_analysis = node_preference == :template ? merger.dest_analysis : merger.template_analysis
+        preferred_clause_node = (node_preference == :template) ? template_clause_node : dest_clause_node
+        preferred_clause_region = (node_preference == :template) ? template_region : dest_region
+        preferred_clause_analysis = (node_preference == :template) ? merger.template_analysis : merger.dest_analysis
+        alternate_clause_node = (node_preference == :template) ? dest_clause_node : template_clause_node
+        alternate_clause_region = (node_preference == :template) ? dest_region : template_region
+        alternate_clause_analysis = (node_preference == :template) ? merger.dest_analysis : merger.template_analysis
 
         preferred_components = merger.send(:clause_body_components, preferred_clause_node, preferred_clause_region, preferred_clause_analysis)
         alternate_components = merger.send(:clause_body_components, alternate_clause_node, alternate_clause_region, alternate_clause_analysis)
@@ -131,7 +131,7 @@ module Prism
         else
           preferred_prefix, preferred_remainder = merger.send(:split_leading_comment_prefix, preferred_components[:merge_body])
           alternate_prefix, = merger.send(:split_leading_comment_prefix, alternate_components[:merge_body])
-          body_to_emit = preferred_prefix.empty? && !alternate_prefix.empty? ? (alternate_prefix + preferred_remainder) : preferred_components[:merge_body]
+          body_to_emit = (preferred_prefix.empty? && !alternate_prefix.empty?) ? (alternate_prefix + preferred_remainder) : preferred_components[:merge_body]
           trailing_suffix_text = preferred_components[:trailing_suffix].empty? ? alternate_components[:trailing_suffix] : preferred_components[:trailing_suffix]
         end
 
@@ -158,19 +158,25 @@ module Prism
 
       def build_unmatched_clause_step(clause_type:, template_region:, dest_region:, template_clause_node:, dest_clause_node:)
         region, region_analysis_side = if node_preference == :template
-          template_region ? [template_region, :template] : (dest_region ? [dest_region, :destination] : nil)
+          if template_region
+            [template_region, :template]
+          else
+            (dest_region ? [dest_region, :destination] : nil)
+          end
+        elsif dest_region
+          [dest_region, :destination]
         else
-          dest_region ? [dest_region, :destination] : (template_region ? [template_region, :template] : nil)
+          (template_region ? [template_region, :template] : nil)
         end
         return unless region
 
         if node_preference == :template && !template_region && dest_clause_node &&
             merger.send(:clause_body_fully_duplicated_in_preferred_begin?, dest_clause_node, merger.dest_analysis, template_node, merger.template_analysis)
-          return nil
+          return
         end
         if node_preference == :destination && !dest_region && template_clause_node &&
             merger.send(:clause_body_fully_duplicated_in_preferred_begin?, template_clause_node, merger.template_analysis, dest_node, merger.dest_analysis)
-          return nil
+          return
         end
 
         Step.new(

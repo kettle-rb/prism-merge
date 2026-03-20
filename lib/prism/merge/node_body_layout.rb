@@ -49,7 +49,7 @@ module Prism
       end
 
       def source_line_for_body_line(body_line)
-        return nil unless body_line
+        return unless body_line
 
         body_source_lines[body_line - 1]
       end

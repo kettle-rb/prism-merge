@@ -18,8 +18,6 @@ module Prism
         case node
         when Prism::RescueNode, Prism::ElseNode, Prism::EnsureNode
           node.statements
-        else
-          nil
         end
       end
 
@@ -98,14 +96,14 @@ module Prism
         {
           merge_body: extract_region_body(region, analysis, body_start_line: body_start_line, body_end_line: last_statement_end_line),
           trailing_suffix: if region[:end_line] > last_statement_end_line
-            lines = []
-            ((last_statement_end_line + 1)..region[:end_line]).each do |line_num|
-              lines << analysis.line_at(line_num).chomp
-            end
-            lines.join("\n") + "\n"
-          else
-            ""
-          end,
+                             lines = []
+                             ((last_statement_end_line + 1)..region[:end_line]).each do |line_num|
+                               lines << analysis.line_at(line_num).chomp
+                             end
+                             lines.join("\n") + "\n"
+                           else
+                             ""
+                           end,
         }
       end
 

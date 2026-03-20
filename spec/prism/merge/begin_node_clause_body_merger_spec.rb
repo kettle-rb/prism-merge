@@ -6,7 +6,7 @@ RSpec.describe Prism::Merge::BeginNodeClauseBodyMerger do
   end
 
   def first_begin_node(merger, side)
-    analysis = side == :template ? merger.template_analysis : merger.dest_analysis
+    analysis = (side == :template) ? merger.template_analysis : merger.dest_analysis
     analysis.statements.first
   end
 

@@ -37,6 +37,7 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 - **Fuzzy Method Matching**: `MethodMatchRefiner` matches similar method names and signatures
   (e.g., `process_user` ↔ `process_users`) using Levenshtein distance
 - **Recursive Merge**: Automatically merges class and module bodies recursively, intelligently combining nested methods and constants
+- **Partial Template Merge Support**: Can surgically replace or merge an anchored top-level Ruby section through the shared `ast-merge` recipe substrate
 - **Comment-Preserving**: Comments are properly attached to relevant nodes and/or placement
 - **Freeze Block Support**: Respects freeze markers (default: `prism-merge:freeze` / `prism-merge:unfreeze`) for template merge control - customizable to match your project's conventions
 - **Full Provenance**: Tracks origin of every line

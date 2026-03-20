@@ -6,7 +6,7 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
   end
 
   def first_node(merger, side)
-    analysis = side == :template ? merger.template_analysis : merger.dest_analysis
+    analysis = (side == :template) ? merger.template_analysis : merger.dest_analysis
     analysis.statements.first
   end
 

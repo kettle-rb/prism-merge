@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-
 module Prism
   module Merge
     module Comment
@@ -58,15 +57,13 @@ module Prism
         # Get the type of magic comment.
         #
         # @return [Symbol, nil] The magic comment type, or nil if not a magic comment
-        def magic_comment_type
-          @magic_comment_type
-        end
+        attr_reader :magic_comment_type
 
         # Get the value of a magic comment.
         #
         # @return [String, nil] The magic comment value, or nil if not a magic comment
         def magic_comment_value
-          return nil unless magic_comment?
+          return unless magic_comment?
 
           stripped = content.strip
           stripped.split(":", 2).last&.strip

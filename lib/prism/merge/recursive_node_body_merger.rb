@@ -68,8 +68,8 @@ module Prism
           comment_analysis = merger.dest_analysis
         end
 
-        source_analysis = node_preference == :template ? merger.template_analysis : merger.dest_analysis
-        source_node = node_preference == :template ? actual_template : actual_dest
+        source_analysis = (node_preference == :template) ? merger.template_analysis : merger.dest_analysis
+        source_node = (node_preference == :template) ? actual_template : actual_dest
         source_layout = merger.send(:node_body_layout_for, source_node, source_analysis)
         decision = MergeResult::DECISION_REPLACED
         template_inline_by_line = merger.send(:wrapper_inline_comment_entries_by_line, merger.template_analysis, actual_template)
@@ -77,7 +77,7 @@ module Prism
         merged_body_lines = body_result ? body_result.lines.dup : []
         merged_body_metadata = body_result&.line_metadata&.dup || []
 
-        prev_comment_line = comment_source == :template ? last_skipped_template_line : nil
+        prev_comment_line = (comment_source == :template) ? last_skipped_template_line : nil
         merger.send(
           :emit_leading_comments,
           merger.result,
@@ -119,8 +119,8 @@ module Prism
         merger.result.add_line(
           opening_line.chomp,
           decision: decision,
-          template_line: node_preference == :template ? source_node.location.start_line : nil,
-          dest_line: node_preference == :destination ? source_node.location.start_line : nil,
+          template_line: (node_preference == :template) ? source_node.location.start_line : nil,
+          dest_line: (node_preference == :destination) ? source_node.location.start_line : nil,
         )
 
         closing_body_line = nil
@@ -158,8 +158,8 @@ module Prism
         merger.result.add_line(
           end_line.chomp,
           decision: decision,
-          template_line: node_preference == :template ? source_node.location.end_line : nil,
-          dest_line: node_preference == :destination ? source_node.location.end_line : nil,
+          template_line: (node_preference == :template) ? source_node.location.end_line : nil,
+          dest_line: (node_preference == :destination) ? source_node.location.end_line : nil,
         )
 
         template_trailing_comments = merger.send(:external_trailing_comments_for, actual_template)
@@ -192,7 +192,7 @@ module Prism
         emitted_trailing_gap_line = emit_trailing_layout_gap_lines(
           analysis: source_analysis,
           owner: source_node,
-          source: node_preference == :template ? :template : :destination,
+          source: (node_preference == :template) ? :template : :destination,
           decision: decision,
         )
 

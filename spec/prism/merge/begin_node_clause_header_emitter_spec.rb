@@ -8,7 +8,7 @@ RSpec.describe Prism::Merge::BeginNodeClauseHeaderEmitter do
   end
 
   def first_begin_node(merger, side)
-    analysis = side == :template ? merger.template_analysis : merger.dest_analysis
+    analysis = (side == :template) ? merger.template_analysis : merger.dest_analysis
     analysis.statements.first
   end
 
@@ -104,4 +104,4 @@ RSpec.describe Prism::Merge::BeginNodeClauseHeaderEmitter do
       expect(result).to eq("rescue RuntimeError, StandardError # keep template comment\n")
     end
   end
- end
+end

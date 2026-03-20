@@ -21,6 +21,7 @@ Please file a bug if you notice a violation of semantic versioning.
 ### Added
 
 - Added shared comment capability and augmenter exposure over Prism-native ownership, with normalized region / attachment access and shared-example compliance coverage for the native-full Ruby path
+- Added `Prism::Merge::PartialTemplateMerger` plus recipe-runner coverage for navigable top-level Ruby partial-template merges on the shared `ast-merge` substrate
 
 ### Changed
 

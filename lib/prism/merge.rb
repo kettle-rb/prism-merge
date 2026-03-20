@@ -103,6 +103,9 @@ module Prism
     autoload :FreezeNode, "prism/merge/freeze_node"
     autoload :FileAnalysis, "prism/merge/file_analysis"
     autoload :MergeResult, "prism/merge/merge_result"
+    autoload :NestedStatementWalker, "prism/merge/nested_statement_walker"
+    autoload :PartialTemplateMerger, "prism/merge/partial_template_merger"
+    autoload :PartialTemplateNode, "prism/merge/partial_template_node"
     autoload :SmartMerger, "prism/merge/smart_merger"
     autoload :MethodMatchRefiner, "prism/merge/method_match_refiner"
   end

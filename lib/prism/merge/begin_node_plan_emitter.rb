@@ -56,8 +56,6 @@ module Prism
             dest_inline_by_line: dest_inline_by_line,
             begin_clause_line_map: begin_clause_line_map,
           )
-        else
-          nil
         end
       end
 
@@ -73,7 +71,7 @@ module Prism
       end
 
       def emit_copied_unmatched_clause(step, node_preference:, decision:, template_inline_by_line:, dest_inline_by_line:, begin_clause_line_map:)
-        region_analysis = step.copied_analysis_side == :template ? merger.template_analysis : merger.dest_analysis
+        region_analysis = (step.copied_analysis_side == :template) ? merger.template_analysis : merger.dest_analysis
 
         (step.copied_region[:start_line]..step.copied_region[:end_line]).each do |line_num|
           line = region_analysis.line_at(line_num)&.chomp || ""

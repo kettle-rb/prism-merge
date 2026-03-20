@@ -258,7 +258,7 @@ module Prism
       end
 
       def emit_node(result:, node:, analysis:, source:)
-        decision = source == :template ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
+        decision = (source == :template) ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
         last_emitted_dest_line = nil
         leading = merger.send(:filtered_leading_comments_for, node, source)
         leading_comments = leading[:comments]
@@ -271,7 +271,7 @@ module Prism
           analysis: analysis,
           source: source,
           decision: decision,
-          prev_comment_line: source == :template ? leading[:last_skipped_line] : nil,
+          prev_comment_line: (source == :template) ? leading[:last_skipped_line] : nil,
         )
 
         if leading_comments.any?

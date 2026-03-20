@@ -48,7 +48,7 @@ module Prism
         }
 
         output_plan.each do |entry|
-          context = entry[:source] == :template ? template_context : dest_context
+          context = (entry[:source] == :template) ? template_context : dest_context
           emit_comment_node_with_layout(
             node: entry[:node],
             source: entry[:source],
@@ -109,10 +109,10 @@ module Prism
             matched_dest_indices << dest_index
             output_template_signatures << template_signature if template_signature
 
-            if merger.send(:default_preference) == :template
-              plan << {node: template_node, source: :template}
+            plan << if merger.send(:default_preference) == :template
+              {node: template_node, source: :template}
             else
-              plan << {node: dest_node, source: :destination}
+              {node: dest_node, source: :destination}
             end
           elsif merger.add_template_only_nodes ||
               (merger.send(:default_preference) == :template && template_node.respond_to?(:magic_comment?) && template_node.magic_comment?)
@@ -142,7 +142,7 @@ module Prism
       end
 
       def add_comment_node_to_result(node, source)
-        decision = source == :template ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
+        decision = (source == :template) ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
         suppressed_lines = comment_only_prefix_lines.fetch(source, Set.new)
 
         content = if node.respond_to?(:text)
@@ -205,7 +205,7 @@ module Prism
         gap_key = [gap.start_line, gap.end_line]
         return if emitted_gap_keys.fetch(source).include?(gap_key)
 
-        decision = source == :template ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
+        decision = (source == :template) ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
         suppressed_lines = comment_only_prefix_lines.fetch(source, Set.new)
 
         gap.lines.each_with_index do |line, index|

@@ -631,7 +631,6 @@ RSpec.describe Prism::Merge::SmartMerger do
           RUBY
         end
 
-
         it "falls back to destination inline comments on the wrapper closing line" do
           template = <<~RUBY
             class Config

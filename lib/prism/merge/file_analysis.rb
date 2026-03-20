@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "comment"
-
 module Prism
   module Merge
     # Simplified file analysis using Prism's native comment attachment.
@@ -380,12 +378,10 @@ module Prism
       end
 
       def native_comment_entries
-        @native_comment_entries ||= begin
-          if comment_only_file?
-            comment_entries_from_comment_only_statements
-          else
-            unique_comment_entries(comment_entries_from_attached_nodes)
-          end
+        @native_comment_entries ||= if comment_only_file?
+          comment_entries_from_comment_only_statements
+        else
+          unique_comment_entries(comment_entries_from_attached_nodes)
         end
       end
 
@@ -531,7 +527,7 @@ module Prism
       def unique_comment_entries(entries)
         entries.uniq do |entry|
           [entry[:line], entry[:raw], entry[:attached_as]]
-        end.sort_by { |entry| [entry[:line], entry[:attached_as] == :trailing ? 1 : 0] }
+        end.sort_by { |entry| [entry[:line], (entry[:attached_as] == :trailing) ? 1 : 0] }
       end
 
       def comment_only_file?

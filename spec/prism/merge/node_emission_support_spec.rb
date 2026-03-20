@@ -6,12 +6,12 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
   end
 
   def first_node(merger, side)
-    analysis = side == :template ? merger.template_analysis : merger.dest_analysis
+    analysis = (side == :template) ? merger.template_analysis : merger.dest_analysis
     analysis.statements.first
   end
 
   def second_node(merger, side)
-    analysis = side == :template ? merger.template_analysis : merger.dest_analysis
+    analysis = (side == :template) ? merger.template_analysis : merger.dest_analysis
     analysis.statements[1]
   end
 
@@ -119,7 +119,10 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         dest_node: first_node(merger, :destination),
       )
 
-      expect(emission).to eq({last_emitted_dest_line: 6})
+      expect(emission).to eq({
+        last_emitted_dest_line: 6,
+        preserve_trailing_blank_line_progress: true,
+      })
       expect(result.to_s).to eq(<<~RUBY)
         # User docs
         def example
