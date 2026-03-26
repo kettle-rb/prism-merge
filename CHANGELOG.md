@@ -22,6 +22,8 @@ Please file a bug if you notice a violation of semantic versioning.
 
 - Added shared comment capability and augmenter exposure over Prism-native ownership, with normalized region / attachment access and shared-example compliance coverage for the native-full Ruby path
 - Added `Prism::Merge::PartialTemplateMerger` plus recipe-runner coverage for navigable top-level Ruby partial-template merges on the shared `ast-merge` substrate
+- Added `Prism::Merge::PartialTemplateNode` as the thin statement adapter that normalizes Prism-owned statements and unwrap-capable wrappers onto the shared navigable partial-template contract
+- Added `Prism::Merge::NestedStatementWalker` as a reusable Prism-family traversal helper for declaration-context and dependency-edit workflows that need recursive statement walking across call-block and conditional branches
 
 ### Changed
 
