@@ -408,6 +408,34 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       RUBY
     end
 
+    it "does not duplicate the separator before a template-only leading comment block when siblings are emitted sequentially" do
+      source = <<~RUBY
+        x = 1
+
+        # docs
+        y = 2
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      support.emit_node(
+        result: result,
+        node: first_node(merger, :template),
+        analysis: merger.template_analysis,
+        source: :template,
+      )
+      support.emit_node(
+        result: result,
+        node: second_node(merger, :template),
+        analysis: merger.template_analysis,
+        source: :template,
+      )
+
+      expect(result.to_s).to eq(source)
+    end
+
     it "preserves full trailing postlude blank-line runs for comment-free nodes" do
       source = <<~RUBY
         def example

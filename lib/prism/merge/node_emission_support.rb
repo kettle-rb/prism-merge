@@ -186,6 +186,7 @@ module Prism
             analysis: template_analysis,
             leading_comments: leading_comments,
             skipped_prefix_line: template_leading[:last_skipped_line],
+            skip_for_destination_gap: destination_gap_already_precedes_template_leading_comments?(result, dest_node),
             decision: decision,
           )
         end
@@ -446,9 +447,10 @@ module Prism
         node_source_lines(node, analysis)
       end
 
-      def emit_template_blank_lines_before_leading_comments(result:, node:, analysis:, leading_comments:, skipped_prefix_line:, decision:)
-        return if skipped_prefix_line
+      def emit_template_blank_lines_before_leading_comments(result:, node:, analysis:, leading_comments:, skipped_prefix_line:, decision:, skip_for_destination_gap: false)
+        return if skipped_prefix_line || skip_for_destination_gap
         return if leading_comments.empty?
+        return if previous_template_gap_already_precedes_leading_comments?(result, node, analysis, leading_comments)
 
         previous_node = previous_statement_for(node, analysis)
         return unless previous_node
@@ -464,6 +466,53 @@ module Prism
           decision: decision,
           line_numbers: gap_start_line...first_comment_line,
         )
+      end
+
+      def destination_gap_already_precedes_template_leading_comments?(result, dest_node)
+        previous_dest_node = previous_destination_statement_for(dest_node)
+        return false unless previous_dest_node
+
+        dest_leading = merger.send(:filtered_leading_comments_for, dest_node, :destination)[:comments]
+        first_dest_content_line = dest_leading.any? ? dest_leading.first.location.start_line : dest_node.location.start_line
+
+        return false unless blank_only_gap_between?(
+          analysis: merger.dest_analysis,
+          start_line: previous_dest_node.location.end_line + 1,
+          end_line_exclusive: first_dest_content_line,
+        )
+
+        last_emitted_dest_line = result.line_metadata.reverse_each.find { |metadata| metadata[:dest_line] }&.fetch(:dest_line)
+        last_emitted_dest_line == first_dest_content_line - 1
+      end
+
+      def previous_template_gap_already_precedes_leading_comments?(result, node, analysis, leading_comments)
+        previous_node = previous_statement_for(node, analysis)
+        return false unless previous_node
+        return false unless analysis.respond_to?(:layout_attachment_for)
+
+        trailing_gap = analysis.layout_attachment_for(previous_node)&.trailing_gap
+        return false unless trailing_gap
+
+        first_comment_line = leading_comments.first.location.start_line
+        return false unless trailing_gap.start_line == previous_node.location.end_line + 1 && trailing_gap.end_line == first_comment_line - 1
+
+        last_emitted_template_line = result.line_metadata.reverse_each.find { |metadata| metadata[:template_line] }&.fetch(:template_line)
+        last_emitted_template_line == trailing_gap.end_line
+      end
+
+      def gap_contains_blank_lines?(analysis:, start_line:, end_line_exclusive:)
+        return false if start_line >= end_line_exclusive
+
+        (start_line...end_line_exclusive).any? do |line_num|
+          analysis.line_at(line_num).to_s.strip.empty?
+        end
+      end
+
+      def blank_only_gap_between?(analysis:, start_line:, end_line_exclusive:)
+        return false if start_line >= end_line_exclusive
+
+        lines = (start_line...end_line_exclusive).map { |line_num| analysis.line_at(line_num).to_s }
+        lines.any? && lines.all? { |line| line.strip.empty? }
       end
 
       def orphan_regions_for(node, analysis:, source:)
