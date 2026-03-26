@@ -173,12 +173,21 @@ module Prism
 
         leading_comments = template_leading[:comments]
         leading_analysis = template_analysis
-        prev_comment_line = template_leading[:last_skipped_line]
 
         if leading_comments.empty? && dest_leading[:comments].any?
           leading_comments = dest_leading[:comments]
           leading_analysis = dest_analysis
-          prev_comment_line = nil
+        end
+
+        if leading_analysis.equal?(template_analysis)
+          emit_template_blank_lines_before_leading_comments(
+            result: result,
+            node: template_node,
+            analysis: template_analysis,
+            leading_comments: leading_comments,
+            skipped_prefix_line: template_leading[:last_skipped_line],
+            decision: decision,
+          )
         end
 
         merger.send(
@@ -188,7 +197,6 @@ module Prism
           analysis: leading_analysis,
           source: leading_analysis.equal?(template_analysis) ? :template : :destination,
           decision: decision,
-          prev_comment_line: prev_comment_line,
         )
 
         if leading_analysis.equal?(dest_analysis) && leading_comments.any?
@@ -273,17 +281,6 @@ module Prism
           }
         end
 
-        if orphan_regions.empty?
-          emitted_dest_line = emit_layout_trailing_gap_lines(
-            result: result,
-            analysis: dest_analysis,
-            owner: dest_node,
-            source: :destination,
-            decision: decision,
-          )
-          last_emitted_dest_line = emitted_dest_line if emitted_dest_line
-        end
-
         {last_emitted_dest_line: last_emitted_dest_line}
       end
 
@@ -294,6 +291,17 @@ module Prism
         leading_comments = leading[:comments]
         inline_comment_entries = analysis.send(:owner_inline_comment_entries, node)
 
+        if source == :template
+          emit_template_blank_lines_before_leading_comments(
+            result: result,
+            node: node,
+            analysis: analysis,
+            leading_comments: leading_comments,
+            skipped_prefix_line: leading[:last_skipped_line],
+            decision: decision,
+          )
+        end
+
         merger.send(
           :emit_leading_comments,
           result,
@@ -301,7 +309,6 @@ module Prism
           analysis: analysis,
           source: source,
           decision: decision,
-          prev_comment_line: (source == :template) ? leading[:last_skipped_line] : nil,
         )
 
         if leading_comments.any?
@@ -419,6 +426,14 @@ module Prism
         statements[index - 1]
       end
 
+      def previous_statement_for(node, analysis)
+        statements = analysis.statements
+        index = statements.index { |statement| statement.equal?(node) }
+        return unless index && index.positive?
+
+        statements[index - 1]
+      end
+
       def adjacent_destination_statements?(previous_node, current_node)
         previous_node.location.end_line + 1 == current_node.location.start_line
       end
@@ -429,6 +444,26 @@ module Prism
 
       def template_node_source_lines(node, analysis)
         node_source_lines(node, analysis)
+      end
+
+      def emit_template_blank_lines_before_leading_comments(result:, node:, analysis:, leading_comments:, skipped_prefix_line:, decision:)
+        return if skipped_prefix_line
+        return if leading_comments.empty?
+
+        previous_node = previous_statement_for(node, analysis)
+        return unless previous_node
+
+        first_comment_line = leading_comments.first.location.start_line
+        gap_start_line = previous_node.location.end_line + 1
+        return if gap_start_line >= first_comment_line
+
+        emit_scanned_blank_gap_lines(
+          result: result,
+          analysis: analysis,
+          source: :template,
+          decision: decision,
+          line_numbers: gap_start_line...first_comment_line,
+        )
       end
 
       def orphan_regions_for(node, analysis:, source:)

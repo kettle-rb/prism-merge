@@ -293,6 +293,35 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         # docs for removed second_method
       RUBY
     end
+
+    it "does not leak a destination trailing blank line before an immediately-following template-only sibling" do
+      template = <<~RUBY
+        x = 1
+        y = 2
+        z = 3
+      RUBY
+
+      dest = <<~RUBY
+        x = 0
+
+        z = 0
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: first_node(merger, :template),
+        dest_node: first_node(merger, :destination),
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: nil})
+      expect(result.to_s).to eq(<<~RUBY)
+        x = 1
+      RUBY
+    end
   end
 
   describe "#emit_node" do
@@ -318,6 +347,65 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
 
       expect(result.to_s).to eq("def example\n  :body\nend\n\n")
       expect(result.line_metadata.map { |meta| meta[:template_line] }).to eq([1, 2, 3, 4])
+    end
+
+    it "does not duplicate the prefix separator after stripped template magic comments" do
+      template = <<~RUBY
+        # coding: utf-8
+        # frozen_string_literal: true
+
+        # docs
+        x = 1
+      RUBY
+
+      merger = merger_for(template, "# frozen_string_literal: true\n\nx = 0\n")
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      result.add_line("# frozen_string_literal: true", decision: Prism::Merge::MergeResult::DECISION_KEPT_DEST, dest_line: 1)
+      result.add_line("", decision: Prism::Merge::MergeResult::DECISION_KEPT_DEST, dest_line: 2)
+      merger.instance_variable_set(:@dest_prefix_comment_lines, Set[1, 2])
+
+      support.emit_node(
+        result: result,
+        node: first_node(merger, :template),
+        analysis: merger.template_analysis,
+        source: :template,
+      )
+
+      expect(result.to_s).to eq(<<~RUBY)
+        # frozen_string_literal: true
+
+        # docs
+        x = 1
+      RUBY
+    end
+
+    it "preserves the template blank line before a template-only leading comment block" do
+      source = <<~RUBY
+        x = 1
+
+        # docs
+        y = 2
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      result.add_line("x = 1", decision: Prism::Merge::MergeResult::DECISION_KEPT_TEMPLATE, template_line: 1)
+
+      support.emit_node(
+        result: result,
+        node: second_node(merger, :template),
+        analysis: merger.template_analysis,
+        source: :template,
+      )
+
+      expect(result.to_s).to eq(<<~RUBY)
+        x = 1
+
+        # docs
+        y = 2
+      RUBY
     end
 
     it "preserves full trailing postlude blank-line runs for comment-free nodes" do
