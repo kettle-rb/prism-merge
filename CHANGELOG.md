@@ -50,6 +50,11 @@ Please file a bug if you notice a violation of semantic versioning.
 - Preserve original spacing before fallback inline comments when reattaching
   destination-owned Ruby end-of-line comments onto merged template-preferred
   lines, so aligned trailing comment columns survive AST merges
+- Re-home orphan full-line comment regions from omitted or removed destination-only
+  Ruby owners onto the nearest retained sibling during emission, preserving source
+  order and blank-line spacing without duplicating the original comment block when
+  `remove_template_missing_nodes: true` or retained-owner filtering drops the
+  structural owner
 
 ### Security
 
