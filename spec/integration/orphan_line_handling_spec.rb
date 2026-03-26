@@ -151,4 +151,63 @@ RSpec.describe "Orphan Line Handling" do
       RUBY
     end
   end
+
+  describe "when multiple destination-only owners are removed" do
+    let(:template_code) do
+      <<~RUBY
+        def first_method
+          :template
+        end
+
+        def fourth_method
+          :template
+        end
+      RUBY
+    end
+
+    let(:dest_code) do
+      <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        # docs for removed third_method
+        def third_method
+          :destination_only
+        end
+
+        def fourth_method
+          :destination
+        end
+      RUBY
+    end
+
+    it "keeps multiple orphan comment regions ordered between the retained siblings" do
+      merger = Prism::Merge::SmartMerger.new(
+        template_code,
+        dest_code,
+        preference: :template,
+        remove_template_missing_nodes: true,
+      )
+
+      expect(merger.merge).to eq(<<~RUBY)
+        def first_method
+          :template
+        end
+
+        # docs for removed second_method
+
+        # docs for removed third_method
+
+        def fourth_method
+          :template
+        end
+      RUBY
+    end
+  end
 end
