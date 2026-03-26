@@ -170,6 +170,129 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         eval_gemfile "modular/x_std_libs.gemfile"
       RUBY
     end
+
+    it "falls back to destination orphan regions when a removed destination-only sibling owned the gap comments" do
+      template = <<~RUBY
+        def first_method
+          :template
+        end
+
+        def third_method
+          :template
+        end
+      RUBY
+
+      dest = <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        def third_method
+          :destination
+        end
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, remove_template_missing_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      template_first = first_node(merger, :template)
+      dest_first = first_node(merger, :destination)
+      merger.instance_variable_set(
+        :@template_comment_augmenter,
+        merger.template_analysis.comment_augmenter(owners: merger.template_analysis.statements),
+      )
+      merger.instance_variable_set(
+        :@dest_comment_augmenter,
+        merger.dest_analysis.comment_augmenter(owners: [dest_first, merger.dest_analysis.statements[2]]),
+      )
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: template_first,
+        dest_node: dest_first,
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: 5})
+      expect(result.to_s).to eq(<<~RUBY)
+        def first_method
+          :template
+        end
+
+        # docs for removed second_method
+      RUBY
+      expect(result.line_metadata.map { |meta| [meta[:template_line], meta[:dest_line]] }).to eq([
+        [1, nil],
+        [2, nil],
+        [3, nil],
+        [nil, 4],
+        [nil, 5],
+      ])
+    end
+
+    it "emits destination orphan regions after destination trailing comments when both are preserved" do
+      template = <<~RUBY
+        def first_method
+          :template
+        end
+
+        def third_method
+          :template
+        end
+      RUBY
+
+      dest = <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # trailing note
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        def third_method
+          :destination
+        end
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, remove_template_missing_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      template_first = first_node(merger, :template)
+      dest_first = first_node(merger, :destination)
+      merger.instance_variable_set(
+        :@template_comment_augmenter,
+        merger.template_analysis.comment_augmenter(owners: merger.template_analysis.statements),
+      )
+      merger.instance_variable_set(
+        :@dest_comment_augmenter,
+        merger.dest_analysis.comment_augmenter(owners: [dest_first, merger.dest_analysis.statements[2]]),
+      )
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: template_first,
+        dest_node: dest_first,
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: 7})
+      expect(result.to_s).to eq(<<~RUBY)
+        def first_method
+          :template
+        end
+
+        # trailing note
+
+        # docs for removed second_method
+      RUBY
+    end
   end
 
   describe "#emit_node" do
@@ -273,6 +396,30 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       expect(result.to_s).to eq("  dest_only_call\n")
       expect(result.line_metadata.first[:dest_line]).to eq(2)
     end
+
+    it "emits template external trailing comments when adding a template node" do
+      source = <<~RUBY
+        def example
+          :body
+        end
+
+        # trailing note
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      support.emit_node(
+        result: result,
+        node: first_node(merger, :template),
+        analysis: merger.template_analysis,
+        source: :template,
+      )
+
+      expect(result.to_s).to eq("def example\n  :body\nend\n# trailing note\n")
+      expect(result.line_metadata.map { |meta| meta[:template_line] }).to eq([1, 2, 3, 5])
+    end
   end
 
   describe "#emit_removed_destination_node_comments" do
@@ -305,6 +452,34 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
         emitted_removed_owner_comments: true,
       })
       expect(result.to_s).to eq("# docs for old setting\n# keep inline\n")
+    end
+
+    it "promotes external trailing comments for a removed destination-only node when no orphan re-home applies" do
+      template = ""
+
+      dest = <<~RUBY
+        # docs for old setting
+        OLD = true # keep inline
+
+        # trailing note
+      RUBY
+
+      merger = merger_for(template, dest, remove_template_missing_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      removed_node = first_node(merger, :destination)
+
+      emission = support.emit_removed_destination_node_comments(
+        result: result,
+        node: removed_node,
+        analysis: merger.dest_analysis,
+      )
+
+      expect(emission).to eq({
+        last_emitted_dest_line: 4,
+        emitted_removed_owner_comments: true,
+      })
+      expect(result.to_s).to eq("# docs for old setting\n# keep inline\n\n# trailing note\n")
     end
   end
 end

@@ -36,6 +36,26 @@ module Prism
         {comments: comments, last_skipped_line: last_skipped_line}
       end
 
+      def comment_attachment_for(node, source:, analysis: nil)
+        attachment = cached_comment_augmenter_for(source)&.attachment_for(node)
+        return attachment if attachment
+        return unless analysis&.respond_to?(:comment_attachment_for)
+
+        analysis.comment_attachment_for(node)
+      end
+
+      def orphan_regions_for(node, source:, analysis: nil)
+        attachment = comment_attachment_for(node, source: source, analysis: analysis)
+        Array(attachment&.orphan_regions)
+      end
+
+      def orphan_line_numbers_for(source)
+        Array(cached_comment_augmenter_for(source)&.orphan_regions)
+          .flat_map { |region| Array(region.nodes) }
+          .filter_map { |comment_node| comment_node_line(comment_node) }
+          .uniq
+      end
+
       def emit_leading_comments(result, comments, analysis:, source:, decision:, prev_comment_line: nil)
         dest_prefix_comment_lines = merger.instance_variable_get(:@dest_prefix_comment_lines)
 
@@ -85,6 +105,62 @@ module Prism
           end
 
           last_emitted_line = line_num
+        end
+
+        last_emitted_line
+      end
+
+      def emit_comment_region(result, region, analysis:, source:, decision:, previous_line: nil)
+        return unless region&.respond_to?(:nodes)
+        return if region.respond_to?(:empty?) && region.empty?
+
+        last_emitted_line = nil
+
+        region.nodes.each do |comment_node|
+          line_num = comment_node_line(comment_node)
+          next unless line_num
+
+          gap_line = emit_blank_lines_between(
+            result,
+            last_comment_line: previous_line,
+            next_content_line: line_num,
+            analysis: analysis,
+            source: source,
+            decision: decision,
+          ) if previous_line
+          last_emitted_line = gap_line || last_emitted_line
+
+          line = analysis.line_at(line_num)&.chomp || comment_node_text(comment_node)
+          if source == :template
+            result.add_line(line, decision: decision, template_line: line_num)
+          else
+            result.add_line(line, decision: decision, dest_line: line_num)
+          end
+
+          previous_line = line_num
+          last_emitted_line = line_num
+        end
+
+        last_emitted_line
+      end
+
+      def emit_orphan_regions(result, regions, analysis:, source:, decision:, previous_line: nil)
+        last_emitted_line = nil
+        current_previous_line = previous_line
+
+        Array(regions).sort_by { |region| region.respond_to?(:start_line) ? region.start_line.to_i : 0 }.each do |region|
+          emitted_line = emit_comment_region(
+            result,
+            region,
+            analysis: analysis,
+            source: source,
+            decision: decision,
+            previous_line: current_previous_line,
+          )
+          next unless emitted_line
+
+          current_previous_line = region.respond_to?(:end_line) ? region.end_line : emitted_line
+          last_emitted_line = emitted_line
         end
 
         last_emitted_line
@@ -185,6 +261,30 @@ module Prism
         return unless separator == raw_comment
 
         prefix[/[ \t]+\z/]
+      end
+
+      private
+
+      def cached_comment_augmenter_for(source)
+        ivar = (source == :template) ? :@template_comment_augmenter : :@dest_comment_augmenter
+        merger.instance_variable_get(ivar)
+      end
+
+      def comment_node_line(comment_node)
+        return comment_node.line_number if comment_node.respond_to?(:line_number)
+        return comment_node.location.start_line if comment_node.respond_to?(:location) && comment_node.location
+
+        nil
+      end
+
+      def comment_node_text(comment_node)
+        if comment_node.respond_to?(:slice)
+          comment_node.slice.to_s.rstrip
+        elsif comment_node.respond_to?(:text)
+          comment_node.text.to_s.rstrip
+        else
+          comment_node.to_s.rstrip
+        end
       end
     end
   end

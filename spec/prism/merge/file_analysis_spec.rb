@@ -487,6 +487,32 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(augmenter.postlude_region.normalized_content).to eq("Trailing documentation")
     end
 
+    it "surfaces unowned gap comments as orphan regions in the native augmenter" do
+      code = <<~RUBY
+        def first_method
+          "first"
+        end
+
+        # gap comment for omitted owner
+        def second_method
+          "second"
+        end
+
+        def third_method
+          "third"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      first_owner = analysis.statements[0]
+      third_owner = analysis.statements[2]
+      augmenter = analysis.comment_augmenter(owners: [first_owner, third_owner])
+
+      expect(augmenter.orphan_regions.map(&:normalized_content)).to eq(["gap comment for omitted owner"])
+      expect(augmenter.attachment_for(first_owner).orphan_regions.map(&:normalized_content)).to eq(["gap comment for omitted owner"])
+      expect(augmenter.attachment_for(third_owner).orphan_regions).to eq([])
+    end
+
     it "treats comment-only files as preamble-only shared comment content" do
       code = <<~RUBY
         # frozen_string_literal: true

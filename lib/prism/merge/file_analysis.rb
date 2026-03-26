@@ -45,6 +45,8 @@ module Prism
         private
 
         def build!
+          claimed = {}
+
           if @analysis.send(:comment_only_file?)
             entries = @analysis.send(:native_comment_entries_in_range, 1..@analysis.lines.length).select { |entry| entry[:full_line] }
             @preamble_region = @analysis.send(:build_comment_region, :preamble, entries) if entries.any?
@@ -52,7 +54,11 @@ module Prism
           end
 
           @owners.each do |owner|
-            @attachments_by_owner[owner] = @analysis.comment_attachment_for(owner)
+            attachment = @analysis.comment_attachment_for(owner)
+            @attachments_by_owner[owner] = attachment
+            claim_entries!(claimed, @analysis.send(:owner_leading_comment_entries, owner))
+            claim_entries!(claimed, @analysis.send(:owner_inline_comment_entries, owner))
+            claim_entries!(claimed, @analysis.send(:owner_trailing_comment_entries, owner))
           end
 
           if @owners.empty?
@@ -72,13 +78,80 @@ module Prism
             preamble_entries = @analysis.send(:native_comment_entries_in_range, 1..(first_owner_start - 1)).select do |entry|
               entry[:full_line] && !attached_leading_lines.include?(entry[:line])
             end
-            @preamble_region = @analysis.send(:build_comment_region, :preamble, preamble_entries) if preamble_entries.any?
+            if preamble_entries.any?
+              @preamble_region = @analysis.send(:build_comment_region, :preamble, preamble_entries)
+              claim_entries!(claimed, preamble_entries)
+            end
           end
 
           if last_owner_end && last_owner_end < @analysis.lines.length
             postlude_entries = @analysis.send(:native_comment_entries_in_range, (last_owner_end + 1)..@analysis.lines.length).select { |entry| entry[:full_line] }
-            @postlude_region = @analysis.send(:build_comment_region, :postlude, postlude_entries) if postlude_entries.any?
+            if postlude_entries.any?
+              @postlude_region = @analysis.send(:build_comment_region, :postlude, postlude_entries)
+              claim_entries!(claimed, postlude_entries)
+            end
           end
+
+          infer_orphan_regions!(claimed)
+        end
+
+        def infer_orphan_regions!(claimed)
+          remaining = @analysis.send(:native_comment_entries).select do |entry|
+            entry[:full_line] && !claimed.key?(entry_key(entry))
+          end
+          return if remaining.empty?
+
+          group_full_line_entries(remaining).each do |group|
+            region = @analysis.send(:build_comment_region, :orphan, group)
+            next unless region
+
+            @orphan_regions << region
+            attach_orphan_region_to_nearest_owner(region)
+          end
+        end
+
+        def attach_orphan_region_to_nearest_owner(region)
+          owner = @owners.reverse_each.find do |candidate|
+            @analysis.send(:owner_end_line, candidate).to_i < region.location.start_line
+          end
+          return unless owner
+
+          current = @attachments_by_owner[owner]
+          @attachments_by_owner[owner] = Ast::Merge::Comment::Attachment.new(
+            owner: current.owner,
+            leading_region: current.leading_region,
+            inline_region: current.inline_region,
+            trailing_region: current.trailing_region,
+            orphan_regions: current.orphan_regions + [region],
+            leading_gap: current.leading_gap,
+            trailing_gap: current.trailing_gap,
+            metadata: current.metadata,
+          )
+        end
+
+        def group_full_line_entries(entries)
+          entries.sort_by { |entry| entry[:line] }.each_with_object([]) do |entry, groups|
+            current = groups.last
+            if current && only_blank_lines_between?(current.last[:line], entry[:line])
+              current << entry
+            else
+              groups << [entry]
+            end
+          end
+        end
+
+        def only_blank_lines_between?(from_line, to_line)
+          return true if to_line <= from_line + 1
+
+          ((from_line + 1)...to_line).all? { |line_number| @analysis.line_at(line_number).to_s.strip.empty? }
+        end
+
+        def claim_entries!(claimed, entries)
+          Array(entries).each { |entry| claimed[entry_key(entry)] = true }
+        end
+
+        def entry_key(entry)
+          [entry[:line], entry[:raw], entry[:attached_as]]
         end
       end
 

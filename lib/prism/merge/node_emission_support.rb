@@ -65,8 +65,9 @@ module Prism
       def emit_removed_destination_node_comments(result:, node:, analysis:)
         decision = MergeResult::DECISION_KEPT_DEST
         last_emitted_dest_line = nil
+        rehomed_orphan_lines = merger.send(:wrapper_comment_support).orphan_line_numbers_for(:destination)
         leading = merger.send(:filtered_leading_comments_for, node, :destination)
-        leading_comments = leading[:comments]
+        leading_comments = leading[:comments].reject { |comment| rehomed_orphan_lines.include?(comment.location.start_line) }
 
         merger.send(
           :emit_leading_comments,
@@ -106,6 +107,7 @@ module Prism
         end
 
         trailing_comments = merger.send(:external_trailing_comments_for, node)
+          .reject { |comment| rehomed_orphan_lines.include?(comment.location.start_line) }
         if trailing_comments.any?
           emitted_dest_line = merger.send(
             :emit_external_trailing_comments,
@@ -239,20 +241,48 @@ module Prism
             decision: decision,
           )
           last_emitted_dest_line = emitted_dest_line if trailing_analysis.equal?(dest_analysis) && emitted_dest_line
+        end
+
+        orphan_regions, orphan_analysis = selected_orphan_regions_for(
+          template_node: template_node,
+          dest_node: dest_node,
+          template_analysis: template_analysis,
+          dest_analysis: dest_analysis,
+        )
+        if orphan_regions.any?
+          orphan_previous_line = if trailing_comments.any?
+            trailing_comments.last.location.start_line
+          else
+            orphan_analysis.equal?(template_analysis) ? template_node.location.end_line : dest_node.location.end_line
+          end
+          emitted_orphan_line = merger.send(:wrapper_comment_support).emit_orphan_regions(
+            result,
+            orphan_regions,
+            analysis: orphan_analysis,
+            source: orphan_analysis.equal?(template_analysis) ? :template : :destination,
+            decision: decision,
+            previous_line: orphan_previous_line,
+          )
+          last_emitted_dest_line = emitted_orphan_line if orphan_analysis.equal?(dest_analysis) && emitted_orphan_line
+        end
+
+        if trailing_comments.any?
           return {
             last_emitted_dest_line: last_emitted_dest_line,
             preserve_trailing_blank_line_progress: true,
           }
         end
 
-        emitted_dest_line = emit_layout_trailing_gap_lines(
-          result: result,
-          analysis: dest_analysis,
-          owner: dest_node,
-          source: :destination,
-          decision: decision,
-        )
-        last_emitted_dest_line = emitted_dest_line if emitted_dest_line
+        if orphan_regions.empty?
+          emitted_dest_line = emit_layout_trailing_gap_lines(
+            result: result,
+            analysis: dest_analysis,
+            owner: dest_node,
+            source: :destination,
+            decision: decision,
+          )
+          last_emitted_dest_line = emitted_dest_line if emitted_dest_line
+        end
 
         {last_emitted_dest_line: last_emitted_dest_line}
       end
@@ -308,7 +338,9 @@ module Prism
         end
 
         trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
-        if trailing_comments.empty?
+        orphan_regions = orphan_regions_for(node, analysis: analysis, source: source)
+
+        if trailing_comments.empty? && orphan_regions.empty?
           emitted_trailing_gap_line = emit_layout_trailing_gap_lines(
             result: result,
             analysis: analysis,
@@ -348,6 +380,19 @@ module Prism
           end
         end
 
+        if orphan_regions.any?
+          orphan_previous_line = trailing_comments.any? ? trailing_comments.last.location.start_line : node.location.end_line
+          emitted_orphan_line = merger.send(:wrapper_comment_support).emit_orphan_regions(
+            result,
+            orphan_regions,
+            analysis: analysis,
+            source: source,
+            decision: decision,
+            previous_line: orphan_previous_line,
+          )
+          last_emitted_dest_line = emitted_orphan_line if source == :destination && emitted_orphan_line
+        end
+
         {last_emitted_dest_line: last_emitted_dest_line}
       end
 
@@ -384,6 +429,17 @@ module Prism
 
       def template_node_source_lines(node, analysis)
         node_source_lines(node, analysis)
+      end
+
+      def orphan_regions_for(node, analysis:, source:)
+        merger.send(:wrapper_comment_support).orphan_regions_for(node, source: source, analysis: analysis)
+      end
+
+      def selected_orphan_regions_for(template_node:, dest_node:, template_analysis:, dest_analysis:)
+        template_orphans = orphan_regions_for(template_node, analysis: template_analysis, source: :template)
+        return [template_orphans, template_analysis] if template_orphans.any?
+
+        [orphan_regions_for(dest_node, analysis: dest_analysis, source: :destination), dest_analysis]
       end
 
       def append_owned_inline_entries(line, entries)

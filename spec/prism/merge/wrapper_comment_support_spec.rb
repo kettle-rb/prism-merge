@@ -61,6 +61,36 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
       expect(entries_by_line[3].map { |entry| entry[:raw] }).to eq(["# keep rescue note"])
       expect(entries_by_line[5].map { |entry| entry[:raw] }).to eq(["# keep end note"])
     end
+
+    it "reads orphan regions from a cached native augmenter for the retained owner set" do
+      source = <<~RUBY
+        def first_method
+          :first
+        end
+
+        # gap comment for removed owner
+        def second_method
+          :second
+        end
+
+        def third_method
+          :third
+        end
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      first_owner = merger.dest_analysis.statements[0]
+      third_owner = merger.dest_analysis.statements[2]
+      merger.instance_variable_set(
+        :@dest_comment_augmenter,
+        merger.dest_analysis.comment_augmenter(owners: [first_owner, third_owner]),
+      )
+
+      expect(
+        support.orphan_regions_for(first_owner, source: :destination, analysis: merger.dest_analysis).map(&:normalized_content),
+      ).to eq(["gap comment for removed owner"])
+    end
   end
 
   describe "comment emission" do
@@ -112,6 +142,103 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
           [{raw: "# ruby >= 2.2.0", separator: "              "}],
         ),
       ).to eq('spec.add_dependency("version_gem", "~> 1.1")              # ruby >= 2.2.0')
+    end
+
+    it "emits orphan comment regions with intervening blank lines and destination provenance" do
+      source = <<~RUBY
+        def first_method
+          :first
+        end
+
+        # gap comment for removed owner
+        def second_method
+          :second
+        end
+
+        def third_method
+          :third
+        end
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      first_owner = merger.dest_analysis.statements[0]
+      third_owner = merger.dest_analysis.statements[2]
+      augmenter = merger.dest_analysis.comment_augmenter(owners: [first_owner, third_owner])
+
+      emitted_line = support.emit_orphan_regions(
+        result,
+        augmenter.attachment_for(first_owner).orphan_regions,
+        analysis: merger.dest_analysis,
+        source: :destination,
+        decision: Prism::Merge::MergeResult::DECISION_KEPT_DEST,
+        previous_line: first_owner.location.end_line,
+      )
+
+      expect(emitted_line).to eq(5)
+      expect(result.to_s).to eq("\n# gap comment for removed owner\n")
+      expect(result.line_metadata.map { |meta| meta[:dest_line] }).to eq([4, 5])
+    end
+
+    it "emits orphan comment regions with template provenance" do
+      source = <<~RUBY
+        def first_method
+          :first
+        end
+
+        # gap comment for removed owner
+        def second_method
+          :second
+        end
+
+        def third_method
+          :third
+        end
+      RUBY
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+      first_owner = merger.template_analysis.statements[0]
+      third_owner = merger.template_analysis.statements[2]
+      augmenter = merger.template_analysis.comment_augmenter(owners: [first_owner, third_owner])
+
+      emitted_line = support.emit_orphan_regions(
+        result,
+        augmenter.attachment_for(first_owner).orphan_regions,
+        analysis: merger.template_analysis,
+        source: :template,
+        decision: Prism::Merge::MergeResult::DECISION_KEPT_TEMPLATE,
+        previous_line: first_owner.location.end_line,
+      )
+
+      expect(emitted_line).to eq(5)
+      expect(result.line_metadata.map { |meta| meta[:template_line] }).to eq([4, 5])
+    end
+
+    it "handles empty base text and multiple inline entries" do
+      merger = merger_for("x = 1\n", "x = 1\n")
+      support = described_class.new(merger: merger)
+
+      expect(
+        support.append_inline_comment_entries("", [{raw: "# first"}, {raw: "# second"}]),
+      ).to eq("# first # second")
+    end
+
+    it "extracts comment node lines and text across supported helper fallbacks" do
+      merger = merger_for("x = 1\n", "x = 1\n")
+      support = described_class.new(merger: merger)
+      location_only = Object.new
+      location_only.define_singleton_method(:location) { Struct.new(:start_line).new(12) }
+      text_only = Object.new
+      text_only.define_singleton_method(:text) { "# from text   " }
+
+      expect(support.send(:comment_node_line, location_only)).to eq(12)
+      expect(support.send(:comment_node_line, Object.new)).to be_nil
+      expect(support.send(:comment_node_text, Struct.new(:slice).new("# from slice   "))).to eq("# from slice")
+      expect(support.send(:comment_node_text, text_only)).to eq("# from text")
+      expect(support.send(:comment_node_text, 123)).to eq("123")
     end
   end
 end

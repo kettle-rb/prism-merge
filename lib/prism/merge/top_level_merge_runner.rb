@@ -16,6 +16,7 @@ module Prism
 
         template_by_signature = merger.send(:build_signature_map, merger.template_analysis)
         dest_by_signature = merger.send(:build_signature_map, merger.dest_analysis)
+        prepare_comment_augmenters!(template_by_signature: template_by_signature, dest_by_signature: dest_by_signature)
         consumed_template_indices = Set.new
         sig_cursor = Hash.new(0)
         output_dest_line_ranges = []
@@ -64,6 +65,66 @@ module Prism
 
       def comment_only_merge?
         merger.comment_only_file?(merger.template_analysis) && merger.comment_only_file?(merger.dest_analysis)
+      end
+
+      def prepare_comment_augmenters!(template_by_signature:, dest_by_signature:)
+        retained = retained_owner_plan(template_by_signature: template_by_signature, dest_by_signature: dest_by_signature)
+
+        merger.instance_variable_set(:@template_retained_owners, retained[:template])
+        merger.instance_variable_set(:@dest_retained_owners, retained[:destination])
+        merger.instance_variable_set(
+          :@template_comment_augmenter,
+          merger.template_analysis.comment_augmenter(owners: retained[:template]),
+        )
+        merger.instance_variable_set(
+          :@dest_comment_augmenter,
+          merger.dest_analysis.comment_augmenter(owners: retained[:destination]),
+        )
+      end
+
+      def retained_owner_plan(template_by_signature:, dest_by_signature:)
+        matched_template_indices = Set.new
+        retained_dest_indices = Set.new
+        sig_cursor = Hash.new(0)
+
+        merger.dest_analysis.statements.each_with_index do |dest_node, dest_index|
+          dest_signature = merger.dest_analysis.generate_signature(dest_node)
+          next unless dest_signature && template_by_signature.key?(dest_signature)
+
+          template_info, cursor = next_template_match(
+            candidates: template_by_signature[dest_signature],
+            signature: dest_signature,
+            sig_cursor: sig_cursor,
+          )
+          next unless template_info
+
+          matched_template_indices << template_info[:index]
+          retained_dest_indices << dest_index
+          sig_cursor[dest_signature] = cursor + 1
+        end
+
+        merger.dest_analysis.statements.each_with_index do |_dest_node, dest_index|
+          next if retained_dest_indices.include?(dest_index)
+          next if merger.remove_template_missing_nodes
+
+          retained_dest_indices << dest_index
+        end
+
+        template_retained = merger.template_analysis.statements.each_with_index.filter_map do |template_node, template_index|
+          next template_node if matched_template_indices.include?(template_index)
+          next template_node if merger.add_template_only_nodes
+
+          nil
+        end
+
+        destination_retained = merger.dest_analysis.statements.each_with_index.filter_map do |dest_node, dest_index|
+          dest_node if retained_dest_indices.include?(dest_index)
+        end
+
+        {
+          template: template_retained,
+          destination: destination_retained,
+        }
       end
 
       def process_dest_node(dest_node:, template_by_signature:, consumed_template_indices:, sig_cursor:, output_dest_line_ranges:, last_output_dest_line:, trailing_groups: {})

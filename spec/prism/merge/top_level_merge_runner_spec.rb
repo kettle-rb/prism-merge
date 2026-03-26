@@ -426,5 +426,51 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
         end
       RUBY
     end
+
+    it "re-homes orphan comments from a removed destination-only sibling onto the previous retained node" do
+      template = <<~RUBY
+        def first_method
+          :template
+        end
+
+        def third_method
+          :template
+        end
+      RUBY
+
+      dest = <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        def third_method
+          :destination
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :template,
+        remove_template_missing_nodes: true,
+      )
+
+      expect(result).to eq(<<~RUBY)
+        def first_method
+          :template
+        end
+
+        # docs for removed second_method
+
+        def third_method
+          :template
+        end
+      RUBY
+    end
   end
 end
