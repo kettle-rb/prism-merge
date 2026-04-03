@@ -552,8 +552,8 @@ module Prism
         return false unless node.location.start_line == node.location.end_line
 
         line_num = node.location.start_line
-        line_start_offset = analysis.lines.take(line_num - 1).sum(&:length)
-        line_end_offset = line_start_offset + analysis.line_at(line_num).to_s.length
+        line_start_offset = analysis.lines.take(line_num - 1).sum(&:bytesize)
+        line_end_offset = line_start_offset + analysis.line_at(line_num).to_s.bytesize
         prefix = analysis.source.byteslice(line_start_offset...node_start_offset(node)).to_s
         suffix = analysis.source.byteslice(node_end_offset(node)...line_end_offset).to_s
         prefix_has_code = !prefix.strip.empty?
