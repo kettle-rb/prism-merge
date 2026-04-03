@@ -6,8 +6,8 @@ permissions:
   id-token: write
 
 env:
-  K_SOUP_COV_MIN_BRANCH: 82
-  K_SOUP_COV_MIN_LINE: 97
+  K_SOUP_COV_MIN_BRANCH: 100
+  K_SOUP_COV_MIN_LINE: 100
   K_SOUP_COV_MIN_HARD: true
   K_SOUP_COV_FORMATTERS: "xml,rcov,lcov,tty"
   K_SOUP_COV_DO: true
@@ -48,7 +48,7 @@ jobs:
           # Coverage
           - ruby: "ruby"
             appraisal: "coverage"
-            exec_cmd: "rake spec"
+            exec_cmd: "rake test"
             gemfile: "Appraisal.root"
             rubygems: latest
             bundler: latest
@@ -64,6 +64,17 @@ jobs:
           rubygems: "${{ matrix.rubygems }}"
           bundler: "${{ matrix.bundler }}"
           bundler-cache: true
+      - name: "[Attempt 1] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
+        id: bundleAppraisalAttempt1
+        run: bundle exec appraisal ${{ matrix.appraisal }} install
+        # Continue to the next step on failure
+        continue-on-error: true
+      # Effectively an automatic retry of the previous step.
+      - name: "[Attempt 2] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
+        id: bundleAppraisalAttempt2
+        # If bundleAppraisalAttempt1 failed, try again here; Otherwise skip.
+        if: ${{ steps.bundleAppraisalAttempt1.outcome == 'failure' }}
+        run: bundle exec appraisal ${{ matrix.appraisal }} install
 
       # Raw `bundle` will use the BUNDLE_GEMFILE set to matrix.gemfile (i.e. Appraisal.root)
       # We need to do this first to get appraisal installed.
@@ -115,7 +126,7 @@ jobs:
           hide_complexity: true
           indicators: true
           output: both
-          thresholds: '${{ env.K_SOUP_COV_MIN_LINE }} ${{ env.K_SOUP_COV_MIN_BRANCH }}'
+          thresholds: '100 100'
         continue-on-error: ${{ matrix.experimental != 'false' }}
 
       - name: Add Coverage PR Comment

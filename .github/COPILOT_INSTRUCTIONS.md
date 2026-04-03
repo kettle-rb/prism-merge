@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions for ast-merge
 
-This document contains important information for AI assistants working on this codebase.
+See AGENTS.md for important information on tool use and project context.
 
 ## Tool Usage Preferences
 
@@ -130,21 +130,25 @@ end
 - Any method that accepts a variable set of options
 
 ### SmartMergerBase API
+
 - `merge` - Returns a **String** (the merged content)
 - `merge_result` - Returns a **MergeResult** object
 - `to_s` on MergeResult returns the merged content as a string
 
 ### Comment Classes
+
 - `Ast::Merge::Comment::*` - Generic, language-agnostic comment classes
 - `Prism::Merge::Comment::*` - Ruby-specific comment classes with magic comment detection
 
 ### Naming Conventions
+
 - File paths must match class paths (Ruby convention)
 - Example: `Ast::Merge::Comment::Line` → `lib/ast/merge/comment/line.rb`
 
 ## Architecture Notes
 
 ### prism-merge (as of December 2024)
+
 - Uses section-based merging with recursive body merging
 - Does NOT use FileAligner or ConflictResolver (these were removed as vestigial)
 - SmartMerger handles all merge logic directly
