@@ -250,6 +250,7 @@ module Prism
             decision: decision,
           )
           last_emitted_dest_line = emitted_dest_line if trailing_analysis.equal?(dest_analysis) && emitted_dest_line
+          track_emitted_template_trailing_comments(trailing_comments) if trailing_analysis.equal?(template_analysis)
         end
 
         orphan_regions, orphan_analysis = selected_orphan_regions_for(
@@ -290,6 +291,12 @@ module Prism
         last_emitted_dest_line = nil
         leading = merger.send(:filtered_leading_comments_for, node, source)
         leading_comments = leading[:comments]
+        last_filtered_leading_line = nil
+
+        if source == :destination
+          leading_comments, last_filtered_leading_line = filter_emitted_template_trailing_comments(leading_comments)
+        end
+
         inline_comment_entries = analysis.send(:owner_inline_comment_entries, node)
 
         if source == :template
@@ -310,6 +317,7 @@ module Prism
           analysis: analysis,
           source: source,
           decision: decision,
+          prev_comment_line: last_filtered_leading_line,
         )
 
         if leading_comments.any?
@@ -623,6 +631,26 @@ module Prism
           decision: decision,
           line_numbers: gap.start_line..gap.end_line,
         )
+      end
+
+      def track_emitted_template_trailing_comments(comments)
+        set = merger.instance_variable_get(:@emitted_template_trailing_texts) || Set.new
+        comments.each { |c| set << c.slice.strip }
+        merger.instance_variable_set(:@emitted_template_trailing_texts, set)
+      end
+
+      def filter_emitted_template_trailing_comments(comments)
+        template_trailing_texts = merger.instance_variable_get(:@emitted_template_trailing_texts)
+        return [comments, nil] unless template_trailing_texts&.any?
+
+        last_filtered_line = nil
+        filtered = comments.reject do |c|
+          if template_trailing_texts.include?(c.slice.strip)
+            last_filtered_line = c.location.start_line
+            true
+          end
+        end
+        [filtered, last_filtered_line]
       end
 
       def emit_scanned_blank_gap_lines(result:, analysis:, source:, decision:, line_numbers:)

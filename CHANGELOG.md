@@ -57,6 +57,16 @@ Please file a bug if you notice a violation of semantic versioning.
   order and blank-line spacing without duplicating the original comment block when
   `remove_template_missing_nodes: true` or retained-owner filtering drops the
   structural owner
+- Fixed duplicate emission of template trailing comment blocks when those same
+  comments appear as Prism-assigned leading comments of a destination-only node.
+  When a template's last matched node has trailing full-line comments (e.g. an HTTP
+  recording block after the last `add_development_dependency` call) and the
+  destination assigns those same comments as leading comments of the next
+  destination-only node (e.g. a dep added in destination), both paths used to emit
+  the block independently. The fix tracks emitted template trailing comment texts
+  and filters them from destination-node leading comments before emission, passing
+  the last filtered line as `prev_comment_line` so blank lines between the filtered
+  block and any remaining kept leading comments are still preserved.
 
 ### Security
 

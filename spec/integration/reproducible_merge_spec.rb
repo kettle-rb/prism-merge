@@ -21,6 +21,15 @@ RSpec.describe "Prism reproducible merge" do
     end
   end
 
+  describe "gemspec merge with trailing comment block (regression)" do
+    context "when template has trailing comments after last matched node that also appear as leading comments of a dest-only node" do
+      it_behaves_like "a reproducible merge", "05_gemspec_orphan_duplication", {
+        preference: :template,
+        add_template_only_nodes: true,
+      }
+    end
+  end
+
   describe "gemspec merge with freeze blocks (regression)" do
     let(:fixture_dir) { File.join(fixtures_path, "04_gemspec_duplication") }
     let(:template_fixture) { File.read(File.join(fixture_dir, "template.rb")) }
