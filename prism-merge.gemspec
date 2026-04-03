@@ -88,7 +88,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency("tree_haver", "~> 6.0", ">= 6.0.0")                           # ruby >= 3.2.0
 
   # Shared merge infrastructure
-  spec.add_dependency("ast-merge", "~> 4.0", ">= 4.0.6")                # ruby >= 3.2.0
+  spec.add_dependency("ast-merge", "~> 5.0", ">= 5.0.0")                # ruby >= 3.2.0
 
   # Utilities
   spec.add_dependency("version_gem", "~> 1.1", ">= 1.1.9")              # ruby >= 2.2.0
