@@ -1,24 +1,20 @@
-# NOTE: tree-sitter-toml parser must be installed separately via your package manager
-#       e.g., `apt install libtree-sitter-toml-dev` or built from source
+# NOTE: Tree-sitter Ruby grammar must be installed separately via your package manager
+#       e.g., `apt install libtree-sitter-ruby-dev` or built from source.
 #
-# TreeHaver (vendored in vendor/tree_haver) provides a unified interface to tree-sitter
-# that works across MRI, JRuby, and TruffleRuby. It uses ruby_tree_sitter on MRI and
-# FFI on other platforms.
-#
-# These platform-specific gems are the backends that TreeHaver uses:
+# TreeHaver provides a unified interface to tree-sitter. ruby_tree_sitter, tree_haver,
+# and ast-merge are provided by the templating gemfile stack (templating.gemfile +
+# templating_local.gemfile). Only parser backends specific to prism-merge belong here.
 
 # FFI Backend - works on MRI, JRuby, and TruffleRuby
 gem "ffi", require: false # DO NOT LOAD, because conflicts with MRI
-# gem "toml-rb"
-# gem "citrus"
 
-# Use the sibling-workspace path-based dependencies for shared kettle-rb development.
-eval_gemfile "tree_sitter_local.gemfile"
+# Set KETTLE_RB_DEV=true (or a workspace path) for local development with path-based dependencies.
+# When false (default / CI), gemspec runtime dependencies are used.
+unless ENV.fetch("KETTLE_RB_DEV", "false").casecmp("false").zero?
+  eval_gemfile "tree_sitter_local.gemfile"
+end
 
 platform :mri do
-  # MRI Backend
-  gem "ruby_tree_sitter",
-    require: false # DO NOT LOAD, because conflicts with FFI
   # Rust Backend
   gem "tree_stump", "~> 0.2"
 end
