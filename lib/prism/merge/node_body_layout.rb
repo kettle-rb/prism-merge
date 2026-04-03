@@ -151,16 +151,16 @@ module Prism
           offset = 0
           analysis.lines.map do |line|
             current_offset = offset
-            offset += line.length
+            offset += line.bytesize
             current_offset
           end
         end
 
-        @line_start_offsets.fetch(line_num - 1, analysis.source.length)
+        @line_start_offsets.fetch(line_num - 1, analysis.source.bytesize)
       end
 
       def line_end_offset(line_num)
-        line_start_offset(line_num) + analysis.line_at(line_num).to_s.length
+        line_start_offset(line_num) + analysis.line_at(line_num).to_s.bytesize
       end
     end
   end
