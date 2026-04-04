@@ -112,8 +112,6 @@ readme:
 #     are all present, a use-case guide table is added to README and LICENSE.md.
 licenses:
   - AGPL-3.0-only
-  - PolyForm-Small-Business-1.0.0
-  - LicenseRef-Big-Time-Public-License
 
 # Machine / automation accounts to exclude from generated copyright output.
 #
