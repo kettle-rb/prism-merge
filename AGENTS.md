@@ -7,6 +7,11 @@ This project is a **RubyGem** managed with the [kettle-rb](https://github.com/ke
 **Minimum Supported Ruby**: See the gemspec `required_ruby_version` constraint.
 **Local Development Ruby**: See `.tool-versions` for the version used in local development (typically the latest stable Ruby).
 
+### Modular Gemfile Architecture
+
+Gemfiles are split into modular components under `gemfiles/modular/`. Each component handles a specific concern (coverage, style, debug, etc.). The main `Gemfile` loads these modular components via `eval_gemfile`.
+Gemfiles in the project, including modular ones, can utilize a `*_local.gemfile` counterpart pattern enabled via an ENV flag. This uses `nomono` to load sibling gems in the same workspace.
+
 ## ⚠️ AI Agent Terminal Limitations
 
 ### Use `mise` for Project Environment
