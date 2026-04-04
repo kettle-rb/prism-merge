@@ -67,6 +67,17 @@ Please file a bug if you notice a violation of semantic versioning.
   and filters them from destination-node leading comments before emission, passing
   the last filtered line as `prev_comment_line` so blank lines between the filtered
   block and any remaining kept leading comments are still preserved.
+- Fixed heredoc body truncation in `node_source_lines`: Prism records a heredoc
+  node's `location.end_line` as only the opening token line (e.g. `<<~MESSAGE`),
+  while the body and terminator on subsequent lines are tracked via the child
+  `InterpolatedStringNode`'s `closing_loc`.  `node_source_lines` was therefore
+  emitting only the opening line, producing invalid Ruby and causing the merge to
+  silently fall back to template content (dropping dest-only nodes such as a
+  `post_install_message` assignment).  A new `effective_end_line` helper
+  recursively scans `compact_child_nodes` for `closing_loc.start_line` and returns
+  the true last line of any node; `node_source_lines`, the trailing-blank probe,
+  `node_line_range` for trailing-comment coverage, and `orphan_previous_line` all
+  now use `effective_end_line` instead of `node.location.end_line`.
 
 ### Security
 

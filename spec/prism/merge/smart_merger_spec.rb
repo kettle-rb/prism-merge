@@ -1896,6 +1896,35 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
 
+    context "with dest-only heredoc node" do
+      # Regression: node_source_lines used node.location.end_line which for a heredoc only
+      # covers the opening <<~TOKEN line; body and terminator live in closing_loc of the child
+      # InterpolatedStringNode.  effective_end_line now walks compact_child_nodes to find the
+      # true last line, so the full heredoc is emitted and the merged result is valid Ruby.
+      let(:template_path) { "spec/support/fixtures/smart_merge/heredoc_dest_only.template.rb" }
+      let(:dest_path) { "spec/support/fixtures/smart_merge/heredoc_dest_only.destination.rb" }
+      let(:template_content) { File.read(template_path) }
+      let(:dest_content) { File.read(dest_path) }
+
+      it "preserves dest-only heredoc assignment in merged output" do
+        merger = described_class.new(
+          template_content,
+          dest_content,
+          preference: :template,
+          add_template_only_nodes: true,
+          remove_template_missing_nodes: false,
+        )
+        result = merger.merge
+
+        expect(Prism.parse(result)).to be_success
+        expect(result).to include("post_install_message")
+        expect(result).to include("This gem is now a compatibility shim.")
+        expect(result).to include("MESSAGE")
+        expect(result).to include('add_dependency("other-gem", ">= 2.0")')
+        expect(result).to include('add_dependency("version_gem", ">= 1.0")')
+      end
+    end
+
     context "with freeze blocks" do
       let(:template_path) { "spec/support/fixtures/smart_merge/freeze_blocks.template.rb" }
       let(:dest_path) { "spec/support/fixtures/smart_merge/freeze_blocks.destination.rb" }
