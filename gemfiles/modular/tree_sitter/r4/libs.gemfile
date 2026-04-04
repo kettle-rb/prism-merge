@@ -1,0 +1,25 @@
+# frozen_string_literal: true
+
+# NOTE: Tree sitter grammars, like tree-sitter-toml, must be installed separately via your package manager
+#       e.g., `apt install libtree-sitter-toml-dev`, or built from source
+#
+# TreeHaver provides a unified interface to tree-sitter, and other parsers,
+# that works across MRI, JRuby, and TruffleRuby. It uses ruby_tree_sitter, tree_stump,
+# or FFI on MRI and FFI, or jruby_tree_sitter on other platforms.
+#
+# These platform-specific gems are support some of the backends that TreeHaver uses:
+
+# FFI Backend - works on MRI, JRuby, and TruffleRuby
+gem "ffi", require: false # DO NOT LOAD, because conflicts with MRI
+gem "toml-rb"
+gem "citrus"
+
+platform :mri do
+  # On JRuby only the :java and :ffi backends are available.
+  # On Truffleruby it seems that no backends are available (yet)
+  # MRI only Parsers:
+  gem "commonmarker"
+
+  # Rust Backend
+  gem "tree_stump", "~> 0.2"
+end

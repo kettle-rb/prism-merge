@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+# FFI Backend - works on MRI, JRuby, and TruffleRuby
+gem "ffi", github: "ffi/ffi", branch: "master", submodules: true, require: false # DO NOT LOAD, because conflicts with MRI
+gem "toml-rb", github: "emancu/toml-rb", branch: "master"
+gem "citrus", github: "mjackson/citrus", branch: "master"
+
+gem "tree_haver", github: "kettle-rb/tree_haver", branch: "main"
+
+platform :mri do
+  # Bundler fails on git submodules in commonmarker:
+  # See: https://github.com/ruby/rubygems/issues/9001#issuecomment-3740868525
+  # gem "commonmarker", github: "gjtorikian/commonmarker"
+  # gem "commonmarker" # Not yet compatible with ruby-head
+
+  # Rust Backend: not yet compatible with ruby-head due to magnus ruby-head compat being unreleased.
+  # See: https://github.com/matsadler/magnus/pull/167
+  # gem "tree_stump",
+  #   github: "joker1007/tree_stump",
+  #   branch: "main"
+end

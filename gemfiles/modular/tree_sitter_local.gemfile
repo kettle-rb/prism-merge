@@ -1,4 +1,0 @@
-# frozen_string_literal: true
-
-# tree_haver and ast-merge path-gem overrides have moved to templating_local.gemfile.
-# This file is retained as a no-op so that any stale eval_gemfile references do not raise.
