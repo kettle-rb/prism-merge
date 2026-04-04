@@ -366,7 +366,7 @@ module Prism
           )
 
           if emitted_trailing_gap_line.nil?
-            trailing_line = node.location.end_line + 1
+            trailing_line = effective_end_line(node) + 1
             trailing_content = analysis.line_at(trailing_line)
             if trailing_content && trailing_content.strip.empty?
               if source == :template
@@ -381,7 +381,7 @@ module Prism
           end
         end
 
-        node_line_range = node.location.start_line..node.location.end_line
+        node_line_range = node.location.start_line..effective_end_line(node)
         trailing_comments.each do |comment|
           line_num = comment.location.start_line
           next if node_line_range.cover?(line_num)
@@ -397,7 +397,7 @@ module Prism
         end
 
         if orphan_regions.any?
-          orphan_previous_line = trailing_comments.any? ? trailing_comments.last.location.start_line : node.location.end_line
+          orphan_previous_line = trailing_comments.any? ? trailing_comments.last.location.start_line : effective_end_line(node)
           emitted_orphan_line = merger.send(:wrapper_comment_support).emit_orphan_regions(
             result,
             orphan_regions,
@@ -542,10 +542,26 @@ module Prism
         if partial_same_line_node?(node, analysis)
           ["#{line_indentation(analysis, node.location.start_line)}#{node.slice}"]
         else
-          (node.location.start_line..node.location.end_line).map do |line_num|
+          (node.location.start_line..effective_end_line(node)).map do |line_num|
             analysis.line_at(line_num)&.chomp || ""
           end
         end
+      end
+
+      # Prism records heredoc nodes' location as just the opening token line (e.g. <<~MESSAGE),
+      # while the body and terminator appear on subsequent lines tracked via closing_loc.
+      # This method computes the true last line of a node, including any heredoc body/terminator.
+      def effective_end_line(node)
+        max_end = node.location.end_line
+        return max_end unless node.respond_to?(:compact_child_nodes)
+
+        node.compact_child_nodes.each do |child|
+          if child.respond_to?(:closing_loc) && child.closing_loc
+            max_end = [max_end, child.closing_loc.start_line].max
+          end
+          max_end = [max_end, effective_end_line(child)].max
+        end
+        max_end
       end
 
       def partial_same_line_node?(node, analysis)
