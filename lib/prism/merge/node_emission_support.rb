@@ -295,6 +295,9 @@ module Prism
 
         if source == :destination
           leading_comments, last_filtered_leading_line = filter_emitted_template_trailing_comments(leading_comments)
+          leading_comments, last_filtered_leading_line = filter_emitted_template_leading_comments(leading_comments, last_filtered_line: last_filtered_leading_line)
+        elsif source == :template
+          track_emitted_template_leading_comments(leading_comments)
         end
 
         inline_comment_entries = analysis.send(:owner_inline_comment_entries, node)
@@ -666,6 +669,38 @@ module Prism
             true
           end
         end
+        [filtered, last_filtered_line]
+      end
+
+      # Track leading comments emitted for template-only nodes so that identical
+      # comment blocks on subsequent destination-frozen nodes can be deduplicated.
+      def track_emitted_template_leading_comments(comments)
+        set = merger.instance_variable_get(:@emitted_template_leading_texts) || Set.new
+        comments.each { |c| set << c.slice.strip }
+        merger.instance_variable_set(:@emitted_template_leading_texts, set)
+      end
+
+      # Remove dest leading comments that were already emitted as leading comments
+      # of a preceding template-only node.
+      #
+      # Filtered comment line numbers are also added to @dest_prefix_comment_lines so
+      # that emit_leading_comments's gap-filler (which emits all lines between retained
+      # comments) skips them instead of re-emitting the comment text.
+      def filter_emitted_template_leading_comments(comments, last_filtered_line: nil)
+        template_leading_texts = merger.instance_variable_get(:@emitted_template_leading_texts)
+        return [comments, last_filtered_line] unless template_leading_texts&.any?
+
+        prefix_lines = merger.instance_variable_get(:@dest_prefix_comment_lines) || Set.new
+
+        filtered = comments.reject do |c|
+          if template_leading_texts.include?(c.slice.strip)
+            last_filtered_line = c.location.start_line
+            prefix_lines << last_filtered_line
+            true
+          end
+        end
+
+        merger.instance_variable_set(:@dest_prefix_comment_lines, prefix_lines)
         [filtered, last_filtered_line]
       end
 

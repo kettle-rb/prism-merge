@@ -241,4 +241,67 @@ RSpec.describe Prism::Merge::SmartMerger do
       end
     end
   end
+
+  describe "frozen dest node with shared leading comment block" do
+    # When a template-only node (e.g. added by kettle-jem) and a frozen dest node
+    # both have the same leading comment block, the merged output must contain
+    # that block only once.
+    #
+    # Scenario:
+    #   - Template has a template-only `kettle-dev` dep with "# NOTE: ..." as its
+    #     Prism-native leading comments
+    #   - Dest has `bundler-audit` frozen (via kettle-jem:freeze in its leading
+    #     comments) which also has "# NOTE: ..." as a Prism-native leading comment
+    #   - Bug: the NOTE block appeared twice — once from the template-only node's
+    #     emission and once from the frozen node's leading-comment emission (the
+    #     gap-filler in emit_leading_comments re-emitted the filtered lines)
+    #   - Fix: filtered leading comment lines are added to @dest_prefix_comment_lines
+    #     so the gap-filler skips them
+    context "when template-only node and frozen dest node share a leading comment block" do
+      it "emits the shared leading comment block exactly once" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+          Gem::Specification.new do |spec|
+            spec.executables = ["foo"]
+            spec.add_dependency("version_gem", "~> 1.1")
+            # NOTE: It is preferable.
+            #       More text.
+            # Dev, Test
+            spec.add_development_dependency("kettle-dev", "~> 2.0")
+            # Security
+            spec.add_development_dependency("bundler-audit", "~> 0.9.3")
+          end
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+          Gem::Specification.new do |spec|
+            spec.executables = ["foo"]
+            # kettle-jem:freeze
+            # Runtime deps note.
+            # kettle-jem:unfreeze
+            # NOTE: It is preferable.
+            #       More text.
+            # Security
+            spec.add_development_dependency("bundler-audit", "~> 0.9.3")
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          dest,
+          preference: :template,
+          add_template_only_nodes: true,
+          freeze_token: "kettle-jem",
+        )
+        result = merger.merge
+
+        expect(result.scan("NOTE: It is preferable").length).to eq(1)
+        expect(result).to include("spec.add_development_dependency(\"kettle-dev\"")
+        expect(result).to include("# kettle-jem:freeze")
+        expect(result).to include("# Security")
+        expect(result).to include("spec.add_development_dependency(\"bundler-audit\"")
+      end
+    end
+  end
 end
