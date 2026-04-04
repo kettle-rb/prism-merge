@@ -189,7 +189,9 @@ patterns:
 
 # Per-file configuration (nested directory structure)
 # Only files that need overrides belong here. Everything else defaults to merge.
-files: {}
+files:
+  AGENTS.md:
+    strategy: accept_template
 
 # To override specific files, add entries like:
 #
