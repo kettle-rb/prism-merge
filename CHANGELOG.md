@@ -24,6 +24,9 @@ Please file a bug if you notice a violation of semantic versioning.
 - Added `Prism::Merge::PartialTemplateMerger` plus recipe-runner coverage for navigable top-level Ruby partial-template merges on the shared `ast-merge` substrate
 - Added `Prism::Merge::PartialTemplateNode` as the thin statement adapter that normalizes Prism-owned statements and unwrap-capable wrappers onto the shared navigable partial-template contract
 - Added `Prism::Merge::NestedStatementWalker` as a reusable Prism-family traversal helper for declaration-context and dependency-edit workflows that need recursive statement walking across call-block and conditional branches
+- Added `Prism::Merge::BlockDirectiveDetector` — span-first scanner that promotes balanced open/close directive pairs to first-class synthetic tree nodes before the merge logic runs, fixing Prism `attach_comments!` false positives
+- Added `Prism::Merge::NocovNode` — first-class synthetic node for `# :nocov:` blocks, following file merge preference (user-customizable)
+- Added `Prism::Merge::NoCovWrapper` — wrapper for inline/unbalanced nocov markers (analog of `FrozenWrapper`)
 
 ### Changed
 
@@ -31,6 +34,8 @@ Please file a bug if you notice a violation of semantic versioning.
 - Prism-native comments now flow through the shared merge-facing attachment model while preserving shebang and Ruby magic-comment semantics
 - Preserved or promoted attached leading, inline, and external trailing comments plus separator blank lines when `remove_template_missing_nodes: true` removes destination-only Ruby bodies at either the top level or the recursive level
 - Adopted `Ast::Merge::TrailingGroups::DestIterate` for position-aware template-only Ruby node insertion so unmatched template bodies stay anchored relative to surrounding matched nodes instead of being emitted by ad hoc runner logic
+- `FreezeNode` is now promoted to first-class synthetic node by `BlockDirectiveDetector`; `frozen_node?` simplified to a single `any?` check against remaining (non-promoted) leading comments
+- `SmartMerger#preference_for_node` dispatches to `BlockDirective#merge_policy` before `frozen_node?`, enabling per-kind merge policy overrides
 
 ### Deprecated
 
@@ -38,7 +43,9 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
-- Fixed Ruby magic-comment handling so only the valid contiguous file-header run (optionally after a shebang) is treated as magic; misplaced header-like comments remain ordinary comments with no special merge behavior
+- Fixed `# :nocov:` directives being lost or having spurious blank lines when merging Rakefiles and other Ruby files: `BlockDirectiveDetector` now promotes balanced open/close nocov pairs to first-class `NocovNode` synthetic nodes before merge, preventing Prism's `attach_comments!` from hoisting them onto the wrong code node
+- Fixed freeze block duplication when a top-level freeze block's lines were promoted to `FreezeNode` but still attached as Prism leading comments on the next container node (e.g. `Gem::Specification.new`); `recursive_node_body_merger` now filters claimed lines from leading comments before emitting them
+- Fixed false detection of freeze markers in reminder/example comment blocks (e.g. `#     kettle-jem:freeze` with 5 spaces); detector pattern now requires at most 1 space between `#` and the directive token
 - `build_signature_map` now stores all occurrences per signature (not just first),
   and `perform_merge` uses cursor-based positional matching. This prevents collapsing
   nodes that share the same signature at the same tree level (e.g., two `attr_reader`
