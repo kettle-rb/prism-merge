@@ -43,12 +43,18 @@ module Prism
         dest_comments = actual_dest.location.respond_to?(:leading_comments) ? actual_dest.location.leading_comments : []
         dest_prefix_comment_lines = merger.instance_variable_get(:@dest_prefix_comment_lines)
         template_prefix_line_numbers = Prism::Merge::MagicCommentSupport.prefix_comment_line_numbers_for_comments(template_comments)
-        dest_comments = dest_comments.reject { |comment| dest_prefix_comment_lines&.include?(comment.location.start_line) }
+        dest_claimed = merger.dest_analysis.respond_to?(:claimed_lines) ? merger.dest_analysis.claimed_lines : Set.new
+        template_claimed = merger.template_analysis.respond_to?(:claimed_lines) ? merger.template_analysis.claimed_lines : Set.new
+        dest_comments = dest_comments.reject { |comment|
+          ln = comment.location.start_line
+          dest_prefix_comment_lines&.include?(ln) || dest_claimed.include?(ln)
+        }
         last_skipped_template_line = nil
-        if dest_prefix_comment_lines&.any?
+        if dest_prefix_comment_lines&.any? || template_claimed.any?
           template_comments = template_comments.reject do |comment|
-            if template_prefix_line_numbers.include?(comment.location.start_line)
-              last_skipped_template_line = comment.location.start_line
+            ln = comment.location.start_line
+            if template_prefix_line_numbers.include?(ln) || template_claimed.include?(ln)
+              last_skipped_template_line = ln
               true
             end
           end

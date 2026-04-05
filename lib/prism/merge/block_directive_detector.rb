@@ -118,8 +118,8 @@ module Prism
       def detect_freeze_spans
         return [] unless @freeze_token
 
-        freeze_pat = /\A\s*#\s*#{Regexp.escape(@freeze_token)}:freeze\b/i
-        unfreeze_pat = /\A\s*#\s*#{Regexp.escape(@freeze_token)}:unfreeze\b/i
+        freeze_pat = /\A\s*#\s?#{Regexp.escape(@freeze_token)}:freeze\b/i
+        unfreeze_pat = /\A\s*#\s?#{Regexp.escape(@freeze_token)}:unfreeze\b/i
 
         spans = []
         stack = []
@@ -155,7 +155,7 @@ module Prism
       def detect_nocov_spans
         return [] unless @nocov_token
 
-        nocov_pat = /\A\s*#\s*#{Regexp.escape(@nocov_token)}\s*\z/i
+        nocov_pat = /\A\s*#\s?#{Regexp.escape(@nocov_token)}\s*\z/i
 
         spans = []
         stack = []
