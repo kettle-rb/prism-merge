@@ -271,18 +271,21 @@ module Prism
       end
 
       def rebuild_statements(statements, replacements, used_indices)
-        # Build a map: min_covered_index → replacement_node
-        # Insert the replacement at the position of the first covered statement.
-        replacement_map = {}
+        # Multiple directives can share the same insert position (e.g. a freeze span
+        # with no inner nodes and a nocov span whose inner node is the same statement).
+        # Use an array per position, sorted by span start_line so earlier directives
+        # come first in the output.
+        replacement_map = Hash.new { |h, k| h[k] = [] }
         replacements.each do |insert_at, node, _covered|
-          replacement_map[insert_at] = node
+          replacement_map[insert_at] << node
         end
+        replacement_map.each_value { |nodes| nodes.sort_by! { |n| n.start_line || 0 } }
 
         result = []
         statements.each_with_index do |stmt, idx|
-          # Insert replacement before this position (even if current stmt is skipped)
-          if (replacement = replacement_map.delete(idx))
-            result << replacement
+          # Insert all replacements queued at this position (in start_line order)
+          if (nodes = replacement_map.delete(idx))
+            nodes.each { |n| result << n }
           end
 
           next if used_indices.include?(idx)
@@ -291,7 +294,7 @@ module Prism
         end
 
         # Append any replacements whose insert position is past the end
-        replacement_map.each_value { |node| result << node }
+        replacement_map.each_value { |nodes| nodes.each { |n| result << n } }
 
         result
       end

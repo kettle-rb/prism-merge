@@ -399,12 +399,21 @@ module Prism
           return :destination unless template_node.is_a?(Ast::Merge::BlockDirective)
         end
 
-        if frozen_node?(dest_node)
+        # Use claimed_lines from the respective FileAnalysis so that freeze markers
+        # that were already promoted to BlockDirective nodes (and thus claimed) are
+        # not double-counted here.  Without this, a dest node whose leading_comments
+        # include a claimed freeze line (hoisted by Prism's attach_comments!) would
+        # incorrectly appear "frozen" even after the FreezeNode was extracted.
+        dest_claimed = @dest_analysis&.claimed_lines || Set.new
+        template_claimed = @template_analysis&.claimed_lines || Set.new
+        if @dest_analysis&.frozen_node?(dest_node, claimed_lines: dest_claimed)
           # Only treat as user customisation when the template counterpart does NOT
           # also carry a freeze marker.  If the template also has one, the freeze
           # block is template-originated (standalone instructions block) and we
           # should fall through to normal preference logic.
-          return :destination unless frozen_node?(template_node)
+          unless @template_analysis&.frozen_node?(template_node, claimed_lines: template_claimed)
+            return :destination
+          end
         end
 
         return @preference unless @preference.is_a?(Hash)

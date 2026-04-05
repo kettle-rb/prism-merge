@@ -43,7 +43,7 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
-- Fixed `# :nocov:` directives being lost or having spurious blank lines when merging Rakefiles and other Ruby files: `BlockDirectiveDetector` now promotes balanced open/close nocov pairs to first-class `NocovNode` synthetic nodes before merge, preventing Prism's `attach_comments!` from hoisting them onto the wrong code node
+- Fixed `# :nocov:` directives being lost or having spurious blank lines when merging Rakefiles and other Ruby files: `BlockDirectiveDetector` now promotes balanced open/close nocov pairs to first-class `NocovNode` synthetic nodes before merge, preventing Prism's `attach_comments!` from hoisting them onto the wrong code node; `NocovNode#location` now computes byte offsets (like `FreezeNode`) so `TopLevelMergeRunner#already_output?` correctly avoids skipping nocov nodes on repeated merge passes; `NocovNode` now exposes `leading_comments` from its first inner node so comment blocks preceding a nocov opener are preserved across second-pass merges
 - Fixed freeze block duplication when a top-level freeze block's lines were promoted to `FreezeNode` but still attached as Prism leading comments on the next container node (e.g. `Gem::Specification.new`); `recursive_node_body_merger` now filters claimed lines from leading comments before emitting them
 - Fixed false detection of freeze markers in reminder/example comment blocks (e.g. `#     kettle-jem:freeze` with 5 spaces); detector pattern now requires at most 1 space between `#` and the directive token
 - `build_signature_map` now stores all occurrences per signature (not just first),
