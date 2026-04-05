@@ -392,6 +392,11 @@ module Prism
         if dest_node.is_a?(Ast::Merge::BlockDirective)
           policy = dest_node.merge_policy
           return policy if policy
+
+          # If dest has a BlockDirective (e.g. a user-added NocovNode) but the
+          # template counterpart is a plain node (no BlockDirective), preserve the
+          # user's directive rather than stripping it.
+          return :destination unless template_node.is_a?(Ast::Merge::BlockDirective)
         end
 
         if frozen_node?(dest_node)

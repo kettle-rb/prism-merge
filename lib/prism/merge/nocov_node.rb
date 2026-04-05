@@ -76,9 +76,26 @@ module Prism
       end
 
       # Stable signature for merge matching.
+      #
+      # For single-node blocks, delegates to the inner content's signature so that a
+      # NocovNode in the template matches the equivalent bare node in the destination
+      # (and vice-versa).  This prevents duplication when a nocov block is introduced
+      # in the template but the destination does not yet have the markers.
+      #
+      # For multi-node blocks, uses a `:nocov_multi` fingerprint of the inner lines
+      # (markers excluded) so two multi-node nocov blocks with identical content still
+      # match each other.
+      #
       # @return [Array]
       def signature
-        [:NocovNode, slice&.strip]
+        return [:NocovNode, nil] if @nodes.empty? || @analysis.nil?
+
+        if @nodes.length == 1
+          @analysis.generate_signature(@nodes.first)
+        else
+          inner_lines = @analysis.lines && @analysis.lines[@start_line..(@end_line - 2)]
+          [:nocov_multi, inner_lines&.map(&:strip)&.join("\n")]
+        end
       end
 
       # Node type for merge classification

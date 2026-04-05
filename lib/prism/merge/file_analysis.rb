@@ -833,6 +833,15 @@ module Prism
           return node.signature
         end
 
+        # BlockDirective nodes (NocovNode, etc.) that are not FreezeNodeBase:
+        # call their own #signature method.  NocovNode#signature delegates to the
+        # inner content so a NocovNode in the template can match the same bare node
+        # in the dest (and vice-versa), preventing duplication on each merge run.
+        # FreezeNodeBase is handled earlier in generate_signature via freeze_signature.
+        if node.is_a?(Ast::Merge::BlockDirective) && !node.is_a?(Ast::Merge::FreezeNodeBase)
+          return node.signature
+        end
+
         # IMPORTANT: Do NOT call node.signature - Prism nodes have their own signature method
         # that returns [node_type_symbol, source_text] which is not what we want for matching.
         # We need our own signature format: [:type_symbol, identifier, params]

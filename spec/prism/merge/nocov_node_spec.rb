@@ -69,9 +69,51 @@ RSpec.describe Prism::Merge::NocovNode do
   end
 
   describe "#signature" do
-    it "returns an Array starting with :NocovNode" do
-      expect(node.signature).to be_an(Array)
-      expect(node.signature.first).to eq(:NocovNode)
+    it "returns [:NocovNode, nil] when there are no inner nodes" do
+      expect(node.signature).to eq([:NocovNode, nil])
+    end
+
+    context "with a single inner node" do
+      let(:inner_analysis) do
+        Prism::Merge::FileAnalysis.new(<<~RUBY)
+          # frozen_string_literal: true
+
+          # :nocov:
+          require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+          # :nocov:
+        RUBY
+      end
+
+      it "delegates to the inner node's signature (enables cross-matching with bare nodes)" do
+        # Promote via BlockDirectiveDetector so we get a real NocovNode
+        nocov_node = inner_analysis.statements.find { |s| s.is_a?(described_class) }
+        expect(nocov_node).not_to be_nil
+        expect(nocov_node.nodes.length).to eq(1)
+
+        # Inner node is the IfNode (modifier-if form)
+        inner_sig = inner_analysis.generate_signature(nocov_node.nodes.first)
+        expect(nocov_node.signature).to eq(inner_sig)
+        expect(nocov_node.signature.first).not_to eq(:NocovNode)
+      end
+    end
+
+    context "with multiple inner nodes" do
+      let(:multi_analysis) do
+        Prism::Merge::FileAnalysis.new(<<~RUBY)
+          # :nocov:
+          def unreachable_a; end
+          def unreachable_b; end
+          # :nocov:
+        RUBY
+      end
+
+      it "returns [:nocov_multi, normalized_inner_content]" do
+        nocov_node = multi_analysis.statements.find { |s| s.is_a?(described_class) }
+        expect(nocov_node).not_to be_nil
+        sig = nocov_node.signature
+        expect(sig.first).to eq(:nocov_multi)
+        expect(sig.last).to be_a(String)
+      end
     end
   end
 
