@@ -220,15 +220,17 @@ module Prism
 
       # Check if a node has a freeze marker in its leading comments.
       #
-      # Nodes with freeze markers always prefer destination version during merge.
-      # This ensures that:
-      # 1. Top-level nodes with freeze markers as leading comments are preserved
-      # 2. Nested freeze markers do NOT freeze the outer container
-      # 3. Already-wrapped FrozenWrapper nodes are recognized as frozen
+      # Returns true if a freeze marker (with or without a matching unfreeze) appears
+      # anywhere in the node's leading comments, or if the node is already wrapped as
+      # a FrozenWrapper. The caller is responsible for deciding whether a balanced
+      # freeze/unfreeze pair is a template-originated standalone block (via
+      # `preference_for_node`) vs a genuine user customization.
       #
-      # @param node [Prism::Node, Ast::Merge::NodeTyping::FrozenWrapper] The node to check
-      # @return [Boolean] true if the node has a direct freeze marker
+      # @param node [Prism::Node, Ast::Merge::NodeTyping::FrozenWrapper, nil] The node to check
+      # @return [Boolean] true if the node has any freeze marker in its leading comments
       def frozen_node?(node)
+        return false if node.nil?
+
         # Already wrapped as frozen (includes Freezable module)
         return true if node.is_a?(Ast::Merge::Freezable)
 
@@ -239,9 +241,8 @@ module Prism
 
         freeze_pattern = /#{Regexp.escape(@freeze_token)}:freeze/i
 
-        # Check for freeze marker in leading comments
         if actual_node.respond_to?(:location) && actual_node.location.respond_to?(:leading_comments)
-          return true if actual_node.location.leading_comments.any? { |c| c.slice.match?(freeze_pattern) }
+          return actual_node.location.leading_comments.any? { |comment| comment.slice.match?(freeze_pattern) }
         end
 
         false
@@ -376,12 +377,30 @@ module Prism
       # prefer the destination version, as they represent user customizations
       # that should be preserved across template updates.
       #
+      # However, when BOTH the template and the destination node carry a freeze
+      # marker, the freeze block is a template-originated standalone directive
+      # (e.g., the instructions block at the top of a Rakefile). In that case the
+      # freeze does NOT represent a user customisation and the normal preference
+      # logic applies (typically template-wins under :template preference).
+      #
       # @param template_node [Prism::Node] Template node
       # @param dest_node [Prism::Node] Destination node
       # @return [Symbol] :template or :destination
       def preference_for_node(template_node, dest_node)
-        # Frozen nodes always prefer destination - they're user customizations
-        return :destination if frozen_node?(dest_node)
+        # BlockDirective nodes (FreezeNode, NocovNode) carry an explicit merge_policy.
+        # nil means "follow file preference" (no override).
+        if dest_node.is_a?(Ast::Merge::BlockDirective)
+          policy = dest_node.merge_policy
+          return policy if policy
+        end
+
+        if frozen_node?(dest_node)
+          # Only treat as user customisation when the template counterpart does NOT
+          # also carry a freeze marker.  If the template also has one, the freeze
+          # block is template-originated (standalone instructions block) and we
+          # should fall through to normal preference logic.
+          return :destination unless frozen_node?(template_node)
+        end
 
         return @preference unless @preference.is_a?(Hash)
 

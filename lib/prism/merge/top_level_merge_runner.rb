@@ -314,6 +314,23 @@ module Prism
         return last_output_dest_line unless advance_dest_output
 
         updated_last_output_dest_line = [last_output_dest_line, dest_node.location.end_line].max
+
+        # When template wins (output_analysis is template) and the template node has
+        # no trailing blank but the dest node does, advance past the dest trailing blank.
+        # This prevents emit_dest_gap_lines for the next node from picking up the dest
+        # blank and emitting it as an unwanted gap before template-managed leading
+        # comments (e.g., a :nocov: directive that should immediately follow the node).
+        if !preserve_trailing_blank_line_progress && output_analysis.equal?(merger.template_analysis)
+          template_trailing_line = unwrap_node(output_node).location.end_line + 1
+          template_trailing_content = merger.template_analysis.line_at(template_trailing_line)
+          dest_trailing_line = dest_node.location.end_line + 1
+          dest_trailing_content = merger.dest_analysis.line_at(dest_trailing_line)
+
+          if dest_trailing_content&.strip&.empty? && template_trailing_content && !template_trailing_content.strip.empty?
+            return [updated_last_output_dest_line, dest_trailing_line].max
+          end
+        end
+
         return updated_last_output_dest_line unless preserve_trailing_blank_line_progress
 
         actual_output_end = unwrap_node(output_node).location.end_line

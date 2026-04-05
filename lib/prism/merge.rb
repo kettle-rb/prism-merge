@@ -94,6 +94,7 @@ module Prism
     #   end
     class DestinationParseError < ParseError; end
 
+    autoload :BlockDirectiveDetector, "prism/merge/block_directive_detector"
     autoload :Comment, "prism/merge/comment"
     autoload :CommentOnlyFileMerger, "prism/merge/comment_only_file_merger"
     autoload :DebugLogger, "prism/merge/debug_logger"
@@ -103,11 +104,13 @@ module Prism
     autoload :FreezeNode, "prism/merge/freeze_node"
     autoload :FileAnalysis, "prism/merge/file_analysis"
     autoload :MergeResult, "prism/merge/merge_result"
+    autoload :MethodMatchRefiner, "prism/merge/method_match_refiner"
     autoload :NestedStatementWalker, "prism/merge/nested_statement_walker"
+    autoload :NocovNode, "prism/merge/nocov_node"
+    autoload :NoCovWrapper, "prism/merge/nocov_wrapper"
     autoload :PartialTemplateMerger, "prism/merge/partial_template_merger"
     autoload :PartialTemplateNode, "prism/merge/partial_template_node"
     autoload :SmartMerger, "prism/merge/smart_merger"
-    autoload :MethodMatchRefiner, "prism/merge/method_match_refiner"
   end
 end
 

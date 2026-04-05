@@ -161,6 +161,17 @@ module Prism
       # @return [Prism::ParseResult] The parse result from Prism
       attr_reader :parse_result
 
+      # Lines claimed by promoted BlockDirective nodes.
+      # These lines appear in the source as comment-only directive markers (e.g.
+      # `# token:freeze`) that Prism hoists onto the next code node's leading_comments.
+      # The claimed_lines set is used by the emission pipeline to avoid re-emitting
+      # those comment lines as leading_comments of adjacent code nodes.
+      #
+      # @return [Set<Integer>] 1-based line numbers claimed by BlockDirective promotions
+      def claimed_lines
+        @claimed_lines ||= Set.new
+      end
+
       # Initialize file analysis with Prism's native comment handling
       #
       # @param source [String] Ruby source code to analyze
@@ -336,8 +347,9 @@ module Prism
       # body merging, where each nested statement gets its own freeze detection.
       #
       # @param node [Prism::Node, Ast::Merge::NodeTyping::FrozenWrapper] The node to check
-      # @return [Boolean] true if the node has a freeze marker in its leading comments
-      def frozen_node?(node)
+      # @param claimed_lines [Set<Integer>] Line numbers already claimed by promoted BlockDirective nodes
+      # @return [Boolean] true if the node has an unclaimed freeze marker in its leading comments
+      def frozen_node?(node, claimed_lines: Set.new)
         # Already wrapped as frozen
         return true if node.is_a?(Ast::Merge::Freezable)
 
@@ -348,9 +360,15 @@ module Prism
 
         freeze_pattern = /#{Regexp.escape(@freeze_token)}:freeze/i
 
-        # Check for freeze marker in leading comments ONLY
+        # BlockDirectiveDetector has already promoted balanced freeze/unfreeze pairs
+        # to FreezeNode synthetic nodes. Any remaining freeze marker in leading
+        # comments is unbalanced (node-level freeze marker), so use simple any? check.
+        # Exclude markers at lines already claimed by promoted BlockDirective nodes
+        # (those were hoisted onto this node by Prism's attach_comments!).
         if actual_node.respond_to?(:location) && actual_node.location.respond_to?(:leading_comments)
-          return true if actual_node.location.leading_comments.any? { |c| c.slice.match?(freeze_pattern) }
+          return actual_node.location.leading_comments.any? do |c|
+            c.slice.match?(freeze_pattern) && !claimed_lines.include?(c.location.start_line)
+          end
         end
 
         false
@@ -614,9 +632,11 @@ module Prism
 
       # Extract all top-level AST nodes from the parsed source.
       #
-      # Freeze semantics are simplified: a node is frozen if it has a freeze marker
-      # (`# token:freeze`) in its leading comments or content. Closing markers
-      # (`# token:unfreeze`) have no effect - they can exist but are ignored.
+      # Freeze semantics: a node is frozen if it has an *unbalanced* freeze marker
+      # (`# token:freeze`) in its leading comments — one that is NOT followed by a
+      # matching `# token:unfreeze` in the same leading comment block.  A balanced
+      # freeze/unfreeze pair in leading comments is treated as a standalone freeze
+      # block directive and does NOT cause the subsequent code node to be frozen.
       #
       # Frozen nodes are wrapped in FrozenWrapper to satisfy the Freezable API,
       # enabling them to be detected via is_a?(Freezable) and freeze_node?.
@@ -629,26 +649,52 @@ module Prism
 
         body = @parse_result.value.statements
         raw_nodes = if body.nil?
-          # :nocov: defensive - Prism currently always returns StatementsNode
+          # :nocov: defensive
           []
           # :nocov:
         elsif body.is_a?(Prism::StatementsNode)
           body.body.compact
         else
-          # :nocov: defensive - hypothetical case where body is a single node
+          # :nocov: defensive
           [body].compact
           # :nocov:
         end
 
-        # If no Prism statements but we have content, build comment AST
-        # This handles files with only comments (e.g., # frozen_string_literal: true)
         if raw_nodes.empty? && @lines.any?
           return Comment::Parser.parse(@lines)
         end
 
-        # Wrap frozen nodes in FrozenWrapper to satisfy Freezable API
-        raw_nodes.map do |node|
-          if frozen_node?(node)
+        # Detect block directive spans (freeze and nocov) from raw source lines.
+        # Directives are promoted to FreezeNode / NocovNode synthetic nodes.
+        # This runs AFTER Prism's attach_comments! to avoid being misled by Prism's
+        # leading-comment attachment, which can hoist standalone freeze/unfreeze
+        # instruction blocks onto the first code node.
+        freeze_tok = (@freeze_token.nil? || @freeze_token.empty?) ? nil : @freeze_token
+        detector = BlockDirectiveDetector.new(
+          @lines,
+          freeze_token: freeze_tok,
+          nocov_token: BlockDirectiveDetector::NOCOV_TOKEN,
+        )
+        spans = detector.detect_spans
+        promoted = detector.promote_spans_to_nodes(raw_nodes, spans, analysis: self)
+
+        # Build the set of lines claimed by promoted BlockDirective nodes.
+        # These lines were hoisted by Prism's attach_comments! onto subsequent
+        # code nodes as leading_comments. Excluding them prevents false positives
+        # in frozen_node? when the directive is a standalone comment block.
+        # The claimed_lines are also exposed for use by the emission pipeline
+        # to avoid duplicating those comment lines when emitting adjacent nodes.
+        claimed_lines = Set.new
+        promoted.each do |node|
+          next unless node.is_a?(Ast::Merge::BlockDirective)
+
+          (node.start_line..node.end_line).each { |l| claimed_lines.add(l) }
+        end
+        @claimed_lines = claimed_lines
+
+        # Wrap any remaining frozen nodes (unbalanced freeze markers) in FrozenWrapper
+        promoted.map do |node|
+          if !node.is_a?(Ast::Merge::BlockDirective) && frozen_node?(node, claimed_lines: claimed_lines)
             Ast::Merge::NodeTyping::FrozenWrapper.new(node, :frozen)
           else
             node

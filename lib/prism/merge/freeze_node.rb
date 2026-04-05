@@ -35,7 +35,25 @@ module Prism
       # Inherit InvalidStructureError from base class
       InvalidStructureError = Ast::Merge::FreezeNodeBase::InvalidStructureError
 
-      # Inherit Location from base class
+      # Extended location struct with byte offsets for compatibility with
+      # TopLevelMergeRunner's already_output? check, which compares byte offsets.
+      # Without real offsets, line numbers (e.g. 2..4) falsely fall within
+      # the byte range of real Prism nodes, causing FreezeNodes to be skipped.
+      LocationWithOffsets = Struct.new(:start_line, :end_line, :start_offset, :end_offset) do
+        def cover?(line)
+          (start_line..end_line).cover?(line)
+        end
+
+        def leading_comments
+          []
+        end
+
+        def trailing_comments
+          []
+        end
+      end
+
+      # Inherit Location from base class (used when no offset info available)
       Location = Ast::Merge::FreezeNodeBase::Location
 
       # @param start_line [Integer] Line number of freeze marker
@@ -60,6 +78,24 @@ module Prism
 
         # Validate structure
         validate_structure!
+      end
+
+      # Returns a location with real byte offsets so TopLevelMergeRunner's
+      # already_output? works correctly (it compares byte ranges).
+      # @return [LocationWithOffsets]
+      def location
+        @location ||= begin
+          lines = @analysis&.lines
+          if lines
+            # Byte offset of first char of start_line (sum of all prior line bytes)
+            so = lines.take(@start_line - 1).sum(&:bytesize)
+            # Byte offset past end of end_line (sum through end_line)
+            eo = lines.take(@end_line).sum(&:bytesize)
+            LocationWithOffsets.new(@start_line, @end_line, so, eo)
+          else
+            Location.new(@start_line, @end_line)
+          end
+        end
       end
 
       # Returns a stable signature for this freeze block

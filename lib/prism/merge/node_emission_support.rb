@@ -232,8 +232,10 @@ module Prism
           result.add_line(line, decision: decision, template_line: line_num)
         end
 
-        template_trailing_comments = merger.send(:wrapper_comment_support).external_trailing_comments_for(template_node)
-        dest_trailing_comments = merger.send(:wrapper_comment_support).external_trailing_comments_for(dest_node)
+        template_claimed = template_analysis.respond_to?(:claimed_lines) ? template_analysis.claimed_lines : Set.new
+        dest_claimed = dest_analysis.respond_to?(:claimed_lines) ? dest_analysis.claimed_lines : Set.new
+        template_trailing_comments = merger.send(:wrapper_comment_support).external_trailing_comments_for(template_node, claimed_lines: template_claimed)
+        dest_trailing_comments = merger.send(:wrapper_comment_support).external_trailing_comments_for(dest_node, claimed_lines: dest_claimed)
         trailing_comments = template_trailing_comments.any? ? template_trailing_comments : dest_trailing_comments
         trailing_analysis = template_trailing_comments.any? ? template_analysis : dest_analysis
         trailing_source = trailing_analysis.equal?(template_analysis) ? :template : :destination
@@ -384,10 +386,15 @@ module Prism
           end
         end
 
+        # Lines claimed by promoted BlockDirective nodes should not be re-emitted
+        # as trailing comments of an adjacent code node.
+        claimed = analysis.respond_to?(:claimed_lines) ? analysis.claimed_lines : Set.new
+
         node_line_range = node.location.start_line..effective_end_line(node)
         trailing_comments.each do |comment|
           line_num = comment.location.start_line
           next if node_line_range.cover?(line_num)
+          next if claimed.include?(line_num)
 
           line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
 

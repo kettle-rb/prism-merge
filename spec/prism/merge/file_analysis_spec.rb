@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe Prism::Merge::FileAnalysis do
   it_behaves_like "Ast::Merge::FileAnalyzable" do
     let(:file_analysis_class) { described_class }
-    let(:freeze_node_class) { Ast::Merge::NodeTyping::FrozenWrapper }
+    let(:freeze_node_class) { Prism::Merge::FreezeNode }
     let(:sample_source) do
       <<~RUBY
         def example
@@ -139,7 +139,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(analysis.frozen_node?(analysis.statements.first)).to be false
     end
 
-    it "ignores closing freeze markers (unfreeze has no effect)" do
+    it "promotes balanced freeze/unfreeze block to a FreezeNode" do
       code = <<~RUBY
         # prism-merge:freeze
         def frozen_method
@@ -154,16 +154,23 @@ RSpec.describe Prism::Merge::FileAnalysis do
 
       analysis = described_class.new(code)
 
-      # Both methods are in statements
+      # FreezeNode + not_frozen method
       expect(analysis.statements.size).to eq(2)
 
-      # Only the first method is frozen (unfreeze marker is ignored)
-      expect(analysis.frozen_nodes.size).to eq(1)
-      expect(analysis.frozen_nodes.first.name).to eq(:frozen_method)
+      # First statement is a FreezeNode containing frozen_method
+      freeze_node = analysis.statements[0]
+      expect(freeze_node).to be_a(Prism::Merge::FreezeNode)
+      expect(freeze_node.children.first).to be_a(Prism::DefNode)
+      expect(freeze_node.children.first.name).to eq(:frozen_method)
 
-      # Verify frozen_node? behavior
-      expect(analysis.frozen_node?(analysis.statements[0])).to be true
-      expect(analysis.frozen_node?(analysis.statements[1])).to be false
+      # Second statement is the unfrozen method
+      not_frozen = analysis.statements[1]
+      expect(not_frozen).to be_a(Prism::DefNode)
+      expect(not_frozen.name).to eq(:not_frozen)
+
+      # The FreezeNode itself is Freezable; the plain method is not
+      expect(analysis.frozen_node?(freeze_node)).to be true
+      expect(analysis.frozen_node?(not_frozen)).to be false
     end
 
     it "returns empty when no freeze token is configured" do

@@ -15,22 +15,43 @@ module Prism
         dest_prefix_comment_lines = merger.instance_variable_get(:@dest_prefix_comment_lines)
         prefix_line_numbers = Prism::Merge::MagicCommentSupport.prefix_comment_line_numbers_for_comments(all_leading_comments)
 
+        # Lines claimed by promoted BlockDirective nodes (e.g. freeze/nocov markers
+        # that Prism hoisted onto this node as leading_comments). Skip them so they
+        # are not re-emitted after already appearing inside the BlockDirective's lines.
+        dest_claimed = merger.dest_analysis.respond_to?(:claimed_lines) ? merger.dest_analysis.claimed_lines : Set.new
+        template_claimed = merger.template_analysis.respond_to?(:claimed_lines) ? merger.template_analysis.claimed_lines : Set.new
+        source_claimed = (source == :destination) ? dest_claimed : template_claimed
+
         comments = if source == :destination
           all_leading_comments.reject do |comment|
-            if dest_prefix_comment_lines&.include?(comment.location.start_line)
-              last_skipped_line = comment.location.start_line
+            ln = comment.location.start_line
+            if dest_prefix_comment_lines&.include?(ln)
+              last_skipped_line = ln
+              true
+            elsif source_claimed.include?(ln)
+              last_skipped_line = ln
               true
             end
           end
         elsif dest_prefix_comment_lines&.any?
           all_leading_comments.reject do |comment|
-            if prefix_line_numbers.include?(comment.location.start_line)
-              last_skipped_line = comment.location.start_line
+            ln = comment.location.start_line
+            if prefix_line_numbers.include?(ln)
+              last_skipped_line = ln
+              true
+            elsif source_claimed.include?(ln)
+              last_skipped_line = ln
               true
             end
           end
         else
-          all_leading_comments
+          all_leading_comments.reject do |comment|
+            ln = comment.location.start_line
+            if source_claimed.include?(ln)
+              last_skipped_line = ln
+              true
+            end
+          end
         end
 
         {comments: comments, last_skipped_line: last_skipped_line}
@@ -248,10 +269,19 @@ module Prism
         inline_comment_entries_by_line((owner_entries + raw_entries).uniq { |entry| [entry[:line], entry[:raw]] })
       end
 
-      def external_trailing_comments_for(node)
+      # Returns trailing comments that fall outside the node's own line range.
+      #
+      # @param node [Prism::Node] The node whose trailing comments to examine
+      # @param claimed_lines [Set<Integer>] Line numbers claimed by promoted BlockDirective
+      #   nodes. Trailing comments at claimed lines are excluded to prevent duplication
+      #   when those lines are already emitted as part of a BlockDirective node's source.
+      def external_trailing_comments_for(node, claimed_lines: Set.new)
         trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
         node_line_range = node.location.start_line..node.location.end_line
-        trailing_comments.reject { |comment| node_line_range.cover?(comment.location.start_line) }
+        trailing_comments.reject do |comment|
+          ln = comment.location.start_line
+          node_line_range.cover?(ln) || claimed_lines.include?(ln)
+        end
       end
 
       def inline_comment_separator_for(line_text, raw_comment)

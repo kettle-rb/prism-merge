@@ -97,8 +97,8 @@ RSpec.describe "Frozen Node Detection" do
     end
   end
 
-  describe "unfreeze markers are ignored" do
-    it "does not affect frozen status" do
+  describe "balanced freeze/unfreeze block promotes to FreezeNode" do
+    it "wraps enclosed nodes in a FreezeNode in statements" do
       code = <<~RUBY
         # prism-merge:freeze
         def method_one
@@ -112,10 +112,14 @@ RSpec.describe "Frozen Node Detection" do
       RUBY
 
       analysis = Prism::Merge::FileAnalysis.new(code)
-      method_one = analysis.statements.find { |s| s.name == :method_one }
-      method_two = analysis.statements.find { |s| s.name == :method_two }
 
-      expect(analysis.frozen_node?(method_one)).to be true
+      freeze_node = analysis.statements.find { |s| s.is_a?(Prism::Merge::FreezeNode) }
+      method_two = analysis.statements.find { |s| s.is_a?(Prism::DefNode) }
+
+      expect(freeze_node).not_to be_nil
+      expect(freeze_node.children.first.name).to eq(:method_one)
+      expect(analysis.frozen_node?(freeze_node)).to be true
+      expect(method_two.name).to eq(:method_two)
       expect(analysis.frozen_node?(method_two)).to be false
     end
   end
