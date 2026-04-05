@@ -8,6 +8,14 @@ require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
 require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
 # :nocov:
 
+# :nocov:
+require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+# :nocov:
+
+# :nocov:
+require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+# :nocov:
+
 # kettle-jem:freeze
 # To retain chunks of comments & code during prism-merge templating:
 # Wrap custom sections with freeze markers (e.g., as above and below this comment chunk).
