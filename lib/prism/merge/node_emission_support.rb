@@ -285,6 +285,22 @@ module Prism
           }
         end
 
+        # Emit the template's trailing blank line when one exists immediately after the
+        # matched template node. This restores blank lines that may have been dropped in
+        # a prior merge (dest lost the blank, but template still has it). Mirrors the
+        # same trailing-blank logic in `emit_node` so behaviour is consistent.
+        if orphan_regions.empty?
+          trailing_line = effective_end_line(template_node) + 1
+          trailing_content = template_analysis.line_at(trailing_line)
+          if trailing_content && trailing_content.strip.empty?
+            result.add_line("", decision: decision, template_line: trailing_line)
+            # Advance last_emitted_dest_line to the corresponding dest position so that
+            # emit_dest_gap_lines on the next iteration does not double-emit the blank.
+            dest_trailing_line = dest_node.location.end_line + 1
+            last_emitted_dest_line = [last_emitted_dest_line.to_i, dest_trailing_line].max
+          end
+        end
+
         {last_emitted_dest_line: last_emitted_dest_line}
       end
 

@@ -294,6 +294,63 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       RUBY
     end
 
+    it "emits template trailing blank line when dest is missing it (restores dropped blank)" do
+      # Regression: a prior merge can drop a blank line that exists in the template.
+      # On re-merge, emit_matched_template_node should restore it from the template.
+      template = <<~RUBY
+        x = 1
+
+        y = 2
+      RUBY
+
+      # Dest is missing the blank line between x and y (was dropped in a prior merge)
+      dest = <<~RUBY
+        x = 0
+        y = 0
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: first_node(merger, :template),
+        dest_node: first_node(merger, :destination),
+      )
+
+      # last_emitted_dest_line advances to dest trailing position (dest end_line + 1 = 2)
+      expect(emission).to eq({last_emitted_dest_line: 2})
+      expect(result.to_s).to eq("x = 1\n\n")
+    end
+
+    it "does not double-emit trailing blank when both template and dest have it" do
+      template = <<~RUBY
+        x = 1
+
+        y = 2
+      RUBY
+
+      dest = <<~RUBY
+        x = 0
+
+        y = 0
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: first_node(merger, :template),
+        dest_node: first_node(merger, :destination),
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: 2})
+      expect(result.to_s).to eq("x = 1\n\n")
+    end
+
     it "does not leak a destination trailing blank line before an immediately-following template-only sibling" do
       template = <<~RUBY
         x = 1
