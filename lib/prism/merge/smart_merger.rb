@@ -191,6 +191,25 @@ module Prism
         )
       end
 
+      # Override parse_and_analyze to thread per-source gemspec block variable overrides.
+      #
+      # When a caller passes `template_gemspec_block_var:` or `dest_gemspec_block_var:`
+      # in the format_options (captured via `**format_options` in the base class), those
+      # overrides are applied to the resulting `FileAnalysis` object after construction.
+      # This supports recursive body merges where the `Gem::Specification.new do |X|`
+      # wrapper is absent from the extracted body text and auto-detection cannot fire.
+      #
+      # @param content [String] Source content to parse
+      # @param source [Symbol] :template or :destination
+      # @return [FileAnalysis]
+      def parse_and_analyze(content, source)
+        analysis = super
+        var_key = (source == :template) ? :template_gemspec_block_var : :dest_gemspec_block_var
+        var = @format_options[var_key]
+        analysis.gemspec_block_var = var if var && analysis.respond_to?(:gemspec_block_var=)
+        analysis
+      end
+
       # @return [Class] The template parse error class for Ruby
       def template_parse_error_class
         TemplateParseError

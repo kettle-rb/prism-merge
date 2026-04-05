@@ -2064,4 +2064,98 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(node_info[:leading_comments]).to be_an(Array)
     end
   end
+
+  describe "gemspec block-variable signature normalization" do
+    it "detects the gemspec block variable name" do
+      source = <<~RUBY
+        Gem::Specification.new do |gem|
+          gem.name = "mylib"
+        end
+      RUBY
+      analysis = described_class.new(source)
+      expect(analysis.send(:detect_gemspec_block_var)).to eq("gem")
+    end
+
+    it "detects 'spec' as block variable" do
+      source = <<~RUBY
+        Gem::Specification.new do |spec|
+          spec.name = "mylib"
+        end
+      RUBY
+      analysis = described_class.new(source)
+      expect(analysis.send(:detect_gemspec_block_var)).to eq("spec")
+    end
+
+    it "returns nil for non-gemspec files" do
+      source = "def hello; end"
+      analysis = described_class.new(source)
+      expect(analysis.send(:detect_gemspec_block_var)).to be_nil
+    end
+
+    it "normalizes gem. and spec. assignment signatures to the same value" do
+      # The top-level Gem::Specification.new block has signature [:call_with_block, :new, nil].
+      # The inner body assignments are reached via recursive merge. We test inner-body
+      # normalisation by constructing inner FileAnalysis objects with the block var set.
+      gem_body = "  gem.name    = \"mylib\"\n  gem.version = \"1.0\"\n  gem.authors = [\"Alice\"]\n"
+      spec_body = "  spec.name    = \"mylib\"\n  spec.version = \"1.0\"\n  spec.authors = [\"Alice\"]\n"
+
+      gem_analysis  = described_class.new(gem_body)
+      spec_analysis = described_class.new(spec_body)
+
+      # Manually set the block var (simulating threading from the outer merge)
+      gem_analysis.gemspec_block_var  = "gem"
+      spec_analysis.gemspec_block_var = "spec"
+
+      gem_sigs  = gem_analysis.nodes_with_comments.map { |n| n[:signature] }
+      spec_sigs = spec_analysis.nodes_with_comments.map { |n| n[:signature] }
+
+      expect(gem_sigs).to eq(spec_sigs)
+      expect(gem_sigs).not_to be_empty
+      # All assignment sigs use the GEMSPEC_VAR_PLACEHOLDER, not the literal var name
+      expect(gem_sigs).to all(satisfy { |s| s.is_a?(Array) && s[2] == described_class::GEMSPEC_VAR_PLACEHOLDER })
+    end
+
+    it "does not normalize non-gemspec local variable receivers" do
+      source = <<~RUBY
+        config = Object.new
+        config.name = "foo"
+      RUBY
+      analysis = described_class.new(source)
+      sig = analysis.nodes_with_comments.last[:signature]
+      # receiver should remain "config", not the placeholder
+      expect(sig).to eq([:call, :name=, "config"])
+    end
+
+    it "normalizes when merging |gem| dest into |spec| template (end-to-end)" do
+      template = <<~RUBY
+        Gem::Specification.new do |spec|
+          spec.name    = "mylib"
+          spec.version = "1.0"
+          spec.authors = ["Alice"]
+          spec.add_development_dependency("rake", "~> 13.0")
+        end
+      RUBY
+
+      dest = <<~RUBY
+        Gem::Specification.new do |gem|
+          gem.name    = "mylib"
+          gem.version = "0.9"
+          gem.authors = ["Alice"]
+        end
+      RUBY
+
+      result = Prism::Merge::SmartMerger.new(template, dest, preference: :template, add_template_only_nodes: true).merge
+      output = result.to_s
+
+      # Should use template's spec. variable (template wins)
+      expect(output).to include("spec.name    = \"mylib\"")
+      expect(output).to include("spec.version = \"1.0\"")  # template value
+      expect(output).to include("spec.authors = [\"Alice\"]")
+      expect(output).to include("spec.add_development_dependency")
+      # Must NOT contain leftover gem. assignment lines
+      expect(output).not_to include("gem.name")
+      expect(output).not_to include("gem.version")
+      expect(output).not_to include("gem.authors")
+    end
+  end
 end

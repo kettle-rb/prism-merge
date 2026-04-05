@@ -29,6 +29,11 @@ module Prism
           max_recursion_depth: merger.max_recursion_depth,
           current_depth: merger.instance_variable_get(:@current_depth) + 1,
           node_typing: merger.node_typing,
+          # Thread gemspec block-variable names so inner FileAnalysis objects can normalise
+          # assignment signatures even when the Gem::Specification.new wrapper is absent
+          # from the extracted body text (auto-detection cannot fire without the wrapper).
+          template_gemspec_block_var: merger.template_analysis.respond_to?(:gemspec_block_var) ? merger.template_analysis.gemspec_block_var : nil,
+          dest_gemspec_block_var: merger.dest_analysis.respond_to?(:gemspec_block_var) ? merger.dest_analysis.gemspec_block_var : nil,
         )
         body_result = if template_body.empty? && dest_body.empty?
           nil

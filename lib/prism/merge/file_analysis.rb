@@ -158,8 +158,28 @@ module Prism
       # Default freeze token for identifying freeze blocks
       DEFAULT_FREEZE_TOKEN = "prism-merge"
 
+      # Canonical placeholder used in signatures to normalize the gemspec block variable.
+      # When `Gem::Specification.new do |spec|` uses a different name from the template
+      # (e.g. `|gem|`), assignment nodes such as `spec.name = "foo"` and `gem.name = "foo"`
+      # would otherwise produce different signatures and never match.  We normalize both to
+      # this placeholder so they match regardless of the variable name chosen by the author.
+      GEMSPEC_VAR_PLACEHOLDER = :__gemspec_var__
+
       # @return [Prism::ParseResult] The parse result from Prism
       attr_reader :parse_result
+
+      # The block parameter name used in `Gem::Specification.new do |X|` (e.g. "spec",
+      # "gem", "s").  nil for non-gemspec files.  Exposed so callers can override it for
+      # nested body merges where the outer wrapper is not present in the body text.
+      attr_reader :gemspec_block_var
+
+      # Sets the gemspec block variable and clears any cached node signature data so
+      # that subsequent calls to +nodes_with_comments+ use the updated placeholder.
+      def gemspec_block_var=(var)
+        return if @gemspec_block_var == var
+        @gemspec_block_var = var
+        @nodes_with_comments = nil  # invalidate memoised cache
+      end
 
       # Lines claimed by promoted BlockDirective nodes.
       # These lines appear in the source as comment-only directive markers (e.g.
@@ -185,6 +205,7 @@ module Prism
         @signature_generator = signature_generator
         # **options captured for forward compatibility
         @parse_result = DebugLogger.time("FileAnalysis#parse") { Prism.parse(source) }
+        @gemspec_block_var = detect_gemspec_block_var
 
         # Use Prism's native comment attachment
         # On JRuby, the Comments class may not be loaded yet, so we need to require it
@@ -999,13 +1020,32 @@ module Prism
 
           if method_name.end_with?("=")
             # Assignment method: config.setting = "value"
-            # Match by receiver and method name, NOT the value being assigned
+            # Match by receiver and method name, NOT the value being assigned.
+            #
+            # Normalize the gemspec block variable (e.g. |gem| vs |spec|) so that
+            # `gem.name = "foo"` and `spec.name = "foo"` produce the same signature.
+            # Only applies when the receiver is a plain local variable (not a chained
+            # call like `spec.metadata["key"]`) and it matches the detected block param.
+            effective_receiver = if @gemspec_block_var &&
+                receiver == @gemspec_block_var
+              # Normalise the gemspec block variable so `gem.name =` and `spec.name =`
+              # produce the same signature.  We rely on the slice comparison alone —
+              # the guard intentionally does NOT require Prism::LocalVariableReadNode
+              # because when body text is parsed standalone (no enclosing block), the
+              # parameter name (`gem`, `spec`, …) is parsed as a zero-arg CallNode by
+              # Prism, not as a LocalVariableReadNode.  The slice match is sufficient
+              # because chained receivers (e.g. `spec.metadata`) produce longer slices
+              # that will never equal the single-word block parameter name.
+              GEMSPEC_VAR_PLACEHOLDER
+            else
+              receiver
+            end
             if node.block
               # :nocov: defensive - Ruby syntax doesn't allow blocks with assignment methods
-              [:call_with_block, node.name, receiver]
+              [:call_with_block, node.name, effective_receiver]
               # :nocov:
             else
-              [:call, node.name, receiver]
+              [:call, node.name, effective_receiver]
             end
           else
             # Regular method call: appraise "unlocked" do ... end
@@ -1076,6 +1116,39 @@ module Prism
         else
           first_arg.slice
         end
+      end
+
+      # Detect the block parameter name used in `Gem::Specification.new do |X|`.
+      #
+      # Scans the top-level statements of the parsed source for a CallNode matching
+      # `Gem::Specification.new do |X|` and returns the string name of `X` (e.g.
+      # `"spec"`, `"gem"`, or `"s"`).  Returns `nil` when no such pattern is found.
+      #
+      # This value is used by `compute_node_signature` to normalise assignment
+      # receivers so that `spec.name = "foo"` and `gem.name = "foo"` produce the
+      # same signature regardless of which variable name the gemspec author chose.
+      #
+      # @return [String, nil]
+      def detect_gemspec_block_var
+        return nil unless valid?
+
+        @parse_result.value.statements&.body&.each do |node|
+          next unless node.is_a?(Prism::CallNode)
+          next unless node.name == :new
+          next unless node.receiver.is_a?(Prism::ConstantPathNode)
+          next unless node.receiver.slice == "Gem::Specification"
+          next unless node.block.is_a?(Prism::BlockNode)
+
+          bp = node.block.parameters
+          next unless bp.is_a?(Prism::BlockParametersNode)
+
+          param = bp.parameters&.requireds&.first
+          next unless param.is_a?(Prism::RequiredParameterNode)
+
+          return param.name.to_s
+        end
+
+        nil
       end
     end
   end
