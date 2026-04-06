@@ -152,7 +152,7 @@ module Prism
           signature_generator: effective_signature_generator,
         )
 
-        !(merger.send(:build_signature_map, template_body_analysis).keys & merger.send(:build_signature_map, dest_body_analysis).keys).empty?
+        merger.send(:build_signature_map, template_body_analysis).keys.intersect?(merger.send(:build_signature_map, dest_body_analysis).keys)
       end
     end
   end

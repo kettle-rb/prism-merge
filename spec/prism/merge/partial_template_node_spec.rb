@@ -3,20 +3,22 @@
 require "prism/merge"
 
 RSpec.describe Prism::Merge::PartialTemplateNode, :prism_backend do
-  Location = Struct.new(:start_line, :end_line)
-  PlainNode = Struct.new(:slice, :location, :custom_value)
-  WrappedNode = Struct.new(:inner) do
-    def unwrap
-      inner
-    end
+  before do
+    stub_const("Location", Struct.new(:start_line, :end_line))
+    stub_const("PlainNode", Struct.new(:slice, :location, :custom_value))
+    stub_const("WrappedNode", Struct.new(:inner) do
+      def unwrap
+        inner
+      end
 
-    def slice
-      inner.slice
-    end
+      def slice
+        inner.slice
+      end
 
-    def location
-      inner.location
-    end
+      def location
+        inner.location
+      end
+    end)
   end
 
   def parse_first(code)

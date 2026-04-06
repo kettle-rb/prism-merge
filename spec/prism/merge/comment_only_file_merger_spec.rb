@@ -220,19 +220,20 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
   end
 
   describe "private node output fallbacks" do
-    ContentOnlyNode = Struct.new(:content, :line_number)
+    before do
+      stub_const("ContentOnlyNode", Struct.new(:content, :line_number))
+      stub_const("ToStringOnlyNode", Class.new do
+        attr_reader :line_number
 
-    class ToStringOnlyNode
-      attr_reader :line_number
+        def initialize(text, line_number = nil)
+          @text = text
+          @line_number = line_number
+        end
 
-      def initialize(text, line_number = nil)
-        @text = text
-        @line_number = line_number
-      end
-
-      def to_s
-        @text
-      end
+        def to_s
+          @text
+        end
+      end)
     end
 
     it "uses #content for single-line template nodes when #text is unavailable" do

@@ -163,13 +163,11 @@ module Prism
             # Emit template-only nodes that follow this matched template node
             matched_template_index = template_info[:index]
             group = trailing_groups[matched_template_index]
-            if group
-              group.each do |info|
-                next if consumed_template_indices.include?(info[:index])
+            group&.each do |info|
+              next if consumed_template_indices.include?(info[:index])
 
-                merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
-                consumed_template_indices << info[:index]
-              end
+              merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
+              consumed_template_indices << info[:index]
             end
           else
             if merger.remove_template_missing_nodes

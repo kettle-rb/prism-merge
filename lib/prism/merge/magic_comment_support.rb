@@ -107,7 +107,7 @@ module Prism
       end
 
       def shebang_comment?(comment)
-        comment && comment.slice.start_with?("#!")
+        comment&.slice&.start_with?("#!")
       end
     end
   end

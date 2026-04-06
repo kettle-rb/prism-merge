@@ -87,11 +87,11 @@ module Prism
       def leading_comments
         @leading_comments ||= begin
           first = @nodes&.first
-          return [] unless first
-          return [] unless first.respond_to?(:location)
-          return [] unless first.location.respond_to?(:leading_comments)
-
-          first.location.leading_comments.select { |c| c.location.start_line < @start_line }
+          if first&.respond_to?(:location) && first.location.respond_to?(:leading_comments)
+            first.location.leading_comments.select { |c| c.location.start_line < @start_line }
+          else
+            []
+          end
         end
       end
 
@@ -120,10 +120,10 @@ module Prism
       # Content of the nocov block (all lines from start to end).
       # @return [String, nil]
       def slice
-        return nil unless @analysis
+        return unless @analysis
 
         lines = @analysis.lines
-        return nil unless lines
+        return unless lines
 
         lines[(@start_line - 1)..(@end_line - 1)]&.join
       end

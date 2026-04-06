@@ -139,13 +139,13 @@ module Prism
                 close_marker: stripped,
               )
             else
-              warn "[prism-merge] BlockDirectiveDetector: unmatched #{@freeze_token}:unfreeze at line #{line_num} — ignoring"
+              warn("[prism-merge] BlockDirectiveDetector: unmatched #{@freeze_token}:unfreeze at line #{line_num} — ignoring")
             end
           end
         end
 
         stack.each do |open|
-          warn "[prism-merge] BlockDirectiveDetector: unclosed #{@freeze_token}:freeze at line #{open[:start_line]} — ignoring"
+          warn("[prism-merge] BlockDirectiveDetector: unclosed #{@freeze_token}:freeze at line #{open[:start_line]} — ignoring")
         end
 
         spans
@@ -180,7 +180,7 @@ module Prism
         end
 
         stack.each do |open|
-          warn "[prism-merge] BlockDirectiveDetector: unclosed :nocov: at line #{open[:start_line]} — ignoring"
+          warn("[prism-merge] BlockDirectiveDetector: unclosed :nocov: at line #{open[:start_line]} — ignoring")
         end
 
         spans
@@ -201,10 +201,10 @@ module Prism
             next if i == j || invalid_indices.include?(j)
 
             if (a.start_line < b.start_line && a.end_line > b.start_line && a.end_line < b.end_line) ||
-               (b.start_line < a.start_line && b.end_line > a.start_line && b.end_line < a.end_line)
-              warn "[prism-merge] BlockDirectiveDetector: offset-overlapping #{a.kind} block " \
-                   "(lines #{a.start_line}..#{a.end_line}) and #{b.kind} block " \
-                   "(lines #{b.start_line}..#{b.end_line}) — both treated as plain comments"
+                (b.start_line < a.start_line && b.end_line > a.start_line && b.end_line < a.end_line)
+              warn("[prism-merge] BlockDirectiveDetector: offset-overlapping #{a.kind} block " \
+                "(lines #{a.start_line}..#{a.end_line}) and #{b.kind} block " \
+                "(lines #{b.start_line}..#{b.end_line}) — both treated as plain comments")
               invalid_indices.add(i)
               invalid_indices.add(j)
               crossing = true

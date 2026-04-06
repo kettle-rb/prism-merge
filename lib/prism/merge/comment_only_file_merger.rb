@@ -64,7 +64,7 @@ module Prism
       private
 
       def build_comment_indices_map(nodes)
-        nodes.each_with_index.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(node, index), map|
+        nodes.each_with_index.with_object(Hash.new { |hash, key| hash[key] = [] }) do |(node, index), map|
           signature = node.respond_to?(:signature) ? node.signature : nil
           map[signature] << index if signature
         end

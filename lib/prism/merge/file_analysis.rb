@@ -544,7 +544,7 @@ module Prism
         owner_last_line = owner_end_line(owner)
         native_comments_for(owner, :trailing_comments).filter_map do |comment|
           entry = native_comment_entry(comment, attached_as: :trailing)
-          entry unless entry[:full_line] || (owner_last_line && entry[:line] > owner_last_line)
+          entry if !entry[:full_line] && !(owner_last_line && entry[:line] > owner_last_line)
         end
       end
 
@@ -1130,7 +1130,7 @@ module Prism
       #
       # @return [String, nil]
       def detect_gemspec_block_var
-        return nil unless valid?
+        return unless valid?
 
         @parse_result.value.statements&.body&.each do |node|
           next unless node.is_a?(Prism::CallNode)

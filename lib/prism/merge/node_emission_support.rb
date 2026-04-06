@@ -456,7 +456,7 @@ module Prism
       def previous_destination_statement_for(node)
         statements = merger.dest_analysis.statements
         index = statements.index { |statement| statement.equal?(node) }
-        return unless index && index.positive?
+        return unless index&.positive?
 
         statements[index - 1]
       end
@@ -464,7 +464,7 @@ module Prism
       def previous_statement_for(node, analysis)
         statements = analysis.statements
         index = statements.index { |statement| statement.equal?(node) }
-        return unless index && index.positive?
+        return unless index&.positive?
 
         statements[index - 1]
       end

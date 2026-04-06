@@ -533,7 +533,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(augmenter.preamble_region.normalized_content).to eq("frozen_string_literal: true\nComment-only file")
     end
 
-    context "shared example compliance" do
+    context "when checking shared example compliance" do
       let(:code) do
         <<~RUBY
           # frozen_string_literal: true
@@ -548,7 +548,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
       let(:analysis) { described_class.new(code) }
       let(:owner) { analysis.statements.first }
 
-      context "for a native region" do
+      context "with a native region" do
         let(:comment_region) { analysis.comment_region_for_range(1..1, kind: :leading) }
         let(:expected_region_kind) { :leading }
         let(:expected_region_content) { "frozen_string_literal: true" }
@@ -559,7 +559,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
         it_behaves_like "Ast::Merge::Comment::Region"
       end
 
-      context "for a native attachment" do
+      context "with a native attachment" do
         let(:comment_attachment) { analysis.comment_attachment_for(owner) }
         let(:expected_attachment_owner) { owner }
         let(:expected_leading_content) { "frozen_string_literal: true" }
@@ -572,7 +572,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
         it_behaves_like "Ast::Merge::Comment::Attachment"
       end
 
-      context "for the native augmenter" do
+      context "with the native augmenter" do
         let(:comment_augmenter) { analysis.comment_augmenter(owners: [owner]) }
         let(:augmenter_owner) { owner }
         let(:expected_capability_predicate) { :native_full? }
@@ -2099,14 +2099,14 @@ RSpec.describe Prism::Merge::FileAnalysis do
       gem_body = "  gem.name    = \"mylib\"\n  gem.version = \"1.0\"\n  gem.authors = [\"Alice\"]\n"
       spec_body = "  spec.name    = \"mylib\"\n  spec.version = \"1.0\"\n  spec.authors = [\"Alice\"]\n"
 
-      gem_analysis  = described_class.new(gem_body)
+      gem_analysis = described_class.new(gem_body)
       spec_analysis = described_class.new(spec_body)
 
       # Manually set the block var (simulating threading from the outer merge)
-      gem_analysis.gemspec_block_var  = "gem"
+      gem_analysis.gemspec_block_var = "gem"
       spec_analysis.gemspec_block_var = "spec"
 
-      gem_sigs  = gem_analysis.nodes_with_comments.map { |n| n[:signature] }
+      gem_sigs = gem_analysis.nodes_with_comments.map { |n| n[:signature] }
       spec_sigs = spec_analysis.nodes_with_comments.map { |n| n[:signature] }
 
       expect(gem_sigs).to eq(spec_sigs)
