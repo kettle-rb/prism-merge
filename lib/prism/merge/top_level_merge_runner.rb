@@ -415,8 +415,9 @@ module Prism
         case node
         when Prism::IfNode, Prism::UnlessNode
           children.concat(extract_body(node.statements))
-          children.concat(extract_body(node.consequent.statements)) if node.consequent.respond_to?(:statements)
-          children.concat(nested_statement_children(node.consequent)) if node.consequent.is_a?(Prism::IfNode) || node.consequent.is_a?(Prism::ElseNode)
+          subsequent = node.respond_to?(:subsequent) ? node.subsequent : node.consequent
+          children.concat(extract_body(subsequent.statements)) if subsequent.respond_to?(:statements)
+          children.concat(nested_statement_children(subsequent)) if subsequent.is_a?(Prism::IfNode) || subsequent.is_a?(Prism::ElseNode)
         when Prism::ElseNode
           children.concat(extract_body(node.statements))
         when Prism::BeginNode
