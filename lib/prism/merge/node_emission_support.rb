@@ -289,10 +289,11 @@ module Prism
         # matched template node. This restores blank lines that may have been dropped in
         # a prior merge (dest lost the blank, but template still has it). Mirrors the
         # same trailing-blank logic in `emit_node` so behaviour is consistent.
+        # Only emit when this node controls the trailing gap per gap ownership rules.
         if orphan_regions.empty?
           trailing_line = effective_end_line(template_node) + 1
           trailing_content = template_analysis.line_at(trailing_line)
-          if trailing_content && trailing_content.strip.empty?
+          if trailing_content && trailing_content.strip.empty? && template_node_controls_trailing_gap?(template_node, template_analysis, dest_node, dest_analysis)
             result.add_line("", decision: decision, template_line: trailing_line)
             # Advance last_emitted_dest_line to the corresponding dest position so that
             # emit_dest_gap_lines on the next iteration does not double-emit the blank.
@@ -509,14 +510,15 @@ module Prism
         dest_leading = merger.send(:filtered_leading_comments_for, dest_node, :destination)[:comments]
         first_dest_content_line = dest_leading.any? ? dest_leading.first.location.start_line : dest_node.location.start_line
 
-        return false unless blank_only_gap_between?(
+        # Structural check: does the dest have a blank-line gap before this node?
+        # If so, the dest spacing is adequate and template gap emission should be
+        # suppressed — regardless of whether the gap was emitted as a dest line or
+        # a template line (which happens when preference: :template).
+        blank_only_gap_between?(
           analysis: merger.dest_analysis,
           start_line: previous_dest_node.location.end_line + 1,
           end_line_exclusive: first_dest_content_line,
         )
-
-        last_emitted_dest_line = result.line_metadata.reverse_each.find { |metadata| metadata[:dest_line] }&.fetch(:dest_line)
-        last_emitted_dest_line == first_dest_content_line - 1
       end
 
       def previous_template_gap_already_precedes_leading_comments?(result, node, analysis, leading_comments)
@@ -547,6 +549,26 @@ module Prism
 
         lines = (start_line...end_line_exclusive).map { |line_num| analysis.line_at(line_num).to_s }
         lines.any? && lines.all? { |line| line.strip.empty? }
+      end
+
+      # Returns true when the template node should emit a trailing blank line
+      # according to the gap ownership system. Postlude gaps (trailing blank at
+      # end of file) are suppressed when the matched dest node is NOT also at
+      # the end of the dest file — the template's end-of-file whitespace should
+      # not be injected mid-output when the node has been repositioned.
+      # Interstitial gaps always pass (blank restoration from template is desired).
+      def template_node_controls_trailing_gap?(template_node, template_analysis, dest_node = nil, dest_analysis = nil)
+        attachment = template_analysis.layout_attachment_for(template_node)
+        trailing_gap = attachment.trailing_gap
+        return true unless trailing_gap
+        return true unless trailing_gap.postlude?
+
+        # Postlude gap: only emit if dest node is also at end of file
+        return true unless dest_node && dest_analysis
+
+        dest_attachment = dest_analysis.layout_attachment_for(dest_node)
+        dest_trailing = dest_attachment.trailing_gap
+        dest_trailing&.postlude? || false
       end
 
       def orphan_regions_for(node, analysis:, source:)
