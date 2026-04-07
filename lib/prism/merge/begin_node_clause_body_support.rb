@@ -93,11 +93,33 @@ module Prism
         } if body_statements.empty?
 
         last_statement_end_line = body_statements.last.location.end_line
+
+        # If the merge_body slice has an odd number of :nocov: markers (open without
+        # a matching close), scan the trailing lines to include the close marker.
+        # Trailing close markers are pure comments — not Prism AST nodes — so they
+        # end up in trailing_suffix and cause false "unclosed :nocov:" warnings when
+        # sub-body FileAnalysis is constructed on the body slice alone.
+        effective_body_end = last_statement_end_line
+        if region[:end_line] > last_statement_end_line
+          nocov_pat = /\A\s*#\s?#{Regexp.escape(BlockDirectiveDetector::NOCOV_TOKEN)}\s*\z/i
+          nocov_count = (body_start_line..last_statement_end_line).count do |ln|
+            analysis.line_at(ln).to_s.chomp.match?(nocov_pat)
+          end
+          if nocov_count.odd?
+            ((last_statement_end_line + 1)..region[:end_line]).each do |ln|
+              if analysis.line_at(ln).to_s.chomp.match?(nocov_pat)
+                effective_body_end = ln
+                break
+              end
+            end
+          end
+        end
+
         {
-          merge_body: extract_region_body(region, analysis, body_start_line: body_start_line, body_end_line: last_statement_end_line),
-          trailing_suffix: if region[:end_line] > last_statement_end_line
+          merge_body: extract_region_body(region, analysis, body_start_line: body_start_line, body_end_line: effective_body_end),
+          trailing_suffix: if region[:end_line] > effective_body_end
                              lines = []
-                             ((last_statement_end_line + 1)..region[:end_line]).each do |line_num|
+                             ((effective_body_end + 1)..region[:end_line]).each do |line_num|
                                lines << analysis.line_at(line_num).chomp
                              end
                              lines.join("\n") + "\n"

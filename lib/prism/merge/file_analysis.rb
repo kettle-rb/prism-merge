@@ -198,11 +198,12 @@ module Prism
       # @param freeze_token [String] Token for freeze block markers (default: "prism-merge")
       # @param signature_generator [Proc, nil] Custom signature generator
       # @param options [Hash] Additional options for forward compatibility
-      def initialize(source, freeze_token: DEFAULT_FREEZE_TOKEN, signature_generator: nil, **options)
+      def initialize(source, freeze_token: DEFAULT_FREEZE_TOKEN, signature_generator: nil, source_label: nil, **options)
         @source = source
         @lines = source.lines
         @freeze_token = freeze_token
         @signature_generator = signature_generator
+        @source_label = source_label
         # **options captured for forward compatibility
         @parse_result = DebugLogger.time("FileAnalysis#parse") { Prism.parse(source) }
         @gemspec_block_var = detect_gemspec_block_var
@@ -695,6 +696,7 @@ module Prism
           @lines,
           freeze_token: freeze_tok,
           nocov_token: BlockDirectiveDetector::NOCOV_TOKEN,
+          source_label: @source_label,
         )
         spans = detector.detect_spans
         promoted = detector.promote_spans_to_nodes(raw_nodes, spans, analysis: self)

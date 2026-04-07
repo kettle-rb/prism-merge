@@ -27,10 +27,12 @@ module Prism
       # @param lines [Array<String>] Raw source lines (1-indexed via [line_num - 1])
       # @param freeze_token [String, nil] Freeze token (e.g. "kettle-jem"). nil disables freeze detection.
       # @param nocov_token [String] Nocov token (default ":nocov:")
-      def initialize(lines, freeze_token: nil, nocov_token: NOCOV_TOKEN)
+      # @param source_label [String, nil] Optional file path or label included in warning messages.
+      def initialize(lines, freeze_token: nil, nocov_token: NOCOV_TOKEN, source_label: nil)
         @lines = lines
         @freeze_token = freeze_token
         @nocov_token = nocov_token
+        @source_label = source_label
       end
 
       # Detect all directive spans in the source lines.
@@ -114,6 +116,10 @@ module Prism
 
       private
 
+      def warn_prefix
+        @source_label ? "[prism-merge] BlockDirectiveDetector (#{@source_label}):" : "[prism-merge] BlockDirectiveDetector:"
+      end
+
       # @return [Array<Span>]
       def detect_freeze_spans
         return [] unless @freeze_token
@@ -139,13 +145,13 @@ module Prism
                 close_marker: stripped,
               )
             else
-              warn("[prism-merge] BlockDirectiveDetector: unmatched #{@freeze_token}:unfreeze at line #{line_num} — ignoring")
+              warn("#{warn_prefix} unmatched #{@freeze_token}:unfreeze at line #{line_num} — ignoring")
             end
           end
         end
 
         stack.each do |open|
-          warn("[prism-merge] BlockDirectiveDetector: unclosed #{@freeze_token}:freeze at line #{open[:start_line]} — ignoring")
+          warn("#{warn_prefix} unclosed #{@freeze_token}:freeze at line #{open[:start_line]} — ignoring")
         end
 
         spans
@@ -180,7 +186,7 @@ module Prism
         end
 
         stack.each do |open|
-          warn("[prism-merge] BlockDirectiveDetector: unclosed :nocov: at line #{open[:start_line]} — ignoring")
+          warn("#{warn_prefix} unclosed :nocov: at line #{open[:start_line]} — ignoring")
         end
 
         spans
@@ -202,7 +208,7 @@ module Prism
 
             if (a.start_line < b.start_line && a.end_line > b.start_line && a.end_line < b.end_line) ||
                 (b.start_line < a.start_line && b.end_line > a.start_line && b.end_line < a.end_line)
-              warn("[prism-merge] BlockDirectiveDetector: offset-overlapping #{a.kind} block " \
+              warn("#{warn_prefix} offset-overlapping #{a.kind} block " \
                 "(lines #{a.start_line}..#{a.end_line}) and #{b.kind} block " \
                 "(lines #{b.start_line}..#{b.end_line}) — both treated as plain comments")
               invalid_indices.add(i)

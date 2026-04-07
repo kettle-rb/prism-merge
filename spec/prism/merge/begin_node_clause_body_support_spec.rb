@@ -73,6 +73,37 @@ RSpec.describe Prism::Merge::BeginNodeClauseBodySupport do
         trailing_suffix: "",
       )
     end
+    it "includes trailing :nocov: close marker in merge_body to avoid false unclosed warning" do
+      # The close marker is a pure trailing comment — not an AST node — so without
+      # the fix it falls into trailing_suffix and causes a false "unclosed :nocov:"
+      # warning when sub-body FileAnalysis is constructed on the body slice.
+      source = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          # :nocov:
+          unreachable
+          # :nocov:
+        end
+      RUBY
+
+      merger, support = support_for(source, source)
+      begin_node = first_begin_node(merger, :template)
+      rescue_node = begin_node.rescue_clause
+      rescue_region = clause_region_for(merger, begin_node, [:rescue_clause, [:standard_error], 0])
+
+      components = support.clause_body_components(rescue_node, rescue_region, merger.template_analysis)
+
+      # The close :nocov: must be included in merge_body (not trailing_suffix)
+      expect(components[:merge_body]).to include("# :nocov:")
+      expect(components[:merge_body].scan("# :nocov:").size).to eq(2)
+      expect(components[:trailing_suffix]).not_to include("# :nocov:")
+
+      # No warning should be emitted when sub-body analysis is created
+      expect do
+        Prism::Merge::FileAnalysis.new(components[:merge_body])
+      end.not_to output(/unclosed/).to_stderr
+    end
   end
 
   describe "text helpers" do

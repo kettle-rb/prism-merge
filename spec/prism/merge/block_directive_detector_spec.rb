@@ -58,6 +58,16 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
         expect { detector.detect_spans }.to output(/unclosed/).to_stderr
         expect(detector.detect_spans).to be_empty
       end
+
+      it "includes source_label in unclosed freeze warning when provided" do
+        lines = lines_from(<<~RUBY)
+          # prism-merge:freeze
+          CONST = 1
+        RUBY
+
+        detector = described_class.new(lines, freeze_token: freeze_token, source_label: "Rakefile")
+        expect { detector.detect_spans }.to output(/Rakefile/).to_stderr
+      end
     end
 
     context "with nocov blocks" do
@@ -107,6 +117,16 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
 
         detector = described_class.new(lines)
         expect { detector.detect_spans }.to output(/unclosed/).to_stderr
+      end
+
+      it "includes source_label in unclosed nocov warning when provided" do
+        lines = lines_from(<<~RUBY)
+          # :nocov:
+          def a; end
+        RUBY
+
+        detector = described_class.new(lines, source_label: "path/to/file.rb")
+        expect { detector.detect_spans }.to output(/path\/to\/file\.rb/).to_stderr
       end
     end
 
