@@ -104,6 +104,15 @@ Please file a bug if you notice a violation of semantic versioning.
   (top-level file analysis), preventing silent file corruption. Sub-body fragments
   (no `source_label`) retain the warn-and-skip behavior since partial markers are
   expected in clause body slices.
+- Fixed Gemfile gap/blank-line insertion when template and destination have the
+  same nodes in different order: `destination_gap_already_precedes_template_leading_comments?`
+  now checks the dest analysis structurally (does a blank-line gap exist before
+  the dest node?) instead of scanning result metadata for emitted dest lines —
+  the metadata check always failed under `preference: :template` because matched
+  nodes emit template lines, not dest lines. Additionally, template postlude
+  (end-of-file trailing blank) gaps are no longer emitted when the matched dest
+  node is not at the end of the dest file, preventing spurious trailing blank
+  lines when nodes are repositioned during merge.
 
 ### Security
 
