@@ -113,6 +113,7 @@ Please file a bug if you notice a violation of semantic versioning.
   (end-of-file trailing blank) gaps are no longer emitted when the matched dest
   node is not at the end of the dest file, preventing spurious trailing blank
   lines when nodes are repositioned during merge.
+- Fixed multi-byte character (emoji) handling — upstream `ast-merge` `byteslice` → `slice` fix prevents corruption when merging content with multi-byte characters
 
 ### Security
 
