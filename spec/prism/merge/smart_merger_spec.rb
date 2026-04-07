@@ -5665,5 +5665,96 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include("# ruby >= 3.2.0")
       end
     end
+
+    describe "multi-byte character (emoji) handling" do
+      # Regression specs to ensure prism-merge's byteslice-based offset handling
+      # stays correct with multi-byte characters (emoji = 4 bytes, CJK = 3 bytes).
+      # Other mergers had a bug where String#[] with byte offsets was wrong because
+      # String#[] indexes by character, not bytes. prism-merge was never affected,
+      # but these specs guard against regressions.
+
+      it "does not duplicate methods when source contains emoji in strings" do
+        template = <<~RUBY
+          def greet
+            "hello"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          def emoji_label
+            "🪙 token"
+          end
+
+          def greet
+            "world"
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          destination,
+          preference: :destination,
+          add_template_only_nodes: true,
+        )
+        result = merger.merge
+
+        expect(result.scan("def greet").length).to eq(1)
+        expect(result).to include("def emoji_label")
+        expect(result).to include("🪙 token")
+      end
+
+      it "preserves emoji in string literals" do
+        template = <<~RUBY
+          def status
+            "✅ passed"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          def status
+            "🚫 failed"
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          destination,
+          preference: :destination,
+          add_template_only_nodes: true,
+        )
+        result = merger.merge
+
+        expect(result.scan("def status").length).to eq(1)
+        expect(result).to include("🚫 failed")
+        expect(result).not_to include("✅ passed")
+      end
+
+      it "handles CJK in comments without duplication" do
+        template = <<~RUBY
+          def process
+            "run"
+          end
+        RUBY
+
+        destination = <<~RUBY
+          # 処理を実行する
+          def process
+            "execute"
+          end
+        RUBY
+
+        merger = described_class.new(
+          template,
+          destination,
+          preference: :destination,
+          add_template_only_nodes: true,
+        )
+        result = merger.merge
+
+        expect(result.scan("def process").length).to eq(1)
+        expect(result).to include("処理を実行する")
+        expect(result).to include('"execute"')
+      end
+    end
   end
 end
