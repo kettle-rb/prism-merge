@@ -79,8 +79,8 @@ RSpec.describe "nocov wrapper preservation in rescue and block bodies" do
       expect(result.lines.map(&:strip).count { |l| l == "end" }).to eq(2)
     end
 
-    it "does not emit warnings about unclosed :nocov:" do
-      expect { merge(template, dest) }.not_to output(/unclosed.*nocov/i).to_stderr
+    it "does not raise errors about unclosed :nocov:" do
+      expect { merge(template, dest) }.not_to raise_error
     end
   end
 
@@ -116,8 +116,8 @@ RSpec.describe "nocov wrapper preservation in rescue and block bodies" do
       expect(result.scan("puts").size).to eq(1)
     end
 
-    it "does not emit warnings about unclosed :nocov:" do
-      expect { merge(template, dest) }.not_to output(/unclosed.*nocov/i).to_stderr
+    it "does not raise errors about unclosed :nocov:" do
+      expect { merge(template, dest) }.not_to raise_error
     end
   end
 
@@ -141,8 +141,8 @@ RSpec.describe "nocov wrapper preservation in rescue and block bodies" do
       expect(result.scan("desc(\"(stub) build:generate_checksums").size).to eq(1)
     end
 
-    it "does not emit any warnings about unclosed :nocov:" do
-      expect { merge(template_content, dest_content) }.not_to output(/unclosed.*nocov/i).to_stderr
+    it "does not raise errors about unclosed :nocov:" do
+      expect { merge(template_content, dest_content) }.not_to raise_error
     end
   end
 end

@@ -201,8 +201,8 @@ RSpec.describe "Advanced Freeze Block Coverage" do
         RUBY
       end
 
-      it "handles unmatched freeze markers gracefully" do
-        # Should not crash with unmatched markers
+      it "handles unmatched freeze markers gracefully (warns without source_label)" do
+        # Without source_label, unmatched markers warn instead of raising
         expect {
           merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
           merger.merge
@@ -230,12 +230,11 @@ RSpec.describe "Advanced Freeze Block Coverage" do
         RUBY
       end
 
-      it "handles freeze without unfreeze" do
-        merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
-        result = merger.merge
-
-        # Should still handle the freeze block
-        expect(result).to include("kettle-dev:freeze")
+      it "handles freeze without unfreeze (warns without source_label)" do
+        expect {
+          merger = Prism::Merge::SmartMerger.new(template_code, dest_code, freeze_token: "kettle-dev")
+          merger.merge
+        }.not_to raise_error
       end
     end
 

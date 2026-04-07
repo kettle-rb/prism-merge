@@ -99,10 +99,10 @@ RSpec.describe Prism::Merge::BeginNodeClauseBodySupport do
       expect(components[:merge_body].scan("# :nocov:").size).to eq(2)
       expect(components[:trailing_suffix]).not_to include("# :nocov:")
 
-      # No warning should be emitted when sub-body analysis is created
+      # No error should be raised when sub-body analysis is created (markers are balanced)
       expect do
         Prism::Merge::FileAnalysis.new(components[:merge_body])
-      end.not_to output(/unclosed/).to_stderr
+      end.not_to raise_error
     end
   end
 

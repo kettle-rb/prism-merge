@@ -120,6 +120,18 @@ module Prism
         @source_label ? "[prism-merge] BlockDirectiveDetector (#{@source_label}):" : "[prism-merge] BlockDirectiveDetector:"
       end
 
+      # Report an unbalanced or invalid block directive.
+      # Raises Prism::Merge::Error for top-level file analysis (source_label present)
+      # to prevent file corruption. Falls back to warn for sub-body fragments
+      # (no source_label) where partial markers are expected.
+      def report_unbalanced(message)
+        if @source_label
+          raise Prism::Merge::Error, "#{warn_prefix} #{message}"
+        else
+          warn("#{warn_prefix} #{message} — ignoring")
+        end
+      end
+
       # @return [Array<Span>]
       def detect_freeze_spans
         return [] unless @freeze_token
@@ -145,13 +157,13 @@ module Prism
                 close_marker: stripped,
               )
             else
-              warn("#{warn_prefix} unmatched #{@freeze_token}:unfreeze at line #{line_num} — ignoring")
+              report_unbalanced("unmatched #{@freeze_token}:unfreeze at line #{line_num}")
             end
           end
         end
 
         stack.each do |open|
-          warn("#{warn_prefix} unclosed #{@freeze_token}:freeze at line #{open[:start_line]} — ignoring")
+          report_unbalanced("unclosed #{@freeze_token}:freeze at line #{open[:start_line]}")
         end
 
         spans
@@ -186,7 +198,7 @@ module Prism
         end
 
         stack.each do |open|
-          warn("#{warn_prefix} unclosed :nocov: at line #{open[:start_line]} — ignoring")
+          report_unbalanced("unclosed :nocov: at line #{open[:start_line]}")
         end
 
         spans
@@ -208,7 +220,7 @@ module Prism
 
             if (a.start_line < b.start_line && a.end_line > b.start_line && a.end_line < b.end_line) ||
                 (b.start_line < a.start_line && b.end_line > a.start_line && b.end_line < a.end_line)
-              warn("#{warn_prefix} offset-overlapping #{a.kind} block " \
+              report_unbalanced("offset-overlapping #{a.kind} block " \
                 "(lines #{a.start_line}..#{a.end_line}) and #{b.kind} block " \
                 "(lines #{b.start_line}..#{b.end_line}) — both treated as plain comments")
               invalid_indices.add(i)

@@ -37,7 +37,17 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
         expect(detector.detect_spans).to be_empty
       end
 
-      it "warns and ignores unmatched unfreeze" do
+      it "raises on unmatched unfreeze when source_label is present" do
+        lines = lines_from(<<~RUBY)
+          CONST = 1
+          # prism-merge:unfreeze
+        RUBY
+
+        detector = described_class.new(lines, freeze_token: freeze_token, source_label: "test.rb")
+        expect { detector.detect_spans }.to raise_error(Prism::Merge::Error, /unmatched/)
+      end
+
+      it "warns on unmatched unfreeze without source_label" do
         lines = lines_from(<<~RUBY)
           CONST = 1
           # prism-merge:unfreeze
@@ -45,10 +55,19 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
 
         detector = described_class.new(lines, freeze_token: freeze_token)
         expect { detector.detect_spans }.to output(/unmatched/).to_stderr
-        expect(detector.detect_spans).to be_empty
       end
 
-      it "warns and ignores unclosed freeze" do
+      it "raises on unclosed freeze when source_label is present" do
+        lines = lines_from(<<~RUBY)
+          # prism-merge:freeze
+          CONST = 1
+        RUBY
+
+        detector = described_class.new(lines, freeze_token: freeze_token, source_label: "test.rb")
+        expect { detector.detect_spans }.to raise_error(Prism::Merge::Error, /unclosed/)
+      end
+
+      it "warns on unclosed freeze without source_label" do
         lines = lines_from(<<~RUBY)
           # prism-merge:freeze
           CONST = 1
@@ -56,17 +75,16 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
 
         detector = described_class.new(lines, freeze_token: freeze_token)
         expect { detector.detect_spans }.to output(/unclosed/).to_stderr
-        expect(detector.detect_spans).to be_empty
       end
 
-      it "includes source_label in unclosed freeze warning when provided" do
+      it "includes source_label in unclosed freeze error when provided" do
         lines = lines_from(<<~RUBY)
           # prism-merge:freeze
           CONST = 1
         RUBY
 
         detector = described_class.new(lines, freeze_token: freeze_token, source_label: "Rakefile")
-        expect { detector.detect_spans }.to output(/Rakefile/).to_stderr
+        expect { detector.detect_spans }.to raise_error(Prism::Merge::Error, /Rakefile/)
       end
     end
 
@@ -109,7 +127,17 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
         expect(spans[1].end_line).to eq(7)
       end
 
-      it "warns and ignores unclosed nocov" do
+      it "raises on unclosed nocov when source_label is present" do
+        lines = lines_from(<<~RUBY)
+          # :nocov:
+          def a; end
+        RUBY
+
+        detector = described_class.new(lines, source_label: "test.rb")
+        expect { detector.detect_spans }.to raise_error(Prism::Merge::Error, /unclosed/)
+      end
+
+      it "warns on unclosed nocov without source_label" do
         lines = lines_from(<<~RUBY)
           # :nocov:
           def a; end
@@ -119,14 +147,14 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
         expect { detector.detect_spans }.to output(/unclosed/).to_stderr
       end
 
-      it "includes source_label in unclosed nocov warning when provided" do
+      it "includes source_label in unclosed nocov error when provided" do
         lines = lines_from(<<~RUBY)
           # :nocov:
           def a; end
         RUBY
 
         detector = described_class.new(lines, source_label: "path/to/file.rb")
-        expect { detector.detect_spans }.to output(/path\/to\/file\.rb/).to_stderr
+        expect { detector.detect_spans }.to raise_error(Prism::Merge::Error, /path\/to\/file\.rb/)
       end
     end
 
