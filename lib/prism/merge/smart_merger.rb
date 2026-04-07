@@ -384,8 +384,32 @@ module Prism
       def build_signature_map(analysis)
         map = Hash.new { |h, k| h[k] = [] }
         analysis.statements.each_with_index do |node, idx|
-          sig = analysis.generate_signature(node)
-          map[sig] << {node: node, index: idx} if sig
+          entry = {node: node, index: idx}
+
+          # BlockDirective nodes (NocovNode, FreezeNode) wrap inner content.
+          # For matching, register the directive under each child's signature
+          # so that a NocovNode{desc, task} matches template's bare desc or task.
+          # The entry still points to the full directive node for emission.
+          if node.is_a?(Ast::Merge::BlockDirective) && !node.is_a?(Ast::Merge::FreezeNodeBase)
+            children = node.children
+            if children.length == 1
+              # Single-child: NocovNode#signature already delegates to inner node.
+              sig = analysis.generate_signature(node)
+              map[sig] << entry if sig
+            else
+              # Multi-child: register under each child's signature AND
+              # the directive's own composite signature (for directive-to-directive matching).
+              children.each do |child|
+                child_sig = analysis.generate_signature(child)
+                map[child_sig] << entry if child_sig
+              end
+              sig = analysis.generate_signature(node)
+              map[sig] << entry if sig
+            end
+          else
+            sig = analysis.generate_signature(node)
+            map[sig] << entry if sig
+          end
         end
         map
       end
