@@ -33,7 +33,7 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 | Tokens to Remember      | [![Gem name][⛳️name-img]][⛳️gem-name] [![Gem namespace][⛳️namespace-img]][⛳️gem-namespace]                                                                                                                                                                                                                                                                          |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Works with JRuby        | [![JRuby current Compat][💎jruby-c-i]][🚎10-j-wf] [![JRuby HEAD Compat][💎jruby-headi]][🚎3-hd-wf]|
-| Works with Truffle Ruby | [![Truffle Ruby 23.2 Compat][💎truby-23.2i]][🚎truby-23.2-wf] [![Truffle Ruby 24.2 Compat][💎truby-24.2i]][🚎truby-24.2-wf] [![Truffle Ruby 25.0 Compat][💎truby-25.0i]][🚎truby-25.0-wf] [![Truffle Ruby current Compat][💎truby-c-i]][🚎9-t-wf]|
+| Works with Truffle Ruby | [![Truffle Ruby 24.2 Compat][💎truby-24.2i]][🚎truby-24.2-wf] [![Truffle Ruby 25.0 Compat][💎truby-25.0i]][🚎truby-25.0-wf] [![Truffle Ruby current Compat][💎truby-c-i]][🚎9-t-wf]|
 | Works with MRI Ruby 4   | [![Ruby 4.0 Compat][💎ruby-4.0i]][🚎11-c-wf] [![Ruby current Compat][💎ruby-c-i]][🚎11-c-wf] [![Ruby HEAD Compat][💎ruby-headi]][🚎3-hd-wf]|
 | Works with MRI Ruby 3   | [![Ruby 3.2 Compat][💎ruby-3.2i]][🚎ruby-3.2-wf] [![Ruby 3.3 Compat][💎ruby-3.3i]][🚎ruby-3.3-wf] [![Ruby 3.4 Compat][💎ruby-3.4i]][🚎ruby-3.4-wf]|
 | Support & Community     | [![Join Me on Daily.dev's RubyFriends][✉️ruby-friends-img]][✉️ruby-friends] [![Live Chat on Discord][✉️discord-invite-img-ftb]][✉️discord-invite] [![Get help from me on Upwork][👨🏼‍🏫expsup-upwork-img]][👨🏼‍🏫expsup-upwork] [![Get help from me on Codementor][👨🏼‍🏫expsup-codementor-img]][👨🏼‍🏫expsup-codementor]                                       |
@@ -429,7 +429,6 @@ Thanks for RTFM. ☺️
 [🚎ruby-3.2-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/ruby-3.2.yml
 [🚎ruby-3.3-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/ruby-3.3.yml
 [🚎ruby-3.4-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/ruby-3.4.yml
-[🚎truby-23.2-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/truffleruby-23.2.yml
 [🚎truby-24.2-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/truffleruby-24.2.yml
 [🚎truby-25.0-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/truffleruby-25.0.yml
 [🚎2-cov-wf]: https://github.com/kettle-rb/prism-merge/actions/workflows/coverage.yml
@@ -458,7 +457,6 @@ Thanks for RTFM. ☺️
 [💎ruby-4.0i]: https://img.shields.io/badge/Ruby-4.0-CC342D?style=for-the-badge&logo=ruby&logoColor=white
 [💎ruby-c-i]: https://img.shields.io/badge/Ruby-current-CC342D?style=for-the-badge&logo=ruby&logoColor=green
 [💎ruby-headi]: https://img.shields.io/badge/Ruby-HEAD-CC342D?style=for-the-badge&logo=ruby&logoColor=blue
-[💎truby-23.2i]: https://img.shields.io/badge/Truffle_Ruby-23.2-34BCB1?style=for-the-badge&logo=ruby&logoColor=pink
 [💎truby-24.2i]: https://img.shields.io/badge/Truffle_Ruby-24.2-34BCB1?style=for-the-badge&logo=ruby&logoColor=pink
 [💎truby-25.0i]: https://img.shields.io/badge/Truffle_Ruby-25.0-34BCB1?style=for-the-badge&logo=ruby&logoColor=pink
 [💎truby-c-i]: https://img.shields.io/badge/Truffle_Ruby-current-34BCB1?style=for-the-badge&logo=ruby&logoColor=green
