@@ -85,6 +85,25 @@ Please file a bug if you notice a violation of semantic versioning.
   the true last line of any node; `node_source_lines`, the trailing-blank probe,
   `node_line_range` for trailing-comment coverage, and `orphan_previous_line` all
   now use `effective_end_line` instead of `node.location.end_line`.
+- Fixed multi-child `NocovNode` blocks (e.g. `# :nocov:` wrapping several
+  statements) causing signature mismatches in `build_signature_map`: the composite
+  `:nocov_multi` signature never matched the template's bare child signatures,
+  so `process_dest_node` treated both sides as unmatched — duplicating content
+  and dropping closing `# :nocov:` markers. `build_signature_map` now expands
+  non-freeze `BlockDirective` nodes, registering under each child's individual
+  signature (for cross-wrapper matching) and the directive's own composite
+  signature (for directive-to-directive matching), while preserving the full
+  wrapper for emission.
+- Fixed `clause_body_components` producing false "unclosed :nocov:" warnings when
+  a rescue clause body ends with a `# :nocov:` close marker: the trailing close
+  marker was split into `trailing_suffix` instead of `merge_body`, creating an
+  odd marker count in sub-body `FileAnalysis`. The close marker is now included
+  in `merge_body` when the nocov count is odd.
+- `BlockDirectiveDetector` now raises `Prism::Merge::Error` (instead of warning)
+  for unbalanced open/close directive pairs when `source_label` is present
+  (top-level file analysis), preventing silent file corruption. Sub-body fragments
+  (no `source_label`) retain the warn-and-skip behavior since partial markers are
+  expected in clause body slices.
 
 ### Security
 
