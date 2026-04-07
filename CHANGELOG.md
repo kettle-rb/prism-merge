@@ -20,6 +20,12 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- Added `Prism::Merge::GemspecVarRenamer` — AST-directed renaming of gemspec
+  block-variable receivers.  Uses `Prism::Visitor` to walk the AST and collect
+  byte offsets of root receivers matching the old variable name, then applies
+  positional replacements without regular expressions.  Handles simple
+  assignments (`gem.name =`), chained calls (`gem.metadata[]`), operator
+  writes (`gem.files +=`), and string interpolation (`#{gem.name}`)
 - Added three-phase matching in `TopLevelMergeRunner` for smarter node pairing:
   Phase 1 matches by exact structural signature (existing behavior);
   Phase 2 uses body-text Jaccard similarity (`Ast::Merge::JaccardSimilarity`)
@@ -35,6 +41,10 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Changed
 
+- `RecursiveNodeBodyMerger` now rewrites the non-preferred side's body text
+  via `GemspecVarRenamer` before creating the child merge, so destination-only
+  attributes inside a gemspec block emit with the correct receiver variable
+  (e.g. `spec.summary` instead of `gem.summary`)
 - `TopLevelMergeRunner` now includes `Ast::Merge::JaccardSimilarity` for
   Phase 2 body-text matching; exact matches (Phase 1) always take precedence
   to prevent fuzzy scoring from consuming nodes that belong to later exact

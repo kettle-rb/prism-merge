@@ -18,6 +18,23 @@ module Prism
         template_body = merger.send(:extract_node_body, actual_template, merger.template_analysis)
         dest_body = merger.send(:extract_node_body, actual_dest, merger.dest_analysis)
 
+        # When the gemspec block uses different variable names (e.g. |gem| vs |spec|),
+        # rewrite the non-preferred side's body text so that dest-only or template-only
+        # nodes emit with the correct receiver.  Uses AST-directed byte-offset
+        # replacement — no regular expressions.
+        template_var = merger.template_analysis.respond_to?(:gemspec_block_var) ? merger.template_analysis.gemspec_block_var : nil
+        dest_var = merger.dest_analysis.respond_to?(:gemspec_block_var) ? merger.dest_analysis.gemspec_block_var : nil
+        preferred_var = nil
+        if template_var && dest_var && template_var != dest_var
+          preferred_var = (merger.preference == :destination) ? dest_var : template_var
+          if dest_var != preferred_var
+            dest_body = GemspecVarRenamer.rename(dest_body, old_var: dest_var, new_var: preferred_var)
+          end
+          if template_var != preferred_var
+            template_body = GemspecVarRenamer.rename(template_body, old_var: template_var, new_var: preferred_var)
+          end
+        end
+
         body_merger = merger.class.new(
           template_body,
           dest_body,
@@ -32,8 +49,9 @@ module Prism
           # Thread gemspec block-variable names so inner FileAnalysis objects can normalise
           # assignment signatures even when the Gem::Specification.new wrapper is absent
           # from the extracted body text (auto-detection cannot fire without the wrapper).
-          template_gemspec_block_var: merger.template_analysis.respond_to?(:gemspec_block_var) ? merger.template_analysis.gemspec_block_var : nil,
-          dest_gemspec_block_var: merger.dest_analysis.respond_to?(:gemspec_block_var) ? merger.dest_analysis.gemspec_block_var : nil,
+          # When renaming was applied above, both sides now use preferred_var.
+          template_gemspec_block_var: preferred_var || template_var,
+          dest_gemspec_block_var: preferred_var || dest_var,
         )
         body_result = if template_body.empty? && dest_body.empty?
           nil
