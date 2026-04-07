@@ -20,6 +20,11 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Added
 
+- Added three-phase matching in `TopLevelMergeRunner` for smarter node pairing:
+  Phase 1 matches by exact structural signature (existing behavior);
+  Phase 2 uses body-text Jaccard similarity (`Ast::Merge::JaccardSimilarity`)
+  to pair probable renames/refactors at the same depth;
+  Phase 3 searches nested destination subtrees for cross-depth moved nodes
 - Added shared comment capability and augmenter exposure over Prism-native ownership, with normalized region / attachment access and shared-example compliance coverage for the native-full Ruby path
 - Added `Prism::Merge::PartialTemplateMerger` plus recipe-runner coverage for navigable top-level Ruby partial-template merges on the shared `ast-merge` substrate
 - Added `Prism::Merge::PartialTemplateNode` as the thin statement adapter that normalizes Prism-owned statements and unwrap-capable wrappers onto the shared navigable partial-template contract
@@ -30,6 +35,10 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Changed
 
+- `TopLevelMergeRunner` now includes `Ast::Merge::JaccardSimilarity` for
+  Phase 2 body-text matching; exact matches (Phase 1) always take precedence
+  to prevent fuzzy scoring from consuming nodes that belong to later exact
+  matches at different positions
 - Adopted the shared `Ast::Merge::Layout` contract for top-level Ruby owner gaps, reducing bespoke blank-line handling to Ruby-specific shebang, magic-comment, and freeze-marker semantics
 - Prism-native comments now flow through the shared merge-facing attachment model while preserving shebang and Ruby magic-comment semantics
 - Preserved or promoted attached leading, inline, and external trailing comments plus separator blank lines when `remove_template_missing_nodes: true` removes destination-only Ruby bodies at either the top level or the recursive level
@@ -43,10 +52,12 @@ Please file a bug if you notice a violation of semantic versioning.
 
 ### Fixed
 
-- Fixed moved-node duplication: template top-level statements that exist inside
-  destination control-flow blocks (e.g. `if`, `unless`, `begin`) are now
-  recognized as "moved" matches via cross-depth signature search, preventing
-  them from being re-added as template-only nodes
+- Fixed moved-node duplication via three-phase matching: template top-level
+  statements that exist inside destination control-flow blocks (e.g. `if`,
+  `unless`, `begin`) are recognized as "moved" matches in Phase 3, and
+  renamed methods with similar bodies are paired in Phase 2 via Jaccard
+  body-text similarity, preventing both from being duplicated as
+  template-only nodes
 - Fixed `# :nocov:` directives being lost or having spurious blank lines when merging Rakefiles and other Ruby files: `BlockDirectiveDetector` now promotes balanced open/close nocov pairs to first-class `NocovNode` synthetic nodes before merge, preventing Prism's `attach_comments!` from hoisting them onto the wrong code node; `NocovNode#location` now computes byte offsets (like `FreezeNode`) so `TopLevelMergeRunner#already_output?` correctly avoids skipping nocov nodes on repeated merge passes; `NocovNode` now exposes `leading_comments` from its first inner node so comment blocks preceding a nocov opener are preserved across second-pass merges
 - Fixed freeze block duplication when a top-level freeze block's lines were promoted to `FreezeNode` but still attached as Prism leading comments on the next container node (e.g. `Gem::Specification.new`); `recursive_node_body_merger` now filters claimed lines from leading comments before emitting them
 - Fixed false detection of freeze markers in reminder/example comment blocks (e.g. `#     kettle-jem:freeze` with 5 spaces); detector pattern now requires at most 1 space between `#` and the directive token

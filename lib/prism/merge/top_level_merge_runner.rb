@@ -2,15 +2,67 @@
 
 module Prism
   module Merge
+    # Orchestrates the top-level merge of two Ruby files parsed by Prism.
+    #
+    # Uses a **three-phase matching** strategy to pair template nodes with
+    # destination nodes before emitting the merged result:
+    #
+    # 1. **Phase 1 — Exact signature match.**
+    #    Pairs nodes whose structural signatures (method name + params,
+    #    call name + args, etc.) are identical. This is the fastest phase
+    #    and handles the vast majority of nodes.
+    #
+    # 2. **Phase 2 — Similarity match at the same depth.**
+    #    For nodes left unmatched after Phase 1, computes body-text Jaccard
+    #    similarity ({Ast::Merge::JaccardSimilarity}) to pair probable
+    #    renames or minor refactors. Only operates on the residual
+    #    unmatched sets, keeping cost proportional to orphan count.
+    #
+    # 3. **Phase 3 — Cross-depth match.**
+    #    For nodes still unmatched after Phase 2, searches recursively into
+    #    destination subtrees (conditionals, begin/rescue, call blocks) to
+    #    detect "moved" nodes — e.g. a template top-level +eval_gemfile+
+    #    that the destination wrapped inside an +if+ block. Only runs on
+    #    the tiny residual set surviving both previous phases.
+    #
+    # The phase ordering is critical: exact matches are locked in first so
+    # that fuzzy Phase 2 scoring cannot accidentally consume a node that
+    # belongs to a later exact match at a different position.
+    #
+    # @example Basic usage (internal — called by SmartMerger)
+    #   runner = TopLevelMergeRunner.new(merger: smart_merger)
+    #   result = runner.merge   # => MergeResult
+    #
+    # @see Ast::Merge::JaccardSimilarity   Jaccard token-set similarity
+    # @see Ast::Merge::TrailingGroups::DestIterate  Template-only node positioning
     class TopLevelMergeRunner
       include ::Ast::Merge::TrailingGroups::DestIterate
+      include ::Ast::Merge::JaccardSimilarity
 
+      # Minimum Jaccard score for Phase 2 body-text matching.
+      # Below this threshold, two nodes are too dissimilar to pair.
+      #
+      # @return [Float]
+      SIMILARITY_THRESHOLD = 0.6
+
+      # Minimum token count for meaningful Jaccard comparison.
+      # Nodes with fewer body tokens than this are skipped in Phase 2
+      # to avoid spurious matches on trivially short bodies.
+      #
+      # @return [Integer]
+      MIN_BODY_TOKENS = 3
+
+      # @return [SmartMerger] The merger instance driving this run
       attr_reader :merger
 
+      # @param merger [SmartMerger] The merger to run
       def initialize(merger:)
         @merger = merger
       end
 
+      # Execute the three-phase merge and return the result.
+      #
+      # @return [MergeResult] The merged output
       def merge
         return merger.send(:comment_only_file_merger).merge if comment_only_merge?
 
@@ -22,14 +74,16 @@ module Prism
         output_dest_line_ranges = []
         last_output_dest_line = merger.send(:emit_dest_prefix_lines, merger.result, merger.dest_analysis)
 
-        # Pre-compute position-aware trailing groups for template-only nodes.
+        # Phase 1: exact signature match (existing behavior).
         dest_sigs = ::Set.new(dest_by_signature.keys)
 
-        # Collect signatures from ALL depths of the destination AST so that
-        # template-only nodes whose content already exists inside a destination
-        # block (e.g. eval_gemfile inside an `if`) are recognized as "moved"
-        # rather than duplicated.
-        @deep_dest_sigs = collect_deep_signatures(merger.dest_analysis)
+        # Phase 2: compute similarity-matched pairs from residual orphans.
+        @similarity_pairs = compute_similarity_pairs(template_by_signature, dest_by_signature)
+
+        # Phase 3: cross-depth search, but only for orphans surviving Phases 1+2.
+        @deep_dest_sigs = compute_deep_sigs_for_orphans(
+          template_by_signature, dest_sigs,
+        )
 
         trailing_groups, _matched_indices = build_dest_iterate_trailing_groups(
           template_nodes: merger.template_analysis.statements,
@@ -70,15 +124,259 @@ module Prism
 
       private
 
-      # Override the ast-merge hook so template-only nodes that exist at a
-      # deeper level in the destination AST are treated as "moved" matches
-      # rather than true template-only additions.
+      # Override the ast-merge hook to incorporate Phase 2 (similarity) and
+      # Phase 3 (cross-depth) matches when deciding whether a template node
+      # should be treated as "matched" vs "template-only".
+      #
+      # Called by {Ast::Merge::TrailingGroups::DestIterate} during trailing
+      # group construction for each template node not matched by Phase 1.
+      #
+      # @param _node [Prism::Node] The template node under consideration
+      # @param signature [Array, nil] The node's computed signature
+      # @return [Boolean] true if the node should be treated as matched
       def trailing_group_node_matched?(_node, signature)
         return false unless signature
-        return false unless @deep_dest_sigs
 
-        @deep_dest_sigs.include?(signature)
+        # Phase 2: matched by body-text similarity?
+        return true if @similarity_pairs&.key?(signature)
+
+        # Phase 3: exists at a deeper depth in destination?
+        return true if @deep_dest_sigs&.include?(signature)
+
+        false
       end
+
+      # ------------------------------------------------------------------
+      # Phase 2: Body-text Jaccard similarity matching
+      # ------------------------------------------------------------------
+
+      # Compute similarity-based pairings for unmatched template nodes.
+      #
+      # After Phase 1 exact matching, some template and destination nodes
+      # remain unpaired. This method extracts the body text of each
+      # unmatched node, tokenizes it with {JaccardSimilarity#extract_tokens},
+      # and uses greedy highest-score-first matching to pair probable
+      # renames or minor refactors.
+      #
+      # Only nodes with meaningful body text (≥ {MIN_BODY_TOKENS} tokens)
+      # are considered. The result is a Hash mapping template signature
+      # to its similarity-paired destination signature.
+      #
+      # @param template_by_signature [Hash] Phase 1 template signature map
+      # @param dest_by_signature [Hash] Phase 1 destination signature map
+      # @return [Hash{Array => Array}] Template sig → dest sig pairs
+      def compute_similarity_pairs(template_by_signature, dest_by_signature)
+        pairs = {}
+        template_sigs = ::Set.new(template_by_signature.keys)
+        dest_sigs = ::Set.new(dest_by_signature.keys)
+        matched_sigs = template_sigs & dest_sigs
+
+        # Residual: unmatched signatures after Phase 1
+        unmatched_t_sigs = template_sigs - matched_sigs
+        unmatched_d_sigs = dest_sigs - matched_sigs
+
+        return pairs if unmatched_t_sigs.empty? || unmatched_d_sigs.empty?
+
+        # Build candidate lists: [{sig:, node:, tokens:}, ...]
+        t_candidates = build_token_candidates(unmatched_t_sigs, template_by_signature, merger.template_analysis)
+        d_candidates = build_token_candidates(unmatched_d_sigs, dest_by_signature, merger.dest_analysis)
+
+        return pairs if t_candidates.empty? || d_candidates.empty?
+
+        # Score all pairs, greedily assign best matches
+        scored = []
+        t_candidates.each do |tc|
+          d_candidates.each do |dc|
+            score = jaccard(tc[:tokens], dc[:tokens])
+            scored << {t_sig: tc[:sig], d_sig: dc[:sig], score: score} if score > SIMILARITY_THRESHOLD
+          end
+        end
+
+        scored.sort_by! { |s| -s[:score] }
+
+        used_t = ::Set.new
+        used_d = ::Set.new
+        scored.each do |s|
+          next if used_t.include?(s[:t_sig]) || used_d.include?(s[:d_sig])
+
+          pairs[s[:t_sig]] = s[:d_sig]
+          used_t << s[:t_sig]
+          used_d << s[:d_sig]
+        end
+
+        pairs
+      end
+
+      # Build tokenized candidates from unmatched signatures.
+      #
+      # For each unmatched signature, extracts the body text of the
+      # corresponding node, tokenizes it, and filters out nodes with
+      # too few tokens for meaningful comparison.
+      #
+      # @param sigs [Set<Array>] Unmatched signatures
+      # @param sig_map [Hash] Signature → [{node:, index:}, ...] map
+      # @param analysis [FileAnalysis] Source analysis for text extraction
+      # @return [Array<Hash>] Candidates with :sig, :node, :tokens keys
+      def build_token_candidates(sigs, sig_map, analysis)
+        candidates = []
+        sigs.each do |sig|
+          entries = sig_map[sig]
+          next unless entries&.first
+
+          node = entries.first[:node]
+          body_text = extract_node_body_text(node, analysis)
+          next if body_text.empty?
+
+          tokens = extract_tokens(body_text, stopwords: ::Set.new, min_length: 2)
+          next if tokens.size < MIN_BODY_TOKENS
+
+          candidates << {sig: sig, node: node, tokens: tokens}
+        end
+        candidates
+      end
+
+      # Extract the body text of a node for Jaccard comparison.
+      #
+      # Only extracts body text from compound nodes that have meaningful
+      # nested content (methods, classes, modules). Simple call nodes,
+      # assignments, and other leaf-level nodes return empty strings
+      # because their short source text leads to spurious matches.
+      #
+      # @param node [Prism::Node] The node to extract text from
+      # @param analysis [FileAnalysis] Source analysis for line access
+      # @return [String] Body text suitable for tokenization
+      def extract_node_body_text(node, _analysis)
+        actual = unwrap_node(node)
+        case actual
+        when Prism::DefNode
+          return "" unless actual.body
+
+          actual.body.slice.to_s
+        when Prism::ClassNode, Prism::ModuleNode
+          return "" unless actual.body
+
+          actual.body.slice.to_s
+        else
+          # Leaf-level nodes (calls, assignments, etc.) are not eligible
+          # for body-text similarity matching — their source text is too
+          # short and leads to false positives.
+          ""
+        end
+      end
+
+      # ------------------------------------------------------------------
+      # Phase 3: Cross-depth signature search
+      # ------------------------------------------------------------------
+
+      # Collect deep signatures only for template orphans surviving
+      # Phase 1 and Phase 2.
+      #
+      # This narrows the expensive recursive AST walk to only the
+      # signatures that are actually needed, rather than walking the
+      # entire destination tree unconditionally.
+      #
+      # @param template_by_signature [Hash] Phase 1 template signature map
+      # @param dest_sigs [Set<Array>] Phase 1 destination signatures
+      # @return [Set<Array>] Signatures found at depth > 0 in the dest AST
+      def compute_deep_sigs_for_orphans(template_by_signature, dest_sigs)
+        template_sigs = ::Set.new(template_by_signature.keys)
+
+        # Remove Phase 1 exact matches
+        orphan_sigs = template_sigs - dest_sigs
+
+        # Remove Phase 2 similarity matches
+        orphan_sigs -= @similarity_pairs.keys if @similarity_pairs
+
+        return ::Set.new if orphan_sigs.empty?
+
+        # Only walk the destination AST for remaining orphans
+        collect_deep_signatures(merger.dest_analysis, target_sigs: orphan_sigs)
+      end
+
+      # Recursively collect signatures from nested destination AST nodes.
+      #
+      # Walks into compound nodes (conditionals, begin/rescue, call blocks)
+      # looking for signatures that match any of the +target_sigs+. Stops
+      # early once all targets are found.
+      #
+      # @param analysis [FileAnalysis] Destination file analysis
+      # @param target_sigs [Set<Array>, nil] If provided, only collect these
+      #   signatures (early termination). If nil, collect all nested sigs.
+      # @return [Set<Array>] Signatures found at depth > 0
+      def collect_deep_signatures(analysis, target_sigs: nil)
+        sigs = ::Set.new
+        analysis.statements.each do |node|
+          collect_nested_signatures(node, analysis, sigs, depth: 0, target_sigs: target_sigs)
+          break if target_sigs && (target_sigs - sigs).empty?
+        end
+        sigs
+      end
+
+      # Walk a single node's subtree collecting signatures.
+      #
+      # Limits recursion to compound statement nodes where a "moved"
+      # statement is semantically plausible (conditionals, begin/rescue,
+      # call blocks). Does not descend into method or class definitions
+      # where the same call name would have different semantics.
+      #
+      # @param node [Prism::Node] Current node to examine
+      # @param analysis [FileAnalysis] Source analysis for signature generation
+      # @param sigs [Set<Array>] Accumulator for found signatures
+      # @param depth [Integer] Current recursion depth (0 = top-level)
+      # @param target_sigs [Set<Array>, nil] Optional early-termination target
+      # @return [void]
+      def collect_nested_signatures(node, analysis, sigs, depth:, target_sigs: nil)
+        actual = unwrap_node(node)
+        if depth > 0
+          sig = analysis.generate_signature(actual)
+          if sig
+            sigs << sig if target_sigs.nil? || target_sigs.include?(sig)
+            return if target_sigs && (target_sigs - sigs).empty?
+          end
+        end
+
+        children = nested_statement_children(actual)
+        children.each do |child|
+          collect_nested_signatures(child, analysis, sigs, depth: depth + 1, target_sigs: target_sigs)
+          break if target_sigs && (target_sigs - sigs).empty?
+        end
+      end
+
+      # Extract the immediate statement children of compound nodes.
+      #
+      # These are the node types where a statement might have been "moved"
+      # from top-level into a nested block. The traversal is intentionally
+      # limited — we do NOT descend into DefNode or ClassNode bodies, as
+      # those represent distinct semantic scopes.
+      #
+      # @param node [Prism::Node] The compound node to inspect
+      # @return [Array<Prism::Node>] Immediate statement children
+      def nested_statement_children(node)
+        children = []
+        case node
+        when Prism::IfNode, Prism::UnlessNode
+          children.concat(extract_body(node.statements))
+          subsequent = node.respond_to?(:subsequent) ? node.subsequent : node.consequent
+          children.concat(extract_body(subsequent.statements)) if subsequent.respond_to?(:statements)
+          children.concat(nested_statement_children(subsequent)) if subsequent.is_a?(Prism::IfNode) || subsequent.is_a?(Prism::ElseNode)
+        when Prism::ElseNode
+          children.concat(extract_body(node.statements))
+        when Prism::BeginNode
+          children.concat(extract_body(node.statements))
+          children.concat(extract_body(node.rescue_clause.statements)) if node.rescue_clause&.respond_to?(:statements)
+          children.concat(extract_body(node.else_clause.statements)) if node.else_clause&.respond_to?(:statements)
+          children.concat(extract_body(node.ensure_clause.statements)) if node.ensure_clause&.respond_to?(:statements)
+        when Prism::CallNode
+          if node.block.is_a?(Prism::BlockNode)
+            children.concat(extract_body(node.block.body))
+          end
+        end
+        children
+      end
+
+      # ------------------------------------------------------------------
+      # Shared helpers
+      # ------------------------------------------------------------------
 
       def comment_only_merge?
         merger.comment_only_file?(merger.template_analysis) && merger.comment_only_file?(merger.dest_analysis)
@@ -378,61 +676,10 @@ module Prism
         node.respond_to?(:unwrap) ? node.unwrap : node
       end
 
-      # Recursively collect signatures from all depths of the destination AST.
-      # This enables "moved node" detection: a template top-level node whose
-      # signature exists inside a destination block (e.g. inside an `if`)
-      # should not be re-added as template-only.
+      # Extract body statements from a StatementsNode or similar container.
       #
-      # Only descends into body/statements of compound nodes (if, unless,
-      # begin, blocks, etc.) — not into method definitions or class bodies
-      # where the same call name would have different semantics.
-      def collect_deep_signatures(analysis)
-        sigs = ::Set.new
-        analysis.statements.each do |node|
-          collect_nested_signatures(node, analysis, sigs, depth: 0)
-        end
-        sigs
-      end
-
-      # Walk a single node's subtree collecting signatures from nested statements.
-      # Limits recursion to compound statement nodes where a "moved" statement
-      # is likely (conditionals, begin/rescue, blocks on method calls).
-      def collect_nested_signatures(node, analysis, sigs, depth:)
-        actual = unwrap_node(node)
-        sig = analysis.generate_signature(actual)
-        sigs << sig if sig && depth > 0
-
-        children = nested_statement_children(actual)
-        children.each do |child|
-          collect_nested_signatures(child, analysis, sigs, depth: depth + 1)
-        end
-      end
-
-      # Extract the immediate statement children of compound nodes where
-      # a statement might have been "moved" from top-level into a block.
-      def nested_statement_children(node)
-        children = []
-        case node
-        when Prism::IfNode, Prism::UnlessNode
-          children.concat(extract_body(node.statements))
-          subsequent = node.respond_to?(:subsequent) ? node.subsequent : node.consequent
-          children.concat(extract_body(subsequent.statements)) if subsequent.respond_to?(:statements)
-          children.concat(nested_statement_children(subsequent)) if subsequent.is_a?(Prism::IfNode) || subsequent.is_a?(Prism::ElseNode)
-        when Prism::ElseNode
-          children.concat(extract_body(node.statements))
-        when Prism::BeginNode
-          children.concat(extract_body(node.statements))
-          children.concat(extract_body(node.rescue_clause.statements)) if node.rescue_clause&.respond_to?(:statements)
-          children.concat(extract_body(node.else_clause.statements)) if node.else_clause&.respond_to?(:statements)
-          children.concat(extract_body(node.ensure_clause.statements)) if node.ensure_clause&.respond_to?(:statements)
-        when Prism::CallNode
-          if node.block.is_a?(Prism::BlockNode)
-            children.concat(extract_body(node.block.body))
-          end
-        end
-        children
-      end
-
+      # @param statements_node [Prism::StatementsNode, #body, nil]
+      # @return [Array<Prism::Node>]
       def extract_body(statements_node)
         return [] unless statements_node
 

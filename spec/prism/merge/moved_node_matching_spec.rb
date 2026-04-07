@@ -57,21 +57,20 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner, "moved-node matching" do
       RUBY
     end
 
-    it "currently emits both methods (no body-based matching)" do
+    it "emits only the destination method (Phase 2 pairs by body similarity)" do
       result = merge_result(template: template, dest: dest)
-      # Without body-Jaccard matching, these are unrelated by signature.
-      # Template-only `bar` gets added; dest-only `foo` is kept.
+      # Phase 2 recognizes identical bodies and pairs foo↔bar.
+      # Since preference is :destination, `foo` survives.
       expect(method_names_in(result)).to include("foo")
-      # bar may or may not appear depending on add_template_only_nodes
+      expect(method_count(result, "foo")).to eq(1)
     end
 
-    it "with add_template_only_nodes: true, duplicates the body under two names" do
+    it "with add_template_only_nodes: true, pairs the rename via Phase 2" do
       result = merge_result(template: template, dest: dest, add_template_only_nodes: true)
       expect(method_count(result, "foo")).to eq(1)
-      expect(method_count(result, "bar")).to eq(1)
-      # Both bodies are identical — a Jaccard matcher could recognize this.
-      # This test documents current behavior; a future improvement would
-      # pair these as a "rename match" and emit only the dest version.
+      # Phase 2 matches bar(template) ↔ foo(dest) by body Jaccard = 1.0.
+      # bar is no longer template-only; it's consumed by the similarity match.
+      expect(method_count(result, "bar")).to eq(0)
     end
   end
 
@@ -101,11 +100,12 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner, "moved-node matching" do
       RUBY
     end
 
-    it "treats them as unrelated by signature" do
+    it "pairs them via Phase 2 body similarity (partial Jaccard overlap)" do
       result = merge_result(template: template, dest: dest)
       expect(method_count(result, "handle_users")).to eq(1)
-      # process_users added as template-only
-      expect(method_count(result, "process_users")).to eq(1)
+      # Phase 2 pairs process_users ↔ handle_users by body Jaccard.
+      # process_users is consumed as a similarity match, not added separately.
+      expect(method_count(result, "process_users")).to eq(0)
     end
   end
 
@@ -200,10 +200,11 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner, "moved-node matching" do
         expect(method_count(result, "beta")).to eq(1)
       end
 
-      it "does not match gamma to gamma_v2 (different signatures)" do
+      it "matches gamma to gamma_v2 via Phase 2 (identical body, different name)" do
         result = merge_result(template: template, dest: dest, preference: :destination)
-        # gamma (template-only) added; gamma_v2 (dest-only) kept
-        expect(method_count(result, "gamma")).to eq(1)
+        # Phase 2 pairs gamma ↔ gamma_v2 by body Jaccard = 1.0.
+        # gamma is consumed; gamma_v2 (dest) survives with dest preference.
+        expect(method_count(result, "gamma")).to eq(0)
         expect(method_count(result, "gamma_v2")).to eq(1)
       end
 
