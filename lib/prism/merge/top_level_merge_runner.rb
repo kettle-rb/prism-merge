@@ -24,6 +24,13 @@ module Prism
 
         # Pre-compute position-aware trailing groups for template-only nodes.
         dest_sigs = ::Set.new(dest_by_signature.keys)
+
+        # Collect signatures from ALL depths of the destination AST so that
+        # template-only nodes whose content already exists inside a destination
+        # block (e.g. eval_gemfile inside an `if`) are recognized as "moved"
+        # rather than duplicated.
+        @deep_dest_sigs = collect_deep_signatures(merger.dest_analysis)
+
         trailing_groups, _matched_indices = build_dest_iterate_trailing_groups(
           template_nodes: merger.template_analysis.statements,
           dest_sigs: dest_sigs,
@@ -62,6 +69,16 @@ module Prism
       end
 
       private
+
+      # Override the ast-merge hook so template-only nodes that exist at a
+      # deeper level in the destination AST are treated as "moved" matches
+      # rather than true template-only additions.
+      def trailing_group_node_matched?(_node, signature)
+        return false unless signature
+        return false unless @deep_dest_sigs
+
+        @deep_dest_sigs.include?(signature)
+      end
 
       def comment_only_merge?
         merger.comment_only_file?(merger.template_analysis) && merger.comment_only_file?(merger.dest_analysis)
@@ -359,6 +376,72 @@ module Prism
 
       def unwrap_node(node)
         node.respond_to?(:unwrap) ? node.unwrap : node
+      end
+
+      # Recursively collect signatures from all depths of the destination AST.
+      # This enables "moved node" detection: a template top-level node whose
+      # signature exists inside a destination block (e.g. inside an `if`)
+      # should not be re-added as template-only.
+      #
+      # Only descends into body/statements of compound nodes (if, unless,
+      # begin, blocks, etc.) — not into method definitions or class bodies
+      # where the same call name would have different semantics.
+      def collect_deep_signatures(analysis)
+        sigs = ::Set.new
+        analysis.statements.each do |node|
+          collect_nested_signatures(node, analysis, sigs, depth: 0)
+        end
+        sigs
+      end
+
+      # Walk a single node's subtree collecting signatures from nested statements.
+      # Limits recursion to compound statement nodes where a "moved" statement
+      # is likely (conditionals, begin/rescue, blocks on method calls).
+      def collect_nested_signatures(node, analysis, sigs, depth:)
+        actual = unwrap_node(node)
+        sig = analysis.generate_signature(actual)
+        sigs << sig if sig && depth > 0
+
+        children = nested_statement_children(actual)
+        children.each do |child|
+          collect_nested_signatures(child, analysis, sigs, depth: depth + 1)
+        end
+      end
+
+      # Extract the immediate statement children of compound nodes where
+      # a statement might have been "moved" from top-level into a block.
+      def nested_statement_children(node)
+        children = []
+        case node
+        when Prism::IfNode, Prism::UnlessNode
+          children.concat(extract_body(node.statements))
+          children.concat(extract_body(node.consequent.statements)) if node.consequent.respond_to?(:statements)
+          children.concat(nested_statement_children(node.consequent)) if node.consequent.is_a?(Prism::IfNode) || node.consequent.is_a?(Prism::ElseNode)
+        when Prism::ElseNode
+          children.concat(extract_body(node.statements))
+        when Prism::BeginNode
+          children.concat(extract_body(node.statements))
+          children.concat(extract_body(node.rescue_clause.statements)) if node.rescue_clause&.respond_to?(:statements)
+          children.concat(extract_body(node.else_clause.statements)) if node.else_clause&.respond_to?(:statements)
+          children.concat(extract_body(node.ensure_clause.statements)) if node.ensure_clause&.respond_to?(:statements)
+        when Prism::CallNode
+          if node.block.is_a?(Prism::BlockNode)
+            children.concat(extract_body(node.block.body))
+          end
+        end
+        children
+      end
+
+      def extract_body(statements_node)
+        return [] unless statements_node
+
+        if statements_node.is_a?(Prism::StatementsNode)
+          statements_node.body.compact
+        elsif statements_node.respond_to?(:body)
+          Array(statements_node.body).compact
+        else
+          []
+        end
       end
     end
   end

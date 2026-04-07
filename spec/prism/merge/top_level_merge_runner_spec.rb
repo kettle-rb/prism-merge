@@ -473,4 +473,94 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       RUBY
     end
   end
+
+  describe "moved-node detection" do
+    it "does not duplicate eval_gemfile when destination wraps it in an if block" do
+      template = <<~RUBY
+        source "https://rubygems.org"
+        gemspec
+
+        # Templating
+        eval_gemfile "gemfiles/modular/templating.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        source "https://rubygems.org"
+        gemspec
+
+        if ENV.fetch("CI", "false").casecmp("false").zero?
+          # Templating
+          eval_gemfile "gemfiles/modular/templating.gemfile"
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :destination,
+        add_template_only_nodes: true,
+      )
+
+      # The eval_gemfile inside the if block should be recognized as a moved
+      # match, NOT duplicated at top level.
+      expect(result.scan('eval_gemfile "gemfiles/modular/templating.gemfile"').size).to eq(1),
+        "Expected eval_gemfile to appear once but got:\n#{result}"
+    end
+
+    it "does not duplicate a call when destination uses trailing if" do
+      template = <<~RUBY
+        gemspec
+
+        eval_gemfile "modular/templating.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        gemspec
+
+        eval_gemfile "modular/templating.gemfile" if ENV.fetch("CI", "false").casecmp("false").zero?
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :destination,
+        add_template_only_nodes: true,
+      )
+
+      # Trailing if modifier wraps the call differently in the AST but the
+      # underlying call is the same — should not be duplicated.
+      expect(result.scan('eval_gemfile "modular/templating.gemfile"').size).to eq(1),
+        "Expected eval_gemfile to appear once but got:\n#{result}"
+    end
+
+    it "does not duplicate a call inside an appraise block" do
+      template = <<~RUBY
+        appraise "style" do
+          eval_gemfile "modular/style.gemfile"
+        end
+
+        eval_gemfile "modular/templating.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        appraise "style" do
+          eval_gemfile "modular/style.gemfile"
+        end
+
+        if ENV.fetch("CI", "false").casecmp("false").zero?
+          eval_gemfile "modular/templating.gemfile"
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :destination,
+        add_template_only_nodes: true,
+      )
+
+      expect(result.scan('eval_gemfile "modular/templating.gemfile"').size).to eq(1),
+        "Expected eval_gemfile to appear once but got:\n#{result}"
+    end
+  end
 end
