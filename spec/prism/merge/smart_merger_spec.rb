@@ -4890,10 +4890,10 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(template, dest)
       result = merger.merge
 
-      # The blank lines before x = 1 should be preserved from dest
+      # The blank lines before x = 1 should be preserved from dest (normalized to single blank)
       lines = result.split("\n", -1)
       x_idx = lines.index { |l| l.include?("x = 1") }
-      expect(x_idx).to be >= 2
+      expect(x_idx).to be >= 1
     end
   end
 

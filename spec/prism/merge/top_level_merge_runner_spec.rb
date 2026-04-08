@@ -314,10 +314,9 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       expect(result).to eq(template)
     end
 
-    it "preserves repeated blank lines between leading comments and a recursively merged wrapper" do
+    it "normalizes repeated blank lines between leading comments and a recursively merged wrapper" do
       template = <<~RUBY
         # docs
-
 
         class Example
           def shared
