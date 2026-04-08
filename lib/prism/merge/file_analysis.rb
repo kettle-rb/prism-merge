@@ -1066,6 +1066,16 @@ module Prism
         when Prism::ForwardingSuperNode
           [:forwarding_super, node.block ? :with_block : :no_block]
 
+        # === Operator-write calls (e.g. spec.rdoc_options += [...]) ===
+        when Prism::CallOperatorWriteNode
+          receiver = node.receiver&.slice
+          effective_receiver = if @gemspec_block_var && receiver == @gemspec_block_var
+            GEMSPEC_VAR_PLACEHOLDER
+          else
+            receiver
+          end
+          [:call_op_write, node.write_name, effective_receiver]
+
         # === Lambdas ===
         when Prism::LambdaNode
           # Lambdas don't have names, but we can identify by parameter signature
