@@ -152,6 +152,18 @@ Use the `K_SOUP_COV_MIN_HARD=false` environment variable to disable hard failure
 mise exec -C /path/to/project -- env K_SOUP_COV_MIN_HARD=false bundle exec rspec spec/path/to/spec.rb
 ```
 
+### Building & Installing Locally
+
+To test local code changes across sibling repos, rebuild and reinstall the gem:
+
+```bash
+cd /path/to/gem && rm -rf *.gem && SKIP_GEM_SIGNING=true gem build *.gemspec && gem install --force *.gem
+```
+
+- `SKIP_GEM_SIGNING=true` bypasses the PEM passphrase prompt for signed gemspecs.
+- `--force` overwrites the currently installed version.
+- Always rebuild **and** reinstall before verifying cross-repo behaviour.
+
 ### Coverage Reports
 
 ```bash
