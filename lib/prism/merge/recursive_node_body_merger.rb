@@ -19,20 +19,17 @@ module Prism
         dest_body = merger.send(:extract_node_body, actual_dest, merger.dest_analysis)
 
         # When the gemspec block uses different variable names (e.g. |gem| vs |spec|),
-        # rewrite the non-preferred side's body text so that dest-only or template-only
-        # nodes emit with the correct receiver.  Uses AST-directed byte-offset
-        # replacement — no regular expressions.
+        # rewrite the destination body to match the template's variable name.
+        # The template variable ALWAYS wins regardless of merge preference because the
+        # downstream pipeline (DependencySectionPolicy regex, DevelopmentDependencySyncPolicy
+        # line insertion, etc.) is built around a single canonical variable name.
+        # Uses AST-directed byte-offset replacement — no regular expressions.
         template_var = merger.template_analysis.respond_to?(:gemspec_block_var) ? merger.template_analysis.gemspec_block_var : nil
         dest_var = merger.dest_analysis.respond_to?(:gemspec_block_var) ? merger.dest_analysis.gemspec_block_var : nil
         preferred_var = nil
         if template_var && dest_var && template_var != dest_var
-          preferred_var = (merger.preference == :destination) ? dest_var : template_var
-          if dest_var != preferred_var
-            dest_body = GemspecVarRenamer.rename(dest_body, old_var: dest_var, new_var: preferred_var)
-          end
-          if template_var != preferred_var
-            template_body = GemspecVarRenamer.rename(template_body, old_var: template_var, new_var: preferred_var)
-          end
+          preferred_var = template_var
+          dest_body = GemspecVarRenamer.rename(dest_body, old_var: dest_var, new_var: preferred_var)
         end
 
         body_merger = merger.class.new(
@@ -135,6 +132,11 @@ module Prism
         end
 
         opening_line = source_layout.opening_line_text
+        # When the opening line comes from dest but the template var is canonical,
+        # rename the block parameter in the opening line (e.g. |gem| → |spec|).
+        if preferred_var && dest_var && dest_var != preferred_var && node_preference == :destination
+          opening_line = opening_line.sub("|#{dest_var}|", "|#{preferred_var}|")
+        end
         if node_preference == :template &&
             template_inline_by_line[actual_template.location.start_line].empty? &&
             !source_layout.body_starts_on_opening_line?

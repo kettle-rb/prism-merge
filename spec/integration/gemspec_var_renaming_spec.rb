@@ -74,7 +74,7 @@ RSpec.describe "Gemspec variable renaming integration" do
       expect(output).not_to match(/\bs\./)
     end
 
-    it "renames template-only nodes when dest variable is preferred" do
+    it "always uses template variable name regardless of preference" do
       template = <<~RUBY
         Gem::Specification.new do |spec|
           spec.name = "mylib"
@@ -96,12 +96,11 @@ RSpec.describe "Gemspec variable renaming integration" do
       ).merge
       output = result.to_s
 
-      # Template-only nodes should use dest's variable (gem)
-      expect(output).to include("gem.required_ruby_version")
-      expect(output).to include("gem.add_development_dependency")
-      # Matched node uses dest value
-      expect(output).to include("gem.name")
-      expect(output).not_to include("spec.")
+      # Template variable name always wins (pipeline assumes canonical var)
+      expect(output).to include("spec.required_ruby_version")
+      expect(output).to include("spec.add_development_dependency")
+      expect(output).to include("spec.name")
+      expect(output).not_to include("gem.")
     end
 
     it "handles rdoc_options with += and string interpolation" do
