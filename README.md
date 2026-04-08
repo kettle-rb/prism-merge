@@ -34,6 +34,14 @@ Prism::Merge is a standalone Ruby module that intelligently merges two versions 
 
 - **AST-Aware**: Uses Prism parser to understand Ruby structure
 - **Intelligent**: Matches nodes by structural signatures
+- **Three-Phase Node Matching**: Ordered matching pipeline ensures optimal pairing:
+  1. **Exact** — structural signature match (method name, parameters)
+  2. **Similar** — Jaccard body-text similarity for renamed methods/refactors
+  3. **Cross-depth** — finds nodes wrapped in conditionals (`if`/`unless`) at deeper AST levels
+- **Moved-Node Detection**: Recognizes when a template node exists inside a destination
+  control-flow block (e.g., `eval_gemfile` wrapped in `if ENV["CI"]`) and avoids duplicating it
+- **Gemspec Variable Renaming**: When a legacy gemspec uses `do |gem|` but the template
+  uses `do |spec|`, all receivers are AST-rewritten (not regex!) so the merged output is consistent
 - **Fuzzy Method Matching**: `MethodMatchRefiner` matches similar method names and signatures
   (e.g., `process_user` ↔ `process_users`) using Levenshtein distance
 - **Recursive Merge**: Automatically merges class and module bodies recursively, intelligently combining nested methods and constants
@@ -773,6 +781,77 @@ signature_generator = ->(node) {
   node  # FreezeNodeBase subclasses and others use default signatures
 }
 ```
+
+### Three-Phase Node Matching
+
+Prism::Merge uses an ordered three-phase matching pipeline to handle renames, refactors, and moved nodes without duplication:
+
+**Phase 1 — Exact Signature Match** (always runs first)
+
+Nodes are paired by structural signature (e.g., `[:def, :my_method, [:arg1, :arg2]]`). This is the fastest and most precise phase. All exact matches are locked in before any fuzzy matching begins.
+
+**Phase 2 — Body-Text Similarity** (for renamed methods)
+
+After Phase 1, unmatched nodes at the same AST depth are compared using Jaccard body-text similarity. This catches renames — e.g., `def process_users` renamed to `def handle_users` with the same body. Only compound nodes with bodies (DefNode, ClassNode, ModuleNode) are eligible. Threshold: Jaccard > 0.6, minimum 3 body tokens.
+
+```ruby
+# Template                          # Destination
+def handle_users(data)              def process_users(data)
+  data.each { |u| validate(u) }      data.each { |u| validate(u) }
+end                                 end
+# Phase 2 recognizes these as the same method (renamed), not two separate nodes
+```
+
+**Phase 3 — Cross-Depth Search** (for moved nodes)
+
+Remaining orphan template nodes are searched for inside destination control-flow blocks (`if`, `unless`, `begin`). This handles the common pattern where a template top-level statement exists inside a conditional in the destination:
+
+```ruby
+# Template has this at the top level:
+eval_gemfile "gemfiles/modular/templating.gemfile"
+
+# Destination has it wrapped in a conditional:
+if ENV.fetch("CI", "false").casecmp("false").zero?
+  eval_gemfile "gemfiles/modular/templating.gemfile"
+end
+# Phase 3 finds the match inside the if-block, preventing duplication
+```
+
+Phase ordering is critical: exact matches must be locked in first so that fuzzy scoring cannot consume nodes that would have exact matches at different positions.
+
+### Gemspec Variable Renaming
+
+When merging gemspec files where the block variable differs between template and destination (e.g., `do |spec|` vs `do |gem|`), Prism::Merge automatically rewrites receivers using AST-directed byte-offset replacement:
+
+```ruby
+# Template gemspec uses |spec|:
+Gem::Specification.new do |spec|
+  spec.name = "mylib"
+  spec.add_development_dependency("rake", "~> 13.0")
+end
+
+# Destination gemspec uses |gem|:
+Gem::Specification.new do |gem|
+  gem.name = "mylib"
+  gem.summary = "A great library"
+  gem.metadata["funding_uri"] = "https://fund.me"
+end
+
+# After merge — all receivers use template's variable name:
+Gem::Specification.new do |spec|
+  spec.name = "mylib"
+  spec.add_development_dependency("rake", "~> 13.0")
+  spec.summary = "A great library"          # dest-only, auto-renamed
+  spec.metadata["funding_uri"] = "https://fund.me"  # dest-only, auto-renamed
+end
+```
+
+The renaming is performed by `Prism::Merge::GemspecVarRenamer`, which:
+
+1. Parses the source with Prism
+2. Walks the AST via `Prism::Visitor` to find all `CallNode` root receivers matching the old variable
+3. Collects unique byte offsets (handles chained calls like `gem.metadata[]` and operator writes like `gem.files +=`)
+4. Applies positional replacements — **no regular expressions**
 
 ### Freeze Blocks
 
