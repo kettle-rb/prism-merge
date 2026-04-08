@@ -179,6 +179,12 @@ module Prism
           leading_analysis = dest_analysis
         end
 
+        # Bidirectional dedup: filter out leading comments whose text was
+        # already emitted by a preceding dest-only or template-only node.
+        if leading_comments.any?
+          leading_comments, _ = filter_already_emitted_leading_comments(leading_comments)
+        end
+
         if leading_analysis.equal?(template_analysis)
           emit_template_blank_lines_before_leading_comments(
             result: result,
@@ -199,6 +205,16 @@ module Prism
           source: leading_analysis.equal?(template_analysis) ? :template : :destination,
           decision: decision,
         )
+
+        # Track emitted leading comments for bidirectional dedup so that
+        # subsequent unmatched or matched nodes can filter duplicates.
+        if leading_comments.any?
+          if leading_analysis.equal?(template_analysis)
+            track_emitted_template_leading_comments(leading_comments)
+          else
+            track_emitted_dest_leading_comments(leading_comments)
+          end
+        end
 
         if leading_analysis.equal?(dest_analysis) && leading_comments.any?
           last_emitted_dest_line = leading_comments.last.location.start_line
@@ -315,7 +331,9 @@ module Prism
         if source == :destination
           leading_comments, last_filtered_leading_line = filter_emitted_template_trailing_comments(leading_comments)
           leading_comments, last_filtered_leading_line = filter_emitted_template_leading_comments(leading_comments, last_filtered_line: last_filtered_leading_line)
+          track_emitted_dest_leading_comments(leading_comments)
         elsif source == :template
+          leading_comments, last_filtered_leading_line = filter_already_emitted_leading_comments(leading_comments)
           track_emitted_template_leading_comments(leading_comments)
         end
 
@@ -746,6 +764,33 @@ module Prism
         end
 
         merger.instance_variable_set(:@dest_prefix_comment_lines, prefix_lines)
+        [filtered, last_filtered_line]
+      end
+
+      # Track leading comments emitted for destination nodes so that identical
+      # comment blocks on subsequent template nodes can be deduplicated.
+      # This is the dest→template direction of bidirectional dedup.
+      def track_emitted_dest_leading_comments(comments)
+        set = merger.instance_variable_get(:@emitted_dest_leading_texts) || Set.new
+        comments.each { |c| set << c.slice.strip }
+        merger.instance_variable_set(:@emitted_dest_leading_texts, set)
+      end
+
+      # Remove template leading comments whose text was already emitted as
+      # leading comments of a preceding destination node.  This prevents
+      # duplication when Prism attaches the same gap-separated (floating)
+      # comment block to different nodes in template vs destination.
+      def filter_already_emitted_leading_comments(comments)
+        dest_leading_texts = merger.instance_variable_get(:@emitted_dest_leading_texts)
+        return [comments, nil] unless dest_leading_texts&.any?
+
+        last_filtered_line = nil
+        filtered = comments.reject do |c|
+          if dest_leading_texts.include?(c.slice.strip)
+            last_filtered_line = c.location.start_line
+            true
+          end
+        end
         [filtered, last_filtered_line]
       end
 
