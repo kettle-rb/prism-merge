@@ -60,6 +60,8 @@ PATH
       prism-merge (~> 3.0)
       psych-merge (~> 2.0)
       rbs-merge (~> 3.0)
+      service_actor (~> 3.9)
+      service_actor-promptable (~> 1.0)
       token-resolver (~> 1.0, >= 1.0.2)
       toml-merge (~> 3.0)
       toml-rb (~> 4.1)
@@ -360,6 +362,11 @@ GEM
       sorbet-runtime
       zeitwerk
     ruby_version (1.0.3)
+    service_actor (3.9.4)
+      zeitwerk (>= 1.0)
+    service_actor-promptable (1.0.2)
+      service_actor
+      version_gem (~> 1.1)
     silent_stream (1.0.12)
       logger (~> 1.2)
       version_gem (>= 1.1.8, < 3)
@@ -620,6 +627,8 @@ CHECKSUMS
   ruby_engine (2.0.3) sha256=ca2ae7def8cfcdc2bfb6a186d36d5d59c8b403245dc0256c3802b767fa278aaa
   ruby_tree_sitter (2.1.0) sha256=afbfbd03eae48b522a0dd383f65a03e009a7284e09271cc2ed11ce759c4601e8
   ruby_version (1.0.3) sha256=5930f9950746b7e6c973184398ee364ee7440b170fef7922b9f5cdf317f1ccb5
+  service_actor (3.9.4)
+  service_actor-promptable (1.0.2)
   silent_stream (1.0.12) sha256=377c43aa10033fe90c33b39ea8cd97d79f2d1c4856df598efc56f3091f3ae782
   simplecov (0.22.0) sha256=fe2622c7834ff23b98066bb0a854284b2729a569ac659f82621fc22ef36213a5
   simplecov-cobertura (3.1.0) sha256=6d7f38aa32c965ca2174b2e5bd88cb17138eaf629518854976ac50e628925dc5
