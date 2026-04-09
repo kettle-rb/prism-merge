@@ -116,6 +116,7 @@ module Prism
     autoload :NoCovWrapper, "prism/merge/nocov_wrapper"
     autoload :PartialTemplateMerger, "prism/merge/partial_template_merger"
     autoload :PartialTemplateNode, "prism/merge/partial_template_node"
+    autoload :ScaffoldChunkRemover, "prism/merge/scaffold_chunk_remover"
     autoload :SmartMerger, "prism/merge/smart_merger"
   end
 end
