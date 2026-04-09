@@ -28,7 +28,7 @@ module Prism
             attachment_hints: true,
             comment_nodes: true,
             owner_count: @owners.size,
-            comment_count: @analysis.comment_nodes.size,
+            comment_count: @analysis.tree.comments.size,
             **details,
           )
           @attachments_by_owner = {}
@@ -165,6 +165,9 @@ module Prism
       # this placeholder so they match regardless of the variable name chosen by the author.
       GEMSPEC_VAR_PLACEHOLDER = :__gemspec_var__
 
+      # @return [TreeHaver::Tree] The tree_haver parse tree (includes normalized comment objects)
+      attr_reader :tree
+
       # @return [Prism::ParseResult] The underlying Prism parse result (via TreeHaver routing)
       attr_reader :parse_result
 
@@ -206,12 +209,13 @@ module Prism
         @source_label = source_label
         # **options captured for forward compatibility
         # Route through TreeHaver's Prism backend rather than calling Prism.parse directly.
-        # TreeHaver normalises the parse result into a backend-agnostic Tree; we then
-        # unwrap the raw Prism::ParseResult so the rest of the file continues to work
-        # unchanged during the incremental tree_haver migration.
-        @parse_result = DebugLogger.time("FileAnalysis#parse") {
-          TreeHaver.parser_for(:ruby).parse(source).parse_result
+        # Store the full tree_haver result so downstream code can use @tree.comments
+        # (normalized, deduplicated, with attachment hints) rather than accessing raw
+        # Prism::Comment objects via @parse_result.comments or node.location.leading_comments.
+        @tree = DebugLogger.time("FileAnalysis#parse") {
+          TreeHaver.parser_for(:ruby).parse(source)
         }
+        @parse_result = @tree.parse_result
         @gemspec_block_var = detect_gemspec_block_var
 
         # Use Prism's native comment attachment
@@ -500,7 +504,35 @@ module Prism
         @native_comment_entries ||= if comment_only_file?
           comment_entries_from_comment_only_statements
         else
-          unique_comment_entries(comment_entries_from_attached_nodes)
+          # Use the flat, deduplicated list from tree_haver rather than
+          # re-collecting from node.location.leading_comments (which can
+          # produce duplicates when a comment is attached to multiple nodes).
+          # Two exclusions are required to match the scope of the old path:
+          # 1. Lines claimed by promoted BlockDirective nodes (FreezeNode /
+          #    NocovNode): those comments live inside synthetic nodes and must
+          #    not appear as orphan preamble/postlude regions in the augmenter.
+          # 2. Comments nested inside a top-level statement's body (e.g. # :nocov:
+          #    inside a `task :default do...end` block): those are handled during
+          #    recursive body merging and must not appear at the file level either.
+          @tree.comments
+            .reject { |th_comment| claimed_lines.include?(th_comment.location.start_line) }
+            .reject { |th_comment| nested_in_top_level_statement?(th_comment.location.start_line) }
+            .map { |th_comment| native_comment_entry_from_tree(th_comment) }
+        end
+      end
+
+      # Returns true if +line+ falls strictly inside the body of any top-level
+      # statement (i.e. start_line < line <= end_line for a multi-line node).
+      # Comments that are nested inside a statement body are handled when that
+      # body is merged recursively; they must not also appear as file-level
+      # orphan regions in NativeCommentAugmenter.
+      def nested_in_top_level_statement?(line)
+        statements.any? do |stmt|
+          start = owner_start_line(stmt)
+          stop  = owner_end_line(stmt)
+          next false unless start && stop && stop > start
+
+          start < line && line <= stop
         end
       end
 
@@ -569,11 +601,52 @@ module Prism
         Array(owner.location.public_send(kind))
       end
 
-      def comment_entries_from_attached_nodes
-        nodes_with_comments.flat_map do |node_info|
-          Array(node_info[:leading_comments]).map { |comment| native_comment_entry(comment, attached_as: :leading) } +
-            Array(node_info[:inline_comments]).map { |comment| native_comment_entry(comment, attached_as: :trailing) }
-        end
+      # Build a comment entry hash from a tree_haver comment (normalized, deduplicated).
+      #
+      # @param th_comment [TreeHaver::Backends::Prism::Comment] Normalized comment from @tree.comments
+      # @return [Hash] Comment entry hash compatible with native_comment_entries consumers
+      def native_comment_entry_from_tree(th_comment)
+        line = th_comment.location.start_line
+        raw = th_comment.text.chomp
+        {
+          line: line,
+          text: raw.sub(/\A\s*#\s?/, ""),
+          raw: raw,
+          separator: inline_comment_separator_for(line, raw),
+          # tree_haver classifies: :leading (full-line before code), :trailing (full-line
+          # at end/before more comments), :inline (non-whitespace before #)
+          full_line: th_comment.attachment_hint != :inline,
+          attached_as: th_comment.attachment_hint,
+          node: Prism::Merge::Comment::Line.new(
+            text: raw,
+            line_number: line,
+            magic_comment_type: native_header_magic_comment_types[line],
+          ),
+        }
+      end
+
+      # Build a comment entry hash from a raw Prism::Comment (used for per-owner
+      # attachment queries via node.location.leading_comments / trailing_comments).
+      #
+      # @param comment [Prism::Comment] Raw Prism comment
+      # @param attached_as [Symbol] :leading or :trailing (from Prism attachment context)
+      # @return [Hash] Comment entry hash
+      def native_comment_entry(comment, attached_as:)
+        line = comment.location.start_line
+        raw = comment.slice.chomp
+        {
+          line: line,
+          text: comment.slice.sub(/\A\s*#\s?/, ""),
+          raw: raw,
+          separator: inline_comment_separator_for(line, raw),
+          full_line: full_line_comment?(comment, attached_as: attached_as),
+          attached_as: attached_as,
+          node: Prism::Merge::Comment::Line.new(
+            text: raw,
+            line_number: line,
+            magic_comment_type: native_header_magic_comment_types[line],
+          ),
+        }
       end
 
       def comment_entries_from_comment_only_statements
@@ -600,24 +673,6 @@ module Prism
         }
       end
 
-      def native_comment_entry(comment, attached_as:)
-        line = comment.location.start_line
-        raw = comment.slice.chomp
-        {
-          line: line,
-          text: comment_content(comment),
-          raw: raw,
-          separator: inline_comment_separator_for(line, raw),
-          full_line: full_line_comment?(comment, attached_as: attached_as),
-          attached_as: attached_as,
-          node: Prism::Merge::Comment::Line.new(
-            text: raw,
-            line_number: line,
-            magic_comment_type: native_header_magic_comment_types[line],
-          ),
-        }
-      end
-
       def native_header_magic_comment_types
         @native_header_magic_comment_types ||= Prism::Merge::MagicCommentSupport.header_magic_comment_types_for_lines(@lines)
       end
@@ -629,10 +684,6 @@ module Prism
         line.lstrip.start_with?("#")
       end
 
-      def comment_content(comment)
-        comment.slice.sub(/\A\s*#\s?/, "")
-      end
-
       def inline_comment_separator_for(line_number, raw_comment)
         return if raw_comment.to_s.empty?
 
@@ -641,12 +692,6 @@ module Prism
         return unless separator == raw_comment
 
         prefix[/[ \t]+\z/]
-      end
-
-      def unique_comment_entries(entries)
-        entries.uniq do |entry|
-          [entry[:line], entry[:raw], entry[:attached_as]]
-        end.sort_by { |entry| [entry[:line], (entry[:attached_as] == :trailing) ? 1 : 0] }
       end
 
       def comment_only_file?
