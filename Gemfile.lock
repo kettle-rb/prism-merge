@@ -7,145 +7,6 @@ PATH
       tree_haver (~> 6.0, >= 6.0.0)
       version_gem (~> 1.1, >= 1.1.9)
 
-PATH
-  remote: /home/pboling/src/kettle-rb/ast-merge
-  specs:
-    ast-merge (5.0.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/bash-merge
-  specs:
-    bash-merge (3.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/dotenv-merge
-  specs:
-    dotenv-merge (2.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/json-merge
-  specs:
-    json-merge (2.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/kettle-dev
-  specs:
-    kettle-dev (2.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/kettle-jem
-  specs:
-    kettle-jem (1.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      bash-merge (~> 3.0)
-      citrus (~> 3.0, >= 3.0.2)
-      dotenv-merge (~> 2.0)
-      json-merge (~> 2.0)
-      kettle-dev (~> 2.0)
-      markdown-merge (~> 2.0)
-      markly-merge (~> 2.0)
-      parslet (~> 2.0)
-      prism-merge (~> 3.0)
-      psych-merge (~> 2.0)
-      rbs-merge (~> 3.0)
-      service_actor (~> 3.9)
-      service_actor-promptable (~> 1.0)
-      token-resolver (~> 1.0, >= 1.0.2)
-      toml-merge (~> 3.0)
-      toml-rb (~> 4.1)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/kettle-soup-cover
-  specs:
-    kettle-soup-cover (1.1.1)
-      simplecov (~> 0.22)
-      simplecov-cobertura (~> 3.0)
-      simplecov-console (~> 0.9, >= 0.9.3)
-      simplecov-html (~> 0.13, >= 0.13.1)
-      simplecov-lcov (~> 0.8)
-      simplecov-rcov (~> 0.3, >= 0.3.7)
-      simplecov_json_formatter (~> 0.1, >= 0.1.4)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/kettle-test
-  specs:
-    kettle-test (1.0.10)
-      appraisal2 (~> 3.0, >= 3.0.2)
-      backports (~> 3.0)
-      rspec (~> 3.0)
-      rspec-block_is_expected (~> 1.0, >= 1.0.6)
-      rspec-pending_for (~> 0.1, >= 0.1.19)
-      rspec-stubbed_env (~> 1.0, >= 1.0.4)
-      rspec_junit_formatter (~> 0.6)
-      silent_stream (~> 1.0, >= 1.0.12)
-      timecop-rspec (~> 1.0, >= 1.0.3)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/markdown-merge
-  specs:
-    markdown-merge (2.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      parslet (~> 2.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/markly-merge
-  specs:
-    markly-merge (2.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      markdown-merge (~> 2.0)
-      markly (~> 0.15, >= 0.15.2)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/psych-merge
-  specs:
-    psych-merge (2.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      psych (~> 5.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/rbs-merge
-  specs:
-    rbs-merge (3.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/toml-merge
-  specs:
-    toml-merge (3.0.0)
-      ast-merge (~> 5.0, >= 5.0.0)
-      tree_haver (~> 6.0, >= 6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
-PATH
-  remote: /home/pboling/src/kettle-rb/tree_haver
-  specs:
-    tree_haver (6.0.0)
-      version_gem (~> 1.1, >= 1.1.9)
-
 GEM
   remote: https://gem.coop/
   specs:
@@ -157,7 +18,14 @@ GEM
       rake (>= 10)
       thor (>= 0.14)
     ast (2.4.3)
+    ast-merge (5.0.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     backports (3.25.3)
+    bash-merge (3.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     benchmark (0.5.0)
     bigdecimal (3.3.1)
     bundler-audit (0.9.3)
@@ -174,6 +42,10 @@ GEM
     diff-lcs (1.6.2)
     diffy (3.4.4)
     docile (1.4.1)
+    dotenv-merge (2.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     dry-configurable (1.3.0)
       dry-core (~> 1.1)
       zeitwerk (~> 2.6)
@@ -217,6 +89,52 @@ GEM
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     json (2.19.3)
+    json-merge (2.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+    kettle-dev (2.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+    kettle-jem (1.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      bash-merge (~> 3.0)
+      citrus (~> 3.0, >= 3.0.2)
+      dotenv-merge (~> 2.0)
+      json-merge (~> 2.0)
+      kettle-dev (~> 2.0)
+      markdown-merge (~> 2.0)
+      markly-merge (~> 2.0)
+      parslet (~> 2.0)
+      prism-merge (~> 3.0)
+      psych-merge (~> 2.0)
+      rbs-merge (~> 3.0)
+      service_actor (~> 3.9)
+      service_actor-promptable (~> 1.0)
+      token-resolver (~> 1.0, >= 1.0.2)
+      toml-merge (~> 3.0)
+      toml-rb (~> 4.1)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+    kettle-soup-cover (1.1.1)
+      simplecov (~> 0.22)
+      simplecov-cobertura (~> 3.0)
+      simplecov-console (~> 0.9, >= 0.9.3)
+      simplecov-html (~> 0.13, >= 0.13.1)
+      simplecov-lcov (~> 0.8)
+      simplecov-rcov (~> 0.3, >= 0.3.7)
+      simplecov_json_formatter (~> 0.1, >= 0.1.4)
+      version_gem (~> 1.1, >= 1.1.9)
+    kettle-test (1.0.10)
+      appraisal2 (~> 3.0, >= 3.0.2)
+      backports (~> 3.0)
+      rspec (~> 3.0)
+      rspec-block_is_expected (~> 1.0, >= 1.0.6)
+      rspec-pending_for (~> 0.1, >= 0.1.19)
+      rspec-stubbed_env (~> 1.0, >= 1.0.4)
+      rspec_junit_formatter (~> 0.6)
+      silent_stream (~> 1.0, >= 1.0.12)
+      timecop-rspec (~> 1.0, >= 1.0.3)
+      version_gem (~> 1.1, >= 1.1.9)
     kramdown (2.5.2)
       rexml (>= 3.4.4)
     kramdown-parser-gfm (1.1.0)
@@ -224,7 +142,18 @@ GEM
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
     logger (1.7.0)
+    markdown-merge (2.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      parslet (~> 2.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     markly (0.15.3)
+    markly-merge (2.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      markdown-merge (~> 2.0)
+      markly (~> 0.15, >= 0.15.2)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     matrix (0.4.3)
     mutex_m (0.3.0)
     nokogiri (1.19.2-x86_64-linux-gnu)
@@ -248,6 +177,11 @@ GEM
     psych (5.3.1)
       date
       stringio
+    psych-merge (2.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      psych (~> 5.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     public_suffix (7.0.5)
     racc (1.8.1)
     rainbow (3.1.1)
@@ -259,6 +193,10 @@ GEM
     rbs (3.10.4)
       logger
       tsort
+    rbs-merge (3.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     rdoc (6.17.0)
       erb
       psych (>= 4.0.0)
@@ -421,9 +359,15 @@ GEM
       version_gem (~> 1.1, >= 1.1.9)
     toml (0.3.0)
       parslet (>= 1.8.0, < 3.0.0)
+    toml-merge (3.0.0)
+      ast-merge (~> 5.0, >= 5.0.0)
+      tree_haver (~> 6.0, >= 6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     toml-rb (4.1.0)
       citrus (~> 3.0, > 3.0)
       racc (~> 1.7)
+    tree_haver (6.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
     tree_stump (0.2.0)
       rb_sys (~> 0.9.119)
     tsort (0.2.0)
@@ -466,37 +410,29 @@ PLATFORMS
 DEPENDENCIES
   addressable (>= 2.8, < 3)
   appraisal2 (~> 3.0, >= 3.0.6)
-  ast-merge!
-  bash-merge!
   benchmark (~> 0.5, >= 0.5.0)
   bundler-audit (~> 0.9.3)
   citrus
   commonmarker
   debug (>= 1.1)
-  dotenv-merge!
   erb (~> 5.0)
   ffi
   gem_bench (~> 2.0, >= 2.0.5)
   gitmoji-regex (~> 1.0, >= 1.0.3)
   irb (~> 1.17)
-  json-merge!
-  kettle-dev (~> 2.0, >= 0)!
-  kettle-jem!
-  kettle-soup-cover!
-  kettle-test (~> 1.0, >= 1.0.10, >= 0)!
+  kettle-dev (~> 2.0)
+  kettle-jem (~> 1.0)
+  kettle-soup-cover (~> 1.0, >= 1.0.10)
+  kettle-test (~> 1.0, >= 1.0.10)
   kramdown (~> 2.5, >= 2.5.1)
   kramdown-parser-gfm (~> 1.1)
-  markdown-merge!
   markly (~> 0.15, >= 0.15.3)
-  markly-merge!
   mutex_m (~> 0.2)
   parslet
   prism (~> 1.6)
   prism-merge!
-  psych-merge!
   rake (~> 13.0)
   rbs (>= 3.10)
-  rbs-merge!
   rdoc (~> 6.11)
   reek (~> 6.5)
   require_bench (~> 1.0, >= 1.0.4)
@@ -511,9 +447,7 @@ DEPENDENCIES
   stone_checksums (~> 1.0, >= 1.0.3)
   stringio (>= 3.0)
   toml
-  toml-merge!
   toml-rb
-  tree_haver!
   tree_stump (~> 0.2)
   unparser (~> 0.8, >= 0.8.1)
   yaml-converter (~> 0.1)
