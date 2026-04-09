@@ -12,7 +12,7 @@ platform :mri do
   # MRI only Parsers:
   # kettle-jem currently uses markly instead of commonmarker, but these can easily be swapped.
   # gem "commonmarker"
-  gem "markly", "~> 0.15", ">= 0.15.2"
+  gem "markly", "~> 0.15", ">= 0.15.3"
   gem "rbs", ">= 3.10"   # ruby >= 3.1.0
 
   # MRI Backend

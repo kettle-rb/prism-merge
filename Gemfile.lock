@@ -224,7 +224,7 @@ GEM
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
     logger (1.7.0)
-    markly (0.15.2)
+    markly (0.15.3)
     matrix (0.4.3)
     mutex_m (0.3.0)
     nokogiri (1.19.2-x86_64-linux-gnu)
@@ -487,7 +487,7 @@ DEPENDENCIES
   kramdown (~> 2.5, >= 2.5.1)
   kramdown-parser-gfm (~> 1.1)
   markdown-merge!
-  markly (~> 0.15, >= 0.15.2)
+  markly (~> 0.15, >= 0.15.3)
   markly-merge!
   mutex_m (~> 0.2)
   parslet
@@ -569,7 +569,7 @@ CHECKSUMS
   lint_roller (1.1.0) sha256=2c0c845b632a7d172cb849cc90c1bce937a28c5c8ccccb50dfd46a485003cc87
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
   markdown-merge (2.0.0)
-  markly (0.15.2) sha256=65dae965d4dd4ecd997fba43b93acc0fe7dadfec6f07a748640c7a9299a8551e
+  markly (0.15.3) sha256=1b5a5fa95fbc4681ba996f2063daa9b8bc023edf33adaf4d36001e0171a8e3b6
   markly-merge (2.0.0)
   matrix (0.4.3) sha256=a0d5ab7ddcc1973ff690ab361b67f359acbb16958d1dc072b8b956a286564c5b
   mutex_m (0.3.0) sha256=cfcb04ac16b69c4813777022fdceda24e9f798e48092a2b817eb4c0a782b0751

@@ -34,3 +34,5 @@ YARD_FENCE_CLEAN_DOCS = "true"
 _.file = { path = ".env.local", redact = true }
 _.path = ["exe", "bin"]
 _.source = ".config/mise/env.sh"
+[tools]
+ruby = "4.0.2"
