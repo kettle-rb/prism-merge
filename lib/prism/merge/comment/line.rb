@@ -27,6 +27,21 @@ module Prism
           def magic_comment_type_for(text)
             Prism::Merge::MagicCommentSupport.magic_comment_type_for_text(text)
           end
+
+          # Build a Line from a +TreeHaver::Backends::Prism::Comment+ instance.
+          #
+          # @param th_comment [TreeHaver::Backends::Prism::Comment]
+          # @param magic_comment_types [Hash{Integer => Symbol}] optional pre-computed
+          #   map of line_number => magic_comment_type (avoids duplicate lookups)
+          # @return [Prism::Merge::Comment::Line]
+          def from_tree_haver(th_comment, magic_comment_types = {})
+            line_number = th_comment.location.start_line
+            new(
+              text: th_comment.text,
+              line_number: line_number,
+              magic_comment_type: magic_comment_types[line_number],
+            )
+          end
         end
 
         # Initialize a new Ruby comment Line.
