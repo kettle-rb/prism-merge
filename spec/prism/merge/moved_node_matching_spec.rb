@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# rubocop:disable RSpec/SpecFilePathFormat, RSpec/DescribeMethod
 # Comprehensive spec matrix for moved-node / orphan-node matching.
 #
 # Tests how TopLevelMergeRunner handles:
@@ -473,3 +474,5 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner, "moved-node matching" do
     end
   end
 end
+
+# rubocop:enable RSpec/SpecFilePathFormat, RSpec/DescribeMethod

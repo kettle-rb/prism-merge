@@ -14,10 +14,10 @@ require "spec_helper"
 #   template.rb    — kettle-jem/template/Rakefile.example with {KJ|...} tokens
 #                    substituted to match the turbo_tests2 destination
 RSpec.describe "nocov wrapper preservation in rescue and block bodies" do
-  FIXTURE_DIR = "spec/support/fixtures/rakefile_nocov"
+  let(:fixture_dir) { "spec/support/fixtures/rakefile_nocov" }
 
-  let(:template_content) { File.read("#{FIXTURE_DIR}/template.rb") }
-  let(:dest_content) { File.read("#{FIXTURE_DIR}/destination.rb") }
+  let(:template_content) { File.read("#{fixture_dir}/template.rb") }
+  let(:dest_content) { File.read("#{fixture_dir}/destination.rb") }
 
   def merge(template, dest, **opts)
     Prism::Merge::SmartMerger.new(
