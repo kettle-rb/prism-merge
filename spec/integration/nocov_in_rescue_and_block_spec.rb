@@ -17,11 +17,12 @@ RSpec.describe "nocov wrapper preservation in rescue and block bodies" do
   FIXTURE_DIR = "spec/support/fixtures/rakefile_nocov"
 
   let(:template_content) { File.read("#{FIXTURE_DIR}/template.rb") }
-  let(:dest_content)     { File.read("#{FIXTURE_DIR}/destination.rb") }
+  let(:dest_content) { File.read("#{FIXTURE_DIR}/destination.rb") }
 
   def merge(template, dest, **opts)
     Prism::Merge::SmartMerger.new(
-      template, dest,
+      template,
+      dest,
       preference: :destination,
       add_template_only_nodes: true,
       remove_template_missing_nodes: false,

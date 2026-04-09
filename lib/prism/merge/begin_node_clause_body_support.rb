@@ -101,7 +101,7 @@ module Prism
         # sub-body FileAnalysis is constructed on the body slice alone.
         effective_body_end = last_statement_end_line
         if region[:end_line] > last_statement_end_line
-          nocov_pat = /\A\s*#\s?#{Regexp.escape(BlockDirectiveDetector::NOCOV_TOKEN)}\s*\z/i
+          nocov_pat = /\A\s*#\s?#{Regexp.escape(BlockDirectiveDetector::NOCOV_TOKEN)}\s*\z/io
           nocov_count = (body_start_line..last_statement_end_line).count do |ln|
             analysis.line_at(ln).to_s.chomp.match?(nocov_pat)
           end

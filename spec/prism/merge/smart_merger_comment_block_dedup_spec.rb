@@ -92,7 +92,8 @@ RSpec.describe Prism::Merge::SmartMerger do
         end
 
         merged = described_class.new(
-          template, dest,
+          template,
+          dest,
           preference: :template,
           add_missing: true,
           signature_generator: sig_gen,
@@ -160,7 +161,8 @@ RSpec.describe Prism::Merge::SmartMerger do
 
       it "emits exactly one copy of the NOTE block" do
         merged = described_class.new(
-          template, dest,
+          template,
+          dest,
           preference: :template,
           add_missing: true,
           signature_generator: sig_gen,

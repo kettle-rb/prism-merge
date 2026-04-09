@@ -25,7 +25,8 @@ RSpec.describe "Gemspec variable renaming integration" do
       RUBY
 
       result = Prism::Merge::SmartMerger.new(
-        template, dest,
+        template,
+        dest,
         preference: :template,
         add_template_only_nodes: true,
       ).merge
@@ -63,7 +64,8 @@ RSpec.describe "Gemspec variable renaming integration" do
       RUBY
 
       result = Prism::Merge::SmartMerger.new(
-        template, dest,
+        template,
+        dest,
         preference: :template,
         add_template_only_nodes: true,
       ).merge
@@ -90,7 +92,8 @@ RSpec.describe "Gemspec variable renaming integration" do
       RUBY
 
       result = Prism::Merge::SmartMerger.new(
-        template, dest,
+        template,
+        dest,
         preference: :destination,
         add_template_only_nodes: true,
       ).merge
@@ -121,7 +124,8 @@ RSpec.describe "Gemspec variable renaming integration" do
       RUBY
 
       result = Prism::Merge::SmartMerger.new(
-        template, dest,
+        template,
+        dest,
         preference: :template,
         add_template_only_nodes: true,
       ).merge
@@ -148,7 +152,8 @@ RSpec.describe "Gemspec variable renaming integration" do
       RUBY
 
       result = Prism::Merge::SmartMerger.new(
-        template, dest,
+        template,
+        dest,
         preference: :template,
         add_template_only_nodes: true,
       ).merge

@@ -1,0 +1,21 @@
+{
+  "README.md:2085791272": [
+    [800, 38, 4, "Lint/Syntax: unexpected token tIDENTIFIER\n(Using Ruby 3.2 parser; configure using `TargetRubyVersion` parameter, under `AllCops`)", 2087377941]
+  ],
+  "lib/prism/merge/gemspec_var_renamer.rb:1701318460": [
+    [40, 7, 355, "Style/ClassMethodsDefinitions: Use `class << self` to define a class method.", 77510341],
+    [60, 7, 212, "Style/ClassMethodsDefinitions: Use `class << self` to define a class method.", 2119163708],
+    [76, 7, 382, "Style/ClassMethodsDefinitions: Use `class << self` to define a class method.", 79196957]
+  ],
+  "lib/prism/merge/smart_merger.rb:996967888": [
+    [398, 15, 24, "Style/IdenticalConditionalBranches: Move `map[sig] << entry if sig` out of the conditional.", 2397064484],
+    [407, 15, 24, "Style/IdenticalConditionalBranches: Move `map[sig] << entry if sig` out of the conditional.", 2397064484]
+  ],
+  "spec/integration/nocov_in_rescue_and_block_spec.rb:2225067576": [
+    [17, 3, 52, "RSpec/LeakyConstantDeclaration: Stub constant instead of declaring explicitly.", 2810042001]
+  ],
+  "spec/prism/merge/moved_node_matching_spec.rb:782386683": [
+    [14, 1, 71, "RSpec/SpecFilePathFormat: Spec path should end with `prism/merge/top_level_merge_runner*movednode_matching*_spec.rb`.", 3009275406],
+    [14, 51, 21, "RSpec/DescribeMethod: The second argument to describe should be the method being tested. '#instance' or '.class'.", 4229851118]
+  ]
+}

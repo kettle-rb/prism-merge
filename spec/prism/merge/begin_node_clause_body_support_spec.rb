@@ -73,6 +73,7 @@ RSpec.describe Prism::Merge::BeginNodeClauseBodySupport do
         trailing_suffix: "",
       )
     end
+
     it "includes trailing :nocov: close marker in merge_body to avoid false unclosed warning" do
       # The close marker is a pure trailing comment — not an AST node — so without
       # the fix it falls into trailing_suffix and causes a false "unclosed :nocov:"

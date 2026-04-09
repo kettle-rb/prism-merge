@@ -82,7 +82,7 @@ module Prism
 
         # Phase 3: cross-depth search, but only for orphans surviving Phases 1+2.
         @deep_dest_sigs = compute_deep_sigs_for_orphans(
-          template_by_signature, dest_sigs,
+          template_by_signature, dest_sigs
         )
 
         trailing_groups, _matched_indices = build_dest_iterate_trailing_groups(
