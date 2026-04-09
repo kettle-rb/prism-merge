@@ -8,6 +8,9 @@ require "set"
 # Shared merge infrastructure
 require "ast/merge"
 
+# Unified AST abstraction layer — all parser calls route through TreeHaver
+require "tree_haver"
+
 # This gem
 require_relative "merge/version"
 

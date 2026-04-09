@@ -165,7 +165,7 @@ module Prism
       # this placeholder so they match regardless of the variable name chosen by the author.
       GEMSPEC_VAR_PLACEHOLDER = :__gemspec_var__
 
-      # @return [Prism::ParseResult] The parse result from Prism
+      # @return [Prism::ParseResult] The underlying Prism parse result (via TreeHaver routing)
       attr_reader :parse_result
 
       # The block parameter name used in `Gem::Specification.new do |X|` (e.g. "spec",
@@ -205,7 +205,13 @@ module Prism
         @signature_generator = signature_generator
         @source_label = source_label
         # **options captured for forward compatibility
-        @parse_result = DebugLogger.time("FileAnalysis#parse") { Prism.parse(source) }
+        # Route through TreeHaver's Prism backend rather than calling Prism.parse directly.
+        # TreeHaver normalises the parse result into a backend-agnostic Tree; we then
+        # unwrap the raw Prism::ParseResult so the rest of the file continues to work
+        # unchanged during the incremental tree_haver migration.
+        @parse_result = DebugLogger.time("FileAnalysis#parse") {
+          TreeHaver.parser_for(:ruby).parse(source).parse_result
+        }
         @gemspec_block_var = detect_gemspec_block_var
 
         # Use Prism's native comment attachment
