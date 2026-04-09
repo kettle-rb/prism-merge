@@ -140,7 +140,7 @@ module Prism
         # @param receiver [Prism::Node] The receiver node to walk
         def record_root_receiver(receiver)
           root = receiver
-          root = root.receiver while root.is_a?(::Prism::CallNode) && root.receiver
+          root = root.receiver while root.type.to_s == "call_node" && root.receiver
           @offsets << root.location.start_offset if root.slice == @target_var
         end
       end

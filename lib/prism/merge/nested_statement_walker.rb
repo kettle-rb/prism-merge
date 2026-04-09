@@ -43,14 +43,14 @@ module Prism
       end
 
       def nested_statement_children(node)
-        case node
-        when ::Prism::CallNode
+        case NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        when :call
           node.block ? [{kind: :call_block, body: node.block.body}] : []
-        when ::Prism::IfNode
+        when :if
           conditional_children(node, :if_body, :if_subsequent)
-        when ::Prism::UnlessNode
+        when :unless
           conditional_children(node, :unless_body, :unless_subsequent)
-        when ::Prism::ElseNode
+        when :else
           node.statements ? [{kind: :else_body, body: node.statements}] : []
         else
           []

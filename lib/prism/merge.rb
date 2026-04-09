@@ -105,6 +105,8 @@ module Prism
     autoload :MagicCommentSupport, "prism/merge/magic_comment_support"
     autoload :NodeEmissionSupport, "prism/merge/node_emission_support"
     autoload :NodeBodyLayout, "prism/merge/node_body_layout"
+    autoload :NodeTypeNormalizer, "prism/merge/node_type_normalizer"
+    autoload :NodeWrapper, "prism/merge/node_wrapper"
     autoload :FreezeNode, "prism/merge/freeze_node"
     autoload :FileAnalysis, "prism/merge/file_analysis"
     autoload :MergeResult, "prism/merge/merge_result"

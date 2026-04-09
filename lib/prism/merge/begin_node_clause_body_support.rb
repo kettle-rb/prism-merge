@@ -15,10 +15,8 @@ module Prism
       end
 
       def clause_statements_node(node)
-        case node
-        when Prism::RescueNode, Prism::ElseNode, Prism::EnsureNode
-          node.statements
-        end
+        ct = NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        node.statements if %i[rescue else ensure].include?(ct)
       end
 
       def clause_header_end_line(node, region)
@@ -27,7 +25,7 @@ module Prism
         header_lines = []
         header_lines << node.keyword_loc.end_line if node.respond_to?(:keyword_loc) && node.keyword_loc
 
-        if node.is_a?(Prism::RescueNode)
+        if node.type.to_s == "rescue_node"
           header_lines.concat(Array(node.exceptions).filter_map do |exception_node|
             exception_node.location.end_line if exception_node.respond_to?(:location) && exception_node.location
           end)
@@ -83,7 +81,7 @@ module Prism
         return {merge_body: "", trailing_suffix: ""} unless node && region
 
         statements_node = clause_statements_node(node)
-        return {merge_body: "", trailing_suffix: ""} unless statements_node&.is_a?(Prism::StatementsNode)
+        return {merge_body: "", trailing_suffix: ""} unless statements_node&.type.to_s == "statements_node"
 
         body_statements = statements_node.body
         body_start_line = clause_body_start_line(node, region)
@@ -139,7 +137,7 @@ module Prism
       end
 
       def begin_node_statement_signatures(node, analysis)
-        return Set.new unless node.is_a?(Prism::BeginNode)
+        return Set.new unless node.type.to_s == "begin_node"
 
         signatures = statement_signatures_for_nodes(node.statements&.body, analysis)
         BeginNodeStructure.new(node).clause_nodes_by_type.each_value do |clause_node|

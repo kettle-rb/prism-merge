@@ -15,20 +15,20 @@ module Prism
 
         actual_template = unwrap_node(template_node)
         actual_dest = unwrap_node(dest_node)
-        return false unless actual_template.class == actual_dest.class
+        return false unless canonical_type_of(actual_template) == canonical_type_of(actual_dest)
         return false unless multiline_wrapper?(actual_template) && multiline_wrapper?(actual_dest)
 
-        case actual_template
-        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
+        case canonical_type_of(actual_template)
+        when :class, :module, :singleton_class
           true
-        when Prism::CallNode
+        when :call
           return false unless actual_template.block && actual_dest.block
 
           template_body = actual_template.block.body
           dest_body = actual_dest.block.body
 
           body_has_mergeable_statements?(template_body) && body_has_mergeable_statements?(dest_body)
-        when Prism::BeginNode
+        when :begin
           !!(merger.send(:begin_node_has_clause_or_body?, actual_template) && merger.send(:begin_node_has_clause_or_body?, actual_dest))
         else
           false
@@ -36,30 +36,27 @@ module Prism
       end
 
       def body_has_mergeable_statements?(body)
-        return false unless body.is_a?(Prism::StatementsNode)
+        return false unless body.type.to_s == "statements_node"
         return false if body.body.empty?
 
         body.body.any? { |statement| mergeable_statement?(statement) }
       end
 
       def mergeable_statement?(node)
-        case node
-        when Prism::CallNode, Prism::DefNode, Prism::ClassNode, Prism::ModuleNode,
-             Prism::SingletonClassNode, Prism::ConstantWriteNode, Prism::ConstantPathWriteNode,
-             Prism::LocalVariableWriteNode, Prism::InstanceVariableWriteNode,
-             Prism::ClassVariableWriteNode, Prism::GlobalVariableWriteNode,
-             Prism::MultiWriteNode, Prism::IfNode, Prism::UnlessNode, Prism::CaseNode,
-             Prism::BeginNode
-          true
-        else
-          false
-        end
+        ct = NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        %i[call def class module singleton_class const local_var ivar cvar gvar
+           multi_write if unless case begin].include?(ct)
       end
 
       private
 
       def unwrap_node(node)
-        node.respond_to?(:unwrap) ? node.unwrap : node
+        n = node.respond_to?(:unwrap) ? node.unwrap : node
+        n.respond_to?(:node) ? n.node : n
+      end
+
+      def canonical_type_of(node)
+        NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
       end
 
       def multiline_wrapper?(node)

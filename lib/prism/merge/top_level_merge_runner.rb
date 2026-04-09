@@ -250,12 +250,12 @@ module Prism
       # @return [String] Body text suitable for tokenization
       def extract_node_body_text(node, _analysis)
         actual = unwrap_node(node)
-        case actual
-        when Prism::DefNode
+        case NodeTypeNormalizer.canonical_type(actual.type.to_s, :prism)
+        when :def
           return "" unless actual.body
 
           actual.body.slice.to_s
-        when Prism::ClassNode, Prism::ModuleNode
+        when :class, :module
           return "" unless actual.body
 
           actual.body.slice.to_s
@@ -356,21 +356,21 @@ module Prism
       # @return [Array<Prism::Node>] Immediate statement children
       def nested_statement_children(node)
         children = []
-        case node
-        when Prism::IfNode, Prism::UnlessNode
+        case NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        when :if, :unless
           children.concat(extract_body(node.statements))
           subsequent = node.respond_to?(:subsequent) ? node.subsequent : node.consequent
           children.concat(extract_body(subsequent.statements)) if subsequent.respond_to?(:statements)
-          children.concat(nested_statement_children(subsequent)) if subsequent.is_a?(Prism::IfNode) || subsequent.is_a?(Prism::ElseNode)
-        when Prism::ElseNode
+          children.concat(nested_statement_children(subsequent)) if subsequent && %w[if_node else_node].include?(subsequent.type.to_s)
+        when :else
           children.concat(extract_body(node.statements))
-        when Prism::BeginNode
+        when :begin
           children.concat(extract_body(node.statements))
           children.concat(extract_body(node.rescue_clause.statements)) if node.rescue_clause&.respond_to?(:statements)
           children.concat(extract_body(node.else_clause.statements)) if node.else_clause&.respond_to?(:statements)
           children.concat(extract_body(node.ensure_clause.statements)) if node.ensure_clause&.respond_to?(:statements)
-        when Prism::CallNode
-          if node.block.is_a?(Prism::BlockNode)
+        when :call
+          if node.block && node.block.type.to_s == "block_node"
             children.concat(extract_body(node.block.body))
           end
         end
@@ -686,7 +686,7 @@ module Prism
       def extract_body(statements_node)
         return [] unless statements_node
 
-        if statements_node.is_a?(Prism::StatementsNode)
+        if statements_node.type.to_s == "statements_node"
           statements_node.body.compact
         elsif statements_node.respond_to?(:body)
           Array(statements_node.body).compact

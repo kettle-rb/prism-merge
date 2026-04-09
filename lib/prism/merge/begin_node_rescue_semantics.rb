@@ -11,7 +11,7 @@ module Prism
       end
 
       def normalized_clause_body_and_header_source(template_clause_node:, dest_clause_node:, clause_body:, preferred_source:)
-        return {header_source: preferred_source, clause_body: clause_body} unless template_clause_node.is_a?(Prism::RescueNode) && dest_clause_node.is_a?(Prism::RescueNode)
+        return {header_source: preferred_source, clause_body: clause_body} unless template_clause_node.type.to_s == "rescue_node" && dest_clause_node.type.to_s == "rescue_node"
 
         template_reference = rescue_node_reference_name(template_clause_node)
         dest_reference = rescue_node_reference_name(dest_clause_node)
@@ -104,7 +104,7 @@ module Prism
       private
 
       def rescue_node_reference_name(rescue_node)
-        return unless rescue_node.is_a?(Prism::RescueNode)
+        return unless rescue_node.type.to_s == "rescue_node"
 
         reference = rescue_node.reference if rescue_node.respond_to?(:reference)
         return unless reference
@@ -118,9 +118,9 @@ module Prism
       def local_variable_read_names_in(node, names = [])
         return names unless node
 
-        if node.is_a?(Prism::LocalVariableReadNode)
+        if node.type.to_s == "local_variable_read_node"
           names << node.name.to_s
-        elsif node.is_a?(Prism::CallNode) && node.respond_to?(:variable_call?) && node.variable_call?
+        elsif node.type.to_s == "call_node" && node.respond_to?(:variable_call?) && node.variable_call?
           names << node.name.to_s
         end
         node.compact_child_nodes.each { |child| local_variable_read_names_in(child, names) } if node.respond_to?(:compact_child_nodes)
@@ -139,9 +139,9 @@ module Prism
       def local_reference_node_named?(node, name)
         return false unless node && name
 
-        if node.is_a?(Prism::LocalVariableReadNode)
+        if node.type.to_s == "local_variable_read_node"
           node.name.to_s == name
-        elsif node.is_a?(Prism::CallNode) && node.respond_to?(:variable_call?) && node.variable_call?
+        elsif node.type.to_s == "call_node" && node.respond_to?(:variable_call?) && node.variable_call?
           node.name.to_s == name
         else
           false

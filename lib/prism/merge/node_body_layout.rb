@@ -67,20 +67,20 @@ module Prism
       end
 
       def body_present?
-        statements_node.is_a?(Prism::StatementsNode) && body_statements.any?
+        statements_node&.type.to_s == "statements_node" && body_statements.any?
       end
 
       def statements_node
-        @statements_node ||= case node
-        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode, Prism::LambdaNode
+        @statements_node ||= case NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        when :class, :module, :singleton_class, :lambda
           node.body
-        when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode, Prism::ForNode
+        when :if, :unless, :while, :until, :for
           node.statements
-        when Prism::CallNode
+        when :call
           node.block&.body
-        when Prism::BeginNode
+        when :begin
           node.statements
-        when Prism::ParenthesesNode
+        when :parens
           node.body
         else
           if node.respond_to?(:body)
@@ -98,10 +98,10 @@ module Prism
       end
 
       def body_start_line
-        @body_start_line ||= case node
-        when Prism::CallNode
+        @body_start_line ||= case NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        when :call
           node.block.opening_loc ? node.block.opening_loc.start_line + 1 : body_statements.first.location.start_line
-        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
+        when :class, :module, :singleton_class
           node.location.start_line + 1
         else
           body_statements.first.location.start_line
@@ -109,12 +109,12 @@ module Prism
       end
 
       def body_end_line
-        @body_end_line ||= case node
-        when Prism::CallNode
+        @body_end_line ||= case NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
+        when :call
           node.block.closing_loc ? node.block.closing_loc.start_line - 1 : body_statements.last.location.end_line
-        when Prism::ClassNode, Prism::ModuleNode, Prism::SingletonClassNode
+        when :class, :module, :singleton_class
           node.end_keyword_loc ? node.end_keyword_loc.start_line - 1 : body_statements.last.location.end_line
-        when Prism::BeginNode
+        when :begin
           clause_start_line = merger.send(:begin_node_clause_start_line, node)
           clause_start_line ? clause_start_line - 1 : body_statements.last.location.end_line
         else

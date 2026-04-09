@@ -360,7 +360,7 @@ module Prism
       # @param value [Object] The value to check
       # @return [Boolean] true if this is a fallthrough node
       def fallthrough_node?(value)
-        value.is_a?(::Prism::Node) || super
+        value.respond_to?(:canonical_type) || value.is_a?(::Prism::Node) || super
       end
 
       # Determine if a node is frozen (has a freeze marker in its leading comments).
@@ -680,7 +680,7 @@ module Prism
           # :nocov: defensive
           []
           # :nocov:
-        elsif body.is_a?(Prism::StatementsNode)
+        elsif body.type.to_s == "statements_node"
           body.body.compact
         else
           # :nocov: defensive
@@ -906,9 +906,9 @@ module Prism
         # - WhenNode: statements, conditions (handled via parent CaseNode)
         # - WhileNode: statements
 
-        case node
+        case NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
         # === Method definitions ===
-        when Prism::DefNode
+        when :def
           # Extract parameter names from ParametersNode
           params = if node.parameters
             # Handle forwarding parameters (def foo(...)) specially
@@ -938,11 +938,11 @@ module Prism
           [:def, node.name, params]
 
         # === Class/Module definitions ===
-        when Prism::ClassNode
+        when :class
           [:class, node.constant_path.slice]
-        when Prism::ModuleNode
+        when :module
           [:module, node.constant_path.slice]
-        when Prism::SingletonClassNode
+        when :singleton_class
           # class << self or class << expr
           expr = begin
             node.expression.slice
@@ -952,21 +952,23 @@ module Prism
           [:singleton_class, expr]
 
         # === Constants ===
-        when Prism::ConstantWriteNode
-          [:const, node.name]
-        when Prism::ConstantPathWriteNode
-          [:const, node.target.slice]
+        when :const
+          if node.type.to_s == "constant_write_node"
+            [:const, node.name]
+          else
+            [:const, node.target.slice]
+          end
 
         # === Variable assignments ===
-        when Prism::LocalVariableWriteNode
+        when :local_var
           [:local_var, node.name]
-        when Prism::InstanceVariableWriteNode
+        when :ivar
           [:ivar, node.name]
-        when Prism::ClassVariableWriteNode
+        when :cvar
           [:cvar, node.name]
-        when Prism::GlobalVariableWriteNode
+        when :gvar
           [:gvar, node.name]
-        when Prism::MultiWriteNode
+        when :multi_write
           # Multiple assignment: a, b = 1, 2
           targets = node.lefts.map do |target|
             case target
@@ -985,41 +987,41 @@ module Prism
           [:multi_write, targets]
 
         # === Conditionals ===
-        when Prism::IfNode, Prism::UnlessNode
+        when :if, :unless
           # Conditionals match by their condition expression
           condition_source = node.predicate.slice
-          [node.is_a?(Prism::IfNode) ? :if : :unless, condition_source]
+          [node.type.to_s == "if_node" ? :if : :unless, condition_source]
 
         # === Case/Switch statements ===
-        when Prism::CaseNode
+        when :case
           # case expr; when ... end - match by the expression being switched on
           predicate = node.predicate&.slice || ""
           [:case, predicate]
-        when Prism::CaseMatchNode
+        when :case_match
           # case expr; in ... end (pattern matching) - match by the expression
           predicate = node.predicate&.slice || ""
           [:case_match, predicate]
 
         # === Loops ===
-        when Prism::WhileNode
+        when :while
           [:while, node.predicate.slice]
-        when Prism::UntilNode
+        when :until
           [:until, node.predicate.slice]
-        when Prism::ForNode
+        when :for
           # for i in collection - match by index and collection
           index = node.index.slice
           collection = node.collection.slice
           [:for, index, collection]
 
         # === Exception handling ===
-        when Prism::BeginNode
+        when :begin
           # begin/rescue/ensure blocks - unique by position within parent
           # Since these don't have a natural identifier, use first statement
           first_stmt = node.statements&.body&.first&.slice&.[](0, 30) || ""
           [:begin, first_stmt]
 
         # === Method calls ===
-        when Prism::CallNode
+        when :call
           # Method calls match by name and context
           # For assignment methods (ending in =), match by receiver + method name only
           # For other calls, include first argument as identifier (e.g., appraise "name")
@@ -1067,13 +1069,13 @@ module Prism
           end
 
         # === Super calls ===
-        when Prism::SuperNode
+        when :super
           [:super, node.block ? :with_block : :no_block]
-        when Prism::ForwardingSuperNode
+        when :forwarding_super
           [:forwarding_super, node.block ? :with_block : :no_block]
 
         # === Operator-write calls (e.g. spec.rdoc_options += [...]) ===
-        when Prism::CallOperatorWriteNode
+        when :call_op_write
           receiver = node.receiver&.slice
           effective_receiver = if @gemspec_block_var && receiver == @gemspec_block_var
             GEMSPEC_VAR_PLACEHOLDER
@@ -1083,7 +1085,7 @@ module Prism
           [:call_op_write, node.write_name, effective_receiver]
 
         # === Lambdas ===
-        when Prism::LambdaNode
+        when :lambda
           # Lambdas don't have names, but we can identify by parameter signature
           params = if node.parameters
             node.parameters.slice
@@ -1093,21 +1095,21 @@ module Prism
           [:lambda, params]
 
         # === Special blocks ===
-        when Prism::PreExecutionNode
+        when :pre_execution
           # BEGIN { } blocks
           [:pre_execution, node.location.start_line]
-        when Prism::PostExecutionNode
+        when :post_execution
           # END { } blocks
           [:post_execution, node.location.start_line]
 
         # === Parenthesized expressions ===
-        when Prism::ParenthesesNode
+        when :parens
           # Usually transparent, but if it appears at top level, identify by content
           first_expr = node.body&.body&.first&.slice&.[](0, 30) || ""
           [:parens, first_expr]
 
         # === Embedded statements (string interpolation) ===
-        when Prism::EmbeddedStatementsNode
+        when :embedded
           [:embedded, node.statements&.slice || ""]
 
         else

@@ -74,7 +74,7 @@ module Prism
       # @param node [Object] Node to check
       # @return [Boolean]
       def method_node?(node)
-        node.is_a?(::Prism::DefNode)
+        NodeTypeNormalizer.canonical_type(node.type.to_s, :prism) == :def
       end
 
       # Compute similarity score between two methods.

@@ -18,54 +18,11 @@ module Prism
       end
 
       def type
-        case inner_node
-        when ::Prism::ClassNode
-          :class
-        when ::Prism::ModuleNode
-          :module
-        when ::Prism::DefNode
-          :def
-        when ::Prism::SingletonClassNode
-          :singleton_class
-        when ::Prism::ConstantWriteNode, ::Prism::ConstantPathWriteNode
-          :const
-        when ::Prism::CallNode
-          inner_node.block ? :call_with_block : :call
-        when ::Prism::MultiWriteNode
-          :multi_write
-        when ::Prism::LocalVariableWriteNode
-          :local_var
-        when ::Prism::InstanceVariableWriteNode
-          :ivar
-        when ::Prism::ClassVariableWriteNode
-          :cvar
-        when ::Prism::GlobalVariableWriteNode
-          :gvar
-        when ::Prism::IfNode
-          :if
-        when ::Prism::UnlessNode
-          :unless
-        when ::Prism::CaseNode
-          :case
-        when ::Prism::CaseMatchNode
-          :case_match
-        when ::Prism::WhileNode
-          :while
-        when ::Prism::UntilNode
-          :until
-        when ::Prism::ForNode
-          :for
-        when ::Prism::BeginNode
-          :begin
-        when ::Prism::LambdaNode
-          :lambda
-        when ::Prism::PreExecutionNode
-          :pre_execution
-        when ::Prism::PostExecutionNode
-          :post_execution
-        else
-          fallback_type_name
-        end
+        return fallback_type_name unless inner_node.respond_to?(:type)
+
+        ct = NodeTypeNormalizer.canonical_type(inner_node.type, :prism)
+        return :call_with_block if ct == :call && inner_node.block
+        ct || fallback_type_name
       end
 
       def text
@@ -95,7 +52,8 @@ module Prism
       end
 
       def inner_node
-        node.respond_to?(:unwrap) ? node.unwrap : node
+        n = node.respond_to?(:unwrap) ? node.unwrap : node
+        n.respond_to?(:node) ? n.node : n
       end
 
       def method_missing(method_name, *args, &block)
