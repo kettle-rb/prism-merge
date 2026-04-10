@@ -111,7 +111,7 @@ PATH
     markly-merge (2.0.0)
       ast-merge (~> 5.0, >= 5.0.0)
       markdown-merge (~> 2.0)
-      markly (~> 0.15, >= 0.15.2)
+      markly (~> 0.15, >= 0.15.3)
       tree_haver (~> 6.0, >= 6.0.0)
       version_gem (~> 1.1, >= 1.1.9)
 
