@@ -147,6 +147,14 @@ PATH
     tree_haver (6.0.0)
       version_gem (~> 1.1, >= 1.1.9)
 
+PATH
+  remote: /home/pboling/src/kettle-rb/turbo_tests2
+  specs:
+    turbo_tests2 (3.0.0)
+      parallel_tests (>= 3.3.0, < 6)
+      rspec (>= 3.10)
+      version_gem (~> 1.1, >= 1.1.9)
+
 GEM
   remote: https://gem.coop/
   specs:
@@ -426,10 +434,6 @@ GEM
     tsort (0.2.0)
     ttfunk (1.8.0)
       bigdecimal (~> 3.1)
-    turbo_tests2 (3.0.0)
-      parallel_tests (>= 3.3.0, < 6)
-      rspec (>= 3.10)
-      version_gem (~> 1.1, >= 1.1.9)
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.2.0)
@@ -515,6 +519,7 @@ DEPENDENCIES
   toml-merge!
   toml-rb
   tree_haver!
+  turbo_tests2!
   unparser (~> 0.8, >= 0.8.1)
   yaml-converter (~> 0.1)
   yard (~> 0.9, >= 0.9.37)
