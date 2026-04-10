@@ -84,7 +84,7 @@ PATH
 PATH
   remote: /home/pboling/src/kettle-rb/kettle-test
   specs:
-    kettle-test (1.0.10)
+    kettle-test (2.0.0)
       appraisal2 (~> 3.0, >= 3.0.2)
       backports (~> 3.0)
       rspec (~> 3.0)
@@ -94,6 +94,7 @@ PATH
       rspec_junit_formatter (~> 0.6)
       silent_stream (~> 1.0, >= 1.0.12)
       timecop-rspec (~> 1.0, >= 1.0.3)
+      turbo_tests2 (~> 3.0)
       version_gem (~> 1.1, >= 1.1.9)
 
 PATH
@@ -232,6 +233,8 @@ GEM
     oppen (1.0.0)
     ostruct (0.6.3)
     parallel (1.28.0)
+    parallel_tests (5.6.0)
+      parallel
     parser (3.3.11.1)
       ast (~> 2.4.1)
       racc
@@ -423,6 +426,10 @@ GEM
     tsort (0.2.0)
     ttfunk (1.8.0)
       bigdecimal (~> 3.1)
+    turbo_tests2 (3.0.0)
+      parallel_tests (>= 3.3.0, < 6)
+      rspec (>= 3.10)
+      version_gem (~> 1.1, >= 1.1.9)
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.2.0)
@@ -477,7 +484,7 @@ DEPENDENCIES
   kettle-dev (~> 2.0, >= 0)!
   kettle-jem!
   kettle-soup-cover!
-  kettle-test (~> 1.0, >= 1.0.10, >= 0)!
+  kettle-test (~> 2.0, >= 2.0.0, >= 0)!
   kramdown (~> 2.5, >= 2.5.1)
   kramdown-parser-gfm (~> 1.1)
   markdown-merge!
@@ -555,7 +562,7 @@ CHECKSUMS
   kettle-dev (2.0.0)
   kettle-jem (1.0.0)
   kettle-soup-cover (1.1.1)
-  kettle-test (1.0.10)
+  kettle-test (2.0.0)
   kramdown (2.5.2) sha256=1ba542204c66b6f9111ff00dcc26075b95b220b07f2905d8261740c82f7f02fa
   kramdown-parser-gfm (1.1.0) sha256=fb39745516427d2988543bf01fc4cf0ab1149476382393e0e9c48592f6581729
   language_server-protocol (3.17.0.5) sha256=fd1e39a51a28bf3eec959379985a72e296e9f9acfce46f6a79d31ca8760803cc
@@ -570,6 +577,7 @@ CHECKSUMS
   oppen (1.0.0) sha256=379bf0b35c5e87c5f4139927721fd6c9f561e344a73ce3f658726a609034ddee
   ostruct (0.6.3) sha256=95a2ed4a4bd1d190784e666b47b2d3f078e4a9efda2fccf18f84ddc6538ed912
   parallel (1.28.0) sha256=33e6de1484baf2524792d178b0913fc8eb94c628d6cfe45599ad4458c638c970
+  parallel_tests (5.6.0)
   parser (3.3.11.1) sha256=d17ace7aabe3e72c3cc94043714be27cc6f852f104d81aa284c2281aecc65d54
   parslet (2.0.0) sha256=d45130695d39b43d7e6a91f4d2ec66b388a8d822bae38de9b4de9a5fbde1f606
   pdf-core (0.10.0) sha256=0a5d101e2063c01e3f941e1ee47cbb97f1adfc1395b58372f4f65f1300f3ce91
@@ -646,6 +654,7 @@ CHECKSUMS
   tree_haver (6.0.0)
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
   ttfunk (1.8.0) sha256=a7cbc7e489cc46e979dde04d34b5b9e4f5c8f1ee5fc6b1a7be39b829919d20ca
+  turbo_tests2 (3.0.0)
   unicode-display_width (3.2.0) sha256=0cdd96b5681a5949cdbc2c55e7b420facae74c4aaf9a9815eee1087cb1853c42
   unicode-emoji (4.2.0) sha256=519e69150f75652e40bf736106cfbc8f0f73aa3fb6a65afe62fefa7f80b0f80f
   unparser (0.9.0) sha256=4331f174a73a23b69250b13d47da3794ed1449711ee0f9ed8947dc020ba76067
