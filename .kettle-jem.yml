@@ -289,7 +289,7 @@ kettle-jem:
     ".gitignore.example": "645d3b62b54c3754620b4106a7cb462e6247b0045c8a03759a2cb419f1d787e0"
     ".gitlab-ci.yml.example": "ef64afa9855ebb59bbc87446fa9533238d3ce180966ceb19649a7f165715b92b"
     ".idea/.gitignore.example": "b44a5aa16bf9fe5635558af347454b05a76d600084308a9f43d4d0b54789ecab"
-    ".kettle-jem.yml.example": "a5a43512f9fbed2ea79fbb35e59acbff39a133670b8c4e3fdd677f4f46a8a893"
+    ".kettle-jem.yml.example": "04b0813587a11ce2e5e425c0f98e8728b5ad74028b38c491e3c8007ddd20782a"
     ".licenserc.yaml.example": "8003ce187b5ee35020ee78f8d135ee8ffa48dea82518876e58cd774cdc144c8d"
     ".opencollective.yml.example": "9ad9b83fe54f0bddac7fb614575585d98f78df0e181ee70a7acd0168d26e3142"
     ".qlty/qlty.toml.example": "cf3d750d2328f6c057b08b7ce3d7ec00a4056c7f0eedda59af321d6caca03553"
