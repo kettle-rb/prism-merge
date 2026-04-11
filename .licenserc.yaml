@@ -1,6 +1,6 @@
 header:
   license:
-    spdx-id: MIT
+    spdx-id: "AGPL-3.0-only"
 
 dependency:
   files:
