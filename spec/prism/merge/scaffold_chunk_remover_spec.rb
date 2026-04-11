@@ -21,7 +21,7 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
   end
 
   describe ".remove" do
-    context "Group A — bare bundler require" do
+    context "with Group A — bare bundler require" do
       let(:source) do
         <<~RUBY
           # frozen_string_literal: true
@@ -58,7 +58,7 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
       end
     end
 
-    context "Group B — rspec setup" do
+    context "with Group B — rspec setup" do
       let(:source) do
         <<~RUBY
           # frozen_string_literal: true
@@ -104,7 +104,7 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
       end
     end
 
-    context "Group C — rubocop setup" do
+    context "with Group C — rubocop setup" do
       let(:source) do
         <<~RUBY
           # frozen_string_literal: true
@@ -127,7 +127,7 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
       end
     end
 
-    context "Group D — scaffold default task" do
+    context "with Group D — scaffold default task" do
       let(:source) do
         <<~RUBY
           # frozen_string_literal: true
@@ -147,14 +147,14 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
       end
     end
 
-    context "ALL_SPECS — full scaffold Rakefile" do
+    context "with ALL_SPECS — full scaffold Rakefile" do
       it "removes all scaffold chunks leaving only the frozen magic comment" do
         result = described_class.remove(full_scaffold)
         expect(result.strip).to eq("# frozen_string_literal: true")
       end
     end
 
-    context "idempotency" do
+    context "with idempotency" do
       it "running twice on already-clean source returns the same output" do
         clean = <<~RUBY
           # frozen_string_literal: true
@@ -170,7 +170,7 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
       end
     end
 
-    context "safety" do
+    context "with safety" do
       it "does NOT remove user-added custom tasks" do
         source = <<~RUBY
           # frozen_string_literal: true
@@ -190,7 +190,7 @@ RSpec.describe Prism::Merge::ScaffoldChunkRemover do
       end
     end
 
-    context "satellite separation" do
+    context "with satellite separation" do
       it "removes require at top and RakeTask.new several nodes below" do
         source = <<~RUBY
           # frozen_string_literal: true
