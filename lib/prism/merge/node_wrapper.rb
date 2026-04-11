@@ -15,7 +15,7 @@ module Prism
         # @param backend [Symbol] The backend used for parsing (defaults to :prism)
         # @return [NodeWrapper, nil] Wrapped node or nil if node is nil
         def wrap(node, backend: :prism)
-          return nil if node.nil?
+          return if node.nil?
 
           new(node, backend: backend)
         end

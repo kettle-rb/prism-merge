@@ -529,7 +529,7 @@ module Prism
       def nested_in_top_level_statement?(line)
         statements.any? do |stmt|
           start = owner_start_line(stmt)
-          stop  = owner_end_line(stmt)
+          stop = owner_end_line(stmt)
           next false unless start && stop && stop > start
 
           start < line && line <= stop
@@ -1035,7 +1035,7 @@ module Prism
         when :if, :unless
           # Conditionals match by their condition expression
           condition_source = node.predicate.slice
-          [node.type.to_s == "if_node" ? :if : :unless, condition_source]
+          [(node.type.to_s == "if_node") ? :if : :unless, condition_source]
 
         # === Case/Switch statements ===
         when :case

@@ -44,8 +44,23 @@ module Prism
 
       def mergeable_statement?(node)
         ct = NodeTypeNormalizer.canonical_type(node.type.to_s, :prism)
-        %i[call def class module singleton_class const local_var ivar cvar gvar
-           multi_write if unless case begin].include?(ct)
+        %i[
+          call
+          def
+          class
+          module
+          singleton_class
+          const
+          local_var
+          ivar
+          cvar
+          gvar
+          multi_write
+          if
+          unless
+          case
+          begin
+        ].include?(ct)
       end
 
       private
