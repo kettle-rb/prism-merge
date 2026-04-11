@@ -1451,7 +1451,7 @@ See [CHANGELOG.md][📌changelog] for a list of releases.
 The gem is available under the following license: [AGPL-3.0-only](AGPL-3.0-only.md).
 See [LICENSE.md][📄license] for details.
 
-If none of the available licenses suit your use case, please [contact us](mailto:floss@glatzo.com) to discuss a custom commercial license.
+If none of the available licenses suit your use case, please [contact us](mailto:floss@galtzo.com) to discuss a custom commercial license.
 
 ### © Copyright
 
