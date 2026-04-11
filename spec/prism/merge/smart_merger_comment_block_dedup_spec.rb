@@ -209,5 +209,53 @@ RSpec.describe Prism::Merge::SmartMerger do
           "Expected exactly 1 comment block, got #{merged.scan("Important configuration note").count}.\n\nMerged output:\n#{merged}"
       end
     end
+
+    context "when template trailing comments become destination leading comments on a matched node" do
+      let(:http_block) do
+        <<~COMMENT.chomp
+          # HTTP recording for deterministic specs
+          # In Ruby 3.5 (HEAD) the CGI library has been pared down, so we also need to depend on gem "cgi" for ruby@head
+          # This is done in the "head" appraisal.
+          # See: https://github.com/vcr/vcr/issues/1057
+          # spec.add_development_dependency("vcr", ">= 4")
+          # spec.add_development_dependency("webmock", ">= 3")
+        COMMENT
+      end
+
+      let(:template) do
+        <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.require_paths = ["lib"]
+
+            spec.add_development_dependency("gitmoji-regex", "~> 1.0")
+
+            #{http_block}
+          end
+        RUBY
+      end
+
+      let(:dest) do
+        <<~RUBY
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+
+            spec.add_development_dependency("gitmoji-regex", "~> 1.0")
+
+            #{http_block}
+            #{http_block}
+            spec.require_paths = ["lib"]
+          end
+        RUBY
+      end
+
+      it "keeps only the template-owned trailing block" do
+        merged = described_class.new(template, dest, preference: :template).merge
+
+        expect(merged.scan("HTTP recording for deterministic specs").count).to eq(1),
+          "Expected exactly 1 HTTP block, got #{merged.scan("HTTP recording for deterministic specs").count}.\n\nMerged output:\n#{merged}"
+      end
+    end
+
   end
 end

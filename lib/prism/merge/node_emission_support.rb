@@ -161,6 +161,7 @@ module Prism
       def emit_matched_template_node(result:, template_node:, dest_node:)
         decision = MergeResult::DECISION_KEPT_TEMPLATE
         last_emitted_dest_line = nil
+        last_filtered_leading_line = nil
 
         template_analysis = merger.template_analysis
         dest_analysis = merger.dest_analysis
@@ -182,7 +183,15 @@ module Prism
         # Bidirectional dedup: filter out leading comments whose text was
         # already emitted by a preceding dest-only or template-only node.
         if leading_comments.any?
-          leading_comments, _ = filter_already_emitted_leading_comments(leading_comments)
+          if leading_analysis.equal?(dest_analysis)
+            leading_comments, last_filtered_leading_line = filter_emitted_template_trailing_comments(leading_comments)
+            leading_comments, last_filtered_leading_line = filter_emitted_template_leading_comments(
+              leading_comments,
+              last_filtered_line: last_filtered_leading_line,
+            )
+          end
+
+          leading_comments, last_filtered_leading_line = filter_already_emitted_leading_comments(leading_comments)
         end
 
         if leading_analysis.equal?(template_analysis)
@@ -204,6 +213,7 @@ module Prism
           analysis: leading_analysis,
           source: leading_analysis.equal?(template_analysis) ? :template : :destination,
           decision: decision,
+          prev_comment_line: last_filtered_leading_line,
         )
 
         # Track emitted leading comments for bidirectional dedup so that
