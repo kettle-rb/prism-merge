@@ -252,7 +252,7 @@ kettle-jem:
     ".github/dependabot.yml.example": "db84d1c13f64100d2f48212c022f0d985e9061ca76c36d82e7057fd845ecd528"
     ".github/workflows/auto-assign.yml.example": "bafe3a06f48a03b06107ebf21f5f711713fa3e55608bb0f0ecddb5f85e472308"
     ".github/workflows/codeql-analysis.yml.example": "d724c2392cd37c180ea10ecc8dbfc7669e916164c1f4d35293fdc353439a76a3"
-    ".github/workflows/coverage.yml.example": "46ddb3234b631e32b9eb064839bc684c2a9cb9cf75d5422cd090e86951d863da"
+    ".github/workflows/coverage.yml.example": "e4e5f52219ac3a21f299ba5bd2ef8d239dd7f8875f3d59be31ca63c3393bedf3"
     ".github/workflows/current.yml.example": "03ede3732e7b94414fe5f4f21cc4535d4d7f0c9fff79ccdc27c6e3d192d3c173"
     ".github/workflows/dep-heads.yml.example": "4c762757dc93a0b690c7b17064b75445b7aff9427d14ef7f2554250081e61835"
     ".github/workflows/dependency-review.yml.example": "c748e9e97c77a95856e908979690b5db744d4cd1283b333d8a50c397af915f55"
