@@ -256,6 +256,5 @@ RSpec.describe Prism::Merge::SmartMerger do
           "Expected exactly 1 HTTP block, got #{merged.scan("HTTP recording for deterministic specs").count}.\n\nMerged output:\n#{merged}"
       end
     end
-
   end
 end
