@@ -29,75 +29,12 @@
       ]
     }
   ],
-  "**Other Helpers** (loaded by kettle-test):\n- `block_is_expected` - Enhanced block expectations (from `rspec-block_is_expected`)": [
+  "# Shared development environment for this gem.\n# Local overrides belong in .env.local (loaded via dotenvy through mise).": [
     {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "file": "mise.toml",
       "lines": [
-        246,
-        258
-      ]
-    }
-  ],
-  "**Where these come from**:\n- External gems loaded by `kettle/test/external.rb` in the kettle-test gem": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        251,
-        263
-      ]
-    }
-  ],
-  "- External gems loaded by `kettle/test/external.rb` in the kettle-test gem\n- `rspec/stubbed_env` - Provides `stub_env` and `hide_env`": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        252,
-        264
-      ]
-    }
-  ],
-  "- `block_is_expected` - Enhanced block expectations (from `rspec-block_is_expected`)\n- `capture` - Capture output during tests (from `silent_stream`)": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        247,
-        259
-      ]
-    }
-  ],
-  "- `capture` - Capture output during tests (from `silent_stream`)\n- Timecop integration for time manipulation": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        248,
-        260
-      ]
-    }
-  ],
-  "- `rspec/block_is_expected` - Enhanced block expectations\n- `silent_stream` - Output suppression": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        254,
-        266
-      ]
-    }
-  ],
-  "- `rspec/stubbed_env` - Provides `stub_env` and `hide_env`\n- `rspec/block_is_expected` - Enhanced block expectations": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        253,
-        265
-      ]
-    }
-  ],
-  "- `silent_stream` - Output suppression\n- `timecop/rspec` - Time travel for tests": [
-    {
-      "file": ".github/COPILOT_INSTRUCTIONS.md",
-      "lines": [
-        255,
-        267
+        1,
+        3
       ]
     }
   ],

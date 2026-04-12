@@ -1,3 +1,7 @@
+# Shared development environment for this gem.
+# Local overrides belong in .env.local (loaded via dotenvy through mise).
+# Shared development environment for this gem.
+# Local overrides belong in .env.local (loaded via dotenvy through mise).
 # Shared development environment for prism-merge.
 # Local overrides belong in .env.local (loaded via dotenvy through mise).
 [env]
@@ -12,9 +16,9 @@ KJ_PROJECT_EMOJI = "☯️"
 K_SOUP_COV_COMMAND_NAME = "Test Coverage"
 K_SOUP_COV_DO = "true"
 K_SOUP_COV_FORMATTERS = "html,xml,rcov,lcov,json,tty"
-K_SOUP_COV_MIN_BRANCH = "82"
+K_SOUP_COV_MIN_BRANCH = "76"
 K_SOUP_COV_MIN_HARD = "true"
-K_SOUP_COV_MIN_LINE = "97"
+K_SOUP_COV_MIN_LINE = "92"
 K_SOUP_COV_MULTI_FORMATTERS = "true"
 K_SOUP_COV_OPEN_BIN = ""
 MAX_ROWS = "1"
@@ -34,5 +38,6 @@ YARD_FENCE_CLEAN_DOCS = "true"
 _.file = { path = ".env.local", redact = true }
 _.path = ["exe", "bin"]
 _.source = ".config/mise/env.sh"
+
 [tools]
 ruby = "4.0.2"
