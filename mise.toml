@@ -1,7 +1,3 @@
-# Shared development environment for this gem.
-# Local overrides belong in .env.local (loaded via dotenvy through mise).
-# Shared development environment for this gem.
-# Local overrides belong in .env.local (loaded via dotenvy through mise).
 # Shared development environment for prism-merge.
 # Local overrides belong in .env.local (loaded via dotenvy through mise).
 [env]
