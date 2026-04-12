@@ -39,9 +39,22 @@ PATH
       version_gem (~> 1.1, >= 1.1.9)
 
 PATH
+  remote: /home/pboling/src/kettle-rb/jsonc-merge
+  specs:
+    jsonc-merge (2.0.0)
+      json-merge (>= 2.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
   remote: /home/pboling/src/kettle-rb/kettle-dev
   specs:
     kettle-dev (2.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
+  remote: /home/pboling/src/kettle-rb/kettle-drift
+  specs:
+    kettle-drift (0.1.0)
       version_gem (~> 1.1, >= 1.1.9)
 
 PATH
@@ -227,8 +240,6 @@ GEM
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     json (2.19.3)
-    kettle-drift (0.1.0)
-      version_gem (~> 1.1, >= 1.1.9)
     kramdown (2.5.2)
       rexml (>= 3.4.4)
     kramdown-parser-gfm (1.1.0)
@@ -488,7 +499,9 @@ DEPENDENCIES
   gitmoji-regex (~> 1.0, >= 1.0.3)
   irb (~> 1.17)
   json-merge!
+  jsonc-merge!
   kettle-dev (~> 2.0, >= 0)!
+  kettle-drift!
   kettle-jem!
   kettle-soup-cover!
   kettle-test (~> 2.0, >= 2.0.0, >= 0)!
@@ -567,6 +580,7 @@ CHECKSUMS
   irb (1.17.0) sha256=168c4ddb93d8a361a045c41d92b2952c7a118fa73f23fe14e55609eb7a863aae
   json (2.19.3) sha256=289b0bb53052a1fa8c34ab33cc750b659ba14a5c45f3fcf4b18762dc67c78646
   json-merge (2.0.0)
+  jsonc-merge (2.0.0)
   kettle-dev (2.0.0)
   kettle-drift (0.1.0)
   kettle-jem (1.0.0)
@@ -586,7 +600,7 @@ CHECKSUMS
   oppen (1.0.0) sha256=379bf0b35c5e87c5f4139927721fd6c9f561e344a73ce3f658726a609034ddee
   ostruct (0.6.3) sha256=95a2ed4a4bd1d190784e666b47b2d3f078e4a9efda2fccf18f84ddc6538ed912
   parallel (1.28.0) sha256=33e6de1484baf2524792d178b0913fc8eb94c628d6cfe45599ad4458c638c970
-  parallel_tests (5.6.0)
+  parallel_tests (5.6.0) sha256=b2d7af382d1c0289daba65308d9143b3ad82d817d500c0ad1b4bde468beb13af
   parser (3.3.11.1) sha256=d17ace7aabe3e72c3cc94043714be27cc6f852f104d81aa284c2281aecc65d54
   parslet (2.0.0) sha256=d45130695d39b43d7e6a91f4d2ec66b388a8d822bae38de9b4de9a5fbde1f606
   pdf-core (0.10.0) sha256=0a5d101e2063c01e3f941e1ee47cbb97f1adfc1395b58372f4f65f1300f3ce91
