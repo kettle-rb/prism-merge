@@ -1,0 +1,143 @@
+{
+  "# Continue to the next step on failure\ncontinue-on-error: true": [
+    {
+      "file": ".github/workflows/current.yml",
+      "lines": [
+        89,
+        103
+      ]
+    },
+    {
+      "file": ".github/workflows/dep-heads.yml",
+      "lines": [
+        91,
+        105
+      ]
+    },
+    {
+      "file": ".github/workflows/heads.yml",
+      "lines": [
+        90,
+        104
+      ]
+    },
+    {
+      "file": ".github/workflows/truffle.yml",
+      "lines": [
+        73,
+        87
+      ]
+    }
+  ],
+  "**Other Helpers** (loaded by kettle-test):\n- `block_is_expected` - Enhanced block expectations (from `rspec-block_is_expected`)": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        246,
+        258
+      ]
+    }
+  ],
+  "**Where these come from**:\n- External gems loaded by `kettle/test/external.rb` in the kettle-test gem": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        251,
+        263
+      ]
+    }
+  ],
+  "- External gems loaded by `kettle/test/external.rb` in the kettle-test gem\n- `rspec/stubbed_env` - Provides `stub_env` and `hide_env`": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        252,
+        264
+      ]
+    }
+  ],
+  "- `block_is_expected` - Enhanced block expectations (from `rspec-block_is_expected`)\n- `capture` - Capture output during tests (from `silent_stream`)": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        247,
+        259
+      ]
+    }
+  ],
+  "- `capture` - Capture output during tests (from `silent_stream`)\n- Timecop integration for time manipulation": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        248,
+        260
+      ]
+    }
+  ],
+  "- `rspec/block_is_expected` - Enhanced block expectations\n- `silent_stream` - Output suppression": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        254,
+        266
+      ]
+    }
+  ],
+  "- `rspec/stubbed_env` - Provides `stub_env` and `hide_env`\n- `rspec/block_is_expected` - Enhanced block expectations": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        253,
+        265
+      ]
+    }
+  ],
+  "- `silent_stream` - Output suppression\n- `timecop/rspec` - Time travel for tests": [
+    {
+      "file": ".github/COPILOT_INSTRUCTIONS.md",
+      "lines": [
+        255,
+        267
+      ]
+    }
+  ],
+  "appraisal: \"current\"\nexec_cmd: \"rake spec\"": [
+    {
+      "file": ".github/workflows/current.yml",
+      "lines": [
+        50,
+        58
+      ]
+    }
+  ],
+  "if: ${{ !env.ACT || (! startsWith(matrix.ruby, 'jruby') && !startsWith(matrix.ruby, 'truffleruby')) }}\nrun: bundle install": [
+    {
+      "file": ".github/workflows/current.yml",
+      "lines": [
+        82,
+        87
+      ]
+    },
+    {
+      "file": ".github/workflows/dep-heads.yml",
+      "lines": [
+        84,
+        89
+      ]
+    },
+    {
+      "file": ".github/workflows/heads.yml",
+      "lines": [
+        83,
+        88
+      ]
+    },
+    {
+      "file": ".github/workflows/truffle.yml",
+      "lines": [
+        66,
+        71
+      ]
+    }
+  ]
+}

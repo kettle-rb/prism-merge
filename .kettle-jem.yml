@@ -141,6 +141,35 @@ machine_users:
 # Divergence is currently measured as the percent of produced files that would
 # change or be added during templating (100 - unchanged-file score).
 min_divergence_threshold:
+# Optional kettle-jem plugins.
+# Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is
+# added as a development dependency so it is available after bin/setup.
+# During bundled templating, kettle-jem requires the plugin and calls
+# `register_kettle_jem_plugin(registrar)` on its top-level handle.
+#
+# Phase callback names currently available:
+#   - config_sync
+#   - dev_container
+#   - github_workflows
+#   - quality_config
+#   - modular_gemfiles
+#   - spec_helper
+#   - environment_templates
+#   - remaining_files
+#   - git_hooks
+#   - license_files
+#   - duplicate_check
+#
+# Phase guarantees:
+#   - All plugin callbacks run during the bundled templating phase, after
+#     bin/setup and bundle install have completed.
+#   - kettle-jem, kettle-dev, and any plugin gems listed here are loadable.
+#   - kettle-jem's parser / merger runtime is available to callbacks.
+#   - `remaining_files` runs after the destination Rakefile, gemspec, README,
+#     and most template-managed files already exist on disk.
+#   - `duplicate_check` runs last, after all template writes are complete.
+plugins:
+  - kettle-drift
 
 # Default merge options
 defaults:
@@ -289,7 +318,7 @@ kettle-jem:
     ".gitignore.example": "14864a0c88be3f8c122ab3032efeb782ba5e035013231038acf746a400437a3e"
     ".gitlab-ci.yml.example": "ef64afa9855ebb59bbc87446fa9533238d3ce180966ceb19649a7f165715b92b"
     ".idea/.gitignore.example": "b44a5aa16bf9fe5635558af347454b05a76d600084308a9f43d4d0b54789ecab"
-    ".kettle-jem.yml.example": "5ea74507273d12f10b5f35f5d41f858a29167b85e417a8720a36e34076d3578c"
+    ".kettle-jem.yml.example": "b364572eaa086d659e66038db296bc0df39160c070cfee4348096bc9d7581b2c"
     ".licenserc.yaml.example": "eee56b6604d4db0aff911f55b6f9aab73839d2b3f0850c2139fdc5bf40839037"
     ".opencollective.yml.example": "9ad9b83fe54f0bddac7fb614575585d98f78df0e181ee70a7acd0168d26e3142"
     ".qlty/qlty.toml.example": "cf3d750d2328f6c057b08b7ce3d7ec00a4056c7f0eedda59af321d6caca03553"
