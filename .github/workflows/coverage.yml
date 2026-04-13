@@ -25,6 +25,7 @@ on:
     branches:
       - '*'
   # Allow manually triggering the workflow.
+  # Allow manually triggering the workflow.
   workflow_dispatch:
 
 # Cancels all previous workflow runs for the same branch that have not yet completed.
@@ -68,10 +69,13 @@ jobs:
         id: bundleAppraisalAttempt1
         run: bundle exec appraisal ${{ matrix.appraisal }} install
         # Continue to the next step on failure
+        # Continue to the next step on failure
         continue-on-error: true
+      # Effectively an automatic retry of the previous step.
       # Effectively an automatic retry of the previous step.
       - name: "[Attempt 2] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
         id: bundleAppraisalAttempt2
+        # If bundleAppraisalAttempt1 failed, try again here; Otherwise skip.
         # If bundleAppraisalAttempt1 failed, try again here; Otherwise skip.
         if: ${{ steps.bundleAppraisalAttempt1.outcome == 'failure' }}
         run: bundle exec appraisal ${{ matrix.appraisal }} install

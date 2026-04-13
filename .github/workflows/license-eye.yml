@@ -14,6 +14,7 @@ on:
     branches:
       - '*'
   # Allow manually triggering the workflow.
+  # Allow manually triggering the workflow.
   workflow_dispatch:
 
 # Cancels all previous workflow runs for the same branch that have not yet completed.
@@ -34,6 +35,9 @@ jobs:
         uses: apache/skywalking-eyes/dependency@61275cc80d0798a405cb070f7d3a8aaf7cf2c2c1 # v0.8.0
         with:
           config: .licenserc.yaml
+          # Ruby packages declared as dependencies in gemspecs or Gemfiles are
+          #   typically consumed as binaries; enable weak-compatibility
+          #   so permissive and weak-copyleft combinations are treated as compatible.
           # Ruby packages declared as dependencies in gemspecs or Gemfiles are
           #   typically consumed as binaries; enable weak-compatibility
           #   so permissive and weak-copyleft combinations are treated as compatible.

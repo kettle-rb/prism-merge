@@ -86,11 +86,22 @@ project_emoji: "☯️"
 #
 # Supported values: ruby, jruby, truffleruby
 # Default (when key is absent): all three engines.
+# Engines this project supports.
+# List the Ruby engines that your gem targets. kettle-jem uses this to decide
+# which CI workflows, README compatibility rows, and badge references to
+# include. Engines not listed here are pruned from generated files.
+#
+# Supported values: ruby, jruby, truffleruby
+# Default (when key is absent): all three engines.
 engines:
   - ruby
   - jruby
   - truffleruby
-
+# README top logo mode.
+# Controls whether the generated README header includes the GitHub org logo,
+# the project logo, or both after the shared Galtzo and ruby-lang logos.
+# Supported values: org, project, org_and_project
+# Default (when key is absent): org_and_project
 # README top logo mode.
 # Controls whether the generated README header includes the GitHub org logo,
 # the project logo, or both after the shared Galtzo and ruby-lang logos.
@@ -98,7 +109,25 @@ engines:
 # Default (when key is absent): org_and_project
 readme:
   top_logo_mode: org
-
+# SPDX license identifiers for this project.
+# List one or more licenses that apply to the gem. Users may use the software
+# under the terms of any one license listed here (OR semantics, not AND).
+#
+# Accepted values (initial supported set):
+#   MIT                              - MIT License (open source, permissive)
+#   AGPL-3.0-only                    - GNU Affero General Public License v3
+#   PolyForm-Noncommercial-1.0.0     - PolyForm Noncommercial License 1.0.0
+#   PolyForm-Small-Business-1.0.0    - PolyForm Small Business License 1.0.0
+#   LicenseRef-Big-Time-Public-License - Big Time Public License 2.0.2
+#
+# Defaults to spec.licenses from the gemspec when this key is absent.
+#
+# Template behaviour:
+#   - Each listed license is copied as <SPDX-basename>.md into the project.
+#   - A LICENSE.md index file is generated referencing all chosen licenses.
+#   - Any non-MIT license adds a "contact for commercial license" prompt.
+#   - When MIT (or AGPL), a PolyForm variant, AND LicenseRef-Big-Time-Public-License
+#     are all present, a use-case guide table is added to README and LICENSE.md.
 # SPDX license identifiers for this project.
 # List one or more licenses that apply to the gem. Users may use the software
 # under the terms of any one license listed here (OR semantics, not AND).
@@ -120,7 +149,17 @@ readme:
 #     are all present, a use-case guide table is added to README and LICENSE.md.
 licenses:
   - AGPL-3.0-only
-
+# Machine / automation accounts to exclude from generated copyright output.
+#
+# When kettle-jem collects copyright information via `git blame`, it filters
+# out known GitHub/GitLab bot accounts automatically.  Use this list to also
+# exclude internal automation accounts that are not bots in the git sense
+# (i.e. they do not follow the "[bot]" naming convention).
+#
+# Each entry is matched case-insensitively against the commit author name AND
+# the commit author email, so you can list either form.
+#
+# Default (when key is absent or empty): ["autobolt"]
 # Machine / automation accounts to exclude from generated copyright output.
 #
 # When kettle-jem collects copyright information via `git blame`, it filters
@@ -134,7 +173,11 @@ licenses:
 # Default (when key is absent or empty): ["autobolt"]
 machine_users:
   - autobolt
-
+# Self-test / templating CI threshold.
+# Set to a number from 0 to 100 to fail `rake kettle:jem:selftest` once
+# divergence reaches or exceeds that percent. Leave blank to report only.
+# Divergence is currently measured as the percent of produced files that would
+# change or be added during templating (100 - unchanged-file score).
 # Self-test / templating CI threshold.
 # Set to a number from 0 to 100 to fail `rake kettle:jem:selftest` once
 # divergence reaches or exceeds that percent. Leave blank to report only.
@@ -168,15 +211,51 @@ min_divergence_threshold:
 #   - `remaining_files` runs after the destination Rakefile, gemspec, README,
 #     and most template-managed files already exist on disk.
 #   - `duplicate_check` runs last, after all template writes are complete.
+# Optional kettle-jem plugins.
+# Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is
+# added as a development dependency so it is available after bin/setup.
+# During bundled templating, kettle-jem requires the plugin and calls
+# `register_kettle_jem_plugin(registrar)` on its top-level handle.
+#
+# Phase callback names currently available:
+#   - config_sync
+#   - dev_container
+#   - github_workflows
+#   - quality_config
+#   - modular_gemfiles
+#   - spec_helper
+#   - environment_templates
+#   - remaining_files
+#   - git_hooks
+#   - license_files
+#   - duplicate_check
+#
+# Phase guarantees:
+#   - All plugin callbacks run during the bundled templating phase, after
+#     bin/setup and bundle install have completed.
+#   - kettle-jem, kettle-dev, and any plugin gems listed here are loadable.
+#   - kettle-jem's parser / merger runtime is available to callbacks.
+#   - `remaining_files` runs after the destination Rakefile, gemspec, README,
+#     and most template-managed files already exist on disk.
+#   - `duplicate_check` runs last, after all template writes are complete.
 plugins:
   - kettle-drift
-
+# Default merge options
 # Default merge options
 defaults:
   preference: "template"
   add_template_only_nodes: true
   freeze_token: "kettle-jem"
-
+# Token replacement values.
+#
+# General rules:
+#   - Empty strings are treated as unset.
+#   - Use the bare identifier/slug/handle expected by the inline comment.
+#   - Do NOT paste full URLs unless the comment explicitly says to.
+#
+# Tip:
+#   The author fields in a newly created destination config are normally seeded
+#   from the gemspec via safe derivation. After that, destination values win.
 # Token replacement values.
 #
 # General rules:
@@ -221,7 +300,8 @@ tokens:
 patterns:
   - path: "certs/**"
     strategy: raw_copy
-
+# Per-file configuration (nested directory structure)
+# Only files that need overrides belong here. Everything else defaults to merge.
 # Per-file configuration (nested directory structure)
 # Only files that need overrides belong here. Everything else defaults to merge.
 files:
@@ -236,7 +316,28 @@ files:
         strategy: accept_template
       templating_local.gemfile:
         strategy: accept_template
-
+# To override specific files, add entries like:
+#
+# files:
+#   README.md:
+#     strategy: accept_template
+#
+#   SECURITY.md:
+#     strategy: keep_destination
+#
+#   certs:
+#     pboling.pem:
+#       strategy: raw_copy
+#
+#   .git-hooks:
+#     commit-msg:
+#       strategy: merge
+#       file_type: ruby
+#
+#   Rakefile:
+#     strategy: merge
+#     preference: destination
+#     add_template_only_nodes: false
 # To override specific files, add entries like:
 #
 # files:
@@ -407,3 +508,25 @@ kettle-jem:
     "mise.toml.no-osc.example": "006bfce3aaed4bdac42e0788cf30af6cd5e8cdafc0002ddc7db74f186c5875f4"
     "parsers.toml.example": "f0538ae7ad8596be2dc39b3ea663f1164dec21fb0457233c1885097e774aff6f"
     "tmp/.gitignore.example": "240a3e0d37d2e86b614063f5347eb02d4f99ca6c254de6b82871ff8d95532a7d"
+# To override specific files, add entries like:
+#
+# files:
+#   README.md:
+#     strategy: accept_template
+#
+#   SECURITY.md:
+#     strategy: keep_destination
+#
+#   certs:
+#     pboling.pem:
+#       strategy: raw_copy
+#
+#   .git-hooks:
+#     commit-msg:
+#       strategy: merge
+#       file_type: ruby
+#
+#   Rakefile:
+#     strategy: merge
+#     preference: destination
+#     add_template_only_nodes: false

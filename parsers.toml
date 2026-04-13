@@ -3,6 +3,7 @@
 #
 # Run: tsdl build --out-dir /usr/local/lib
 # Or let .devcontainer/scripts/setup-tree-sitter.sh handle it.
+
 out-dir = "/usr/local/lib"
 
 [parsers]
