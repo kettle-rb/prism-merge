@@ -361,7 +361,7 @@ kettle-jem:
     "gemfiles/modular/coverage.gemfile.example": "cd5a04439c316c608735ffa62e0f8461579ea8612e3b0284f2f87ec3b669cdbb"
     "gemfiles/modular/coverage_local.gemfile.example": "72e2be90e2426c138b20d7adf1ee573ac5c681f9602b4a10c98c5f388e946449"
     "gemfiles/modular/debug.gemfile.example": "0a508bfb02e51b75394b43f4f09d98174dac36ead41cba09c1f730671a1f5905"
-    "gemfiles/modular/documentation.gemfile.example": "5499e76c53d840547b07c6845dbacc1b500fd6d6dc511c0b8592db0a295714f1"
+    "gemfiles/modular/documentation.gemfile.example": "8bbddd02d033dc4e3430d9c6fde66b198e3c5e6d026b117704019c01d5b28552"
     "gemfiles/modular/erb/r2.3/default.gemfile.example": "9da0d08fb6a299b965c37fe85efcaebd9eb0a82b2ea35fdc157c41bd75431396"
     "gemfiles/modular/erb/r2.6/v2.2.gemfile.example": "01787cbdf7136c0d75cc7b734c6bb3d2ef6c70d6c1c50e7d0ad2112c0f8ef8e7"
     "gemfiles/modular/erb/r2/v3.0.gemfile.example": "3793e7dc9ef23a7ccd893d48cbba092fd27594c63e65cca011cc658218425670"
