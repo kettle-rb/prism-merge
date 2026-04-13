@@ -257,6 +257,20 @@ module Prism
         )
       end
 
+      # Describe how Prism merges own and emit comments.
+      #
+      # Prism exposes native owned comments and attachment hints, but merge output
+      # still flows through ast-merge's synthetic ownership/emission layer.
+      #
+      # @return [Ast::Merge::Comment::SupportStyle]
+      def comment_support_style
+        @comment_support_style ||= Ast::Merge::Comment::SupportStyle.native_read_synthetic_write(
+          source: :prism,
+          capability: comment_capability.level,
+          style: :hash_comment,
+        )
+      end
+
       # Get all supported comments converted to shared/native Ruby comment nodes.
       #
       # @return [Array<Prism::Merge::Comment::Line>]

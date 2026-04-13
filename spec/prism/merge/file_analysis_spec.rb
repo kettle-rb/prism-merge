@@ -448,6 +448,23 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(analysis.comment_node_at(1).magic_comment?).to be true
     end
 
+    it "reports a native-read synthetic-write support style" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+
+      expect(analysis.comment_support_style).to be_a(Ast::Merge::Comment::SupportStyle)
+      expect(analysis.comment_support_style.native_read_synthetic_write?).to be true
+      expect(analysis.comment_support_style.synthetic_write?).to be true
+      expect(analysis.comment_support_style.details[:capability]).to eq(:native_full)
+    end
+
     it "builds shared comment attachments from native Prism ownership" do
       code = <<~RUBY
         # frozen_string_literal: true
