@@ -3,27 +3,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        334,
-        356,
-        526
-      ]
-    }
-  ],
-  "#     and most template-managed files already exist on disk.\n#   - `duplicate_check` runs last, after all template writes are complete.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        212,
-        239
-      ]
-    }
-  ],
-  "#     bin/setup and bundle install have completed.\n#   - kettle-jem, kettle-dev, and any plugin gems listed here are loadable.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        208,
-        235
+        247,
+        417
       ]
     }
   ],
@@ -31,9 +12,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        333,
-        355,
-        525
+        246,
+        416
       ]
     }
   ],
@@ -41,9 +21,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        329,
-        351,
-        521
+        242,
+        412
       ]
     }
   ],
@@ -51,9 +30,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        339,
-        361,
-        531
+        252,
+        422
       ]
     }
   ],
@@ -61,189 +39,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        338,
-        360,
-        530
-      ]
-    }
-  ],
-  "#   - A LICENSE.md index file is generated referencing all chosen licenses.\n#   - Any non-MIT license adds a \"contact for commercial license\" prompt.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        127,
-        146
-      ]
-    }
-  ],
-  "#   - All plugin callbacks run during the bundled templating phase, after\n#     bin/setup and bundle install have completed.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        207,
-        234
-      ]
-    }
-  ],
-  "#   - Any non-MIT license adds a \"contact for commercial license\" prompt.\n#   - When MIT (or AGPL), a PolyForm variant, AND LicenseRef-Big-Time-Public-License": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        128,
-        147
-      ]
-    }
-  ],
-  "#   - Each listed license is copied as <SPDX-basename>.md into the project.\n#   - A LICENSE.md index file is generated referencing all chosen licenses.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        126,
-        145
-      ]
-    }
-  ],
-  "#   - Empty strings are treated as unset.\n#   - Use the bare identifier/slug/handle expected by the inline comment.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        252,
-        262
-      ]
-    }
-  ],
-  "#   - Use the bare identifier/slug/handle expected by the inline comment.\n#   - Do NOT paste full URLs unless the comment explicitly says to.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        253,
-        263
-      ]
-    }
-  ],
-  "#   - When MIT (or AGPL), a PolyForm variant, AND LicenseRef-Big-Time-Public-License\n#     are all present, a use-case guide table is added to README and LICENSE.md.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        129,
-        148
-      ]
-    }
-  ],
-  "#   - `remaining_files` runs after the destination Rakefile, gemspec, README,\n#     and most template-managed files already exist on disk.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        211,
-        238
-      ]
-    }
-  ],
-  "#   - config_sync\n#   - dev_container": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        194,
-        221
-      ]
-    }
-  ],
-  "#   - dev_container\n#   - github_workflows": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        195,
-        222
-      ]
-    }
-  ],
-  "#   - environment_templates\n#   - remaining_files": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        200,
-        227
-      ]
-    }
-  ],
-  "#   - git_hooks\n#   - license_files": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        202,
-        229
-      ]
-    }
-  ],
-  "#   - github_workflows\n#   - quality_config": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        196,
-        223
-      ]
-    }
-  ],
-  "#   - kettle-jem's parser / merger runtime is available to callbacks.\n#   - `remaining_files` runs after the destination Rakefile, gemspec, README,": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        210,
-        237
-      ]
-    }
-  ],
-  "#   - kettle-jem, kettle-dev, and any plugin gems listed here are loadable.\n#   - kettle-jem's parser / merger runtime is available to callbacks.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        209,
-        236
-      ]
-    }
-  ],
-  "#   - license_files\n#   - duplicate_check": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        203,
-        230
-      ]
-    }
-  ],
-  "#   - modular_gemfiles\n#   - spec_helper": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        198,
-        225
-      ]
-    }
-  ],
-  "#   - quality_config\n#   - modular_gemfiles": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        197,
-        224
-      ]
-    }
-  ],
-  "#   - remaining_files\n#   - git_hooks": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        201,
-        228
-      ]
-    }
-  ],
-  "#   - spec_helper\n#   - environment_templates": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        199,
-        226
+        251,
+        421
       ]
     }
   ],
@@ -251,45 +48,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        332,
-        354,
-        524
-      ]
-    }
-  ],
-  "#   AGPL-3.0-only                    - GNU Affero General Public License v3\n#   PolyForm-Noncommercial-1.0.0     - PolyForm Noncommercial License 1.0.0": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        118,
-        137
-      ]
-    }
-  ],
-  "#   MIT                              - MIT License (open source, permissive)\n#   AGPL-3.0-only                    - GNU Affero General Public License v3": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        117,
-        136
-      ]
-    }
-  ],
-  "#   PolyForm-Noncommercial-1.0.0     - PolyForm Noncommercial License 1.0.0\n#   PolyForm-Small-Business-1.0.0    - PolyForm Small Business License 1.0.0": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        119,
-        138
-      ]
-    }
-  ],
-  "#   PolyForm-Small-Business-1.0.0    - PolyForm Small Business License 1.0.0\n#   LicenseRef-Big-Time-Public-License - Big Time Public License 2.0.2": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        120,
-        139
+        245,
+        415
       ]
     }
   ],
@@ -297,9 +57,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        322,
-        344,
-        514
+        235,
+        405
       ]
     }
   ],
@@ -307,9 +66,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        337,
-        359,
-        529
+        250,
+        420
       ]
     }
   ],
@@ -317,18 +75,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        325,
-        347,
-        517
-      ]
-    }
-  ],
-  "#   The author fields in a newly created destination config are normally seeded\n#   from the gemspec via safe derivation. After that, destination values win.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        257,
-        267
+        238,
+        408
       ]
     }
   ],
@@ -336,54 +84,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        328,
-        350,
-        520
-      ]
-    }
-  ],
-  "#   typically consumed as binaries; enable weak-compatibility\n#   so permissive and weak-copyleft combinations are treated as compatible.": [
-    {
-      "file": ".github/workflows/license-eye.yml",
-      "lines": [
-        39,
-        42
-      ]
-    }
-  ],
-  "# Accepted values (initial supported set):\n#   MIT                              - MIT License (open source, permissive)": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        116,
-        135
-      ]
-    }
-  ],
-  "# Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).\n# If this step fails, then you should remove it and run the build manually (see below)": [
-    {
-      "file": ".github/workflows/codeql-analysis.yml",
-      "lines": [
-        55,
-        62
-      ]
-    }
-  ],
-  "# By default, queries listed here will override any specified in a config file.\n# Prefix the list here with \"+\" to use these queries and those in the config file.": [
-    {
-      "file": ".github/workflows/codeql-analysis.yml",
-      "lines": [
-        51,
-        58
-      ]
-    }
-  ],
-  "# CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]\n# Learn more about CodeQL language support at https://git.io/codeql-language-support": [
-    {
-      "file": ".github/workflows/codeql-analysis.yml",
-      "lines": [
-        36,
-        38
+        241,
+        411
       ]
     }
   ],
@@ -391,272 +93,29 @@
     {
       "file": ".github/workflows/current.yml",
       "lines": [
-        91,
-        107
+        88,
+        101
       ]
     },
     {
       "file": ".github/workflows/dep-heads.yml",
       "lines": [
-        92,
-        108
+        91,
+        104
       ]
     },
     {
       "file": ".github/workflows/heads.yml",
       "lines": [
-        91,
-        107
+        90,
+        103
       ]
     },
     {
       "file": ".github/workflows/truffle.yml",
       "lines": [
-        74,
-        90
-      ]
-    }
-  ],
-  "# Controls whether the generated README header includes the GitHub org logo,\n# the project logo, or both after the shared Galtzo and ruby-lang logos.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        101,
-        106
-      ]
-    }
-  ],
-  "# Divergence is currently measured as the percent of produced files that would\n# change or be added during templating (100 - unchanged-file score).": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        179,
-        184
-      ]
-    }
-  ],
-  "# During bundled templating, kettle-jem requires the plugin and calls\n# `register_kettle_jem_plugin(registrar)` on its top-level handle.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        190,
-        217
-      ]
-    }
-  ],
-  "# Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is\n# added as a development dependency so it is available after bin/setup.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        188,
-        215
-      ]
-    }
-  ],
-  "# Each entry is matched case-insensitively against the commit author name AND\n# the commit author email, so you can list either form.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        159,
-        170
-      ]
-    }
-  ],
-  "# Engines this project supports.\n# List the Ruby engines that your gem targets. kettle-jem uses this to decide": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        82,
-        89
-      ]
-    }
-  ],
-  "# General rules:\n#   - Empty strings are treated as unset.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        251,
-        261
-      ]
-    }
-  ],
-  "# If you wish to specify custom queries, you can do so here or in a config file.\n# By default, queries listed here will override any specified in a config file.": [
-    {
-      "file": ".github/workflows/codeql-analysis.yml",
-      "lines": [
-        50,
-        57
-      ]
-    }
-  ],
-  "# List one or more licenses that apply to the gem. Users may use the software\n# under the terms of any one license listed here (OR semantics, not AND).": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        113,
-        132
-      ]
-    }
-  ],
-  "# List the Ruby engines that your gem targets. kettle-jem uses this to decide\n# which CI workflows, README compatibility rows, and badge references to": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        83,
-        90
-      ]
-    }
-  ],
-  "# Optional kettle-jem plugins.\n# Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        187,
-        214
-      ]
-    }
-  ],
-  "# Per-file configuration (nested directory structure)\n# Only files that need overrides belong here. Everything else defaults to merge.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        303,
-        305
-      ]
-    }
-  ],
-  "# Phase callback names currently available:\n#   - config_sync": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        193,
-        220
-      ]
-    }
-  ],
-  "# Phase guarantees:\n#   - All plugin callbacks run during the bundled templating phase, after": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        206,
-        233
-      ]
-    }
-  ],
-  "# Prefix the list here with \"+\" to use these queries and those in the config file.\n# queries: ./path/to/local/query, your-org/your-repo/queries@main": [
-    {
-      "file": ".github/workflows/codeql-analysis.yml",
-      "lines": [
-        52,
-        59
-      ]
-    }
-  ],
-  "# README top logo mode.\n# Controls whether the generated README header includes the GitHub org logo,": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        100,
-        105
-      ]
-    }
-  ],
-  "# Ruby packages declared as dependencies in gemspecs or Gemfiles are\n#   typically consumed as binaries; enable weak-compatibility": [
-    {
-      "file": ".github/workflows/license-eye.yml",
-      "lines": [
-        38,
-        41
-      ]
-    }
-  ],
-  "# SPDX license identifiers for this project.\n# List one or more licenses that apply to the gem. Users may use the software": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        112,
-        131
-      ]
-    }
-  ],
-  "# Self-test / templating CI threshold.\n# Set to a number from 0 to 100 to fail `rake kettle:jem:selftest` once": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        176,
-        181
-      ]
-    }
-  ],
-  "# Set to a number from 0 to 100 to fail `rake kettle:jem:selftest` once\n# divergence reaches or exceeds that percent. Leave blank to report only.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        177,
-        182
-      ]
-    }
-  ],
-  "# Supported values: org, project, org_and_project\n# Default (when key is absent): org_and_project": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        103,
-        108
-      ]
-    }
-  ],
-  "# Supported values: ruby, jruby, truffleruby\n# Default (when key is absent): all three engines.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        87,
-        94
-      ]
-    }
-  ],
-  "# Template behaviour:\n#   - Each listed license is copied as <SPDX-basename>.md into the project.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        125,
-        144
-      ]
-    }
-  ],
-  "# When kettle-jem collects copyright information via `git blame`, it filters\n# out known GitHub/GitLab bot accounts automatically.  Use this list to also": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        154,
-        165
-      ]
-    }
-  ],
-  "# added as a development dependency so it is available after bin/setup.\n# During bundled templating, kettle-jem requires the plugin and calls": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        189,
-        216
-      ]
-    }
-  ],
-  "# divergence reaches or exceeds that percent. Leave blank to report only.\n# Divergence is currently measured as the percent of produced files that would": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        178,
-        183
-      ]
-    }
-  ],
-  "# exclude internal automation accounts that are not bots in the git sense\n# (i.e. they do not follow the \"[bot]\" naming convention).": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        156,
-        167
+        73,
+        86
       ]
     }
   ],
@@ -664,36 +123,8 @@
     {
       "file": ".kettle-jem.yml",
       "lines": [
-        321,
-        343,
-        513
-      ]
-    }
-  ],
-  "# out known GitHub/GitLab bot accounts automatically.  Use this list to also\n# exclude internal automation accounts that are not bots in the git sense": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        155,
-        166
-      ]
-    }
-  ],
-  "# the project logo, or both after the shared Galtzo and ruby-lang logos.\n# Supported values: org, project, org_and_project": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        102,
-        107
-      ]
-    }
-  ],
-  "# which CI workflows, README compatibility rows, and badge references to\n# include. Engines not listed here are pruned from generated files.": [
-    {
-      "file": ".kettle-jem.yml",
-      "lines": [
-        84,
-        91
+        234,
+        404
       ]
     }
   ],
@@ -701,8 +132,8 @@
     {
       "file": ".github/workflows/current.yml",
       "lines": [
-        51,
-        60
+        50,
+        57
       ]
     }
   ],
@@ -710,29 +141,29 @@
     {
       "file": ".github/workflows/current.yml",
       "lines": [
-        84,
-        89
+        81,
+        86
       ]
     },
     {
       "file": ".github/workflows/dep-heads.yml",
       "lines": [
-        85,
-        90
-      ]
-    },
-    {
-      "file": ".github/workflows/heads.yml",
-      "lines": [
         84,
         89
       ]
     },
     {
+      "file": ".github/workflows/heads.yml",
+      "lines": [
+        83,
+        88
+      ]
+    },
+    {
       "file": ".github/workflows/truffle.yml",
       "lines": [
-        67,
-        72
+        66,
+        71
       ]
     }
   ]
