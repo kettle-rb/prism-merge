@@ -5,7 +5,7 @@ require "ast/merge/rspec/shared_examples"
 RSpec.describe "prism comment behavior matrix" do
   extend Ast::Merge::RSpec::CommentBehaviorMatrixAdapters
 
-  include_examples "Ast::Merge::CommentBehaviorMatrix" do
+  it_behaves_like "Ast::Merge::CommentBehaviorMatrix" do
     line_based_comment_matrix_adapter(
       analysis_class: Prism::Merge::FileAnalysis,
       merger_class: Prism::Merge::SmartMerger,
