@@ -264,10 +264,10 @@ module Prism
       #
       # @return [Ast::Merge::Comment::SupportStyle]
       def comment_support_style
-        @comment_support_style ||= Ast::Merge::Comment::SupportStyle.native_read_synthetic_write(
+        @comment_support_style ||= shared_comment_support_style(
           source: :prism,
-          capability: comment_capability.level,
           style: :hash_comment,
+          read_strategy: :native_read_synthetic_write,
         )
       end
 
