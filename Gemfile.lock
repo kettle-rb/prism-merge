@@ -11,6 +11,7 @@ PATH
   remote: /home/pboling/src/kettle-rb/ast-merge
   specs:
     ast-merge (5.0.0)
+      parslet (~> 2.0)
       tree_haver (~> 6.0, >= 6.0.0)
       version_gem (~> 1.1, >= 1.1.9)
 
