@@ -62,6 +62,8 @@ module Prism
       def promote_spans_to_nodes(statements, spans, analysis:)
         return statements if spans.empty?
 
+        validate_same_syntactic_level!(spans, statements)
+
         top_level = top_level_spans_only(spans).reject do |span|
           # Skip spans that are wholly inside a top-level code node.
           # Those are handled during recursive body merging.
@@ -259,6 +261,28 @@ module Prism
           stmt.end_line
         elsif stmt.respond_to?(:location)
           stmt.location&.end_line
+        end
+      end
+
+      def validate_same_syntactic_level!(spans, statements)
+        spans.each do |span|
+          start_owner = owner_for_line(statements, span.start_line)
+          end_owner = owner_for_line(statements, span.end_line)
+          next if start_owner.nil? && end_owner.nil?
+          next if start_owner && end_owner && start_owner.equal?(end_owner)
+
+          report_unbalanced(
+            "#{span.kind} block opens at line #{span.start_line} and closes at line #{span.end_line}, " \
+            "but the markers do not live at the same syntactic level",
+          )
+        end
+      end
+
+      def owner_for_line(statements, line_num)
+        statements.find do |stmt|
+          sl = stmt_start_line(stmt)
+          el = stmt_end_line(stmt)
+          sl && el && sl <= line_num && line_num <= el
         end
       end
 

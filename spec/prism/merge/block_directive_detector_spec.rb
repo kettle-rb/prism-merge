@@ -255,5 +255,27 @@ RSpec.describe Prism::Merge::BlockDirectiveDetector do
       expect(nocov_node).not_to be_nil
       expect(nocov_node.kind).to eq(:nocov)
     end
+
+    it "raises when a nocov span opens inside a statement and closes outside it" do
+      source = <<~RUBY
+        begin
+          require "kramdown"
+        # :nocov:
+        rescue LoadError => error
+          raise error
+        end
+        # :nocov:
+
+        module Example
+        end
+      RUBY
+      lines = lines_from(source)
+      detector = described_class.new(lines, source_label: "test.rb")
+      spans = detector.detect_spans
+      stmts = Prism.parse(source).value.statements.body.compact
+
+      expect { detector.promote_spans_to_nodes(stmts, spans, analysis: nil) }
+        .to raise_error(Prism::Merge::Error, /same syntactic level/)
+    end
   end
 end
