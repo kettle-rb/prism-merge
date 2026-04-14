@@ -10,11 +10,7 @@ Remember to [![Keep A Changelog][📗keep-changelog-img]][📗keep-changelog] if
 
 ## Help out!
 
-## Developer Certificate of Origin
-
-In order to protect users of this project, we require all contributors to comply with the
-[Developer Certificate of Origin](https://developercertificate.org/).
-This ensures that all contributions are properly licensed and attributed.
+Take a look at the open issues and pull requests, or use the gem and find something to improve.
 
 Follow these instructions:
 
@@ -27,6 +23,12 @@ Follow these instructions:
 7. Make sure to add tests for it. This is important, so it doesn't break in a future release.
 8. Create new Pull Request.
 9. Announce it in the channel for this org in the [Discord][✉️discord-invite]!
+
+## Developer Certificate of Origin
+
+In order to protect users of this project, we require all contributors to comply with the
+[Developer Certificate of Origin](https://developercertificate.org/).
+This ensures that all contributions are properly licensed and attributed.
 
 ## Executables vs Rake tasks
 
