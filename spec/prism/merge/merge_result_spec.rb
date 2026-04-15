@@ -183,13 +183,13 @@ RSpec.describe Prism::Merge::MergeResult do
       expect(result.lines).to eq(["VERSION = '1.0'"])
     end
 
-    context "without source_analysis (fallback path)" do
+    context "without source_analysis (analysis-free emission path)" do
       it "adds node using node.slice when source_analysis is nil" do
         content = "  def indented_method\n    puts 'test'\n  end"
         analysis = Prism::Merge::FileAnalysis.new(content)
         node_info = analysis.nodes_with_comments.first
 
-        # Call without source_analysis - uses fallback node.slice path
+        # Call without source_analysis - uses the analysis-free node.slice path.
         result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: nil)
 
         # Should include the method (loses leading indentation with node.slice)
@@ -212,7 +212,17 @@ RSpec.describe Prism::Merge::MergeResult do
         expect(result.line_metadata.first[:dest_line]).not_to be_nil
       end
 
-      it "handles inline comments using node.slice fallback" do
+      it "preserves trailing spaces on leading comments when source_analysis is nil" do
+        content = "# A leading comment  \ndef my_method\n  'result'\nend"
+        analysis = Prism::Merge::FileAnalysis.new(content)
+        node_info = analysis.nodes_with_comments.first
+
+        result.add_node(node_info, decision: :kept_destination, source: :destination, source_analysis: nil)
+
+        expect(result.lines.first).to eq("# A leading comment  ")
+      end
+
+      it "handles inline comments using node.slice when source analysis is unavailable" do
         content = "CONST = 'value' # inline comment"
         analysis = Prism::Merge::FileAnalysis.new(content)
         node_info = analysis.nodes_with_comments.first
@@ -224,7 +234,7 @@ RSpec.describe Prism::Merge::MergeResult do
         expect(result_text).to include("# inline comment")
       end
 
-      it "handles multi-line nodes using node.slice fallback" do
+      it "handles multi-line nodes using node.slice when source analysis is unavailable" do
         content = "class MyClass\n  attr_reader :name\nend"
         analysis = Prism::Merge::FileAnalysis.new(content)
         node_info = analysis.nodes_with_comments.first
@@ -242,7 +252,7 @@ RSpec.describe Prism::Merge::MergeResult do
         expect(result.line_metadata[2][:dest_line]).to eq(3)
       end
 
-      it "handles nodes without any comments using fallback" do
+      it "handles nodes without any comments in analysis-free mode" do
         content = "simple_call"
         analysis = Prism::Merge::FileAnalysis.new(content)
         node_info = analysis.nodes_with_comments.first
@@ -490,14 +500,14 @@ RSpec.describe Prism::Merge::MergeResult do
       analysis = Prism::Merge::FileAnalysis.new(code)
       node_info = analysis.nodes_with_comments.first
 
-      # Call add_node WITHOUT source_analysis to trigger fallback branch
+      # Call add_node without source_analysis to use the analysis-free path.
       result.add_node(node_info, decision: :kept_template, source: :template)
 
       expect(result.lines).not_to be_empty
       expect(result.to_s).to include("def test_method")
     end
 
-    it "handles inline comments in fallback mode" do
+    it "handles inline comments in analysis-free mode" do
       code = <<~RUBY
         def method_with_inline
           "value"
@@ -576,26 +586,25 @@ RSpec.describe Prism::Merge::MergeResult do
     end
   end
 
-  describe "add_node fallback path branch coverage" do
+  describe "add_node analyzed-line invariants" do
     let(:result) { described_class.new }
 
-    it "uses source_analysis.line_at else branch when line_at returns nil" do
-      # Tests line 74 else branch - when source_analysis exists but line_at returns nil
+    it "raises when an analysis-backed comment line cannot be retrieved" do
       code = "# Comment\ndef test; end"
       analysis = Prism::Merge::FileAnalysis.new(code)
       node_info = analysis.nodes_with_comments.first
 
-      # Create a stub that returns nil for line_at
       allow(analysis).to receive(:line_at).and_return(nil)
 
-      result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: analysis)
-
-      # Should fall back to comment.slice.rstrip
-      output = result.to_s
-      expect(output).to include("Comment")
+      expect {
+        result.add_node(node_info, decision: :kept_template, source: :template, source_analysis: analysis)
+      }.to raise_error(
+        Prism::Merge::MissingAnalyzedLineError,
+        /emitting leading comment from analyzed source/,
+      )
     end
 
-    it "handles inline comments in fallback path (no source_analysis)" do
+    it "handles inline comments in the analysis-free path (no source_analysis)" do
       # Tests line 93 and 111 else branches - inline_comments handling without source_analysis
       code = "VERSION = '1.0' # inline"
       analysis = Prism::Merge::FileAnalysis.new(code)
@@ -605,12 +614,12 @@ RSpec.describe Prism::Merge::MergeResult do
 
       output = result.to_s
       expect(output).to include("VERSION")
-      # Inline comment should be appended in fallback path
+      # Inline comment should be appended in the analysis-free path.
       expect(output).to include("inline")
     end
 
-    it "handles empty inline_comments in fallback path" do
-      # Tests when inline_comments is empty in the else branch
+    it "handles empty inline_comments in the analysis-free path" do
+      # Tests when inline_comments is empty in the analysis-free branch.
       code = "def simple; end"
       analysis = Prism::Merge::FileAnalysis.new(code)
       node_info = analysis.nodes_with_comments.first
@@ -717,7 +726,7 @@ RSpec.describe Prism::Merge::MergeResult do
     end
 
     context "without source_analysis" do
-      it "adds blank lines between non-contiguous leading comments using empty string fallback" do
+      it "adds blank lines between non-contiguous leading comments using canonical empty lines" do
         content = <<~RUBY
           # First comment
 

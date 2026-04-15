@@ -226,7 +226,7 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
       ).to eq("# first # second")
     end
 
-    it "extracts comment node lines and text across supported helper fallbacks" do
+    it "extracts comment node lines and text across supported helper lookup modes" do
       merger = merger_for("x = 1\n", "x = 1\n")
       support = described_class.new(merger: merger)
       location_only = Object.new
@@ -236,8 +236,8 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
 
       expect(support.send(:comment_node_line, location_only)).to eq(12)
       expect(support.send(:comment_node_line, Object.new)).to be_nil
-      expect(support.send(:comment_node_text, Struct.new(:slice).new("# from slice   "))).to eq("# from slice")
-      expect(support.send(:comment_node_text, text_only)).to eq("# from text")
+      expect(support.send(:comment_node_text, Struct.new(:slice).new("# from slice   "))).to eq("# from slice   ")
+      expect(support.send(:comment_node_text, text_only)).to eq("# from text   ")
       expect(support.send(:comment_node_text, 123)).to eq("123")
     end
   end

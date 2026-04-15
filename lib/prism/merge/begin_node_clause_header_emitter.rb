@@ -3,6 +3,8 @@
 module Prism
   module Merge
     class BeginNodeClauseHeaderEmitter
+      include Prism::Merge::SourceLineLookup
+
       attr_reader :merger
 
       def initialize(merger:)
@@ -18,7 +20,11 @@ module Prism
         dest_header_end_line = merger.send(:clause_header_end_line, dest_clause_node, dest_region)
 
         (header_region[:start_line]..header_end_line).each do |line_num|
-          line = header_analysis.line_at(line_num)&.chomp || ""
+          line = required_source_line(
+            header_analysis,
+            line_num,
+            context: "emitting begin-clause header line",
+          )
 
           if header_source == :template &&
               line_num == template_header_end_line &&

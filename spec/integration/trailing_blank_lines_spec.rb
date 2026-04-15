@@ -219,4 +219,32 @@ RSpec.describe "Trailing Blank Line Handling" do
       expect(result).to eq(dest_code)
     end
   end
+
+  describe "with whitespace-only gap lines in destination" do
+    let(:template_code) do
+      <<~RUBY
+        def method_a
+          "a"
+        end
+
+
+        def method_b
+          "b"
+        end
+      RUBY
+    end
+
+    let(:dest_code) { "def method_a\n  \"a\"\nend\n  \n\ndef method_b\n  \"b\"\nend\n" }
+
+    it "preserves destination-owned whitespace-only gap lines" do
+      merger = Prism::Merge::SmartMerger.new(
+        template_code,
+        dest_code,
+        preference: :destination,
+      )
+      result = merger.merge
+
+      expect(result).to eq(dest_code)
+    end
+  end
 end

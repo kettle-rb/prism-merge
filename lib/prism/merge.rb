@@ -100,6 +100,10 @@ module Prism
     #   end
     class DestinationParseError < ParseError; end
 
+    # Raised when a merge path expects a concrete source line from analysis, but
+    # the provided analysis object cannot supply it.
+    class MissingAnalyzedLineError < Error; end
+
     autoload :BlockDirectiveDetector, "prism/merge/block_directive_detector"
     autoload :Comment, "prism/merge/comment"
     autoload :CommentOnlyFileMerger, "prism/merge/comment_only_file_merger"
@@ -121,6 +125,7 @@ module Prism
     autoload :PartialTemplateNode, "prism/merge/partial_template_node"
     autoload :ScaffoldChunkRemover, "prism/merge/scaffold_chunk_remover"
     autoload :SmartMerger, "prism/merge/smart_merger"
+    autoload :SourceLineLookup, "prism/merge/source_line_lookup"
   end
 end
 

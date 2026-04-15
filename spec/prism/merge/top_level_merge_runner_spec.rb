@@ -355,6 +355,34 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       expect(result).to eq("def example\n  :template\nend\n# tail\n\n\n")
     end
 
+    it "preserves destination whitespace-only EOF lines after the last matched node" do
+      template = <<~RUBY
+        def example
+          :template
+        end
+      RUBY
+
+      dest = "def example\n  :dest\nend\n  \n\n"
+
+      result = merge_with_runner(template: template, dest: dest, preference: :template)
+
+      expect(result).to eq("def example\n  :template\nend\n  \n\n")
+    end
+
+    it "preserves destination whitespace-only EOF lines after destination trailing comments" do
+      template = <<~RUBY
+        def example
+          :template
+        end
+      RUBY
+
+      dest = "def example\n  :dest\nend\n# tail\n  \n\n"
+
+      result = merge_with_runner(template: template, dest: dest, preference: :template)
+
+      expect(result).to eq("def example\n  :template\nend\n# tail\n  \n\n")
+    end
+
     it "removes a destination-only top-level node while promoting its preserved comments" do
       template = <<~RUBY
         KEEP = true

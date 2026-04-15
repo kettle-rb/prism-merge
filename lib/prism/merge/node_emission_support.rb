@@ -3,6 +3,8 @@
 module Prism
   module Merge
     class NodeEmissionSupport
+      include Prism::Merge::SourceLineLookup
+
       attr_reader :merger
 
       def initialize(merger:)
@@ -21,7 +23,11 @@ module Prism
 
         if first_content_line > 1
           (1...first_content_line).each do |line_num|
-            line = analysis.line_at(line_num)&.chomp || ""
+            line = required_source_line(
+              analysis,
+              line_num,
+              context: "emitting destination prefix line",
+            )
             result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
             dest_prefix_comment_lines << line_num
             last_emitted = line_num
@@ -34,7 +40,11 @@ module Prism
           line_num = comment.location.start_line
           next unless prefix_line_numbers.include?(line_num)
 
-          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+          line = required_comment_line(
+            analysis,
+            comment,
+            context: "emitting destination prefix comment",
+          )
 
           result.add_line(line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: line_num)
           dest_prefix_comment_lines << line_num
@@ -50,7 +60,11 @@ module Prism
 
         if next_content_line > last_emitted + 1
           ((last_emitted + 1)...next_content_line).each do |gap_num|
-            gap_line = analysis.line_at(gap_num)&.chomp || ""
+            gap_line = required_source_line(
+              analysis,
+              gap_num,
+              context: "emitting destination prefix gap line",
+            )
             next unless gap_line.strip.empty?
 
             result.add_line(gap_line, decision: MergeResult::DECISION_KEPT_DEST, dest_line: gap_num)
@@ -387,7 +401,11 @@ module Prism
             ((last_comment_line + 1)...node.location.start_line).each do |line_num|
               next if dest_prefix_comment_lines.include?(line_num)
 
-              line = analysis.line_at(line_num)&.chomp || ""
+              line = required_source_line(
+                analysis,
+                line_num,
+                context: "emitting blank line between leading comments and node",
+              )
               if source == :template
                 result.add_line(line, decision: decision, template_line: line_num)
               else
@@ -429,7 +447,7 @@ module Prism
 
           if emitted_trailing_gap_line.nil?
             # When layout ownership assigns the gap to a later sibling's leading gap,
-            # do not emit a single fallback blank line here and truncate the run.
+            # do not emit a single synthetic blank separator here and truncate the run.
             gap_owned_by_later_destination_sibling = source == :destination && trailing_gap && !trailing_gap.controls_output_for?(node)
 
             unless gap_owned_by_later_destination_sibling
@@ -459,7 +477,11 @@ module Prism
           next if node_line_range.cover?(line_num)
           next if claimed.include?(line_num)
 
-          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+          line = required_comment_line(
+            analysis,
+            comment,
+            context: "emitting external trailing comment",
+          )
 
           if source == :template
             result.add_line(line, decision: decision, template_line: line_num)
@@ -637,7 +659,11 @@ module Prism
           ["#{line_indentation(analysis, node.location.start_line)}#{node.slice}"]
         else
           (node.location.start_line..effective_end_line(node)).map do |line_num|
-            analysis.line_at(line_num)&.chomp || ""
+            required_source_line(
+              analysis,
+              line_num,
+              context: "emitting analyzed node source line",
+            )
           end
         end
       end
@@ -885,7 +911,11 @@ module Prism
         line_numbers.each do |line_num|
           next if source == :destination && dest_prefix_comment_lines.include?(line_num)
 
-          line = analysis.line_at(line_num)&.chomp || ""
+          line = required_source_line(
+            analysis,
+            line_num,
+            context: "emitting scanned blank gap line",
+          )
           next unless line.strip.empty?
 
           if source == :template

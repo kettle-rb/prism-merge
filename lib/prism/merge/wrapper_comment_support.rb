@@ -3,6 +3,8 @@
 module Prism
   module Merge
     class WrapperCommentSupport
+      include Prism::Merge::SourceLineLookup
+
       attr_reader :merger
 
       def initialize(merger:)
@@ -87,7 +89,11 @@ module Prism
             ((prev_comment_line + 1)...line_num).each do |blank_line_num|
               next if dest_prefix_comment_lines&.include?(blank_line_num)
 
-              line = analysis.line_at(blank_line_num)&.chomp || ""
+              line = required_source_line(
+                analysis,
+                blank_line_num,
+                context: "emitting blank line between leading comments",
+              )
               if source == :template
                 result.add_line(line, decision: decision, template_line: blank_line_num)
               else
@@ -96,7 +102,11 @@ module Prism
             end
           end
 
-          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+          line = required_comment_line(
+            analysis,
+            comment,
+            context: "emitting leading comment",
+          )
           if source == :template
             result.add_line(line, decision: decision, template_line: line_num)
           else
@@ -116,7 +126,11 @@ module Prism
         ((last_comment_line + 1)...next_content_line).each do |line_num|
           next if dest_prefix_comment_lines&.include?(line_num)
 
-          line = analysis.line_at(line_num)&.chomp || ""
+          line = required_source_line(
+            analysis,
+            line_num,
+            context: "emitting blank line between comment region and content",
+          )
           next unless line.strip.empty?
 
           if source == :template
@@ -151,7 +165,11 @@ module Prism
           ) if previous_line
           last_emitted_line = gap_line || last_emitted_line
 
-          line = analysis.line_at(line_num)&.chomp || comment_node_text(comment_node)
+          line = required_source_line(
+            analysis,
+            line_num,
+            context: "emitting comment-region node",
+          )
           if source == :template
             result.add_line(line, decision: decision, template_line: line_num)
           else
@@ -203,7 +221,11 @@ module Prism
           )
           last_emitted_line = gap_line || last_emitted_line
 
-          line = analysis.line_at(line_num)&.chomp || comment.slice.rstrip
+          line = required_comment_line(
+            analysis,
+            comment,
+            context: "emitting external trailing comment",
+          )
           if source == :template
             result.add_line(line, decision: decision, template_line: line_num)
           else
@@ -309,11 +331,11 @@ module Prism
 
       def comment_node_text(comment_node)
         if comment_node.respond_to?(:slice)
-          comment_node.slice.to_s.rstrip
+          comment_node.slice.to_s.chomp
         elsif comment_node.respond_to?(:text)
-          comment_node.text.to_s.rstrip
+          comment_node.text.to_s.chomp
         else
-          comment_node.to_s.rstrip
+          comment_node.to_s.chomp
         end
       end
     end

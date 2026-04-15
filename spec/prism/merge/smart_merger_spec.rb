@@ -2415,7 +2415,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         RUBY
       end
 
-      it "preserves comments and handles blank lines correctly" do
+      it "preserves destination-owned comments and blank-line layout around mixed nodes" do
         merger = described_class.new(
           template_code,
           dest_code,
@@ -2423,12 +2423,7 @@ RSpec.describe Prism::Merge::SmartMerger do
 
         result = merger.merge
 
-        expect(result).to include("# This is a class comment")
-        expect(result).to include("method_a")
-        expect(result).to include("method_b")
-        expect(result).to include("custom_method")
-        expect(result).to include("a custom")
-        expect(result).to include("b custom")
+        expect(result).to eq(dest_code)
       end
     end
 

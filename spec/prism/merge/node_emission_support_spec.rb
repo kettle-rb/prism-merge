@@ -95,6 +95,25 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       expect(result.to_s).to eq("\n")
       expect(result.line_metadata.map { |meta| meta[:dest_line] }).to eq([3])
     end
+
+    it "preserves whitespace-only destination gap lines instead of normalizing them to empty blanks" do
+      source = "class A\nend\n  \n\nclass B\nend\n"
+
+      merger = merger_for(source, source)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      last_output_line = support.emit_dest_gap_lines(
+        result: result,
+        analysis: merger.dest_analysis,
+        last_output_line: 2,
+        next_node: second_node(merger, :destination),
+      )
+
+      expect(last_output_line).to eq(4)
+      expect(result.to_s).to eq("  \n\n")
+      expect(result.line_metadata.map { |meta| meta[:dest_line] }).to eq([3, 4])
+    end
   end
 
   describe "#emit_matched_template_node" do

@@ -7,6 +7,8 @@ module Prism
     #
     # Inherits decision constants and base functionality from Ast::Merge::MergeResultBase.
     class MergeResult < Ast::Merge::MergeResultBase
+      include Prism::Merge::SourceLineLookup
+
       # Inherit decision constants from base class
       DECISION_KEPT_TEMPLATE = Ast::Merge::MergeResultBase::DECISION_KEPT_TEMPLATE
       DECISION_KEPT_DEST = Ast::Merge::MergeResultBase::DECISION_KEPT_DEST
@@ -75,7 +77,11 @@ module Prism
           # Add blank lines between this comment and the previous one
           if prev_comment_line && comment_line > prev_comment_line + 1
             ((prev_comment_line + 1)...comment_line).each do |blank_line_num|
-              line = source_analysis&.line_at(blank_line_num)&.chomp || ""
+              line = source_analysis ? required_source_line(
+                source_analysis,
+                blank_line_num,
+                context: "emitting preserved blank line between leading comments",
+              ) : ""
               if source == :template
                 add_line(line, decision: decision, template_line: blank_line_num)
               else
@@ -86,9 +92,13 @@ module Prism
 
           # Use source_analysis to get full line with indentation if available
           line = if source_analysis
-            source_analysis.line_at(comment_line)&.chomp || comment.slice.rstrip
+            required_comment_line(
+              source_analysis,
+              comment,
+              context: "emitting leading comment from analyzed source",
+            )
           else
-            comment.slice.rstrip
+            comment.slice.chomp
           end
           if source == :template
             add_line(line, decision: decision, template_line: comment_line)
@@ -104,7 +114,11 @@ module Prism
           last_comment_line = node_info[:leading_comments].last.location.start_line
           if start_line > last_comment_line + 1
             ((last_comment_line + 1)...start_line).each do |blank_line_num|
-              line = source_analysis&.line_at(blank_line_num)&.chomp || ""
+              line = source_analysis ? required_source_line(
+                source_analysis,
+                blank_line_num,
+                context: "emitting preserved blank line before node body",
+              ) : ""
               if source == :template
                 add_line(line, decision: decision, template_line: blank_line_num)
               else
@@ -122,7 +136,11 @@ module Prism
           # so we don't need to append them separately. The inline_comments in node_info
           # are just metadata about comments that were attached to the node by Prism.
           (start_line..end_line).each do |line_num|
-            line = source_analysis.line_at(line_num)&.chomp || ""
+            line = required_source_line(
+              source_analysis,
+              line_num,
+              context: "emitting analyzed node source line",
+            )
 
             if source == :template
               add_line(line, decision: decision, template_line: line_num)
@@ -131,7 +149,8 @@ module Prism
             end
           end
         else
-          # Fallback: use node.slice (loses leading indentation)
+          # Analysis-free emission path: use node.slice when no source analysis
+          # object is available. This is an alternate input mode, not cleanup.
           node_source = node.slice
           node_lines = node_source.lines(chomp: true)
 

@@ -216,6 +216,14 @@ RSpec.describe Prism::Merge::Comment do
         expect(nodes.first.contains_magic_comment?).to be true
       end
 
+      it "preserves trailing spaces in parsed comment text" do
+        lines = ["# Comment with spaces  "]
+        nodes = described_class.parse(lines)
+
+        expect(nodes.first.children.first.text).to eq("# Comment with spaces  ")
+        expect(nodes.first.children.first.signature).to eq([:comment_line, "comment with spaces"])
+      end
+
       it "does not treat a misplaced header-like comment as magic" do
         lines = ["# Regular comment", "", "# frozen_string_literal: true"]
         nodes = described_class.parse(lines)

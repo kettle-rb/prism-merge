@@ -3,6 +3,8 @@
 module Prism
   module Merge
     class BeginNodePlanEmitter
+      include Prism::Merge::SourceLineLookup
+
       attr_reader :merger
 
       def initialize(merger:)
@@ -74,7 +76,11 @@ module Prism
         region_analysis = (step.copied_analysis_side == :template) ? merger.template_analysis : merger.dest_analysis
 
         (step.copied_region[:start_line]..step.copied_region[:end_line]).each do |line_num|
-          line = region_analysis.line_at(line_num)&.chomp || ""
+          line = required_source_line(
+            region_analysis,
+            line_num,
+            context: "emitting copied unmatched begin-clause region",
+          )
 
           if node_preference == :template &&
               region_analysis.equal?(merger.template_analysis) &&

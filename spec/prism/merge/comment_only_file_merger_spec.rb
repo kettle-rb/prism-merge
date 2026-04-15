@@ -133,6 +133,40 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       RUBY
     end
 
+    it "preserves destination whitespace-only gap lines between matched comment blocks" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # First block
+
+        # Second block
+      RUBY
+
+      dest = "# frozen_string_literal: true\n# frozen_string_literal: true\n\n# First block\n  \n# Second block\n"
+
+      merger = merger_for(template, dest, preference: :destination)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to eq("# frozen_string_literal: true\n\n# First block\n  \n# Second block\n")
+    end
+
+    it "preserves destination trailing spaces on matched comment lines with destination preference" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # First block
+
+        # Second block
+      RUBY
+
+      dest = "# frozen_string_literal: true\n# frozen_string_literal: true\n\n# First block  \n\n# Second block\n"
+
+      merger = merger_for(template, dest, preference: :destination)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to eq("# frozen_string_literal: true\n\n# First block  \n\n# Second block\n")
+    end
+
     it "matches duplicate comment content once and preserves unmatched destination duplicates with destination preference" do
       template = <<~RUBY
         # Shared

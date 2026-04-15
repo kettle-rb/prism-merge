@@ -37,7 +37,8 @@ module Prism
 
           lines.each_with_index do |line, idx|
             line_number = idx + 1
-            stripped = line.to_s.rstrip
+            raw = line.to_s.chomp
+            stripped = raw.rstrip
 
             if stripped.empty?
               # Blank line - flush current block and add Empty
@@ -45,11 +46,11 @@ module Prism
                 nodes << build_block(current_block)
                 current_block = []
               end
-              nodes << Ast::Merge::Comment::Empty.new(line_number: line_number, text: line.to_s)
+              nodes << Ast::Merge::Comment::Empty.new(line_number: line_number, text: raw)
             elsif stripped.start_with?("#")
               # Ruby comment line
               current_block << Line.new(
-                text: stripped,
+                text: raw,
                 line_number: line_number,
                 magic_comment_type: header_magic_comment_types[line_number],
               )
@@ -61,7 +62,7 @@ module Prism
               end
               # Add as generic line
               nodes << Ast::Merge::Comment::Line.new(
-                text: stripped,
+                text: raw,
                 line_number: line_number,
                 style: :hash_comment,
               )
