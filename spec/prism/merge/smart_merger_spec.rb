@@ -1788,6 +1788,23 @@ RSpec.describe Prism::Merge::SmartMerger do
   end
 
   describe "#merge_with_debug" do
+    let(:runtime_debug_merger) do
+      described_class.new(
+        <<~RUBY,
+          def hello
+            puts "world"
+          end
+        RUBY
+        <<~RUBY,
+          def hello
+            puts "world"
+          end
+        RUBY
+      )
+    end
+
+    it_behaves_like "Ast::Merge::RuntimeDebugContract"
+
     it "returns hash with content and debug information" do
       template = <<~RUBY
         def hello
