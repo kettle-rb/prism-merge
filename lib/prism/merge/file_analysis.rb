@@ -382,6 +382,14 @@ module Prism
         @nodes_with_comments ||= extract_nodes_with_comments
       end
 
+      # Build a semantic sidecar that exposes Ruby doc-comment surfaces without
+      # taking ownership of reconstruction away from Prism source spans.
+      #
+      # @return [Prism::Merge::RubyDocSurfaceAnalyzer]
+      def ruby_doc_surface_analyzer
+        @ruby_doc_surface_analyzer ||= RubyDocSurfaceAnalyzer.new(self)
+      end
+
       # Override to detect Prism nodes for signature generator fallthrough
       # @param value [Object] The value to check
       # @return [Boolean] true if this is a fallthrough node

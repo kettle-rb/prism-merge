@@ -56,15 +56,25 @@ module Prism
           end
         end
 
+        analysis = (source == :destination) ? merger.dest_analysis : merger.template_analysis
+        attachment = comment_attachment_for(node, source: source, analysis: analysis)
+        if attachment&.metadata&.fetch(:runtime_reintegrated, false) && attachment.leading_region
+          runtime_line_numbers = attachment.leading_region.nodes.map { |comment| comment_node_line(comment) }
+          comments = (comments.reject { |comment| runtime_line_numbers.include?(comment.location.start_line) } + attachment.leading_region.nodes)
+            .sort_by { |comment| comment_node_line(comment).to_i }
+        end
+
         {comments: comments, last_skipped_line: last_skipped_line}
       end
 
       def comment_attachment_for(node, source:, analysis: nil)
         attachment = cached_comment_augmenter_for(source)&.attachment_for(node)
-        return attachment if attachment
-        return unless analysis&.respond_to?(:comment_attachment_for)
+        attachment ||= analysis.comment_attachment_for(node) if analysis&.respond_to?(:comment_attachment_for)
 
-        analysis.comment_attachment_for(node)
+        runtime_attachment = runtime_comment_attachment_for(node, source: source, analysis: analysis, base_attachment: attachment)
+        return runtime_attachment if runtime_attachment
+
+        attachment
       end
 
       def orphan_regions_for(node, source:, analysis: nil)
@@ -107,6 +117,7 @@ module Prism
             comment,
             context: "emitting leading comment",
           )
+          line = runtime_comment_line(comment, fallback: line)
           if source == :template
             result.add_line(line, decision: decision, template_line: line_num)
           else
@@ -316,6 +327,99 @@ module Prism
       end
 
       private
+
+      def runtime_comment_attachment_for(node, source:, analysis:, base_attachment:)
+        return unless base_attachment
+
+        operation = runtime_doc_comment_operation_for(node, source: source, analysis: analysis)
+        return unless operation
+        return unless runtime_reintegration_needed?(operation)
+
+        leading_region = build_runtime_leading_region(operation, base_attachment)
+        return unless leading_region
+
+        Ast::Merge::Comment::Attachment.new(
+          owner: base_attachment.owner,
+          leading_region: leading_region,
+          inline_region: base_attachment.inline_region,
+          trailing_region: base_attachment.trailing_region,
+          orphan_regions: base_attachment.orphan_regions,
+          leading_gap: base_attachment.leading_gap,
+          trailing_gap: base_attachment.trailing_gap,
+          metadata: base_attachment.metadata.merge(
+            runtime_surface_address: operation.surface.address,
+            runtime_reintegrated: true,
+          ),
+        )
+      end
+
+      def runtime_doc_comment_operation_for(node, source:, analysis:)
+        return unless analysis && merger.runtime_session
+
+        owner_signature = analysis.generate_signature(node)
+        owner_span = "#{node.location.start_line}-#{node.location.end_line}"
+
+        merger.runtime_session.operations.find do |operation|
+          next false unless operation.surface.surface_kind == :ruby_doc_comment
+          next false unless operation.completed? && operation.result.is_a?(Ast::Merge::Runtime::ChildResult)
+
+          candidate_surface = (source == :template) ? operation.options[:template_surface] : operation.options[:destination_surface]
+          next false unless candidate_surface
+
+          candidate_surface.metadata[:owner_signature] == owner_signature &&
+            candidate_surface.metadata[:owner_span] == owner_span
+        end
+      end
+
+      def build_runtime_leading_region(operation, base_attachment)
+        text = operation.result.replacement_text.to_s
+        return if text.empty?
+
+        runtime_line_numbers = runtime_line_numbers_for(operation, base_attachment, line_count: text.lines.count)
+
+        nodes = text.lines(chomp: true).each_with_index.map do |line, index|
+          Prism::Merge::Comment::RuntimeLine.new(text: line, line_number: runtime_line_numbers[index])
+        end
+
+        Ast::Merge::Comment::Region.new(
+          kind: :leading,
+          nodes: nodes,
+          metadata: (base_attachment.leading_region&.metadata || {}).merge(
+            runtime_reintegrated: true,
+            runtime_surface_address: operation.surface.address,
+          ),
+        )
+      end
+
+      def runtime_comment_line(comment, fallback:)
+        return fallback unless comment.respond_to?(:runtime_override?) && comment.runtime_override?
+
+        comment.slice.to_s.sub(/\r?\n\z/, "")
+      end
+
+      def runtime_reintegration_needed?(operation)
+        Array(operation.result.metadata[:child_operation_ids]).any?
+      end
+
+      def runtime_line_numbers_for(operation, base_attachment, line_count:)
+        base_nodes = Array(base_attachment.leading_region&.nodes)
+        owned_entry_indexes = Array(operation.surface.metadata[:owned_entry_indexes])
+        mapped_line_numbers = owned_entry_indexes.filter_map do |entry_index|
+          comment_node_line(base_nodes[entry_index])
+        end
+
+        mapped_line_numbers = Array(operation.surface.metadata[:line_numbers]) if mapped_line_numbers.empty?
+        return sequential_runtime_line_numbers(base_attachment, operation, line_count) if mapped_line_numbers.empty?
+        return mapped_line_numbers.first(line_count) if line_count <= mapped_line_numbers.count
+
+        last_line = mapped_line_numbers.last
+        mapped_line_numbers + ((last_line + 1)..(last_line + line_count - mapped_line_numbers.count)).to_a
+      end
+
+      def sequential_runtime_line_numbers(base_attachment, operation, line_count)
+        start_line = base_attachment.leading_region&.start_line || operation.surface.span&.begin || 1
+        (start_line...(start_line + line_count)).to_a
+      end
 
       def cached_comment_augmenter_for(source)
         ivar = (source == :template) ? :@template_comment_augmenter : :@dest_comment_augmenter

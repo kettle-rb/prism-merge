@@ -58,6 +58,9 @@ module Prism
       # @return [Symbol] How suspected corruption should be handled (:heal, :warn, :error, :skip)
       attr_reader :corruption_handling
 
+      # @return [Ast::Merge::Runtime::Session, nil] Runtime-charter state recorded during merge
+      attr_reader :runtime_session
+
       CORRUPTION_HANDLINGS = ::Ast::Merge::Healer::HANDLINGS
 
       # Creates a new SmartMerger.
@@ -159,7 +162,10 @@ module Prism
             add_template_only_nodes: @add_template_only_nodes,
             freeze_token: @freeze_token,
             corruption_handling: @corruption_handling,
+            runtime_operation_count: runtime_session&.operations&.size || 0,
+            runtime_diagnostic_count: runtime_session&.diagnostics&.size || 0,
           },
+          runtime: runtime_session&.to_h,
           statistics: result_obj.respond_to?(:statistics) ? result_obj.statistics : result_obj.decision_summary,
         }
       end
@@ -244,6 +250,10 @@ module Prism
       end
 
       private
+
+      def record_runtime_session(session)
+        @runtime_session = session
+      end
 
       def normalize_corruption_handling(value)
         Ast::Merge::Healer.normalize_mode(value)

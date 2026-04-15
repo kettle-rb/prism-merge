@@ -1807,7 +1807,9 @@ RSpec.describe Prism::Merge::SmartMerger do
       expect(result).to be_a(Hash)
       expect(result).to have_key(:content)
       expect(result).to have_key(:debug)
+      expect(result).to have_key(:runtime)
       expect(result).to have_key(:statistics)
+      expect(result[:runtime]).to be_a(Hash)
       expect(result[:statistics]).to be_a(Hash)
     end
 
@@ -1822,6 +1824,8 @@ RSpec.describe Prism::Merge::SmartMerger do
       expect(result[:debug][:preference]).to eq(:destination)
       expect(result[:debug][:add_template_only_nodes]).to be(false)
       expect(result[:debug][:freeze_token]).to eq("prism-merge")
+      expect(result[:debug][:runtime_operation_count]).to be >= 1
+      expect(result[:debug][:runtime_diagnostic_count]).to be >= 1
     end
 
     it "returns statistics from the merge result" do

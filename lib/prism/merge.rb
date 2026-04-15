@@ -47,6 +47,7 @@ module Prism
     autoload :BeginNodeRescueSemantics, "prism/merge/begin_node_rescue_semantics"
     autoload :RecursiveNodeBodyMerger, "prism/merge/recursive_node_body_merger"
     autoload :RecursiveMergePolicy, "prism/merge/recursive_merge_policy"
+    autoload :RubyDocSurfaceAnalyzer, "prism/merge/ruby_doc_surface_analyzer"
     autoload :TopLevelMergeRunner, "prism/merge/top_level_merge_runner"
     autoload :WrapperCommentSupport, "prism/merge/wrapper_comment_support"
 

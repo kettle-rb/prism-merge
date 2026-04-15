@@ -94,6 +94,39 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
   end
 
   describe "comment emission" do
+    it "emits runtime-reintegrated leading comments from synthetic runtime lines" do
+      template = <<~'RUBY'
+        # Greeting docs
+        #
+        # @example [ruby]
+        #   greet("team")
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+
+      dest = <<~'RUBY'
+        # Greeting docs
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+
+      merger = merger_for(template, dest, preference: :destination, add_template_only_nodes: true)
+      merger.merge
+      support = described_class.new(merger: merger)
+      dest_node = first_node(merger, :destination)
+      dest_leading = support.filtered_leading_comments_for(dest_node, :destination)
+
+      expect(dest_leading[:comments].map(&:slice)).to eq([
+        "# Greeting docs",
+        "#",
+        "# @example [ruby]",
+        "#   greet(\"team\")",
+      ])
+      expect(dest_leading[:comments]).to all(satisfy { |comment| comment.respond_to?(:runtime_override?) && comment.runtime_override? })
+    end
+
     it "emits blank lines and external trailing comments while preserving provenance" do
       source = <<~RUBY
         def example

@@ -64,65 +64,529 @@ module Prism
       #
       # @return [MergeResult] The merged output
       def merge
-        return merger.send(:comment_only_file_merger).merge if comment_only_merge?
+        root_operation = start_runtime_session!
 
-        template_by_signature = merger.send(:build_signature_map, merger.template_analysis)
-        dest_by_signature = merger.send(:build_signature_map, merger.dest_analysis)
-        prepare_comment_augmenters!(template_by_signature: template_by_signature, dest_by_signature: dest_by_signature)
-        consumed_template_indices = Set.new
-        sig_cursor = Hash.new(0)
-        output_dest_line_ranges = []
-        last_output_dest_line = merger.send(:emit_dest_prefix_lines, merger.result, merger.dest_analysis)
+        merge_result = if comment_only_merge?
+          merger.send(:comment_only_file_merger).merge
+        else
+          template_by_signature = merger.send(:build_signature_map, merger.template_analysis)
+          dest_by_signature = merger.send(:build_signature_map, merger.dest_analysis)
+          prepare_comment_augmenters!(template_by_signature: template_by_signature, dest_by_signature: dest_by_signature)
+          consumed_template_indices = Set.new
+          sig_cursor = Hash.new(0)
+          output_dest_line_ranges = []
+          last_output_dest_line = merger.send(:emit_dest_prefix_lines, merger.result, merger.dest_analysis)
 
-        # Phase 1: exact signature match (existing behavior).
-        dest_sigs = ::Set.new(dest_by_signature.keys)
+          # Phase 1: exact signature match (existing behavior).
+          dest_sigs = ::Set.new(dest_by_signature.keys)
 
-        # Phase 2: compute similarity-matched pairs from residual orphans.
-        @similarity_pairs = compute_similarity_pairs(template_by_signature, dest_by_signature)
+          # Phase 2: compute similarity-matched pairs from residual orphans.
+          @similarity_pairs = compute_similarity_pairs(template_by_signature, dest_by_signature)
 
-        # Phase 3: cross-depth search, but only for orphans surviving Phases 1+2.
-        @deep_dest_sigs = compute_deep_sigs_for_orphans(
-          template_by_signature, dest_sigs
-        )
-
-        trailing_groups, _matched_indices = build_dest_iterate_trailing_groups(
-          template_nodes: merger.template_analysis.statements,
-          dest_sigs: dest_sigs,
-          signature_for: ->(node) { merger.template_analysis.generate_signature(node) },
-          add_template_only_nodes: merger.add_template_only_nodes,
-        )
-
-        # Emit template-only nodes that precede the first matched template node
-        emit_prefix_trailing_group(trailing_groups, consumed_template_indices) do |info|
-          merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
-        end
-
-        merger.dest_analysis.statements.each do |dest_node|
-          last_output_dest_line = process_dest_node(
-            dest_node: dest_node,
-            template_by_signature: template_by_signature,
-            consumed_template_indices: consumed_template_indices,
-            sig_cursor: sig_cursor,
-            output_dest_line_ranges: output_dest_line_ranges,
-            last_output_dest_line: last_output_dest_line,
-            trailing_groups: trailing_groups,
+          # Phase 3: cross-depth search, but only for orphans surviving Phases 1+2.
+          @deep_dest_sigs = compute_deep_sigs_for_orphans(
+            template_by_signature, dest_sigs
           )
+
+          trailing_groups, _matched_indices = build_dest_iterate_trailing_groups(
+            template_nodes: merger.template_analysis.statements,
+            dest_sigs: dest_sigs,
+            signature_for: ->(node) { merger.template_analysis.generate_signature(node) },
+            add_template_only_nodes: merger.add_template_only_nodes,
+          )
+
+          # Emit template-only nodes that precede the first matched template node
+          emit_prefix_trailing_group(trailing_groups, consumed_template_indices) do |info|
+            merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
+          end
+
+          merger.dest_analysis.statements.each do |dest_node|
+            last_output_dest_line = process_dest_node(
+              dest_node: dest_node,
+              template_by_signature: template_by_signature,
+              consumed_template_indices: consumed_template_indices,
+              sig_cursor: sig_cursor,
+              output_dest_line_ranges: output_dest_line_ranges,
+              last_output_dest_line: last_output_dest_line,
+              trailing_groups: trailing_groups,
+            )
+          end
+
+          # Safety net: emit any trailing groups whose anchor was never consumed
+          emit_remaining_trailing_groups(
+            trailing_groups: trailing_groups,
+            consumed_indices: consumed_template_indices,
+          ) do |info|
+            merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
+          end
+
+          emit_dest_postlude_lines(last_output_dest_line)
+
+          merger.result
         end
 
-        # Safety net: emit any trailing groups whose anchor was never consumed
-        emit_remaining_trailing_groups(
-          trailing_groups: trailing_groups,
-          consumed_indices: consumed_template_indices,
-        ) do |info|
-          merger.send(:add_node_to_result, merger.result, info[:node], merger.template_analysis, :template)
-        end
-
-        emit_dest_postlude_lines(last_output_dest_line)
-
-        merger.result
+        complete_runtime_session!(root_operation, merge_result)
+        merge_result
+      rescue StandardError => e
+        fail_runtime_session!(root_operation, e)
+        raise
       end
 
       private
+
+      def start_runtime_session!
+        session = Ast::Merge::Runtime::Session.new(
+          policy_context: {
+            preference: merger.preference,
+            add_template_only_nodes: merger.add_template_only_nodes,
+            remove_template_missing_nodes: merger.remove_template_missing_nodes,
+            corruption_handling: merger.corruption_handling,
+          },
+          metadata: {
+            merger: merger.class.name,
+            render_family: merger.dest_analysis.feature_profile.render_family,
+          },
+          delegation_registry: runtime_delegation_registry,
+        )
+        @runtime_session = session
+
+        root_surface = runtime_document_surface
+        root_delegate = session.resolve_delegate_for(root_surface, capability: :merge)
+        root_operation = Ast::Merge::Runtime::Operation.new(
+          operation_id: "ruby-document-0",
+          surface: root_surface,
+          template_fragment: merger.template_content,
+          destination_fragment: merger.dest_content,
+          requested_strategy: :top_level_merge,
+          options: {
+            feature_profile: merger.dest_analysis.feature_profile.to_h,
+          },
+        ).running!
+
+        session.register(
+          root_operation,
+          frame: Ast::Merge::Runtime::Frame.new(
+            operation_id: root_operation.operation_id,
+            depth: 0,
+            surface_path: root_surface.address,
+            language_chain: [root_surface.effective_language],
+          ),
+          delegate: root_delegate,
+        )
+        add_missing_delegate_diagnostic!(session, root_operation, capability: :merge) unless root_delegate
+
+        register_discovered_surface_operations!(session, root_operation)
+        merger.send(:record_runtime_session, session)
+        root_operation
+      end
+
+      def complete_runtime_session!(root_operation, merge_result)
+        return unless @runtime_session && root_operation
+
+        delegated_child_merge_complete = root_operation.children.all?(&:completed?)
+
+        root_operation.add_diagnostic(
+          Ast::Merge::Runtime::Diagnostic.new(
+            severity: :info,
+            kind: :merge_completed,
+            operation_id: root_operation.operation_id,
+            surface_path: root_operation.surface.address,
+            message: "Completed top-level Prism merge",
+            metadata: {
+              child_operation_count: root_operation.children.size,
+            },
+          ),
+        )
+
+        root_operation.complete!(
+          result: Ast::Merge::Runtime::ChildResult.new(
+            replacement_text: merge_result.to_s,
+            diagnostics: @runtime_session.diagnostics,
+            capabilities_used: delegated_child_merge_complete ? %i[top_level_merge nested_surface_discovery delegated_child_merge] : %i[top_level_merge nested_surface_discovery],
+            capabilities_missing: delegated_child_merge_complete ? [] : %i[delegated_child_merge],
+            metadata: {
+              decision_summary: merge_result.respond_to?(:decision_summary) ? merge_result.decision_summary : merge_result.statistics,
+            },
+          ),
+        )
+        merger.send(:record_runtime_session, @runtime_session)
+      end
+
+      def fail_runtime_session!(root_operation, error)
+        return unless @runtime_session && root_operation
+
+        root_operation.fail!(
+          diagnostic: Ast::Merge::Runtime::Diagnostic.new(
+            severity: :error,
+            kind: :merge_failed,
+            operation_id: root_operation.operation_id,
+            surface_path: root_operation.surface.address,
+            message: error.message,
+            metadata: {
+              error_class: error.class.name,
+            },
+          ),
+        )
+        merger.send(:record_runtime_session, @runtime_session)
+      end
+
+      def runtime_document_surface
+        max_lines = [merger.template_analysis.lines.length, merger.dest_analysis.lines.length].max
+
+        Ast::Merge::Runtime::Surface.new(
+          surface_kind: :ruby_document,
+          effective_language: :ruby,
+          address: "document[0]",
+          span: max_lines.zero? ? nil : (1..max_lines),
+          reconstruction_strategy: :replace_inner_span,
+          metadata: {
+            template_line_count: merger.template_analysis.lines.length,
+            destination_line_count: merger.dest_analysis.lines.length,
+          },
+        )
+      end
+
+      def register_discovered_surface_operations!(session, root_operation)
+        paired = paired_doc_surfaces
+        return if paired.empty?
+
+        combined_surface_index = paired.each_with_object({}) do |pair, index|
+          surface = pair[:destination_surface] || pair[:template_surface]
+          index[surface.address] = surface if surface
+        end
+
+        paired.each_with_index do |pair, index|
+          surface = pair[:destination_surface] || pair[:template_surface]
+          next unless surface
+
+          operation_id = "ruby-surface-#{index}"
+          child_operation = Ast::Merge::Runtime::Operation.new(
+            operation_id: operation_id,
+            surface: surface,
+            template_fragment: fragment_for(pair[:template_surface], merger.template_analysis),
+            destination_fragment: fragment_for(pair[:destination_surface], merger.dest_analysis),
+            requested_strategy: :delegate_child_surface,
+            options: {
+              template_present: !pair[:template_surface].nil?,
+              destination_present: !pair[:destination_surface].nil?,
+              template_surface: pair[:template_surface],
+              destination_surface: pair[:destination_surface],
+            },
+          )
+          child_operation.add_diagnostic(
+            Ast::Merge::Runtime::Diagnostic.new(
+              severity: :info,
+              kind: :surface_discovered,
+              operation_id: operation_id,
+              surface_path: surface.address,
+              message: "Discovered nested Ruby documentation surface pending delegated merge",
+              metadata: {
+                surface_kind: surface.surface_kind,
+                template_present: !pair[:template_surface].nil?,
+                destination_present: !pair[:destination_surface].nil?,
+              },
+            ),
+          )
+          child_delegate = session.resolve_delegate_for(surface, capability: :merge)
+          add_missing_delegate_diagnostic!(session, child_operation, capability: :merge) unless child_delegate
+
+          root_operation.add_child(child_operation)
+          session.register(
+            child_operation,
+            frame: Ast::Merge::Runtime::Frame.new(
+              parent_operation_id: root_operation.operation_id,
+              operation_id: operation_id,
+              depth: surface.address.split(" > ").length - 1,
+              surface_path: surface.address,
+              language_chain: runtime_language_chain_for(surface, combined_surface_index),
+            ),
+            delegate: session.resolve_delegate_for(surface),
+          )
+        end
+
+        execute_child_operations!(session, root_operation)
+
+        root_operation.add_diagnostic(
+          Ast::Merge::Runtime::Diagnostic.new(
+            severity: :info,
+            kind: :embedded_surfaces_discovered,
+            operation_id: root_operation.operation_id,
+            surface_path: root_operation.surface.address,
+            message: "Discovered #{root_operation.children.size} nested Ruby documentation surfaces",
+            metadata: {
+              child_operation_ids: root_operation.children.map(&:operation_id),
+            },
+          ),
+        )
+      end
+
+      def paired_doc_surfaces
+        template_surfaces = discovered_surfaces_for(merger.template_analysis)
+        destination_surfaces = discovered_surfaces_for(merger.dest_analysis)
+        addresses = (template_surfaces.keys + destination_surfaces.keys).uniq.sort
+
+        addresses.map do |address|
+          {
+            template_surface: template_surfaces[address],
+            destination_surface: destination_surfaces[address],
+          }
+        end
+      end
+
+      def discovered_surfaces_for(analysis)
+        analyzer = analysis.ruby_doc_surface_analyzer
+        analyzer.discover_surfaces.each_with_object({}) do |surface, surfaces|
+          surfaces[surface.address] = surface
+        end
+      end
+
+      def fragment_for(surface, analysis)
+        return "" unless surface && analysis
+
+        line_numbers = surface.metadata[:line_numbers] || surface.span&.to_a
+        return "" unless line_numbers
+
+        Array(line_numbers).map { |line_number| analysis.line_at(line_number).to_s }.join
+      end
+
+      def runtime_language_chain_for(surface, combined_surface_index)
+        return [:ruby] if surface.address == "document[0]"
+
+        parent = combined_surface_index[surface.parent_address]
+        chain = parent ? runtime_language_chain_for(parent, combined_surface_index) : [:ruby]
+        surface.effective_language ? chain + [surface.effective_language] : chain
+      end
+
+      def execute_child_operations!(session, root_operation)
+        root_operation.children
+          .sort_by { |child_operation| [-session.frame_for(child_operation.operation_id).depth, child_operation.surface.address] }
+          .each do |child_operation|
+          delegate = session.resolve_delegate_for(child_operation.surface, capability: :merge)
+          next unless delegate
+
+          child_operation.running!
+          child_result = delegate.merge(operation: child_operation, session: session)
+          child_operation.add_diagnostic(
+            Ast::Merge::Runtime::Diagnostic.new(
+              severity: :info,
+              kind: :child_merge_completed,
+              operation_id: child_operation.operation_id,
+              surface_path: child_operation.surface.address,
+              message: "Completed delegated child merge for #{child_operation.surface.surface_kind}",
+              metadata: child_result.metadata.merge(delegate_name: delegate.name),
+            ),
+          )
+          child_operation.complete!(result: child_result)
+        rescue StandardError => e
+          child_operation.fail!(
+            diagnostic: Ast::Merge::Runtime::Diagnostic.new(
+              severity: :error,
+              kind: :delegation_failed,
+              operation_id: child_operation.operation_id,
+              surface_path: child_operation.surface.address,
+              message: e.message,
+              metadata: {
+                error_class: e.class.name,
+                delegate_name: delegate&.name,
+              },
+            ),
+          )
+        end
+      end
+
+      def runtime_delegation_registry
+        Ast::Merge::Runtime::DelegationRegistry.new(
+          delegates: [runtime_prism_delegate],
+          metadata: {
+            source: :prism_merge,
+          },
+        )
+      end
+
+      def runtime_prism_delegate
+        Ast::Merge::Runtime::Delegate.new(
+          name: "prism-ruby",
+          priority: 100,
+          surface_kinds: %i[ruby_document ruby_doc_comment yard_example_block],
+          languages: %i[ruby yard],
+          feature_profile: merger.dest_analysis.feature_profile,
+          capabilities: {
+            merge: %i[ruby_document ruby_doc_comment yard_example_block],
+            discover_child_surfaces: %i[ruby_document ruby_doc_comment],
+          },
+          merge: method(:merge_runtime_surface),
+          metadata: {
+            merger: merger.class.name,
+          },
+        )
+      end
+
+      def merge_runtime_surface(operation:, session:)
+        return merge_runtime_doc_comment_surface(operation: operation, session: session) if operation.surface.surface_kind == :ruby_doc_comment
+
+        selected_source = runtime_fragment_source_for(operation)
+        replacement_text =
+          case selected_source
+          when :template
+            operation.template_fragment
+          when :destination
+            operation.destination_fragment
+          else
+            ""
+          end
+
+        Ast::Merge::Runtime::ChildResult.new(
+          replacement_text: replacement_text,
+          preserved_boundaries: runtime_preserved_boundaries_for(operation.surface),
+          diagnostics: operation.diagnostics,
+          capabilities_used: %i[delegated_child_merge fragment_selection],
+          capabilities_missing: [],
+          metadata: {
+            selected_source: selected_source,
+            surface_kind: operation.surface.surface_kind,
+            template_present: operation.options[:template_present],
+            destination_present: operation.options[:destination_present],
+            delegate_name: operation.delegate_name,
+            session_policy: session.policy_context,
+          },
+        )
+      end
+
+      def merge_runtime_doc_comment_surface(operation:, session:)
+        selected_source = runtime_fragment_source_for(operation)
+        base_text =
+          case selected_source
+          when :template
+            operation.template_fragment
+          when :destination
+            operation.destination_fragment
+          else
+            ""
+          end
+
+        replacement_text = apply_runtime_doc_children(base_text, operation, session)
+
+        Ast::Merge::Runtime::ChildResult.new(
+          replacement_text: replacement_text,
+          preserved_boundaries: runtime_preserved_boundaries_for(operation.surface),
+          diagnostics: operation.diagnostics,
+          capabilities_used: %i[delegated_child_merge fragment_selection child_result_reintegration],
+          capabilities_missing: [],
+          metadata: {
+            selected_source: selected_source,
+            surface_kind: operation.surface.surface_kind,
+            template_present: operation.options[:template_present],
+            destination_present: operation.options[:destination_present],
+            delegate_name: operation.delegate_name,
+            child_operation_ids: session.operations.select { |candidate| candidate.surface.parent_address == operation.surface.address }.map(&:operation_id),
+            session_policy: session.policy_context,
+          },
+        )
+      end
+
+      def apply_runtime_doc_children(base_text, operation, session)
+        lines = base_text.lines(chomp: true)
+
+        session.operations
+          .select do |candidate|
+            candidate.surface.parent_address == operation.surface.address &&
+              candidate.result.is_a?(Ast::Merge::Runtime::ChildResult) &&
+              candidate.surface.surface_kind == :yard_example_block
+          end
+          .sort_by { |candidate| -candidate.surface.metadata.fetch(:tag_relative_line, candidate.surface.metadata[:body_relative_span].begin - 1) }
+          .each do |child_operation|
+            lines = apply_runtime_example_child(lines, child_operation)
+          end
+
+        join_runtime_lines(lines)
+      end
+
+      def apply_runtime_example_child(lines, child_operation)
+        tag_relative_line = child_operation.surface.metadata.fetch(:tag_relative_line, child_operation.surface.metadata[:body_relative_span].begin - 1)
+        body_relative_span = child_operation.surface.metadata[:body_relative_span]
+        start_index = [tag_relative_line - 1, 0].max
+        remove_count = body_relative_span ? (body_relative_span.end - tag_relative_line + 1) : 0
+        selected_source = child_operation.result.metadata[:selected_source]
+
+        if selected_source == :none
+          return lines if start_index >= lines.length
+
+          lines.dup.tap { |updated| updated.slice!(start_index, remove_count) }
+        end
+
+        block_lines = [
+          child_operation.result.preserved_boundaries[:tag_header].to_s.sub(/\r?\n\z/, ""),
+          *child_operation.result.replacement_text.lines(chomp: true),
+        ]
+        updated = lines.dup
+
+        if start_index >= updated.length
+          if start_index > updated.length
+            padding_line = runtime_blank_comment_line_for(child_operation.surface)
+            updated.insert(updated.length, *Array.new(start_index - updated.length, padding_line))
+          end
+          updated.insert(updated.length, *block_lines)
+        else
+          updated[start_index, remove_count] = block_lines
+        end
+
+        updated
+      end
+
+      def runtime_blank_comment_line_for(surface)
+        prefix = surface.metadata[:comment_prefix].to_s
+        stripped_prefix = prefix.rstrip
+        stripped_prefix.empty? ? "#" : stripped_prefix
+      end
+
+      def join_runtime_lines(lines)
+        return "" if lines.empty?
+
+        "#{lines.join("\n")}\n"
+      end
+
+      def runtime_fragment_source_for(operation)
+        template_present = operation.options[:template_present]
+        destination_present = operation.options[:destination_present]
+
+        if template_present && destination_present
+          merger.send(:default_preference)
+        elsif template_present
+          merger.add_template_only_nodes ? :template : :none
+        elsif destination_present
+          merger.remove_template_missing_nodes ? :none : :destination
+        else
+          :none
+        end
+      end
+
+      def runtime_preserved_boundaries_for(surface)
+        boundaries = surface.metadata[:preserved_boundaries]
+        return boundaries if boundaries
+
+        {
+          comment_prefix: surface.metadata[:comment_prefix],
+        }.compact
+      end
+
+      def add_missing_delegate_diagnostic!(session, operation, capability:)
+        return if session.resolve_delegate_for(operation.surface, capability: capability)
+
+        operation.add_diagnostic(
+          Ast::Merge::Runtime::Diagnostic.new(
+            severity: :warn,
+            kind: :unsupported_capability,
+            operation_id: operation.operation_id,
+            surface_path: operation.surface.address,
+            message: "No runtime delegate resolved capability #{capability} for #{operation.surface.surface_kind}",
+            metadata: {
+              capability: capability,
+              delegate_name: operation.delegate_name,
+              surface_kind: operation.surface.surface_kind,
+            },
+          ),
+        )
+      end
 
       # Override the ast-merge hook to incorporate Phase 2 (similarity) and
       # Phase 3 (cross-depth) matches when deciding whether a template node

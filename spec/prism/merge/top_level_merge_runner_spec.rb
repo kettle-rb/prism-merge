@@ -184,6 +184,91 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
       expect(result).to eq(source)
     end
 
+    it "records a runtime session with discovered doc-comment child operations" do
+      template = <<~'RUBY'
+        # Template greeting docs
+        #
+        # @example [ruby]
+        #   greet("team")
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+
+      dest = <<~'RUBY'
+        # Destination greeting docs
+        #
+        # @example [ruby]
+        #   greet("friend")
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+
+      merger = build_merger(template, dest, preference: :destination)
+      result = described_class.new(merger: merger).merge
+      session = merger.runtime_session
+      root_operation = session.root_operations.first
+      example_operation = root_operation.children.find { |child| child.surface.surface_kind == :yard_example_block }
+
+      expect(result.to_s).to eq(dest)
+      expect(session).to be_a(Ast::Merge::Runtime::Session)
+      expect(root_operation.completed?).to be(true)
+      expect(root_operation.surface.surface_kind).to eq(:ruby_document)
+      expect(root_operation.delegate_name).to eq("prism-ruby")
+      expect(root_operation.result).to be_a(Ast::Merge::Runtime::ChildResult)
+      expect(root_operation.result.replacement_text).to eq(dest)
+      expect(root_operation.result.capabilities_used).to include(:delegated_child_merge)
+      expect(root_operation.children.map { |child| child.surface.surface_kind }).to eq(%i[ruby_doc_comment yard_example_block])
+      expect(root_operation.children.map(&:status)).to eq(%i[completed completed])
+      expect(root_operation.children.map(&:delegate_name)).to eq(%w[prism-ruby prism-ruby])
+      expect(root_operation.children.map(&:result)).to all(be_a(Ast::Merge::Runtime::ChildResult))
+      expect(example_operation.template_fragment).to eq("#   greet(\"team\")\n")
+      expect(example_operation.destination_fragment).to eq("#   greet(\"friend\")\n")
+      expect(example_operation.result.replacement_text).to eq("#   greet(\"friend\")\n")
+      expect(example_operation.result.metadata[:selected_source]).to eq(:destination)
+      expect(session.frame_for(example_operation.operation_id).language_chain).to eq(%i[ruby yard ruby])
+      expect(session.diagnostics.map(&:kind)).to include(:embedded_surfaces_discovered, :surface_discovered, :child_merge_completed, :merge_completed)
+      expect(session.diagnostics.map(&:kind)).not_to include(:unsupported_capability)
+      expect(session.to_h.dig(:delegation_registry, :delegates, 0, :name)).to eq("prism-ruby")
+    end
+
+    it "reintegrates a template-only example block into destination-owned doc comments" do
+      template = <<~'RUBY'
+        # Greeting docs
+        #
+        # @example [ruby]
+        #   greet("team")
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+
+      dest = <<~'RUBY'
+        # Greeting docs
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :destination,
+        add_template_only_nodes: true,
+      )
+
+      expect(result).to eq(<<~'RUBY')
+        # Greeting docs
+        #
+        # @example [ruby]
+        #   greet("team")
+        def greet(name = "world")
+          puts "Hello, #{name}"
+        end
+      RUBY
+    end
+
     it "skips destination nodes whose line range was already emitted" do
       source = <<~RUBY
         class Example
