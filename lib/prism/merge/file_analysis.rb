@@ -312,7 +312,17 @@ module Prism
       # @param options [Hash] Additional metadata preserved on the attachment
       # @return [Ast::Merge::Comment::Attachment]
       def comment_attachment_for(owner, **options)
-        leading_region = build_comment_region(:leading, owner_leading_comment_entries(owner))
+        leading_entries = owner_leading_comment_entries(owner)
+        split_preamble = split_first_owner_preamble?(owner, leading_entries)
+        if split_preamble
+          _preamble_entries, leading_entries = split_first_owner_preamble_entries(leading_entries)
+        end
+
+        leading_region = build_comment_region(
+          :leading,
+          leading_entries,
+          metadata: split_preamble ? {floating: true} : {},
+        )
         inline_region = build_comment_region(:inline, owner_inline_comment_entries(owner))
         trailing_region = build_comment_region(:trailing, owner_trailing_comment_entries(owner))
         layout_attachment = layout_attachment_for(owner, **options)
@@ -607,6 +617,43 @@ module Prism
         native_comments_for(owner, :leading_comments).map do |comment|
           native_comment_entry(comment, attached_as: :leading)
         end
+      end
+
+      def split_first_owner_preamble?(owner, leading_entries)
+        return false unless owner.equal?(Array(comment_augmenter_default_owners).first)
+        return false unless owner_start_line(owner).to_i > 1
+
+        preamble_entries, remaining_entries = split_first_owner_preamble_entries(leading_entries)
+        preamble_entries.any? && remaining_entries.any?
+      end
+
+      def split_first_owner_preamble_entries(leading_entries)
+        full_line_entries = Array(leading_entries).select { |entry| entry[:full_line] }
+        groups = group_full_line_entries_for_attachment(full_line_entries)
+        return [[], leading_entries] unless groups.length > 1
+        return [[], leading_entries] unless groups.first.first[:line] == 1
+
+        preamble_entries = groups.first
+        remaining_lines = groups.drop(1).flatten.map { |entry| entry[:line] }
+        remaining_entries = Array(leading_entries).reject { |entry| preamble_entries.include?(entry) }.sort_by { |entry| entry[:line] }
+        return [[], leading_entries] if remaining_lines.empty? || remaining_entries.empty?
+
+        [preamble_entries, remaining_entries]
+      end
+
+      def group_full_line_entries_for_attachment(entries)
+        entries.sort_by { |entry| entry[:line] }.each_with_object([]) do |entry, groups|
+          current = groups.last
+          if current && contiguous_comment_lines_for_attachment?(current.last[:line], entry[:line])
+            current << entry
+          else
+            groups << [entry]
+          end
+        end
+      end
+
+      def contiguous_comment_lines_for_attachment?(from_line, to_line)
+        to_line == from_line + 1
       end
 
       def owner_inline_comment_entries(owner)

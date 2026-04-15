@@ -569,6 +569,30 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(augmenter.preamble_region.normalized_content).to eq("frozen_string_literal: true\nComment-only file")
     end
 
+    it "splits a line-1 preamble block from later floating first-owner docs" do
+      code = <<~RUBY
+        # Document header
+
+        # Alpha docs
+
+        alpha = 1
+        beta = 2 # beta docs
+      RUBY
+
+      analysis = described_class.new(code)
+      first_owner, second_owner = analysis.statements
+      augmenter = analysis.comment_augmenter
+      first_attachment = analysis.comment_attachment_for(first_owner)
+      second_attachment = analysis.comment_attachment_for(second_owner)
+
+      expect(augmenter.preamble_region&.normalized_content).to eq("Document header")
+      expect(first_attachment.leading_region&.normalized_content).to eq("Alpha docs")
+      expect(first_attachment.leading_region).to be_floating
+      expect(first_attachment.leading_region_layout_owned?).to be(true)
+      expect(first_attachment.leading_gap).not_to be_nil
+      expect(second_attachment.inline_region&.normalized_content).to eq("beta docs")
+    end
+
     context "when checking shared example compliance" do
       let(:code) do
         <<~RUBY

@@ -16,9 +16,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         line = "#{name} = #{value}"
         inline ? "#{line} # #{inline}" : line
       end,
-      capabilities: {
-        preamble_floating_split: "native Prism leading-comment attachment keeps the first detached line-1 block with the first owner",
-      },
+      capabilities: {},
       expected_literal_hash_value: "literal # hash",
     )
   end
