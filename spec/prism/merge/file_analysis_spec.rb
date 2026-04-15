@@ -482,6 +482,24 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(profile.read_strategy).to eq(:native_read_portable_write)
       expect(profile.render_family).to eq(:prism_ruby_source)
       expect(profile.attachment_strategy).to eq(:layout_only)
+      expect(profile.repair_policies.map(&:to_h)).to eq(
+        [
+          {kind: :comment_ownership_overlap, handling: :heal, metadata: {}},
+          {kind: :duplicate_template_leading_prefix, handling: :heal, metadata: {}},
+        ],
+      )
+      expect(profile.surfaces.map(&:to_h)).to eq(
+        [
+          {name: :ruby_doc_comment, selector: :native_attachment, metadata: {}},
+          {name: :yard_example_block, selector: :yard_example_tag, metadata: {}},
+        ],
+      )
+      expect(profile.delegation_policies.map(&:to_h)).to eq(
+        [
+          {surface_name: :ruby_doc_comment, strategy: :same_ruleset, metadata: {}},
+          {surface_name: :yard_example_block, strategy: :same_ruleset, metadata: {}},
+        ],
+      )
     end
 
     it "builds shared comment attachments from native Prism ownership" do

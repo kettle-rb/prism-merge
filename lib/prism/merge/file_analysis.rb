@@ -279,6 +279,27 @@ module Prism
         :prism_ruby_source
       end
 
+      def ruleset_repair_policies
+        [
+          {kind: :comment_ownership_overlap, handling: :heal},
+          {kind: :duplicate_template_leading_prefix, handling: :heal},
+        ]
+      end
+
+      def ruleset_surfaces
+        [
+          {name: :ruby_doc_comment, selector: :native_attachment},
+          {name: :yard_example_block, selector: :yard_example_tag},
+        ]
+      end
+
+      def ruleset_delegation_policies
+        [
+          {surface_name: :ruby_doc_comment, strategy: :same_ruleset},
+          {surface_name: :yard_example_block, strategy: :same_ruleset},
+        ]
+      end
+
       # Get all supported comments converted to shared/native Ruby comment nodes.
       #
       # @return [Array<Prism::Merge::Comment::Line>]
