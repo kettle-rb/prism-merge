@@ -308,7 +308,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include('VERSION = "2.0.0" # Keep this explanation')
       end
 
-      it "preserves aligned destination inline comment spacing when reattaching fallback comments" do
+      it "preserves aligned destination inline comment spacing when reattaching destination inline comments" do
         template = <<~RUBY
           # frozen_string_literal: true
 
@@ -325,6 +325,25 @@ RSpec.describe Prism::Merge::SmartMerger do
         result = merger.merge
 
         expect(result).to include('spec.add_dependency("version_gem", "~> 1.1", ">= 1.1.9")              # ruby >= 2.2.0')
+      end
+
+      it "preserves template-owned trailing spaces before reattaching destination inline comments" do
+        template = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"  
+        RUBY
+
+        dest = <<~RUBY
+          # frozen_string_literal: true
+
+          VERSION = "1.0.0"    # Keep this explanation
+        RUBY
+
+        merger = described_class.new(template, dest, preference: :template)
+        result = merger.merge
+
+        expect(result).to include('VERSION = "2.0.0"      # Keep this explanation')
       end
 
       it "preserves destination leading spacing and inline comments for matched template-preferred atomic nodes" do

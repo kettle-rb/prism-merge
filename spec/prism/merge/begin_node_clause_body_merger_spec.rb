@@ -116,5 +116,28 @@ RSpec.describe Prism::Merge::BeginNodeClauseBodyMerger do
       expect(result.merged_body).to include("def added")
       expect(result.merged_body).to include("def custom")
     end
+
+    it "preserves trailing spaces on the last recursively merged body line" do
+      template = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          handle
+        end
+      RUBY
+
+      dest = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          handle
+          notify  
+        end
+      RUBY
+
+      result = merge_clause_body(template, dest, preference: :destination)
+
+      expect(result.merged_body).to eq("  handle\n  notify  ")
+    end
   end
 end

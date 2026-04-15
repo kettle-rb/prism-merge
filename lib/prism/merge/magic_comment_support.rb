@@ -30,7 +30,7 @@ module Prism
           suppressed_line_nums << line_num
           next if seen_magic_types.include?(magic_type)
 
-          entries << {line_num: line_num, text: lines[line_num - 1].to_s.rstrip, kind: :magic}
+          entries << {line_num: line_num, text: lines[line_num - 1].to_s.chomp, kind: :magic}
           seen_magic_types << magic_type
         end
 

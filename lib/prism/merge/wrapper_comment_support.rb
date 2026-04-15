@@ -248,7 +248,7 @@ module Prism
         end
         return line if normalized_entries.empty?
 
-        normalized_entries.each_with_index.reduce(line.rstrip) do |memo, (entry, index)|
+        normalized_entries.each_with_index.reduce(line) do |memo, (entry, index)|
           separator = if memo.empty?
             ""
           elsif index.zero?

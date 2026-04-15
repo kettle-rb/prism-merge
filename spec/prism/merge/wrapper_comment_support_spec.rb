@@ -144,6 +144,18 @@ RSpec.describe Prism::Merge::WrapperCommentSupport do
       ).to eq('spec.add_dependency("version_gem", "~> 1.1")              # ruby >= 2.2.0')
     end
 
+    it "preserves trailing spaces already owned by the base line before replaying the donor separator" do
+      merger = merger_for("x = 1\n", "x = 1\n")
+      support = described_class.new(merger: merger)
+
+      expect(
+        support.append_inline_comment_entries(
+          'VERSION = "2.0.0"  ',
+          [{raw: "# keep this explanation", separator: "  "}],
+        ),
+      ).to eq('VERSION = "2.0.0"    # keep this explanation')
+    end
+
     it "emits orphan comment regions with intervening blank lines and destination provenance" do
       source = <<~RUBY
         def first_method

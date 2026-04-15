@@ -60,6 +60,21 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       expect(result).to start_with("# frozen_string_literal: true\n")
     end
 
+    it "preserves destination trailing spaces on emitted magic prefix lines" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # Template note
+      RUBY
+
+      dest = "# frozen_string_literal: false  \n\n# Destination note\n"
+
+      merger = merger_for(template, dest, preference: :template)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result).to start_with("# frozen_string_literal: false  \n\n")
+    end
+
     it "does not give special treatment to a misplaced header-like comment" do
       template = <<~RUBY
         # Regular comment

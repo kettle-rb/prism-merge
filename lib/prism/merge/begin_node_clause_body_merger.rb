@@ -48,7 +48,7 @@ module Prism
         )
 
         MergeResult.new(
-          merged_body: body_merger.merge.rstrip,
+          merged_body: body_merger.merge.delete_suffix("\n"),
           template_trailing_suffix: template_components[:trailing_suffix],
           dest_trailing_suffix: dest_components[:trailing_suffix],
         )
