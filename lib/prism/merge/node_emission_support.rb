@@ -189,9 +189,13 @@ module Prism
         template_leading = merger.send(:filtered_leading_comments_for, template_node, :template)
         dest_leading = merger.send(:filtered_leading_comments_for, dest_node, :destination)
 
-        if suppress_template_leading_comments?(template_node, dest_node, template_leading: template_leading[:comments], dest_leading: dest_leading[:comments])
-          template_leading = template_leading.merge(comments: [])
-        end
+        filtered_template_leading = filter_previous_destination_owned_template_leading_comments(
+          template_node: template_node,
+          dest_node: dest_node,
+          template_comments: template_leading[:comments],
+          dest_comments: dest_leading[:comments],
+        )
+        template_leading = template_leading.merge(comments: filtered_template_leading)
 
         leading_comments = template_leading[:comments]
         leading_analysis = template_analysis
@@ -509,17 +513,24 @@ module Prism
 
       private
 
-      def suppress_template_leading_comments?(template_node, dest_node, template_leading:, dest_leading:)
-        return false if template_leading.empty? || dest_leading.any?
+      def filter_previous_destination_owned_template_leading_comments(template_node:, dest_node:, template_comments:, dest_comments:)
+        return template_comments if template_comments.empty? || dest_comments.any?
 
         previous_dest_node = previous_destination_statement_for(dest_node)
-        return false unless previous_dest_node
-        return false unless adjacent_destination_statements?(previous_dest_node, dest_node)
+        return template_comments unless previous_dest_node
+        return template_comments unless adjacent_destination_statements?(previous_dest_node, dest_node)
 
         previous_dest_leading = merger.send(:filtered_leading_comments_for, previous_dest_node, :destination)[:comments]
-        return false if previous_dest_leading.empty?
+        return template_comments if previous_dest_leading.empty?
 
-        normalized_comment_block(previous_dest_leading) == normalized_comment_block(template_leading)
+        return template_comments unless normalized_comment_block(previous_dest_leading) == normalized_comment_block(template_comments)
+
+        should_heal = merger.send(
+          :handle_suspected_corruption,
+          kind: :comment_ownership_overlap,
+          message: "template-leading comment block overlaps previous adjacent destination leading comment ownership",
+        )
+        should_heal ? [] : template_comments
       end
 
       def previous_destination_statement_for(node)

@@ -195,6 +195,92 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       RUBY
     end
 
+    it "preserves the raw duplicated leading block when adjacent-owner overlap healing is skipped" do
+      template = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/rspec.gemfile"
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true, corruption_handling: :skip)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      emission = support.emit_matched_template_node(
+        result: result,
+        template_node: first_node(merger, :template),
+        dest_node: second_node(merger, :destination),
+      )
+
+      expect(emission).to eq({last_emitted_dest_line: nil})
+      expect(result.to_s).to eq(<<~RUBY)
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+    end
+
+    it "warns instead of silently suppressing adjacent-owner overlap" do
+      template = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/rspec.gemfile"
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true, corruption_handling: :warn)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      expect do
+        support.emit_matched_template_node(
+          result: result,
+          template_node: first_node(merger, :template),
+          dest_node: second_node(merger, :destination),
+        )
+      end.to output(/Suspected corruption \(comment_ownership_overlap\)/).to_stderr
+    end
+
+    it "raises instead of silently suppressing adjacent-owner overlap" do
+      template = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      dest = <<~RUBY
+        # Why is gem "cgi" here?
+        #   compatibility workaround
+        eval_gemfile "modular/rspec.gemfile"
+        eval_gemfile "modular/x_std_libs.gemfile"
+      RUBY
+
+      merger = merger_for(template, dest, preference: :template, add_template_only_nodes: true, corruption_handling: :error)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      expect do
+        support.emit_matched_template_node(
+          result: result,
+          template_node: first_node(merger, :template),
+          dest_node: second_node(merger, :destination),
+        )
+      end.to raise_error(Prism::Merge::CorruptionDetectedError, /comment_ownership_overlap/)
+    end
+
     it "falls back to destination orphan regions when a removed destination-only sibling owned the gap comments" do
       template = <<~RUBY
         def first_method
