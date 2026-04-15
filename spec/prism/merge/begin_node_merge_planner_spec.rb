@@ -101,6 +101,80 @@ RSpec.describe Prism::Merge::BeginNodeMergePlanner do
       expect(plan.first.body_text).to eq("  cleanup\n")
     end
 
+    it "keeps the unmatched clause when duplicate-clause migration healing is skipped" do
+      template = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          cleanup
+        end
+      RUBY
+
+      dest = <<~RUBY
+        begin
+          work
+        rescue StandardError => e
+          handle(e)
+        ensure
+          cleanup
+        end
+      RUBY
+
+      plan = planner_for(template, dest, preference: :template, corruption_handling: :skip).plan
+
+      expect(plan.map(&:kind)).to eq([:fallback_shared_clause, :copied_unmatched_clause])
+      expect(plan.map(&:clause_type)).to eq([[:rescue_clause, [:standard_error], 0], :ensure_clause])
+      expect(plan.last.copied_analysis_side).to eq(:destination)
+    end
+
+    it "warns instead of silently suppressing duplicate-clause migration" do
+      template = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          cleanup
+        end
+      RUBY
+
+      dest = <<~RUBY
+        begin
+          work
+        rescue StandardError => e
+          handle(e)
+        ensure
+          cleanup
+        end
+      RUBY
+
+      expect {
+        planner_for(template, dest, preference: :template, corruption_handling: :warn).plan
+      }.to output(/Suspected corruption \(duplicate_clause_body_migration\)/).to_stderr
+    end
+
+    it "raises instead of silently suppressing duplicate-clause migration" do
+      template = <<~RUBY
+        begin
+          work
+        rescue StandardError
+          cleanup
+        end
+      RUBY
+
+      dest = <<~RUBY
+        begin
+          work
+        rescue StandardError => e
+          handle(e)
+        ensure
+          cleanup
+        end
+      RUBY
+
+      expect {
+        planner_for(template, dest, preference: :template, corruption_handling: :error).plan
+      }.to raise_error(Prism::Merge::CorruptionDetectedError, /duplicate_clause_body_migration/)
+    end
+
     it "skips an unmatched template clause whose body already migrated into the preferred destination BeginNode" do
       template = <<~RUBY
         begin

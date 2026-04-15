@@ -172,11 +172,19 @@ module Prism
 
         if node_preference == :template && !template_region && dest_clause_node &&
             merger.send(:clause_body_fully_duplicated_in_preferred_begin?, dest_clause_node, merger.dest_analysis, template_node, merger.template_analysis)
-          return
+          return if merger.send(
+            :handle_suspected_corruption,
+            kind: :duplicate_clause_body_migration,
+            message: "destination #{clause_type.to_s.tr("_", "-")} body is already represented elsewhere in the preferred template begin",
+          )
         end
         if node_preference == :destination && !dest_region && template_clause_node &&
             merger.send(:clause_body_fully_duplicated_in_preferred_begin?, template_clause_node, merger.template_analysis, dest_node, merger.dest_analysis)
-          return
+          return if merger.send(
+            :handle_suspected_corruption,
+            kind: :duplicate_clause_body_migration,
+            message: "template #{clause_type.to_s.tr("_", "-")} body is already represented elsewhere in the preferred destination begin",
+          )
         end
 
         Step.new(
