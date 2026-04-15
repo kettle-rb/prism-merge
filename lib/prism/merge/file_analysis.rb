@@ -267,8 +267,16 @@ module Prism
         @comment_support_style ||= shared_comment_support_style(
           source: :prism,
           style: :hash_comment,
-          read_strategy: :native_read_synthetic_write,
+          read_strategy: :native_read_portable_write,
         )
+      end
+
+      def ruleset_owner_selector
+        :prism_statement_sequence
+      end
+
+      def ruleset_render_family
+        :prism_ruby_source
       end
 
       # Get all supported comments converted to shared/native Ruby comment nodes.

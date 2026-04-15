@@ -39,6 +39,7 @@ module Prism
           preference: merger.preference,
           add_template_only_nodes: merger.add_template_only_nodes,
           remove_template_missing_nodes: merger.remove_template_missing_nodes,
+          corruption_handling: merger.corruption_handling,
           freeze_token: merger.freeze_token,
           max_recursion_depth: merger.max_recursion_depth,
           current_depth: merger.instance_variable_get(:@current_depth) + 1,

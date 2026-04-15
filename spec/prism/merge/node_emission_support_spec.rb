@@ -655,4 +655,204 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
       expect(result.to_s).to eq("# docs for old setting\n# keep inline\n\n# trailing note\n")
     end
   end
+
+  describe "removed-owner corruption handling" do
+    let(:dest) do
+      <<~RUBY
+        # docs for old setting
+        OLD = true
+
+        # trailing note
+      RUBY
+    end
+    let(:comments) { first_node(merger, :destination).location.leading_comments }
+    let(:trailing_comments) { merger.send(:external_trailing_comments_for, first_node(merger, :destination)) }
+    let(:support) { described_class.new(merger: merger) }
+    let(:rehomed_orphan_lines) { Set[1, 4] }
+
+    describe "#filter_rehomed_removed_owner_comments" do
+      context "with default healing" do
+        let(:merger) { merger_for("", dest, corruption_handling: :heal, remove_template_missing_nodes: true) }
+
+        it "filters comments already rehomed as orphan regions" do
+          filtered_leading = support.send(
+            :filter_rehomed_removed_owner_comments,
+            comments,
+            rehomed_orphan_lines: rehomed_orphan_lines,
+            comment_role: :leading,
+          )
+          filtered_trailing = support.send(
+            :filter_rehomed_removed_owner_comments,
+            trailing_comments,
+            rehomed_orphan_lines: rehomed_orphan_lines,
+            comment_role: :external_trailing,
+          )
+
+          expect(filtered_leading).to eq([])
+          expect(filtered_trailing).to eq([])
+        end
+      end
+
+      context "with skip handling" do
+        let(:merger) { merger_for("", dest, corruption_handling: :skip, remove_template_missing_nodes: true) }
+
+        it "preserves the raw removed-owner comments" do
+          filtered_leading = support.send(
+            :filter_rehomed_removed_owner_comments,
+            comments,
+            rehomed_orphan_lines: rehomed_orphan_lines,
+            comment_role: :leading,
+          )
+          filtered_trailing = support.send(
+            :filter_rehomed_removed_owner_comments,
+            trailing_comments,
+            rehomed_orphan_lines: rehomed_orphan_lines,
+            comment_role: :external_trailing,
+          )
+
+          expect(filtered_leading).to eq(comments)
+          expect(filtered_trailing).to eq(trailing_comments)
+        end
+      end
+
+      context "with warn handling" do
+        let(:merger) { merger_for("", dest, corruption_handling: :warn, remove_template_missing_nodes: true) }
+
+        it "warns without filtering" do
+          expect do
+            filtered_leading = support.send(
+              :filter_rehomed_removed_owner_comments,
+              comments,
+              rehomed_orphan_lines: rehomed_orphan_lines,
+              comment_role: :leading,
+            )
+            filtered_trailing = support.send(
+              :filter_rehomed_removed_owner_comments,
+              trailing_comments,
+              rehomed_orphan_lines: rehomed_orphan_lines,
+              comment_role: :external_trailing,
+            )
+
+            expect(filtered_leading).to eq(comments)
+            expect(filtered_trailing).to eq(trailing_comments)
+          end.to output(/Suspected corruption \(removed_owner_comment_overlap\)/).to_stderr
+        end
+      end
+
+      context "with error handling" do
+        let(:merger) { merger_for("", dest, corruption_handling: :error, remove_template_missing_nodes: true) }
+
+        it "raises instead of filtering" do
+          expect do
+            support.send(
+              :filter_rehomed_removed_owner_comments,
+              comments,
+              rehomed_orphan_lines: rehomed_orphan_lines,
+              comment_role: :leading,
+            )
+          end.to raise_error(Prism::Merge::CorruptionDetectedError, /removed_owner_comment_overlap/)
+        end
+      end
+    end
+  end
+
+  describe "overlap corruption handling" do
+    let(:source) do
+      <<~RUBY
+        alpha = 1
+        # Shared docs
+        beta = 2
+      RUBY
+    end
+
+    let(:comments) { second_node(merger, :template).location.leading_comments }
+    let(:dest_comments) { second_node(merger, :destination).location.leading_comments }
+    let(:support) { described_class.new(merger: merger) }
+
+    describe "#filter_already_emitted_leading_comments" do
+      context "with default healing" do
+        let(:merger) { merger_for(source, source, corruption_handling: :heal) }
+
+        it "filters overlapping comments" do
+          merger.instance_variable_set(:@emitted_dest_leading_texts, Set[comments.first.slice.strip])
+
+          filtered, last_filtered_line = support.send(:filter_already_emitted_leading_comments, comments)
+
+          expect(filtered).to eq([])
+          expect(last_filtered_line).to eq(2)
+        end
+      end
+
+      context "with skip handling" do
+        let(:merger) { merger_for(source, source, corruption_handling: :skip) }
+
+        it "preserves the raw overlapping comments" do
+          merger.instance_variable_set(:@emitted_dest_leading_texts, Set[comments.first.slice.strip])
+
+          filtered, last_filtered_line = support.send(:filter_already_emitted_leading_comments, comments)
+
+          expect(filtered).to eq(comments)
+          expect(last_filtered_line).to be_nil
+        end
+      end
+
+      context "with warn handling" do
+        let(:merger) { merger_for(source, source, corruption_handling: :warn) }
+
+        it "warns without filtering" do
+          merger.instance_variable_set(:@emitted_dest_leading_texts, Set[comments.first.slice.strip])
+
+          expect do
+            filtered, last_filtered_line = support.send(:filter_already_emitted_leading_comments, comments)
+            expect(filtered).to eq(comments)
+            expect(last_filtered_line).to be_nil
+          end.to output(/Suspected corruption \(comment_ownership_overlap\)/).to_stderr
+        end
+      end
+
+      context "with error handling" do
+        let(:merger) { merger_for(source, source, corruption_handling: :error) }
+
+        it "raises instead of filtering" do
+          merger.instance_variable_set(:@emitted_dest_leading_texts, Set[comments.first.slice.strip])
+
+          expect do
+            support.send(:filter_already_emitted_leading_comments, comments)
+          end.to raise_error(Prism::Merge::CorruptionDetectedError, /comment_ownership_overlap/)
+        end
+      end
+    end
+
+    describe "#filter_emitted_template_leading_comments" do
+      context "with default healing" do
+        let(:merger) { merger_for(source, source, corruption_handling: :heal) }
+
+        it "records skipped destination prefix lines for healed overlaps" do
+          merger.instance_variable_set(:@emitted_template_leading_texts, Set[dest_comments.first.slice.strip])
+          merger.instance_variable_set(:@dest_prefix_comment_lines, Set.new)
+
+          filtered, last_filtered_line = support.send(:filter_emitted_template_leading_comments, dest_comments)
+
+          expect(filtered).to eq([])
+          expect(last_filtered_line).to eq(2)
+          expect(merger.instance_variable_get(:@dest_prefix_comment_lines)).to eq(Set[2])
+        end
+      end
+
+      context "with skip handling" do
+        let(:merger) { merger_for(source, source, corruption_handling: :skip) }
+
+        it "leaves destination prefix tracking untouched" do
+          merger.instance_variable_set(:@emitted_template_leading_texts, Set[dest_comments.first.slice.strip])
+          merger.instance_variable_set(:@dest_prefix_comment_lines, Set.new)
+
+          filtered, last_filtered_line = support.send(:filter_emitted_template_leading_comments, dest_comments)
+
+          expect(filtered).to eq(dest_comments)
+          expect(last_filtered_line).to be_nil
+          expect(merger.instance_variable_get(:@dest_prefix_comment_lines)).to eq(Set.new)
+        end
+      end
+    end
+  end
 end

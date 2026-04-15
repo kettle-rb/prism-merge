@@ -77,6 +77,40 @@ RSpec.describe Prism::Merge::PartialTemplateMerger, :prism_backend do
       expect(result.content).to include("def custom_method")
     end
 
+    it "forwards corruption handling into the anchored smart merger" do
+      template = <<~RUBY
+        class Example
+          # Shared header
+
+          def shared
+            :template
+          end
+        end
+      RUBY
+
+      destination = <<~RUBY
+        class Example
+          # Shared header
+          # Shared header
+          # Destination header
+          def shared
+            :destination
+          end
+        end
+      RUBY
+
+      expect do
+        described_class.new(
+          template: template,
+          destination: destination,
+          anchor: {type: :class, text: /class Example/},
+          preference: :destination,
+          add_missing: true,
+          corruption_handling: :error,
+        ).merge
+      end.to raise_error(Prism::Merge::CorruptionDetectedError, /duplicate_template_leading_prefix/)
+    end
+
     it "uses the boundary statement to limit replacement to the intended top-level section" do
       template = <<~RUBY
         def first_method

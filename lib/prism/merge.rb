@@ -54,6 +54,9 @@ module Prism
     # Inherits from Ast::Merge::Error for consistency across merge gems.
     class Error < Ast::Merge::Error; end
 
+    # Raised when corruption handling is configured to fail instead of heal.
+    class CorruptionDetectedError < Error; end
+
     # Raised when a Ruby file has parsing errors.
     # Inherits from Ast::Merge::ParseError for consistency across merge gems.
     # Provides Prism-specific `parse_result` attribute.

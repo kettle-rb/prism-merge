@@ -115,6 +115,44 @@ RSpec.describe Prism::Merge::RecursiveNodeBodyMerger do
       expect(result.lines.last.chomp).to eq("end # keep closing note")
     end
 
+    it "propagates corruption handling into nested body mergers" do
+      template = <<~RUBY
+        class Example
+          # Shared header
+
+          def shared
+            :template
+          end
+        end
+      RUBY
+
+      dest = <<~RUBY
+        class Example
+          # Shared header
+          # Shared header
+          # Destination header
+          def shared
+            :destination
+          end
+        end
+      RUBY
+
+      merger = merger_for(
+        template,
+        dest,
+        preference: :destination,
+        add_template_only_nodes: true,
+        corruption_handling: :error,
+      )
+
+      expect do
+        described_class.new(merger: merger).merge(
+          template_node: first_node(merger, :template),
+          dest_node: first_node(merger, :destination),
+        )
+      end.to raise_error(Prism::Merge::CorruptionDetectedError, /duplicate_template_leading_prefix/)
+    end
+
     it "recursively emits begin wrappers with merged rescue clauses and copied ensure tails" do
       template = <<~RUBY
         begin

@@ -273,7 +273,7 @@ module Prism
 
           report_unbalanced(
             "#{span.kind} block opens at line #{span.start_line} and closes at line #{span.end_line}, " \
-            "but the markers do not live at the same syntactic level",
+              "but the markers do not live at the same syntactic level",
           )
         end
       end

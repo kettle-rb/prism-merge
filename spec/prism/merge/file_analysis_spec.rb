@@ -448,7 +448,7 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(analysis.comment_node_at(1).magic_comment?).to be true
     end
 
-    it "reports a native-read synthetic-write support style" do
+    it "reports a native-read portable-write support style" do
       code = <<~RUBY
         # frozen_string_literal: true
 
@@ -460,9 +460,28 @@ RSpec.describe Prism::Merge::FileAnalysis do
       analysis = described_class.new(code)
 
       expect(analysis.comment_support_style).to be_a(Ast::Merge::Comment::SupportStyle)
-      expect(analysis.comment_support_style.native_read_synthetic_write?).to be true
-      expect(analysis.comment_support_style.synthetic_write?).to be true
+      expect(analysis.comment_support_style.native_read_portable_write?).to be true
+      expect(analysis.comment_support_style.portable_write?).to be true
       expect(analysis.comment_support_style.details[:capability]).to eq(:native_full)
+    end
+
+    it "exposes a concrete feature profile" do
+      code = <<~RUBY
+        # frozen_string_literal: true
+
+        def example
+          "hello"
+        end
+      RUBY
+
+      analysis = described_class.new(code)
+      profile = analysis.feature_profile
+
+      expect(profile.owner_selector).to eq(:prism_statement_sequence)
+      expect(profile.match_key).to eq(:signature)
+      expect(profile.read_strategy).to eq(:native_read_portable_write)
+      expect(profile.render_family).to eq(:prism_ruby_source)
+      expect(profile.attachment_strategy).to eq(:layout_only)
     end
 
     it "builds shared comment attachments from native Prism ownership" do

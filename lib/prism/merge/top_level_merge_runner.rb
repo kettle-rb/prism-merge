@@ -608,7 +608,14 @@ module Prism
           output_node = template_node
           output_analysis = merger.template_analysis
         else
-          emission = merger.send(:add_node_to_result, merger.result, dest_node, merger.dest_analysis, :destination)
+          emission = merger.send(
+            :add_node_to_result,
+            merger.result,
+            dest_node,
+            merger.dest_analysis,
+            :destination,
+            matched_template_node: template_node,
+          )
         end
 
         {

@@ -55,6 +55,11 @@ module Prism
       # @return [Boolean] Whether to remove destination-only nodes that are missing from the template
       attr_reader :remove_template_missing_nodes
 
+      # @return [Symbol] How suspected corruption should be handled (:heal, :warn, :error, :skip)
+      attr_reader :corruption_handling
+
+      CORRUPTION_HANDLINGS = ::Ast::Merge::Healer::HANDLINGS
+
       # Creates a new SmartMerger.
       #
       # @param template_content [String] Template Ruby source code
@@ -94,12 +99,14 @@ module Prism
         regions: nil,
         region_placeholder: nil,
         text_merger_options: nil,
+        corruption_handling: :heal,
         **options
       )
         @max_recursion_depth = max_recursion_depth
         @current_depth = current_depth
         @text_merger_options = text_merger_options
         @remove_template_missing_nodes = remove_template_missing_nodes
+        @corruption_handling = normalize_corruption_handling(corruption_handling)
         @dest_prefix_comment_lines = nil
 
         # Store the raw (unwrapped) signature_generator so that
@@ -151,6 +158,7 @@ module Prism
             preference: @preference,
             add_template_only_nodes: @add_template_only_nodes,
             freeze_token: @freeze_token,
+            corruption_handling: @corruption_handling,
           },
           statistics: result_obj.respond_to?(:statistics) ? result_obj.statistics : result_obj.decision_summary,
         }
@@ -236,6 +244,20 @@ module Prism
       end
 
       private
+
+      def normalize_corruption_handling(value)
+        Ast::Merge::Healer.normalize_mode(value)
+      end
+
+      def handle_suspected_corruption(kind:, message:)
+        Ast::Merge::Healer.handle(
+          mode: corruption_handling,
+          kind: kind,
+          message: message,
+          prefix: "[prism-merge]",
+          error_class: Prism::Merge::CorruptionDetectedError,
+        )
+      end
 
       # Check if a node has a freeze marker in its leading comments.
       #
@@ -575,12 +597,13 @@ module Prism
       # @param node [Prism::Node] The node to add
       # @param analysis [FileAnalysis] The source analysis
       # @param source [Symbol] :template or :destination
-      def add_node_to_result(result, node, analysis, source)
+      def add_node_to_result(result, node, analysis, source, matched_template_node: nil)
         node_emission_support.emit_node(
           result: result,
           node: node,
           analysis: analysis,
           source: source,
+          matched_template_node: matched_template_node,
         )
       end
 

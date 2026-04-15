@@ -471,6 +471,141 @@ RSpec.describe Prism::Merge::TopLevelMergeRunner do
         end
       RUBY
     end
+
+    it "preserves duplicate raw ownership when orphan re-homing overlap healing is skipped" do
+      template = <<~RUBY
+        def first_method
+          :template
+        end
+
+        def third_method
+          :template
+        end
+      RUBY
+
+      dest = <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        def third_method
+          :destination
+        end
+      RUBY
+
+      result = merge_with_runner(
+        template: template,
+        dest: dest,
+        preference: :template,
+        remove_template_missing_nodes: true,
+        corruption_handling: :skip,
+      )
+
+      expect(result).to eq(<<~RUBY)
+        def first_method
+          :template
+        end
+
+        # docs for removed second_method
+        # docs for removed second_method
+
+        def third_method
+          :template
+        end
+      RUBY
+    end
+
+    it "warns instead of healing when orphan re-homing overlap handling is set to warn" do
+      template = <<~RUBY
+        def first_method
+          :template
+        end
+
+        def third_method
+          :template
+        end
+      RUBY
+
+      dest = <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        def third_method
+          :destination
+        end
+      RUBY
+
+      expect do
+        result = merge_with_runner(
+          template: template,
+          dest: dest,
+          preference: :template,
+          remove_template_missing_nodes: true,
+          corruption_handling: :warn,
+        )
+
+        expect(result).to eq(<<~RUBY)
+          def first_method
+            :template
+          end
+
+          # docs for removed second_method
+          # docs for removed second_method
+
+          def third_method
+            :template
+          end
+        RUBY
+      end.to output(/Suspected corruption \(removed_owner_comment_overlap\)/).to_stderr
+    end
+
+    it "raises when orphan re-homing overlap handling is set to error" do
+      template = <<~RUBY
+        def first_method
+          :template
+        end
+
+        def third_method
+          :template
+        end
+      RUBY
+
+      dest = <<~RUBY
+        def first_method
+          :destination
+        end
+
+        # docs for removed second_method
+        def second_method
+          :destination_only
+        end
+
+        def third_method
+          :destination
+        end
+      RUBY
+
+      expect do
+        merge_with_runner(
+          template: template,
+          dest: dest,
+          preference: :template,
+          remove_template_missing_nodes: true,
+          corruption_handling: :error,
+        )
+      end.to raise_error(Prism::Merge::CorruptionDetectedError, /removed_owner_comment_overlap/)
+    end
   end
 
   describe "moved-node detection" do

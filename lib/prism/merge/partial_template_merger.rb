@@ -9,6 +9,39 @@ module Prism
     # `ast-merge` and keeps Ruby-specific behavior local: top-level Prism
     # statement adaptation, section-boundary selection, and SmartMerger wiring.
     class PartialTemplateMerger < ::Ast::Merge::PartialTemplateMergerBase
+      attr_reader :corruption_handling
+
+      def initialize(
+        template:,
+        destination:,
+        anchor:,
+        boundary: nil,
+        preference: :template,
+        add_missing: true,
+        when_missing: :skip,
+        replace_mode: false,
+        signature_generator: nil,
+        node_typing: nil,
+        match_refiner: nil,
+        corruption_handling: :heal
+      )
+        @corruption_handling = corruption_handling
+
+        super(
+          template: template,
+          destination: destination,
+          anchor: anchor,
+          boundary: boundary,
+          preference: preference,
+          add_missing: add_missing,
+          when_missing: when_missing,
+          replace_mode: replace_mode,
+          signature_generator: signature_generator,
+          node_typing: node_typing,
+          match_refiner: match_refiner,
+        )
+      end
+
       protected
 
       def create_analysis(content)
@@ -29,6 +62,7 @@ module Prism
           match_refiner: match_refiner,
           node_typing: node_typing,
           signature_generator: signature_generator,
+          corruption_handling: corruption_handling,
         )
       end
 

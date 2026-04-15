@@ -1,7 +1,0 @@
-{
-  "spec/prism/merge/comment_behavior_matrix_spec.rb:2937447817": [
-    [5, 1, 67, "RSpec/SpecFilePathFormat: Spec path should end with `prism/merge/smart_merger*comment_behavior_matrix*_spec.rb`.", 495711527],
-    [5, 43, 25, "RSpec/DescribeMethod: The second argument to describe should be the method being tested. '#instance' or '.class'.", 1921084705],
-    [11, 21, 25, "RSpec/DescribedClass: Use `described_class` instead of `Prism::Merge::SmartMerger`.", 1242388571]
-  ]
-}
