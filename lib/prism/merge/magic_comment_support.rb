@@ -16,6 +16,7 @@ module Prism
       def comment_only_prefix_info(lines)
         entries = []
         suppressed_line_nums = Set.new
+        duplicate_magic_line_nums = Set.new
 
         if shebang_line?(lines.first)
           entries << {line_num: 1, text: lines.first.to_s, kind: :shebang}
@@ -28,10 +29,13 @@ module Prism
         header_magic_types.keys.sort.each do |line_num|
           magic_type = header_magic_types[line_num]
           suppressed_line_nums << line_num
-          next if seen_magic_types.include?(magic_type)
-
           entries << {line_num: line_num, text: lines[line_num - 1].to_s.chomp, kind: :magic}
-          seen_magic_types << magic_type
+
+          if seen_magic_types.include?(magic_type)
+            duplicate_magic_line_nums << line_num
+          else
+            seen_magic_types << magic_type
+          end
         end
 
         if header_magic_types.any?
@@ -47,6 +51,7 @@ module Prism
         {
           entries: entries,
           suppressed_line_nums: suppressed_line_nums,
+          duplicate_magic_line_nums: duplicate_magic_line_nums,
           header_magic_comment_types: header_magic_types,
         }
       end

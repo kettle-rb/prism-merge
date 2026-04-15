@@ -236,7 +236,29 @@ module Prism
       end
 
       def comment_only_prefix_lines_for(lines)
-        Prism::Merge::MagicCommentSupport.comment_only_prefix_info(lines).slice(:entries, :suppressed_line_nums)
+        prefix_info = Prism::Merge::MagicCommentSupport.comment_only_prefix_info(lines)
+        duplicate_magic_line_nums = prefix_info[:duplicate_magic_line_nums]
+
+        if duplicate_magic_line_nums.any?
+          should_heal = merger.send(
+            :handle_suspected_corruption,
+            kind: :duplicate_magic_comment_prefix,
+            message: "comment-only file header repeats an already-declared magic comment type",
+          )
+
+          entries = if should_heal
+            prefix_info[:entries].reject { |entry| duplicate_magic_line_nums.include?(entry[:line_num]) }
+          else
+            prefix_info[:entries]
+          end
+
+          return {
+            entries: entries,
+            suppressed_line_nums: prefix_info[:suppressed_line_nums],
+          }
+        end
+
+        prefix_info.slice(:entries, :suppressed_line_nums)
       end
 
       def ruby_magic_comment_line_type(line)

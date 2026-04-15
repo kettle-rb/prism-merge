@@ -165,6 +165,69 @@ RSpec.describe Prism::Merge::CommentOnlyFileMerger do
       expect(result).to eq("# frozen_string_literal: true\n\n# First block\n  \n# Second block\n")
     end
 
+    it "preserves duplicated destination magic comments when healing is skipped" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # Template comment
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # Destination comment
+      RUBY
+
+      merger = merger_for(template, dest, preference: :destination, corruption_handling: :skip)
+      result = described_class.new(merger: merger).merge.to_s
+
+      expect(result.scan("frozen_string_literal").size).to eq(2)
+      expect(result).to start_with("# frozen_string_literal: true\n# frozen_string_literal: true\n\n")
+    end
+
+    it "warns instead of silently collapsing duplicated destination magic comments" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # Template comment
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # Destination comment
+      RUBY
+
+      merger = merger_for(template, dest, preference: :destination, corruption_handling: :warn)
+
+      expect {
+        described_class.new(merger: merger).merge
+      }.to output(/Suspected corruption \(duplicate_magic_comment_prefix\)/).to_stderr
+    end
+
+    it "raises instead of silently collapsing duplicated destination magic comments" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        # Template comment
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+        # frozen_string_literal: true
+
+        # Destination comment
+      RUBY
+
+      merger = merger_for(template, dest, preference: :destination, corruption_handling: :error)
+
+      expect {
+        described_class.new(merger: merger).merge
+      }.to raise_error(Prism::Merge::CorruptionDetectedError, /duplicate_magic_comment_prefix/)
+    end
+
     it "preserves destination trailing spaces on matched comment lines with destination preference" do
       template = <<~RUBY
         # frozen_string_literal: true
