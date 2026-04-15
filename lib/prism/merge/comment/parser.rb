@@ -38,6 +38,8 @@ module Prism
           lines.each_with_index do |line, idx|
             line_number = idx + 1
             raw = line.to_s.chomp
+            # Classification uses trailing-space-insensitive text, but parsed nodes
+            # keep the raw line so merge output can preserve owned trailing spaces.
             stripped = raw.rstrip
 
             if stripped.empty?
