@@ -2596,13 +2596,16 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
 
         result = merger.merge
-        # Should have VERSION from template
-        expect(result).to include('VERSION = "2.0.0"')
-        # Should preserve spacing
-        expect(result).to include("\n\n")
+        expect(result).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          VERSION = "2.0.0"
+
+          NAME = "app"
+        RUBY
       end
 
-      it "handles blank lines between dest-only nodes" do
+      it "preserves blank lines between dest-only nodes" do
         template_code = <<~RUBY
           # frozen_string_literal: true
           
@@ -2622,8 +2625,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         merger = described_class.new(template_code, dest_code)
         result = merger.merge
 
-        expect(result).to include('CUSTOM = "custom"')
-        expect(result).to include('ANOTHER = "another"')
+        expect(result).to eq(dest_code)
       end
     end
 
@@ -4890,10 +4892,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(template, dest)
       result = merger.merge
 
-      # The blank lines before x = 1 should be preserved from dest (normalized to single blank)
-      lines = result.split("\n", -1)
-      x_idx = lines.index { |l| l.include?("x = 1") }
-      expect(x_idx).to be >= 1
+      expect(result).to eq(dest)
     end
   end
 
@@ -4922,8 +4921,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(template, dest)
       result = merger.merge
 
-      # Should preserve the blank line between the two methods
-      expect(result).to include("end\n\ndef bar")
+      expect(result).to eq(dest)
     end
 
     it "preserves blank lines between blocks with leading comments" do
@@ -4954,8 +4952,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(template, dest)
       result = merger.merge
 
-      # The blank line between `end` and `# Comment B` should be preserved
-      expect(result).to include("end\n\n# Comment B")
+      expect(result).to eq(dest)
     end
 
     it "preserves multiple blank lines between blocks" do
@@ -4976,11 +4973,7 @@ RSpec.describe Prism::Merge::SmartMerger do
       merger = described_class.new(template, dest)
       result = merger.merge
 
-      # At least one blank line should separate x = 1 and y = 2
-      lines = result.split("\n")
-      x_idx = lines.index { |l| l.include?("x = 1") }
-      y_idx = lines.index { |l| l.include?("y = 2") }
-      expect(y_idx - x_idx).to be > 1
+      expect(result).to eq(dest)
     end
   end
 
@@ -5509,7 +5502,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result).to include("end\n\nappraise")
+        expect(result).to eq(code)
       end
 
       it "preserves blank lines between blocks with leading comments" do
@@ -5536,9 +5529,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        # All blank lines between blocks should be preserved
-        expect(result).to include("end\n\n# Comment for b")
-        expect(result).to include("end\n\nappraise \"c\"")
+        expect(result).to eq(code)
       end
 
       it "preserves blank line between end and trailing non-block node" do
@@ -5558,7 +5549,7 @@ RSpec.describe Prism::Merge::SmartMerger do
         )
         result = merger.merge
 
-        expect(result).to include("end\n\ngem \"gem_bench\"")
+        expect(result).to eq(code)
       end
     end
 

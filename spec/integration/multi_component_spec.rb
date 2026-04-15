@@ -149,7 +149,7 @@ RSpec.describe "Multi-component integration" do
     let(:template_path) { File.join(fixture_dir, "trailing_blanks.template.rb") }
     let(:dest_path) { File.join(fixture_dir, "trailing_blanks.destination.rb") }
 
-    it "correctly handles trailing blank lines between nodes" do
+    it "preserves destination trailing blank lines between matched and destination-only nodes" do
       template_code = File.read(template_path)
       dest_code = File.read(dest_path)
 
@@ -161,9 +161,7 @@ RSpec.describe "Multi-component integration" do
       )
 
       result = merger.merge
-      expect(result).to include("method_with_trailing_blanks")
-      expect(result).to include("another_method")
-      expect(result).to include("custom_method")
+      expect(result).to eq(dest_code)
     end
   end
 

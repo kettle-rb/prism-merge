@@ -418,6 +418,7 @@ module Prism
         orphan_regions = orphan_regions_for(node, analysis: analysis, source: source)
 
         if trailing_comments.empty? && orphan_regions.empty?
+          trailing_gap = analysis.layout_attachment_for(node)&.trailing_gap if analysis.respond_to?(:layout_attachment_for)
           emitted_trailing_gap_line = emit_layout_trailing_gap_lines(
             result: result,
             analysis: analysis,
@@ -427,14 +428,20 @@ module Prism
           )
 
           if emitted_trailing_gap_line.nil?
-            trailing_line = effective_end_line(node) + 1
-            trailing_content = analysis.line_at(trailing_line)
-            if trailing_content && trailing_content.strip.empty?
-              if source == :template
-                result.add_line("", decision: decision, template_line: trailing_line)
-              else
-                result.add_line("", decision: decision, dest_line: trailing_line)
-                last_emitted_dest_line = trailing_line
+            # When layout ownership assigns the gap to a later sibling's leading gap,
+            # do not emit a single fallback blank line here and truncate the run.
+            gap_owned_by_later_destination_sibling = source == :destination && trailing_gap && !trailing_gap.controls_output_for?(node)
+
+            unless gap_owned_by_later_destination_sibling
+              trailing_line = effective_end_line(node) + 1
+              trailing_content = analysis.line_at(trailing_line)
+              if trailing_content && trailing_content.strip.empty?
+                if source == :template
+                  result.add_line("", decision: decision, template_line: trailing_line)
+                else
+                  result.add_line("", decision: decision, dest_line: trailing_line)
+                  last_emitted_dest_line = trailing_line
+                end
               end
             end
           elsif source == :destination
@@ -745,20 +752,17 @@ module Prism
       def filter_emitted_template_trailing_comments(comments)
         template_trailing_texts = merger.instance_variable_get(:@emitted_template_trailing_texts)
         return [comments, nil] unless template_trailing_texts&.any?
-        return [comments, nil] unless overlapping_comment_texts?(comments, template_trailing_texts)
-        return [comments, nil] unless merger.send(
-          :handle_suspected_corruption,
-          kind: :comment_ownership_overlap,
-          message: "destination-leading comment block overlaps previously emitted template trailing comment ownership",
-        )
 
         last_filtered_line = nil
-        filtered = comments.reject do |c|
-          if template_trailing_texts.include?(c.slice.strip)
-            last_filtered_line = c.location.start_line
-            true
-          end
-        end
+        filtered = Ast::Merge::Healer.filter_items(
+          comments,
+          mode: merger.corruption_handling,
+          prefix: "[prism-merge]",
+          error_class: Prism::Merge::CorruptionDetectedError,
+          kind: :comment_ownership_overlap,
+          message: "destination-leading comment block overlaps previously emitted template trailing comment ownership",
+          on_filter: ->(comment) { last_filtered_line = comment.location.start_line },
+        ) { |comment| template_trailing_texts.include?(comment.slice.strip) }
         [filtered, last_filtered_line]
       end
 
@@ -779,22 +783,21 @@ module Prism
       def filter_emitted_template_leading_comments(comments, last_filtered_line: nil)
         template_leading_texts = merger.instance_variable_get(:@emitted_template_leading_texts)
         return [comments, last_filtered_line] unless template_leading_texts&.any?
-        return [comments, last_filtered_line] unless overlapping_comment_texts?(comments, template_leading_texts)
-        return [comments, last_filtered_line] unless merger.send(
-          :handle_suspected_corruption,
-          kind: :comment_ownership_overlap,
-          message: "destination-leading comment block overlaps previously emitted template leading comment ownership",
-        )
 
         prefix_lines = merger.instance_variable_get(:@dest_prefix_comment_lines) || Set.new
 
-        filtered = comments.reject do |c|
-          if template_leading_texts.include?(c.slice.strip)
-            last_filtered_line = c.location.start_line
+        filtered = Ast::Merge::Healer.filter_items(
+          comments,
+          mode: merger.corruption_handling,
+          prefix: "[prism-merge]",
+          error_class: Prism::Merge::CorruptionDetectedError,
+          kind: :comment_ownership_overlap,
+          message: "destination-leading comment block overlaps previously emitted template leading comment ownership",
+          on_filter: lambda do |comment|
+            last_filtered_line = comment.location.start_line
             prefix_lines << last_filtered_line
-            true
-          end
-        end
+          end,
+        ) { |comment| template_leading_texts.include?(comment.slice.strip) }
 
         merger.instance_variable_set(:@dest_prefix_comment_lines, prefix_lines)
         [filtered, last_filtered_line]
@@ -816,20 +819,17 @@ module Prism
       def filter_already_emitted_leading_comments(comments)
         dest_leading_texts = merger.instance_variable_get(:@emitted_dest_leading_texts)
         return [comments, nil] unless dest_leading_texts&.any?
-        return [comments, nil] unless overlapping_comment_texts?(comments, dest_leading_texts)
-        return [comments, nil] unless merger.send(
-          :handle_suspected_corruption,
-          kind: :comment_ownership_overlap,
-          message: "template-leading comment block overlaps previously emitted destination leading comment ownership",
-        )
 
         last_filtered_line = nil
-        filtered = comments.reject do |c|
-          if dest_leading_texts.include?(c.slice.strip)
-            last_filtered_line = c.location.start_line
-            true
-          end
-        end
+        filtered = Ast::Merge::Healer.filter_items(
+          comments,
+          mode: merger.corruption_handling,
+          prefix: "[prism-merge]",
+          error_class: Prism::Merge::CorruptionDetectedError,
+          kind: :comment_ownership_overlap,
+          message: "template-leading comment block overlaps previously emitted destination leading comment ownership",
+          on_filter: ->(comment) { last_filtered_line = comment.location.start_line },
+        ) { |comment| dest_leading_texts.include?(comment.slice.strip) }
         [filtered, last_filtered_line]
       end
 
@@ -867,20 +867,16 @@ module Prism
           normalized_comment_block(dest_comments.first(template_block.length)) == template_block
       end
 
-      def overlapping_comment_texts?(comments, emitted_texts)
-        Array(comments).any? { |comment| emitted_texts.include?(comment.slice.strip) }
-      end
-
       def filter_rehomed_removed_owner_comments(comments, rehomed_orphan_lines:, comment_role:)
         return comments if comments.empty? || rehomed_orphan_lines.empty?
-        return comments unless comments.any? { |comment| rehomed_orphan_lines.include?(comment.location.start_line) }
-        return comments unless merger.send(
-          :handle_suspected_corruption,
+        Ast::Merge::Healer.filter_items(
+          comments,
+          mode: merger.corruption_handling,
+          prefix: "[prism-merge]",
+          error_class: Prism::Merge::CorruptionDetectedError,
           kind: :removed_owner_comment_overlap,
           message: "removed destination-only node #{comment_role.to_s.tr("_", "-")} comments overlap orphan comment regions already rehomed onto a retained owner",
-        )
-
-        comments.reject { |comment| rehomed_orphan_lines.include?(comment.location.start_line) }
+        ) { |comment| rehomed_orphan_lines.include?(comment.location.start_line) }
       end
 
       def emit_scanned_blank_gap_lines(result:, analysis:, source:, decision:, line_numbers:)

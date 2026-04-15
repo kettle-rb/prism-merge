@@ -90,13 +90,11 @@ RSpec.describe "Orphan Line Handling" do
       RUBY
     end
 
-    it "preserves appropriate blank line spacing without runaway churn" do
+    it "preserves destination orphan blank-line spacing" do
       merger = Prism::Merge::SmartMerger.new(template_code, dest_code)
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      expect(result.scan(/\n\n+/).map(&:length).max).to be <= 3
+      expect(result).to eq(dest_code)
     end
   end
 

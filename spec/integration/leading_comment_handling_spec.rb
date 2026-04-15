@@ -46,9 +46,7 @@ RSpec.describe "Leading Comment Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      expect(result).to include("leading comment")
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -98,8 +96,7 @@ RSpec.describe "Leading Comment Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -153,9 +150,7 @@ RSpec.describe "Leading Comment Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      expect(result).to include("method_c")
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -199,8 +194,7 @@ RSpec.describe "Leading Comment Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -246,9 +240,7 @@ RSpec.describe "Leading Comment Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      expect(result).to include("leading comment")
+      expect(result).to eq(dest_code)
     end
   end
 end

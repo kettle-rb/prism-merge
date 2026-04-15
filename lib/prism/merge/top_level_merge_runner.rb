@@ -119,9 +119,6 @@ module Prism
 
         emit_dest_postlude_lines(last_output_dest_line)
 
-        # Normalize consecutive blank lines left behind by comment dedup or node removal
-        merger.result.normalize_consecutive_blank_lines!
-
         merger.result
       end
 

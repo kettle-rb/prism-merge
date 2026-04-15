@@ -15,6 +15,11 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
     analysis.statements[1]
   end
 
+  def third_node(merger, side)
+    analysis = (side == :template) ? merger.template_analysis : merger.dest_analysis
+    analysis.statements[2]
+  end
+
   describe "#emit_dest_prefix_lines" do
     it "emits shebang, destination magic comment, and separating blank line before the first node" do
       source = <<~RUBY
@@ -515,6 +520,48 @@ RSpec.describe Prism::Merge::NodeEmissionSupport do
 
       expect(result.to_s).to eq("def example\n  :body\nend\n\n\n")
       expect(result.line_metadata.map { |meta| meta[:template_line] }).to eq([1, 2, 3, 4, 5])
+    end
+
+    it "does not pre-emit part of a destination gap owned by the next destination-only sibling" do
+      template = <<~RUBY
+        # frozen_string_literal: true
+
+        VERSION = "1.0.0"
+      RUBY
+
+      dest = <<~RUBY
+        # frozen_string_literal: true
+
+        VERSION = "1.0.0"
+        CUSTOM = "custom"
+
+
+        ANOTHER = "another"
+      RUBY
+
+      merger = merger_for(template, dest)
+      support = described_class.new(merger: merger)
+      result = merger.send(:build_result)
+
+      support.emit_node(
+        result: result,
+        node: second_node(merger, :destination),
+        analysis: merger.dest_analysis,
+        source: :destination,
+      )
+
+      expect(result.to_s).to eq("CUSTOM = \"custom\"\n")
+
+      last_output_line = support.emit_dest_gap_lines(
+        result: result,
+        analysis: merger.dest_analysis,
+        last_output_line: second_node(merger, :destination).location.end_line,
+        next_node: third_node(merger, :destination),
+      )
+
+      expect(last_output_line).to eq(6)
+      expect(result.to_s).to eq("CUSTOM = \"custom\"\n\n\n")
+      expect(result.line_metadata.map { |meta| meta[:dest_line] }).to eq([4, 5, 6])
     end
 
     it "re-attaches owned inline comments for partial same-line destination nodes" do

@@ -44,10 +44,7 @@ RSpec.describe "Trailing Blank Line Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      # Should have blank lines between methods
-      expect(result).to match(/method_a.*\n\s*\n.*method_b/m)
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -127,10 +124,7 @@ RSpec.describe "Trailing Blank Line Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      # With destination preference, destination's comment should be used
-      expect(result).to include("Different comment about method_b")
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -171,8 +165,7 @@ RSpec.describe "Trailing Blank Line Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
+      expect(result).to eq(dest_code)
     end
   end
 
@@ -223,9 +216,7 @@ RSpec.describe "Trailing Blank Line Handling" do
       )
       result = merger.merge
 
-      expect(result).to include("method_a")
-      expect(result).to include("method_b")
-      expect(result).to include("method_c")
+      expect(result).to eq(dest_code)
     end
   end
 end
