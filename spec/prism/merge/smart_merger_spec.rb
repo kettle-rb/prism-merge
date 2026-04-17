@@ -1804,7 +1804,6 @@ RSpec.describe Prism::Merge::SmartMerger do
     end
 
     it_behaves_like "Ast::Merge::RuntimeDebugContract"
-
     it "returns hash with content and debug information" do
       template = <<~RUBY
         def hello
@@ -1826,8 +1825,9 @@ RSpec.describe Prism::Merge::SmartMerger do
       expect(result).to have_key(:debug)
       expect(result).to have_key(:runtime)
       expect(result).to have_key(:statistics)
-      expect(result[:runtime]).to be_a(Hash)
-      expect(result[:statistics]).to be_a(Hash)
+      expect(result).to have_key(:decisions)
+      expect(result).to have_key(:template_analysis)
+      expect(result).to have_key(:dest_analysis)
     end
 
     it "returns debug info with statement counts" do
@@ -1853,6 +1853,141 @@ RSpec.describe Prism::Merge::SmartMerger do
 
       expect(result[:statistics]).to be_a(Hash)
       expect(result[:statistics].values).to all(be_a(Integer))
+    end
+
+    it "surfaces unresolved policy through runtime metadata" do
+      merger = described_class.new(
+        "def hello; end",
+        "def hello; end",
+        resolution_mode: :unresolved,
+        unresolved_policy: {enabled_kinds: [:matched_node], provisional_winner: :template},
+      )
+
+      result = merger.merge_with_debug
+
+      expect(result.dig(:runtime, :policy_context)).to include(
+        resolution_mode: :unresolved,
+        unresolved_policy: {
+          enabled_kinds: [:matched_node],
+          provisional_winner: :template,
+          provisional_winner_by_kind: {},
+          metadata: {},
+        },
+      )
+      expect(result.dig(:runtime, :operation_trees, 0, :options)).to include(
+        resolution_mode: :unresolved,
+        unresolved_policy: {
+          enabled_kinds: [:matched_node],
+          provisional_winner: :template,
+          provisional_winner_by_kind: {},
+          metadata: {},
+        },
+      )
+    end
+  end
+
+  describe "unresolved runtime review" do
+    let(:template_content) { "def hello; :template; end\n" }
+    let(:destination_content) { "def hello; :destination; end\n" }
+    let(:unresolved_runtime_merger) do
+      described_class.new(
+        template_content,
+        destination_content,
+        resolution_mode: :unresolved,
+      )
+    end
+    let(:expected_unresolved_surface_path) { "document[0] > matched_node[line=1]" }
+    let(:expected_unresolved_output_fragment) { "def hello; :destination; end" }
+    let(:build_fresh_unresolved_merge_result) do
+      -> do
+        described_class.new(
+          template_content,
+          destination_content,
+          resolution_mode: :unresolved,
+        ).merge_result
+      end
+    end
+    let(:expected_replayed_output_fragment) { "def hello; :template; end" }
+
+    it_behaves_like "Ast::Merge::UnresolvedRuntimeContract"
+    it_behaves_like "Ast::Merge::UnresolvedRuntimeDebugContract"
+    it_behaves_like "Ast::Merge::UnresolvedReviewStateTransportContract"
+
+    it "applies caller-selected single-line resolutions" do
+      result = unresolved_runtime_merger.merge_result
+
+      expect(result.to_s).to include("def hello; :destination; end")
+
+      result.apply_unresolved_resolutions!("prism-matched_node-1" => :template)
+
+      expect(result.to_s).to include("def hello; :template; end")
+      expect(result.review_required?).to be(false)
+    end
+
+    it "applies caller-selected multi-line matched-node resolutions" do
+      template = <<~RUBY
+        def hello
+          :template
+        end
+      RUBY
+      destination = <<~RUBY
+        def hello
+          :destination
+        end
+      RUBY
+
+      result = described_class.new(
+        template,
+        destination,
+        resolution_mode: :unresolved,
+      ).merge_result
+
+      expect(result.to_s).to include(":destination")
+      expect(result.unresolved_case("prism-matched_node-1").metadata[:result_lines]).to eq([1, 3])
+      expect(result.lines_by_decision(:unresolved).length).to eq(3)
+
+      result.apply_unresolved_resolutions!("prism-matched_node-1" => :template)
+
+      expect(result.to_s).to include(":template")
+      expect(result.review_required?).to be(false)
+      expect(result.lines_by_decision(:kept_template).length).to eq(3)
+    end
+
+    context "with recursive body merges" do
+      let(:template_content) do
+        <<~RUBY
+          class Config
+            def updated
+              :template_updated
+            end
+          end
+        RUBY
+      end
+      let(:destination_content) do
+        <<~RUBY
+          class Config
+            def updated
+              :destination_updated
+            end
+          end
+        RUBY
+      end
+      let(:expected_unresolved_surface_path) { "document[0] > ClassNode[line=1] > matched_node[line=2]" }
+      let(:expected_unresolved_output_fragment) { ":destination_updated" }
+
+      it_behaves_like "Ast::Merge::UnresolvedRuntimeContract"
+      it_behaves_like "Ast::Merge::UnresolvedRuntimeDebugContract"
+
+      it "applies caller-selected recursive-body resolutions" do
+        result = unresolved_runtime_merger.merge_result
+
+        expect(result.unresolved_case("prism-matched_node-1-within-class_node-1").metadata[:result_lines]).to eq([2, 4])
+
+        result.apply_unresolved_resolutions!("prism-matched_node-1-within-class_node-1" => :template)
+
+        expect(result.to_s).to include(":template_updated")
+        expect(result.review_required?).to be(false)
+      end
     end
   end
 

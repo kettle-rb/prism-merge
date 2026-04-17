@@ -153,11 +153,19 @@ module Prism
       # @return [Hash] Hash with :content, :debug, and :statistics keys
       def merge_with_debug
         result_obj = merge_result
+        template_analysis_debug = {
+          valid: @template_analysis&.valid? || false,
+          statements: @template_analysis&.statements&.size || 0,
+        }
+        dest_analysis_debug = {
+          valid: @dest_analysis&.valid? || false,
+          statements: @dest_analysis&.statements&.size || 0,
+        }
         {
           content: result_obj.to_s,
           debug: {
-            template_statements: @template_analysis&.statements&.size || 0,
-            dest_statements: @dest_analysis&.statements&.size || 0,
+            template_statements: template_analysis_debug[:statements],
+            dest_statements: dest_analysis_debug[:statements],
             preference: @preference,
             add_template_only_nodes: @add_template_only_nodes,
             freeze_token: @freeze_token,
@@ -167,6 +175,9 @@ module Prism
           },
           runtime: runtime_session&.to_h,
           statistics: result_obj.respond_to?(:statistics) ? result_obj.statistics : result_obj.decision_summary,
+          decisions: result_obj.respond_to?(:decision_summary) ? result_obj.decision_summary : result_obj.statistics,
+          template_analysis: template_analysis_debug,
+          dest_analysis: dest_analysis_debug,
         }
       end
 

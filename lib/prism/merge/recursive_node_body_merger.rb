@@ -37,6 +37,8 @@ module Prism
           dest_body,
           signature_generator: merger.instance_variable_get(:@raw_signature_generator),
           preference: merger.preference,
+          resolution_mode: merger.resolution_mode,
+          unresolved_policy: merger.unresolved_policy,
           add_template_only_nodes: merger.add_template_only_nodes,
           remove_template_missing_nodes: merger.remove_template_missing_nodes,
           corruption_handling: merger.corruption_handling,
@@ -103,6 +105,7 @@ module Prism
         dest_inline_by_line = merger.send(:wrapper_inline_comment_entries_by_line, merger.dest_analysis, actual_dest)
         merged_body_lines = body_result ? body_result.lines.dup : []
         merged_body_metadata = body_result&.line_metadata&.dup || []
+        remapped_result_lines = {}
 
         prev_comment_line = (comment_source == :template) ? last_skipped_template_line : nil
         merger.send(
@@ -170,7 +173,16 @@ module Prism
             dest_line: remap_body_line(metadata[:dest_line], dest_layout),
             comment: metadata[:comment],
           )
+          remapped_result_lines[metadata[:result_line]] = merger.result.line_count if metadata[:result_line]
         end
+
+        remap_inner_unresolved_review_state!(
+          body_result: body_result,
+          remapped_result_lines: remapped_result_lines,
+          template_layout: template_layout,
+          dest_layout: dest_layout,
+          parent_node: actual_dest || actual_template,
+        )
 
         merger.send(:begin_node_plan_emitter).emit(
           template_node: actual_template,
@@ -243,6 +255,111 @@ module Prism
       end
 
       private
+
+      def remap_inner_unresolved_review_state!(body_result:, remapped_result_lines:, template_layout:, dest_layout:, parent_node:)
+        return unless body_result&.review_required?
+
+        remapped_cases = body_result.unresolved_cases.map do |resolution_case|
+          remap_inner_unresolved_case(
+            resolution_case: resolution_case,
+            remapped_result_lines: remapped_result_lines,
+            template_layout: template_layout,
+            dest_layout: dest_layout,
+            parent_node: parent_node,
+          )
+        end
+        remapped_conflicts_by_case_id = body_result.conflicts.each_with_object({}) do |conflict, hash|
+          hash[conflict[:case_id].to_s] = conflict
+        end
+
+        remapped_cases.each do |resolution_case|
+          merger.result.add_unresolved_case(resolution_case)
+          conflict = remapped_conflicts_by_case_id[resolution_case.metadata[:source_case_id].to_s]
+          merger.result.conflicts << remap_inner_unresolved_conflict(conflict: conflict, resolution_case: resolution_case) if conflict
+        end
+      end
+
+      def remap_inner_unresolved_case(resolution_case:, remapped_result_lines:, template_layout:, dest_layout:, parent_node:)
+        metadata = resolution_case.metadata.dup
+        metadata[:source_case_id] = resolution_case.case_id
+        metadata[:result_lines] = remap_result_line_span(metadata[:result_lines], remapped_result_lines)
+        metadata[:line] = single_line_result(metadata[:result_lines])
+        metadata[:template_lines] = remap_source_line_span(metadata[:template_lines], template_layout)
+        metadata[:destination_lines] = remap_source_line_span(metadata[:destination_lines], dest_layout)
+
+        Ast::Merge::Runtime::ResolutionCase.new(
+          case_id: remapped_case_id(resolution_case.case_id, parent_node),
+          reason: resolution_case.reason,
+          candidates: resolution_case.candidates,
+          provisional_winner: resolution_case.provisional_winner,
+          surface_path: remapped_surface_path(resolution_case, parent_node, metadata),
+          operation_id: resolution_case.operation_id,
+          metadata: metadata,
+        )
+      end
+
+      def remap_inner_unresolved_conflict(conflict:, resolution_case:)
+        remapped = conflict.merge(case_id: resolution_case.case_id)
+        remapped[:line] = resolution_case.metadata[:line] if resolution_case.metadata[:line]
+        remapped
+      end
+
+      def remap_result_line_span(result_lines, remapped_result_lines)
+        span = Array(result_lines)
+        return nil unless span.length == 2
+
+        start_line = remapped_result_lines[span[0]]
+        end_line = remapped_result_lines[span[1]]
+        return nil unless start_line && end_line
+
+        [start_line, end_line]
+      end
+
+      def remap_source_line_span(source_lines, layout)
+        span = Array(source_lines)
+        return nil unless span.length == 2
+
+        start_line = remap_body_line(span[0], layout)
+        end_line = remap_body_line(span[1], layout)
+        return nil unless start_line && end_line
+
+        [start_line, end_line]
+      end
+
+      def single_line_result(result_lines)
+        return unless result_lines && result_lines[0] == result_lines[1]
+
+        result_lines[0]
+      end
+
+      def remapped_case_id(case_id, parent_node)
+        "#{case_id}-within-#{parent_segment_token(parent_node)}"
+      end
+
+      def remapped_surface_path(resolution_case, parent_node, metadata)
+        parent_segment = recursive_parent_surface_segment(parent_node)
+        child_segment = recursive_child_surface_segment(resolution_case, metadata)
+        return merger.send(:unresolved_surface_path, parent_segment) unless child_segment
+
+        merger.send(:unresolved_surface_path, parent_segment, child_segment)
+      end
+
+      def recursive_parent_surface_segment(node)
+        node_type = node.class.name.split("::").last
+        merger.send(:unresolved_typed_path_segment, node_type, node: node, fallback: node_type)
+      end
+
+      def recursive_child_surface_segment(resolution_case, metadata)
+        child_line = metadata.dig(:destination_lines, 0) || metadata.dig(:template_lines, 0)
+        return unless child_line
+
+        match_kind = metadata[:match_kind] || resolution_case.reason
+        "#{match_kind}[line=#{child_line}]"
+      end
+
+      def parent_segment_token(node)
+        "#{node.class.name.split('::').last.gsub(/([a-z\d])([A-Z])/, '\\1_\\2').downcase}-#{node.location.start_line}"
+      end
 
       def emit_trailing_layout_gap_lines(analysis:, owner:, source:, decision:)
         return unless analysis.respond_to?(:layout_attachment_for)

@@ -183,6 +183,7 @@ module Prism
         decision = MergeResult::DECISION_KEPT_TEMPLATE
         last_emitted_dest_line = nil
         last_filtered_leading_line = nil
+        result_line_span = nil
 
         template_analysis = merger.template_analysis
         dest_analysis = merger.dest_analysis
@@ -272,16 +273,19 @@ module Prism
         dest_inline_entries = dest_analysis.send(:owner_inline_comment_entries, dest_node)
         inline_entries = template_inline_entries.any? ? template_inline_entries : dest_inline_entries
 
-        template_node_source_lines(template_node, template_analysis).each_with_index do |line, index|
+        template_source_lines = template_node_source_lines(template_node, template_analysis)
+        node_result_start_line = result.line_count + 1
+        template_source_lines.each_with_index do |line, index|
           line_num = template_node.location.start_line + index
 
-          if index == template_node_source_lines(template_node, template_analysis).length - 1 &&
+          if index == template_source_lines.length - 1 &&
               template_inline_entries.empty? && inline_entries.any?
             line = merger.send(:append_inline_comment_entries, line, inline_entries)
           end
 
           result.add_line(line, decision: decision, template_line: line_num)
         end
+        result_line_span = [node_result_start_line, result.line_count] if template_source_lines.any?
 
         template_claimed = template_analysis.respond_to?(:claimed_lines) ? template_analysis.claimed_lines : Set.new
         dest_claimed = dest_analysis.respond_to?(:claimed_lines) ? dest_analysis.claimed_lines : Set.new
@@ -333,6 +337,7 @@ module Prism
           return {
             last_emitted_dest_line: last_emitted_dest_line,
             preserve_trailing_blank_line_progress: true,
+            result_line_span: result_line_span,
           }
         end
 
@@ -353,12 +358,13 @@ module Prism
           end
         end
 
-        {last_emitted_dest_line: last_emitted_dest_line}
+        {last_emitted_dest_line: last_emitted_dest_line, result_line_span: result_line_span}
       end
 
       def emit_node(result:, node:, analysis:, source:, matched_template_node: nil)
         decision = (source == :template) ? MergeResult::DECISION_KEPT_TEMPLATE : MergeResult::DECISION_KEPT_DEST
         last_emitted_dest_line = nil
+        result_line_span = nil
         leading = merger.send(:filtered_leading_comments_for, node, source)
         leading_comments = leading[:comments]
         last_filtered_leading_line = nil
@@ -421,6 +427,7 @@ module Prism
         end
 
         source_lines = node_source_lines(node, analysis)
+        node_result_start_line = result.line_count + 1
         source_lines.each_with_index do |line, index|
           line_num = node.location.start_line + index
 
@@ -435,6 +442,7 @@ module Prism
             last_emitted_dest_line = line_num
           end
         end
+        result_line_span = [node_result_start_line, result.line_count] if source_lines.any?
 
         trailing_comments = node.location.respond_to?(:trailing_comments) ? node.location.trailing_comments : []
         orphan_regions = orphan_regions_for(node, analysis: analysis, source: source)
@@ -508,7 +516,7 @@ module Prism
           last_emitted_dest_line = emitted_orphan_line if source == :destination && emitted_orphan_line
         end
 
-        {last_emitted_dest_line: last_emitted_dest_line}
+        {last_emitted_dest_line: last_emitted_dest_line, result_line_span: result_line_span}
       end
 
       private

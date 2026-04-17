@@ -29,6 +29,31 @@ RSpec.describe Prism::Merge::FileAnalysis do
     let(:build_file_analysis) do
       ->(source, **opts) { described_class.new(source, **opts) }
     end
+
+    let(:analysis_expected_feature_profile) do
+      {
+        owner_selector: :prism_statement_sequence,
+        match_key: :signature,
+        read_strategy: :native_read_portable_write,
+        attachment_strategy: :layout_only,
+        comment_style: :hash_comment,
+        render_family: :prism_ruby_source,
+        capabilities: {layout_aware: true, logical_owner: false},
+        logical_owners: {},
+        repair_policies: [
+          {kind: :comment_ownership_overlap, handling: :heal, metadata: {}},
+          {kind: :duplicate_template_leading_prefix, handling: :heal, metadata: {}},
+        ],
+        surfaces: [
+          {name: :ruby_doc_comment, selector: :native_attachment, metadata: {}},
+          {name: :yard_example_block, selector: :yard_example_tag, metadata: {}},
+        ],
+        delegation_policies: [
+          {surface_name: :ruby_doc_comment, strategy: :same_ruleset, metadata: {}},
+          {surface_name: :yard_example_block, strategy: :same_ruleset, metadata: {}},
+        ],
+      }
+    end
   end
 
   describe "#initialize" do
@@ -463,43 +488,6 @@ RSpec.describe Prism::Merge::FileAnalysis do
       expect(analysis.comment_support_style.native_read_portable_write?).to be true
       expect(analysis.comment_support_style.portable_write?).to be true
       expect(analysis.comment_support_style.details[:capability]).to eq(:native_full)
-    end
-
-    it "exposes a concrete feature profile" do
-      code = <<~RUBY
-        # frozen_string_literal: true
-
-        def example
-          "hello"
-        end
-      RUBY
-
-      analysis = described_class.new(code)
-      profile = analysis.feature_profile
-
-      expect(profile.owner_selector).to eq(:prism_statement_sequence)
-      expect(profile.match_key).to eq(:signature)
-      expect(profile.read_strategy).to eq(:native_read_portable_write)
-      expect(profile.render_family).to eq(:prism_ruby_source)
-      expect(profile.attachment_strategy).to eq(:layout_only)
-      expect(profile.repair_policies.map(&:to_h)).to eq(
-        [
-          {kind: :comment_ownership_overlap, handling: :heal, metadata: {}},
-          {kind: :duplicate_template_leading_prefix, handling: :heal, metadata: {}},
-        ],
-      )
-      expect(profile.surfaces.map(&:to_h)).to eq(
-        [
-          {name: :ruby_doc_comment, selector: :native_attachment, metadata: {}},
-          {name: :yard_example_block, selector: :yard_example_tag, metadata: {}},
-        ],
-      )
-      expect(profile.delegation_policies.map(&:to_h)).to eq(
-        [
-          {surface_name: :ruby_doc_comment, strategy: :same_ruleset, metadata: {}},
-          {surface_name: :yard_example_block, strategy: :same_ruleset, metadata: {}},
-        ],
-      )
     end
 
     it "builds shared comment attachments from native Prism ownership" do

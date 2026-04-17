@@ -141,6 +141,8 @@ module Prism
             add_template_only_nodes: merger.add_template_only_nodes,
             remove_template_missing_nodes: merger.remove_template_missing_nodes,
             corruption_handling: merger.corruption_handling,
+            resolution_mode: merger.resolution_mode,
+            unresolved_policy: merger.unresolved_policy.to_h,
           },
           metadata: {
             merger: merger.class.name,
@@ -160,6 +162,8 @@ module Prism
           requested_strategy: :top_level_merge,
           options: {
             feature_profile: merger.dest_analysis.feature_profile.to_h,
+            resolution_mode: merger.resolution_mode,
+            unresolved_policy: merger.unresolved_policy.to_h,
           },
         ).running!
 
@@ -184,6 +188,16 @@ module Prism
         return unless @runtime_session && root_operation
 
         delegated_child_merge_complete = root_operation.children.all?(&:completed?)
+        child_result = Ast::Merge::Runtime::ChildResult.new(
+          replacement_text: merge_result.to_s,
+          diagnostics: @runtime_session.diagnostics,
+          capabilities_used: delegated_child_merge_complete ? %i[top_level_merge nested_surface_discovery delegated_child_merge] : %i[top_level_merge nested_surface_discovery],
+          capabilities_missing: delegated_child_merge_complete ? [] : %i[delegated_child_merge],
+          unresolved_cases: merge_result.unresolved_cases,
+          metadata: {
+            decision_summary: merge_result.respond_to?(:decision_summary) ? merge_result.decision_summary : merge_result.statistics,
+          },
+        )
 
         root_operation.add_diagnostic(
           Ast::Merge::Runtime::Diagnostic.new(
@@ -198,17 +212,11 @@ module Prism
           ),
         )
 
-        root_operation.complete!(
-          result: Ast::Merge::Runtime::ChildResult.new(
-            replacement_text: merge_result.to_s,
-            diagnostics: @runtime_session.diagnostics,
-            capabilities_used: delegated_child_merge_complete ? %i[top_level_merge nested_surface_discovery delegated_child_merge] : %i[top_level_merge nested_surface_discovery],
-            capabilities_missing: delegated_child_merge_complete ? [] : %i[delegated_child_merge],
-            metadata: {
-              decision_summary: merge_result.respond_to?(:decision_summary) ? merge_result.decision_summary : merge_result.statistics,
-            },
-          ),
-        )
+        if child_result.unresolved?
+          root_operation.unresolved!(result: child_result)
+        else
+          root_operation.complete!(result: child_result)
+        end
         merger.send(:record_runtime_session, @runtime_session)
       end
 
@@ -1064,7 +1072,13 @@ module Prism
         output_analysis = merger.dest_analysis
         emission = nil
 
-        if merger.send(:preference_for_node, template_node, dest_node) == :template
+        if reviewable_unresolved_match?(template_node, dest_node)
+          emission = process_unresolved_non_recursive_match(template_node: template_node, dest_node: dest_node)
+          if emission[:provisional_winner] == :template
+            output_node = template_node
+            output_analysis = merger.template_analysis
+          end
+        elsif merger.send(:preference_for_node, template_node, dest_node) == :template
           emission = merger.send(:add_matched_template_node_to_result, merger.result, template_node, dest_node)
           output_node = template_node
           output_analysis = merger.template_analysis
@@ -1085,6 +1099,125 @@ module Prism
           output_analysis: output_analysis,
           preserve_trailing_blank_line_progress: emission&.fetch(:preserve_trailing_blank_line_progress, false),
         }
+      end
+
+      def process_unresolved_non_recursive_match(template_node:, dest_node:)
+        provisional_winner = merger.unresolved_policy.provisional_winner_for(
+          :matched_node,
+          fallback: merger.send(:preference_for_node, template_node, dest_node),
+        )
+
+        emission =
+          if provisional_winner == :template
+            merger.send(:add_matched_template_node_to_result, merger.result, template_node, dest_node)
+          else
+            merger.send(
+              :add_node_to_result,
+              merger.result,
+              dest_node,
+              merger.dest_analysis,
+              :destination,
+              matched_template_node: template_node,
+            )
+          end
+
+        result_line_span = emission[:result_line_span]
+        mark_emitted_lines_unresolved!(result_line_span)
+        record_unresolved_match_case!(
+          template_node: template_node,
+          dest_node: dest_node,
+          provisional_winner: provisional_winner,
+          result_line_span: result_line_span,
+        )
+
+        emission.merge(provisional_winner: provisional_winner)
+      end
+
+      def reviewable_unresolved_match?(template_node, dest_node)
+        return false unless merger.send(:unresolved_mode?)
+        return false unless merger.unresolved_policy.unresolved_for?(:matched_node)
+
+        template_candidate = unresolved_match_candidate_text(template_node, merger.template_analysis)
+        destination_candidate = unresolved_match_candidate_text(dest_node, merger.dest_analysis)
+        template_candidate != destination_candidate
+      end
+
+      def record_unresolved_match_case!(template_node:, dest_node:, provisional_winner:, result_line_span:)
+        result_start_line, result_end_line = Array(result_line_span)
+        node_type = unresolved_match_node_type(dest_node || template_node)
+        surface_path = unresolved_match_surface_path(dest_node, template_node)
+        merger.send(
+          :record_unresolved_node_choice,
+          result: merger.result,
+          template_node: template_node,
+          destination_node: dest_node,
+          template_text: unresolved_match_candidate_text(template_node, merger.template_analysis),
+          destination_text: unresolved_match_candidate_text(dest_node, merger.dest_analysis),
+          provisional_winner: provisional_winner,
+          case_prefix: "prism",
+          case_parts: [:matched_node],
+          case_id: unresolved_match_case_id(dest_node, template_node),
+          surface_path: surface_path,
+          metadata: {
+            match_kind: :matched_node,
+            node_type: node_type,
+            line: result_start_line == result_end_line ? result_start_line : nil,
+            result_lines: result_line_span,
+            template_lines: unresolved_match_line_span(template_node),
+            destination_lines: unresolved_match_line_span(dest_node),
+            review_identity: merger.send(
+              :review_identity_for_unresolved_choice,
+              template_text: unresolved_match_candidate_text(template_node, merger.template_analysis),
+              destination_text: unresolved_match_candidate_text(dest_node, merger.dest_analysis),
+              provisional_winner: provisional_winner,
+              surface_path: surface_path,
+              match_kind: :matched_node,
+              node_type: node_type,
+              result_lines: result_line_span,
+            ),
+          },
+          conflict_fields: {
+            line: dest_node.location.start_line,
+          },
+        )
+      end
+
+      def mark_emitted_lines_unresolved!(result_line_span)
+        start_line, end_line = Array(result_line_span)
+        return unless start_line && end_line
+        return if end_line < start_line
+
+        ((start_line - 1)...end_line).each do |index|
+          metadata = merger.result.line_metadata[index]
+          next unless metadata
+
+          metadata[:decision] = Ast::Merge::MergeResultBase::DECISION_UNRESOLVED
+        end
+      end
+
+      def unresolved_match_candidate_text(node, analysis)
+        merger.send(:node_emission_support).send(:node_source_lines, node, analysis).join("\n")
+      end
+
+      def unresolved_match_case_id(dest_node, template_node)
+        line = (dest_node || template_node).location.start_line
+        "prism-matched_node-#{line}"
+      end
+
+      def unresolved_match_surface_path(dest_node, template_node)
+        line = (dest_node || template_node).location.start_line
+        merger.send(:unresolved_surface_path, "matched_node[line=#{line}]")
+      end
+
+      def unresolved_match_node_type(node)
+        node.class.name.split("::").last
+      end
+
+      def unresolved_match_line_span(node)
+        [
+          node.location.start_line,
+          merger.send(:node_emission_support).send(:effective_end_line, node),
+        ]
       end
 
       def emission_last_output(last_output_dest_line, emission)

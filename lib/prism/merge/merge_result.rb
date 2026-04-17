@@ -195,6 +195,10 @@ module Prism
         stats
       end
 
+      def decision_summary
+        statistics
+      end
+
       # Get lines by decision type
       # @param decision [Symbol] Decision type to filter by
       # @return [Array<Hash>] Metadata for matching lines
@@ -235,6 +239,88 @@ module Prism
         end
 
         output.join("\n")
+      end
+
+      protected
+
+      def apply_non_provisional_unresolved_resolution!(resolution_case, selection:, selected_candidate:)
+        result_line_span = normalize_result_line_span(resolution_case.metadata[:result_lines])
+        return super unless result_line_span
+
+        replace_result_line_span!(
+          result_line_span: result_line_span,
+          selection: selection,
+          selected_lines: unresolved_candidate_lines(selected_candidate),
+          resolution_case: resolution_case,
+        )
+      end
+
+      private
+
+      def normalize_result_line_span(value)
+        span = Array(value)
+        return unless span.length == 2
+
+        start_line, end_line = span.map(&:to_i)
+        return unless start_line >= 1 && end_line >= start_line && end_line <= @lines.length
+
+        [start_line, end_line]
+      end
+
+      def unresolved_candidate_lines(candidate)
+        lines = candidate.to_s.split("\n", -1)
+        lines.empty? ? [""] : lines
+      end
+
+      def replace_result_line_span!(result_line_span:, selection:, selected_lines:, resolution_case:)
+        start_line, end_line = result_line_span
+        replacement_metadata = build_replacement_metadata(
+          selection: selection,
+          selected_lines: selected_lines,
+          resolution_case: resolution_case,
+        )
+
+        @lines[(start_line - 1)..(end_line - 1)] = selected_lines
+        @line_metadata[(start_line - 1)..(end_line - 1)] = replacement_metadata
+        reindex_result_lines!(start_line - 1)
+      end
+
+      def build_replacement_metadata(selection:, selected_lines:, resolution_case:)
+        decision =
+          case selection
+          when :template then DECISION_KEPT_TEMPLATE
+          when :destination then DECISION_KEPT_DEST
+          else selection
+          end
+        source_line_key = selection == :template ? :template_line : :dest_line
+        source_line_numbers = unresolved_source_line_numbers_for(selection, selected_lines.length, resolution_case.metadata)
+
+        selected_lines.each_index.map do |index|
+          {
+            decision: decision,
+            template_line: source_line_key == :template_line ? source_line_numbers[index] : nil,
+            dest_line: source_line_key == :dest_line ? source_line_numbers[index] : nil,
+            comment: nil,
+            result_line: nil,
+          }
+        end
+      end
+
+      def unresolved_source_line_numbers_for(selection, line_count, metadata)
+        source_lines = Array(metadata[selection == :template ? :template_lines : :destination_lines])
+        return Array.new(line_count) unless source_lines.length == 2
+
+        start_line, end_line = source_lines.map(&:to_i)
+        available = end_line >= start_line ? (start_line..end_line).to_a : []
+        return available.take(line_count) if available.length >= line_count
+
+        available + Array.new(line_count - available.length)
+      end
+
+      def reindex_result_lines!(start_index)
+        @line_metadata[start_index..]&.each_with_index do |metadata, offset|
+          metadata[:result_line] = start_index + offset + 1
+        end
       end
     end
   end
