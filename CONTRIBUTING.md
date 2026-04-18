@@ -8,6 +8,12 @@ To submit a patch, please fork the project, create a patch with tests, and send 
 
 Remember to [![Keep A Changelog][📗keep-changelog-img]][📗keep-changelog] if you make changes.
 
+## Developer Certificate of Origin
+
+In order to protect users of this project, we require all contributors to comply with the
+[Developer Certificate of Origin](https://developercertificate.org/).
+This ensures that all contributions are properly licensed and attributed.
+
 ## Help out!
 
 Take a look at the open issues and pull requests, or use the gem and find something to improve.
@@ -24,12 +30,6 @@ Follow these instructions:
 8. Create new Pull Request.
 9. Announce it in the channel for this org in the [Discord][✉️discord-invite]!
 
-## Developer Certificate of Origin
-
-In order to protect users of this project, we require all contributors to comply with the
-[Developer Certificate of Origin](https://developercertificate.org/).
-This ensures that all contributions are properly licensed and attributed.
-
 ## Executables vs Rake tasks
 
 Executables shipped by dependencies, such as kettle-dev, and stone_checksums, are available
@@ -43,6 +43,7 @@ after running `bin/setup`. These include:
 - kettle-pre-release
 - kettle-readme-backers
 - kettle-release
+
 There are many Rake tasks available as well. You can see them by running:
 
 ```shell
@@ -57,6 +58,7 @@ General/runtime
 - DEBUG: Enable extra internal logging for this library (default: false)
 - REQUIRE_BENCH: Enable `require_bench` to profile requires (default: false)
 - CI: When set to true, adjusts default rake tasks toward CI behavior
+
 Coverage (kettle-soup-cover / SimpleCov)
 - K_SOUP_COV_DO: Enable coverage collection (default: true in `mise.toml`)
 - K_SOUP_COV_FORMATTERS: Comma-separated list of formatters (html, xml, rcov, lcov, json, tty)
@@ -67,19 +69,23 @@ Coverage (kettle-soup-cover / SimpleCov)
 - K_SOUP_COV_OPEN_BIN: Path to browser opener for HTML (empty disables auto-open)
 - MAX_ROWS: Limit console output rows for simplecov-console (e.g., 1)
   Tip: When running a single spec file locally, you may want `K_SOUP_COV_MIN_HARD=false` to avoid failing thresholds for a partial run.
+
 GitHub API and CI helpers
 - GITHUB_TOKEN or GH_TOKEN: Token used by `ci:act` and release workflow checks to query GitHub Actions status at higher rate limits
+
 Releasing and signing
 - SKIP_GEM_SIGNING: If set, skip gem signing during build/release
 - GEM_CERT_USER: Username for selecting your public cert in `certs/<USER>.pem` (defaults to $USER)
 - SOURCE_DATE_EPOCH: Reproducible build timestamp.
   - `kettle-release` will set this automatically for the session.
   - Not needed on bundler >= 2.7.0, as reproducible builds have become the default.
+
 Git hooks and commit message helpers (exe/kettle-commit-msg)
 - GIT_HOOK_BRANCH_VALIDATE: Branch name validation mode (e.g., `jira`) or `false` to disable
 - GIT_HOOK_FOOTER_APPEND: Append a footer to commit messages when goalie allows (true/false)
 - GIT_HOOK_FOOTER_SENTINEL: Required when footer append is enabled — a unique first-line sentinel to prevent duplicates
 - GIT_HOOK_FOOTER_APPEND_DEBUG: Extra debug output in the footer template (true/false)
+
 For a quick starting point, this repository’s `mise.toml` defines the shared defaults, and `.env.local` can override them locally. Copy `.env.local.example` to `.env.local`, use `KEY=value` lines, and either activate `mise` in your shell or run commands through `mise exec -C /path/to/project -- ...`.
 
 ## Appraisals
@@ -99,23 +105,7 @@ bin/rake appraisal:reset
 
 When adding an appraisal to CI, check the [runner tool cache][🏃‍♂️runner-tool-cache] to see which runner to use.
 
-## The Reek List
-
-Take a look at the open issues and pull requests, or use the gem and find something to improve.
-
-To refresh the `reek` list:
-
-```console
-bundle exec reek > REEK
-```
-
 ## Run Tests
-
-To run all tests
-
-```console
-bundle exec rake test
-```
 
 Run tests via `kettle-test` (provided by `kettle-test`). It runs RSpec, writes the full log to
 `tmp/kettle-test/rspec-TIMESTAMP.log`, and prints a compact highlight block with timing, seed,
@@ -160,6 +150,7 @@ Never add `# rubocop:disable ...` / `# rubocop:enable ...` comments to code or s
 - When a violation is temporary, and you plan to fix it later, record it in `.rubocop_gradual.lock` using the gradual workflow:
   - `bundle exec rake rubocop_gradual:autocorrect` (preferred)
   - `bundle exec rake rubocop_gradual:force_update` (only when you cannot fix the violations immediately)
+
 As a general rule, fix style issues rather than ignoring them. For example, our specs should follow RSpec conventions like using `described_class` for the class under test.
 
 ## Contributors
@@ -220,6 +211,7 @@ NOTE: To build without signing the gem set `SKIP_GEM_SIGNING` to any value in th
     - `sha256sum pkg/<gem name>-<version>.gem`
 14. Run `bundle exec rake release` which will create a git tag for the version,
     push git commits and tags, and push the `.gem` file to the gem host configured in the gemspec.
+
 [📜src-gl]: https://gitlab.com/kettle-rb/prism-merge/
 [📜src-cb]: https://codeberg.org/kettle-rb/prism-merge
 [📜src-gh]: https://github.com/kettle-rb/prism-merge

@@ -60,6 +60,7 @@ Do not add inline `rubocop:disable` / `rubocop:enable` comments anywhere in the 
 - Temporary exceptions while improving code: record the current violations in `.rubocop_gradual.lock` via the gradual workflow:
   - `bundle exec rake rubocop_gradual:autocorrect` (preferred; will autocorrect what it can and update the lock only if no new violations were introduced)
   - If needed, `bundle exec rake rubocop_gradual:force_update` (as a last resort when you cannot fix the newly reported violations immediately)
+
 In general, treat the rules as guidance to follow; fix violations rather than ignore them. For example, RSpec conventions in this project expect `described_class` to be used in specs that target a specific class under test.
 
 ## Benefits of rubocop_gradual
