@@ -292,14 +292,14 @@ module Prism
           when :destination then DECISION_KEPT_DEST
           else selection
           end
-        source_line_key = selection == :template ? :template_line : :dest_line
+        source_line_key = (selection == :template) ? :template_line : :dest_line
         source_line_numbers = unresolved_source_line_numbers_for(selection, selected_lines.length, resolution_case.metadata)
 
         selected_lines.each_index.map do |index|
           {
             decision: decision,
-            template_line: source_line_key == :template_line ? source_line_numbers[index] : nil,
-            dest_line: source_line_key == :dest_line ? source_line_numbers[index] : nil,
+            template_line: (source_line_key == :template_line) ? source_line_numbers[index] : nil,
+            dest_line: (source_line_key == :dest_line) ? source_line_numbers[index] : nil,
             comment: nil,
             result_line: nil,
           }
@@ -307,11 +307,11 @@ module Prism
       end
 
       def unresolved_source_line_numbers_for(selection, line_count, metadata)
-        source_lines = Array(metadata[selection == :template ? :template_lines : :destination_lines])
+        source_lines = Array(metadata[(selection == :template) ? :template_lines : :destination_lines])
         return Array.new(line_count) unless source_lines.length == 2
 
         start_line, end_line = source_lines.map(&:to_i)
-        available = end_line >= start_line ? (start_line..end_line).to_a : []
+        available = (end_line >= start_line) ? (start_line..end_line).to_a : []
         return available.take(line_count) if available.length >= line_count
 
         available + Array.new(line_count - available.length)

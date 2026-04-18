@@ -152,11 +152,14 @@ module Prism
         return last_output_line if last_output_line == 0
 
         leading_comments = next_node.location.respond_to?(:leading_comments) ? next_node.location.leading_comments : []
-        next_start_line = leading_comments.any? ? leading_comments.first.location.start_line : next_node.location.start_line
+        pending_leading_comments = leading_comments.select do |comment|
+          comment.location.start_line > last_output_line
+        end
+        next_start_line = pending_leading_comments.any? ? pending_leading_comments.first.location.start_line : next_node.location.start_line
         gap_start = last_output_line + 1
         return last_output_line if gap_start >= next_start_line
 
-        if leading_comments.empty?
+        if pending_leading_comments.empty?
           emitted_gap_line = emit_layout_leading_gap_lines(
             result: result,
             analysis: analysis,

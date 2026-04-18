@@ -369,36 +369,36 @@ module Prism
         root_operation.children
           .sort_by { |child_operation| [-session.frame_for(child_operation.operation_id).depth, child_operation.surface.address] }
           .each do |child_operation|
-          delegate = session.resolve_delegate_for(child_operation.surface, capability: :merge)
-          next unless delegate
+            delegate = session.resolve_delegate_for(child_operation.surface, capability: :merge)
+            next unless delegate
 
-          child_operation.running!
-          child_result = delegate.merge(operation: child_operation, session: session)
-          child_operation.add_diagnostic(
-            Ast::Merge::Runtime::Diagnostic.new(
-              severity: :info,
-              kind: :child_merge_completed,
-              operation_id: child_operation.operation_id,
-              surface_path: child_operation.surface.address,
-              message: "Completed delegated child merge for #{child_operation.surface.surface_kind}",
-              metadata: child_result.metadata.merge(delegate_name: delegate.name),
-            ),
-          )
-          child_operation.complete!(result: child_result)
-        rescue StandardError => e
-          child_operation.fail!(
-            diagnostic: Ast::Merge::Runtime::Diagnostic.new(
-              severity: :error,
-              kind: :delegation_failed,
-              operation_id: child_operation.operation_id,
-              surface_path: child_operation.surface.address,
-              message: e.message,
-              metadata: {
-                error_class: e.class.name,
-                delegate_name: delegate&.name,
-              },
-            ),
-          )
+            child_operation.running!
+            child_result = delegate.merge(operation: child_operation, session: session)
+            child_operation.add_diagnostic(
+              Ast::Merge::Runtime::Diagnostic.new(
+                severity: :info,
+                kind: :child_merge_completed,
+                operation_id: child_operation.operation_id,
+                surface_path: child_operation.surface.address,
+                message: "Completed delegated child merge for #{child_operation.surface.surface_kind}",
+                metadata: child_result.metadata.merge(delegate_name: delegate.name),
+              ),
+            )
+            child_operation.complete!(result: child_result)
+          rescue StandardError => e
+            child_operation.fail!(
+              diagnostic: Ast::Merge::Runtime::Diagnostic.new(
+                severity: :error,
+                kind: :delegation_failed,
+                operation_id: child_operation.operation_id,
+                surface_path: child_operation.surface.address,
+                message: e.message,
+                metadata: {
+                  error_class: e.class.name,
+                  delegate_name: delegate&.name,
+                },
+              ),
+            )
         end
       end
 
@@ -1161,7 +1161,7 @@ module Prism
           metadata: {
             match_kind: :matched_node,
             node_type: node_type,
-            line: result_start_line == result_end_line ? result_start_line : nil,
+            line: (result_start_line == result_end_line) ? result_start_line : nil,
             result_lines: result_line_span,
             template_lines: unresolved_match_line_span(template_node),
             destination_lines: unresolved_match_line_span(dest_node),

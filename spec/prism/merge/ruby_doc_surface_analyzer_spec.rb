@@ -27,7 +27,7 @@ RSpec.describe Prism::Merge::RubyDocSurfaceAnalyzer do
     end
 
     it "ignores magic-comment-only leading regions" do
-      analysis = Prism::Merge::FileAnalysis.new(<<~'RUBY')
+      analysis = Prism::Merge::FileAnalysis.new(<<~RUBY)
         # frozen_string_literal: true
         class Example
         end

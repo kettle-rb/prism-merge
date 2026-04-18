@@ -7,9 +7,9 @@ module Prism
     class RubyDocSurfaceAnalyzer
       DEFAULT_DOC_LANGUAGE = :yard
       DEFAULT_EXAMPLE_LANGUAGE = :ruby
-      TAG_PREFIX = /\A@[a-z_]+\b/.freeze
-      EXAMPLE_TAG = /\A@example\b(?<rest>.*)\z/.freeze
-      DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/.freeze
+      TAG_PREFIX = /\A@[a-z_]+\b/
+      EXAMPLE_TAG = /\A@example\b(?<rest>.*)\z/
+      DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/
       MAGIC_COMMENT_PREFIXES = %w[
         coding
         encoding

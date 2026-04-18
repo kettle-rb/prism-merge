@@ -1,0 +1,10 @@
+{
+  "lib/prism/merge/file_analysis.rb:1013828567": [
+    [645, 9, 52, "Style/InvertibleUnlessCondition: Prefer `if owner_start_line(owner).to_i <= 1` over `unless owner_start_line(owner).to_i > 1`.", 239105155],
+    [654, 9, 53, "Style/InvertibleUnlessCondition: Prefer `if groups.length <= 1` over `unless groups.length > 1`.", 4113530913]
+  ],
+  "lib/prism/merge/merge_result.rb:3196027787": [
+    [265, 9, 84, "Style/InvertibleUnlessCondition: Prefer `if start_line < 1 || end_line < start_line || end_line > @lines.length` over `unless start_line >= 1 && end_line >= start_line && end_line <= @lines.length`.", 191683746],
+    [265, 23, 41, "Style/ComparableBetween: Prefer `start_line.between?(1, end_line)` over logical comparison.", 1984364106]
+  ]
+}

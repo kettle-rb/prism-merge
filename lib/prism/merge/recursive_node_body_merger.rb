@@ -306,22 +306,22 @@ module Prism
 
       def remap_result_line_span(result_lines, remapped_result_lines)
         span = Array(result_lines)
-        return nil unless span.length == 2
+        return unless span.length == 2
 
         start_line = remapped_result_lines[span[0]]
         end_line = remapped_result_lines[span[1]]
-        return nil unless start_line && end_line
+        return unless start_line && end_line
 
         [start_line, end_line]
       end
 
       def remap_source_line_span(source_lines, layout)
         span = Array(source_lines)
-        return nil unless span.length == 2
+        return unless span.length == 2
 
         start_line = remap_body_line(span[0], layout)
         end_line = remap_body_line(span[1], layout)
-        return nil unless start_line && end_line
+        return unless start_line && end_line
 
         [start_line, end_line]
       end
@@ -358,7 +358,7 @@ module Prism
       end
 
       def parent_segment_token(node)
-        "#{node.class.name.split('::').last.gsub(/([a-z\d])([A-Z])/, '\\1_\\2').downcase}-#{node.location.start_line}"
+        "#{node.class.name.split("::").last.gsub(/([a-z\d])([A-Z])/, '\\1_\\2').downcase}-#{node.location.start_line}"
       end
 
       def emit_trailing_layout_gap_lines(analysis:, owner:, source:, decision:)

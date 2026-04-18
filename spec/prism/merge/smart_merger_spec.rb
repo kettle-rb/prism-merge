@@ -18,6 +18,26 @@ RSpec.describe Prism::Merge::SmartMerger do
         expect(result).to include("def hello")
         expect(result).to include('puts "world"')
       end
+
+      it "preserves the blank line after a promoted freeze block" do
+        template = dest = <<~RUBY
+          # kettle-dev:freeze
+          # Frozen content
+          # kettle-dev:unfreeze
+
+          require "example"
+        RUBY
+
+        result = described_class.new(
+          template,
+          dest,
+          preference: :destination,
+          add_template_only_nodes: true,
+          freeze_token: "kettle-dev",
+        ).merge
+
+        expect(result).to eq(template)
+      end
     end
 
     context "with ruby_example_one fixtures" do
