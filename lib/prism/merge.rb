@@ -38,6 +38,8 @@ module Prism
   # @see FileAnalysis Parses and analyzes Ruby source files
   # @see MergeResult Tracks merged content and decisions
   module Merge
+    BACKEND_REGISTRY = Struct.new(:registered, :mutex).new(false, Mutex.new)
+
     autoload :BeginNodeClauseBodySupport, "prism/merge/begin_node_clause_body_support"
     autoload :BeginNodeClauseBodyMerger, "prism/merge/begin_node_clause_body_merger"
     autoload :BeginNodeClauseHeaderEmitter, "prism/merge/begin_node_clause_header_emitter"
@@ -127,8 +129,27 @@ module Prism
     autoload :ScaffoldChunkRemover, "prism/merge/scaffold_chunk_remover"
     autoload :SmartMerger, "prism/merge/smart_merger"
     autoload :SourceLineLookup, "prism/merge/source_line_lookup"
+
+    class << self
+      def register_backend!
+        BACKEND_REGISTRY.mutex.synchronize do
+          return if BACKEND_REGISTRY.registered
+
+          TreeHaver.register_language(
+            :ruby,
+            backend_module: TreeHaver::Backends::Prism,
+            backend_type: :prism,
+            gem_name: "prism",
+          )
+
+          BACKEND_REGISTRY.registered = true
+        end
+      end
+    end
   end
 end
+
+Prism::Merge.register_backend!
 
 Prism::Merge::Version.class_eval do
   extend VersionGem::Basic

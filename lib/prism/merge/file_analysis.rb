@@ -208,7 +208,8 @@ module Prism
         @signature_generator = signature_generator
         @source_label = source_label
         # **options captured for forward compatibility
-        # Route through TreeHaver's Prism backend rather than calling Prism.parse directly.
+        # Route through the Prism backend that Prism::Merge registers with TreeHaver
+        # during bootstrap rather than calling Prism.parse directly.
         # Store the full tree_haver result so downstream code can use @tree.comments
         # (normalized, deduplicated, with attachment hints) rather than accessing raw
         # Prism::Comment objects via @parse_result.comments or node.location.leading_comments.
