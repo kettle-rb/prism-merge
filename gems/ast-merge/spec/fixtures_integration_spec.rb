@@ -1097,6 +1097,7 @@ RSpec.describe Ast::Merge do
     structured_edit_application_envelope_application_fixture = diagnostics_fixture("structured_edit_application_envelope_application")
     structured_edit_execution_report_fixture = diagnostics_fixture("structured_edit_execution_report")
     structured_edit_crispr_overmatch_fail_closed_fixture = diagnostics_fixture("structured_edit_crispr_overmatch_fail_closed")
+    structured_edit_crispr_append_fallback_insert_fixture = diagnostics_fixture("structured_edit_crispr_append_fallback_insert")
     structured_edit_provider_execution_request_fixture = diagnostics_fixture("structured_edit_provider_execution_request")
     structured_edit_provider_execution_request_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope")
     structured_edit_provider_execution_request_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope_rejection")
@@ -1936,6 +1937,17 @@ RSpec.describe Ast::Merge do
     end
 
     structured_edit_crispr_overmatch_fail_closed_fixture[:cases].each do |entry|
+      report = described_class.structured_edit_execution_report(
+        application: entry.dig(:report, :application),
+        provider_family: entry.dig(:report, :provider_family),
+        provider_backend: entry.dig(:report, :provider_backend),
+        diagnostics: entry.dig(:report, :diagnostics),
+        metadata: entry.dig(:report, :metadata)
+      )
+      expect(json_ready(report)).to eq(json_ready(entry[:report]))
+    end
+
+    structured_edit_crispr_append_fallback_insert_fixture[:cases].each do |entry|
       report = described_class.structured_edit_execution_report(
         application: entry.dig(:report, :application),
         provider_family: entry.dig(:report, :provider_family),
