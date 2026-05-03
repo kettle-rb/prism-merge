@@ -1496,6 +1496,14 @@ module Ast
       batch_apply_decision
     end
 
+    def structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome(apply_decision_outcomes:, metadata: nil)
+      batch_apply_decision_outcome = {
+        apply_decision_outcomes: deep_dup(apply_decision_outcomes)
+      }
+      batch_apply_decision_outcome[:metadata] = deep_dup(metadata) if metadata
+      batch_apply_decision_outcome
+    end
+
     def structured_edit_provider_batch_execution_receipt_replay_workflow_apply_request_envelope(batch_receipt_replay_workflow_apply_request)
       {
         kind: "structured_edit_provider_batch_execution_receipt_replay_workflow_apply_request",
@@ -1554,6 +1562,21 @@ module Ast
       return [nil, { category: "unsupported_version", message: "unsupported structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision envelope version #{envelope[:version]}." }] unless envelope[:version] == STRUCTURED_EDIT_TRANSPORT_VERSION
 
       [deep_dup(envelope[:batch_receipt_replay_workflow_apply_decision]), nil]
+    end
+
+    def structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome_envelope(batch_receipt_replay_workflow_apply_decision_outcome)
+      {
+        kind: "structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        batch_receipt_replay_workflow_apply_decision_outcome: deep_dup(batch_receipt_replay_workflow_apply_decision_outcome)
+      }
+    end
+
+    def import_structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome_envelope(envelope)
+      return [nil, { category: "kind_mismatch", message: "expected structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome envelope kind." }] unless envelope[:kind] == "structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome"
+      return [nil, { category: "unsupported_version", message: "unsupported structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_outcome envelope version #{envelope[:version]}." }] unless envelope[:version] == STRUCTURED_EDIT_TRANSPORT_VERSION
+
+      [deep_dup(envelope[:batch_receipt_replay_workflow_apply_decision_outcome]), nil]
     end
 
     def structured_edit_provider_execution_receipt_replay_workflow_review_request_envelope(receipt_replay_workflow_review_request)
