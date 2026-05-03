@@ -1422,6 +1422,21 @@ module Ast
       [deep_dup(envelope[:receipt_replay_workflow_apply_decision_settlement]), nil]
     end
 
+    def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation_envelope(receipt_replay_workflow_apply_decision_confirmation)
+      {
+        kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        receipt_replay_workflow_apply_decision_confirmation: deep_dup(receipt_replay_workflow_apply_decision_confirmation)
+      }
+    end
+
+    def import_structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation_envelope(envelope)
+      return [nil, { category: "kind_mismatch", message: "expected structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation envelope kind." }] unless envelope[:kind] == "structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation"
+      return [nil, { category: "unsupported_version", message: "unsupported structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation envelope version #{envelope[:version]}." }] unless envelope[:version] == STRUCTURED_EDIT_TRANSPORT_VERSION
+
+      [deep_dup(envelope[:receipt_replay_workflow_apply_decision_confirmation]), nil]
+    end
+
     def structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_settlement(apply_decision_settlements:, metadata: nil)
       batch_apply_decision_settlement = {
         apply_decision_settlements: deep_dup(apply_decision_settlements)
