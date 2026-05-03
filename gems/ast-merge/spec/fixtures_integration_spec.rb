@@ -1216,6 +1216,7 @@ RSpec.describe Ast::Merge do
     structured_edit_provider_execution_receipt_replay_workflow_apply_result_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_result")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome")
+    structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope_rejection")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope_application_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope_application")
@@ -3313,6 +3314,18 @@ RSpec.describe Ast::Merge do
         )
       expect(json_ready(receipt_replay_workflow_apply_decision_outcome)).to eq(
         json_ready(entry[:receipt_replay_workflow_apply_decision_outcome])
+      )
+    end
+
+    structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement_fixture[:cases].each do |entry|
+      receipt_replay_workflow_apply_decision_settlement =
+        described_class.structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement(
+          receipt_replay_workflow_apply_decision_outcome: entry.dig(:receipt_replay_workflow_apply_decision_settlement, :receipt_replay_workflow_apply_decision_outcome),
+          settlement: entry.dig(:receipt_replay_workflow_apply_decision_settlement, :settlement),
+          metadata: entry.dig(:receipt_replay_workflow_apply_decision_settlement, :metadata)
+        )
+      expect(json_ready(receipt_replay_workflow_apply_decision_settlement)).to eq(
+        json_ready(entry[:receipt_replay_workflow_apply_decision_settlement])
       )
     end
 

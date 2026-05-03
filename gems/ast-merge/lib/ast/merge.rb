@@ -1389,6 +1389,15 @@ module Ast
       apply_decision_outcome
     end
 
+    def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement(receipt_replay_workflow_apply_decision_outcome:, settlement:, metadata: nil)
+      apply_decision_settlement = {
+        receipt_replay_workflow_apply_decision_outcome: deep_dup(receipt_replay_workflow_apply_decision_outcome),
+        settlement: settlement
+      }
+      apply_decision_settlement[:metadata] = deep_dup(metadata) if metadata
+      apply_decision_settlement
+    end
+
     def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope(receipt_replay_workflow_apply_decision_outcome)
       {
         kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome",
