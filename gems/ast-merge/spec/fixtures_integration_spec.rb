@@ -1102,6 +1102,7 @@ RSpec.describe Ast::Merge do
     structured_edit_crispr_ruby_callable_destination_move_parity_fixture = diagnostics_fixture("structured_edit_crispr_ruby_callable_destination_move_parity")
     structured_edit_crispr_markdown_heading_section_replace_parity_fixture = diagnostics_fixture("structured_edit_crispr_markdown_heading_section_replace_parity")
     structured_edit_crispr_example_parity_report_fixture = diagnostics_fixture("structured_edit_crispr_example_parity_report")
+    structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_provider_execution_request_fixture = diagnostics_fixture("structured_edit_provider_execution_request")
     structured_edit_provider_execution_request_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope")
     structured_edit_provider_execution_request_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope_rejection")
@@ -1865,6 +1866,24 @@ RSpec.describe Ast::Merge do
         destination_selector_family: entry.dig(:request, :destination_selector_family),
         payload_text: entry.dig(:request, :payload_text),
         if_missing: entry.dig(:request, :if_missing),
+        callable_destination: entry.dig(:request, :callable_destination),
+        metadata: entry.dig(:request, :metadata)
+      )
+      expect(json_ready(request)).to eq(json_ready(entry[:request]))
+    end
+
+    structured_edit_callable_destination_request_fixture[:cases].each do |entry|
+      request = described_class.structured_edit_request(
+        operation_kind: entry.dig(:request, :operation_kind),
+        content: entry.dig(:request, :content),
+        source_label: entry.dig(:request, :source_label),
+        target_selector: entry.dig(:request, :target_selector),
+        target_selector_family: entry.dig(:request, :target_selector_family),
+        destination_selector: entry.dig(:request, :destination_selector),
+        destination_selector_family: entry.dig(:request, :destination_selector_family),
+        payload_text: entry.dig(:request, :payload_text),
+        if_missing: entry.dig(:request, :if_missing),
+        callable_destination: entry.dig(:request, :callable_destination),
         metadata: entry.dig(:request, :metadata)
       )
       expect(json_ready(request)).to eq(json_ready(entry[:request]))

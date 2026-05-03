@@ -861,7 +861,7 @@ module Ast
 
     def structured_edit_request(operation_kind:, content:, source_label:, target_selector: nil,
       target_selector_family: nil, destination_selector: nil, destination_selector_family: nil,
-      payload_text: nil, if_missing: nil, metadata: nil)
+      payload_text: nil, if_missing: nil, callable_destination: nil, metadata: nil)
       request = {
         operation_kind: operation_kind.to_s,
         content: content.to_s,
@@ -873,6 +873,7 @@ module Ast
       request[:destination_selector_family] = destination_selector_family.to_s if destination_selector_family
       request[:payload_text] = payload_text.to_s unless payload_text.nil?
       request[:if_missing] = if_missing.to_s unless if_missing.nil?
+      request[:callable_destination] = deep_dup(callable_destination) if callable_destination
       request[:metadata] = deep_dup(metadata) if metadata
       request
     end
