@@ -1398,6 +1398,15 @@ module Ast
       apply_decision_settlement
     end
 
+    def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation(receipt_replay_workflow_apply_decision_settlement:, confirmation:, metadata: nil)
+      apply_decision_confirmation = {
+        receipt_replay_workflow_apply_decision_settlement: deep_dup(receipt_replay_workflow_apply_decision_settlement),
+        confirmation: confirmation
+      }
+      apply_decision_confirmation[:metadata] = deep_dup(metadata) if metadata
+      apply_decision_confirmation
+    end
+
     def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement_envelope(receipt_replay_workflow_apply_decision_settlement)
       {
         kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement",
