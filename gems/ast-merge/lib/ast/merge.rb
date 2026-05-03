@@ -1380,6 +1380,21 @@ module Ast
       apply_decision
     end
 
+    def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope(receipt_replay_workflow_apply_decision)
+      {
+        kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_decision",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        receipt_replay_workflow_apply_decision: deep_dup(receipt_replay_workflow_apply_decision)
+      }
+    end
+
+    def import_structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope(envelope)
+      return [nil, { category: "kind_mismatch", message: "expected structured_edit_provider_execution_receipt_replay_workflow_apply_decision envelope kind." }] unless envelope[:kind] == "structured_edit_provider_execution_receipt_replay_workflow_apply_decision"
+      return [nil, { category: "unsupported_version", message: "unsupported structured_edit_provider_execution_receipt_replay_workflow_apply_decision envelope version #{envelope[:version]}." }] unless envelope[:version] == STRUCTURED_EDIT_TRANSPORT_VERSION
+
+      [deep_dup(envelope[:receipt_replay_workflow_apply_decision]), nil]
+    end
+
     def structured_edit_provider_execution_receipt_replay_workflow_apply_result_envelope(receipt_replay_workflow_apply_result)
       {
         kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_result",
