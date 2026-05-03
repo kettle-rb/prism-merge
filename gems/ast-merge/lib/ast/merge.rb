@@ -1460,6 +1460,29 @@ module Ast
       [deep_dup(envelope[:batch_receipt_replay_workflow_apply_decision_settlement]), nil]
     end
 
+    def structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation(apply_decision_confirmations:, metadata: nil)
+      batch_apply_decision_confirmation = {
+        apply_decision_confirmations: deep_dup(apply_decision_confirmations)
+      }
+      batch_apply_decision_confirmation[:metadata] = deep_dup(metadata) if metadata
+      batch_apply_decision_confirmation
+    end
+
+    def structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation_envelope(batch_receipt_replay_workflow_apply_decision_confirmation)
+      {
+        kind: "structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        batch_receipt_replay_workflow_apply_decision_confirmation: deep_dup(batch_receipt_replay_workflow_apply_decision_confirmation)
+      }
+    end
+
+    def import_structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation_envelope(envelope)
+      return [nil, { category: "kind_mismatch", message: "expected structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation envelope kind." }] unless envelope[:kind] == "structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation"
+      return [nil, { category: "unsupported_version", message: "unsupported structured_edit_provider_batch_execution_receipt_replay_workflow_apply_decision_confirmation envelope version #{envelope[:version]}." }] unless envelope[:version] == STRUCTURED_EDIT_TRANSPORT_VERSION
+
+      [deep_dup(envelope[:batch_receipt_replay_workflow_apply_decision_confirmation]), nil]
+    end
+
     def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_envelope(receipt_replay_workflow_apply_decision_outcome)
       {
         kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome",
