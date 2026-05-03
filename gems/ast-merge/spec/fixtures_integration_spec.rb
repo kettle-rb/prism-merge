@@ -1215,6 +1215,7 @@ RSpec.describe Ast::Merge do
     structured_edit_provider_execution_receipt_replay_workflow_apply_session_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_session")
     structured_edit_provider_execution_receipt_replay_workflow_apply_result_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_result")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision")
+    structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope_rejection")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope_application_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_envelope_application")
@@ -3293,6 +3294,18 @@ RSpec.describe Ast::Merge do
         )
       expect(json_ready(receipt_replay_workflow_apply_decision)).to eq(
         json_ready(entry[:receipt_replay_workflow_apply_decision])
+      )
+    end
+
+    structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome_fixture[:cases].each do |entry|
+      receipt_replay_workflow_apply_decision_outcome =
+        described_class.structured_edit_provider_execution_receipt_replay_workflow_apply_decision_outcome(
+          receipt_replay_workflow_apply_decision: entry.dig(:receipt_replay_workflow_apply_decision_outcome, :receipt_replay_workflow_apply_decision),
+          outcome: entry.dig(:receipt_replay_workflow_apply_decision_outcome, :outcome),
+          metadata: entry.dig(:receipt_replay_workflow_apply_decision_outcome, :metadata)
+        )
+      expect(json_ready(receipt_replay_workflow_apply_decision_outcome)).to eq(
+        json_ready(entry[:receipt_replay_workflow_apply_decision_outcome])
       )
     end
 
