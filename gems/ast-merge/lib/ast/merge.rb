@@ -927,6 +927,39 @@ module Ast
       report
     end
 
+    def structured_edit_crispr_example_parity_backend_note(backend:, scope:, notes:, metadata: nil)
+      backend_note = {
+        backend: backend.to_s,
+        scope: scope.to_s,
+        notes: Array(notes).map(&:to_s)
+      }
+      backend_note[:metadata] = deep_dup(metadata) if metadata
+      backend_note
+    end
+
+    def structured_edit_crispr_example_parity_scenario(scenario:, family:, reproduced:, implementation_notes:,
+      reference_backend: nil, backend_notes: nil, metadata: nil)
+      parity_scenario = {
+        scenario: scenario.to_s,
+        family: family.to_s,
+        reproduced: reproduced ? true : false,
+        implementation_notes: Array(implementation_notes).map(&:to_s)
+      }
+      parity_scenario[:reference_backend] = reference_backend.to_s if reference_backend
+      parity_scenario[:backend_notes] = deep_dup(backend_notes) if backend_notes
+      parity_scenario[:metadata] = deep_dup(metadata) if metadata
+      parity_scenario
+    end
+
+    def structured_edit_crispr_example_parity_report(scenarios:, remaining_gaps: nil, metadata: nil)
+      report = {
+        scenarios: deep_dup(scenarios)
+      }
+      report[:remaining_gaps] = Array(remaining_gaps).map(&:to_s) if remaining_gaps
+      report[:metadata] = deep_dup(metadata) if metadata
+      report
+    end
+
     def structured_edit_provider_execution_request(request:, provider_family:, provider_backend: nil, metadata: nil)
       execution_request = {
         request: deep_dup(request),
