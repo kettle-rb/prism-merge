@@ -1219,6 +1219,7 @@ RSpec.describe Ast::Merge do
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_confirmation")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report")
+    structured_edit_provider_execution_receipt_replay_workflow_apply_decision_audit_record_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_audit_record")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_envelope")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_envelope_rejection")
     structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_envelope_application_fixture = diagnostics_fixture("structured_edit_provider_execution_receipt_replay_workflow_apply_decision_closure_report_envelope_application")
@@ -3373,6 +3374,18 @@ RSpec.describe Ast::Merge do
         )
       expect(json_ready(receipt_replay_workflow_apply_decision_closure_report)).to eq(
         json_ready(entry[:receipt_replay_workflow_apply_decision_closure_report])
+      )
+    end
+
+    structured_edit_provider_execution_receipt_replay_workflow_apply_decision_audit_record_fixture[:cases].each do |entry|
+      receipt_replay_workflow_apply_decision_audit_record =
+        described_class.structured_edit_provider_execution_receipt_replay_workflow_apply_decision_audit_record(
+          receipt_replay_workflow_apply_decision_closure_report: entry.dig(:receipt_replay_workflow_apply_decision_audit_record, :receipt_replay_workflow_apply_decision_closure_report),
+          audit_record: entry.dig(:receipt_replay_workflow_apply_decision_audit_record, :audit_record),
+          metadata: entry.dig(:receipt_replay_workflow_apply_decision_audit_record, :metadata)
+        )
+      expect(json_ready(receipt_replay_workflow_apply_decision_audit_record)).to eq(
+        json_ready(entry[:receipt_replay_workflow_apply_decision_audit_record])
       )
     end
 

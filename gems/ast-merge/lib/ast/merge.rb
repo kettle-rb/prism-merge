@@ -1416,6 +1416,15 @@ module Ast
       apply_decision_closure_report
     end
 
+    def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_audit_record(receipt_replay_workflow_apply_decision_closure_report:, audit_record:, metadata: nil)
+      apply_decision_audit_record = {
+        receipt_replay_workflow_apply_decision_closure_report: deep_dup(receipt_replay_workflow_apply_decision_closure_report),
+        audit_record: audit_record
+      }
+      apply_decision_audit_record[:metadata] = deep_dup(metadata) if metadata
+      apply_decision_audit_record
+    end
+
     def structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement_envelope(receipt_replay_workflow_apply_decision_settlement)
       {
         kind: "structured_edit_provider_execution_receipt_replay_workflow_apply_decision_settlement",
