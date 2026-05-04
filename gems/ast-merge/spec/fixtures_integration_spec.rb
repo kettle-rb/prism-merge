@@ -1112,6 +1112,7 @@ RSpec.describe Ast::Merge do
     single_file_readme_heading_section_acceptance_fixture = diagnostics_fixture("single_file_readme_heading_section_acceptance")
     native_structured_edit_recipe_steps_fixture = diagnostics_fixture("native_structured_edit_recipe_steps")
     ruby_gemfile_signature_merge_acceptance_fixture = diagnostics_fixture("ruby_gemfile_signature_merge_acceptance")
+    ruby_gemspec_native_boundary_report_fixture = diagnostics_fixture("ruby_gemspec_native_boundary_report")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2292,6 +2293,29 @@ RSpec.describe Ast::Merge do
         json_ready(entry[:report_envelope])
       )
     end
+
+    expect(ruby_gemspec_native_boundary_report_fixture[:kind]).to eq("ruby_gemspec_native_boundary_report")
+    expect(ruby_gemspec_native_boundary_report_fixture.dig(:native_recipe_surface, :signature_profile)).to eq(
+      "gemspec_declarations"
+    )
+    expect(ruby_gemspec_native_boundary_report_fixture[:wrapper_required_behaviors].map { |entry| entry[:name] }).to include(
+      "dependency_ruby_floor_comment_alignment"
+    )
+    request = described_class.content_recipe_execution_request(
+      recipe_name: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :recipe_name),
+      recipe_version: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :recipe_version),
+      relative_path: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :relative_path),
+      provider_family: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :provider_family),
+      provider_backend: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :provider_backend),
+      template_content: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :template_content),
+      destination_content: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :destination_content),
+      steps: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :steps),
+      runtime_context: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :runtime_context),
+      metadata: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :metadata)
+    )
+    expect(json_ready(described_class.content_recipe_execution_request_envelope(request))).to eq(
+      json_ready(ruby_gemspec_native_boundary_report_fixture[:example_native_recipe])
+    )
 
     structured_edit_provider_execution_request_fixture[:cases].each do |entry|
       execution_request = described_class.structured_edit_provider_execution_request(
