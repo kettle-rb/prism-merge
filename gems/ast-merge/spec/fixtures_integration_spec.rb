@@ -1123,6 +1123,7 @@ RSpec.describe Ast::Merge do
     ruby_gemfile_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemfile_self_dependency_policy_acceptance")
     ruby_appraisals_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_self_dependency_policy_acceptance")
     ruby_appraisals_min_ruby_prune_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_min_ruby_prune_policy_acceptance")
+    changelog_unreleased_normalization_acceptance_fixture = diagnostics_fixture("changelog_unreleased_normalization_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2470,6 +2471,19 @@ RSpec.describe Ast::Merge do
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
       end
       if entry[:label] == "missing-min-ruby-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    changelog_unreleased_normalization_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "create-unreleased-section-from-supplied-entries"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content.index("## Unreleased")).to be < final_content.index("## 1.2.0")
+        expect(final_content).to include("- Added native Markdown recipe boundary.")
+        expect(final_content).to include("- Existing release.")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("insert_or_replace_section")
+      end
+      if entry[:label] == "missing-entries-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
