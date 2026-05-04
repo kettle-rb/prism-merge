@@ -1106,6 +1106,7 @@ RSpec.describe Ast::Merge do
     structured_edit_crispr_markdown_heading_section_replace_parity_fixture = diagnostics_fixture("structured_edit_crispr_markdown_heading_section_replace_parity")
     structured_edit_crispr_example_parity_report_fixture = diagnostics_fixture("structured_edit_crispr_example_parity_report")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
+    structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_provider_execution_request_fixture = diagnostics_fixture("structured_edit_provider_execution_request")
     structured_edit_provider_execution_request_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope")
     structured_edit_provider_execution_request_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope_rejection")
@@ -1870,6 +1871,7 @@ RSpec.describe Ast::Merge do
         payload_text: entry.dig(:request, :payload_text),
         if_missing: entry.dig(:request, :if_missing),
         callable_destination: entry.dig(:request, :callable_destination),
+        target_selection: entry.dig(:request, :target_selection),
         metadata: entry.dig(:request, :metadata)
       )
       expect(json_ready(request)).to eq(json_ready(entry[:request]))
@@ -1887,6 +1889,31 @@ RSpec.describe Ast::Merge do
         payload_text: entry.dig(:request, :payload_text),
         if_missing: entry.dig(:request, :if_missing),
         callable_destination: entry.dig(:request, :callable_destination),
+        target_selection: entry.dig(:request, :target_selection),
+        metadata: entry.dig(:request, :metadata)
+      )
+      expect(json_ready(request)).to eq(json_ready(entry[:request]))
+    end
+
+    structured_edit_parity_selection_semantics_fixture[:cases].each do |entry|
+      target_selection = described_class.structured_edit_target_selection(
+        selector_kind: entry.dig(:request, :target_selection, :selector_kind),
+        selection_intent: entry.dig(:request, :target_selection, :selection_intent),
+        selection_intent_family: entry.dig(:request, :target_selection, :selection_intent_family),
+        known_selection_intent: entry.dig(:request, :target_selection, :known_selection_intent),
+        comment_region: entry.dig(:request, :target_selection, :comment_region),
+        include_trailing_gap: entry.dig(:request, :target_selection, :include_trailing_gap),
+        comment_anchored: entry.dig(:request, :target_selection, :comment_anchored),
+        metadata: entry.dig(:request, :target_selection, :metadata)
+      )
+      request = described_class.structured_edit_request(
+        operation_kind: entry.dig(:request, :operation_kind),
+        content: entry.dig(:request, :content),
+        source_label: entry.dig(:request, :source_label),
+        target_selector: entry.dig(:request, :target_selector),
+        target_selector_family: entry.dig(:request, :target_selector_family),
+        target_selection: target_selection,
+        payload_text: entry.dig(:request, :payload_text),
         metadata: entry.dig(:request, :metadata)
       )
       expect(json_ready(request)).to eq(json_ready(entry[:request]))
