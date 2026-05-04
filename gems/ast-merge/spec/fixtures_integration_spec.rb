@@ -1109,6 +1109,7 @@ RSpec.describe Ast::Merge do
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
+    structured_edit_operation_triad_parity_fixture = diagnostics_fixture("structured_edit_operation_triad_parity")
     structured_edit_provider_execution_request_fixture = diagnostics_fixture("structured_edit_provider_execution_request")
     structured_edit_provider_execution_request_envelope_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope")
     structured_edit_provider_execution_request_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_execution_request_envelope_rejection")
@@ -1949,6 +1950,43 @@ RSpec.describe Ast::Merge do
         metadata: entry.dig(:request, :metadata)
       )
       expect(json_ready(request)).to eq(json_ready(entry[:request]))
+    end
+
+    expect(structured_edit_operation_triad_parity_fixture.dig(:metadata, :canonical_operation_kinds)).to eq(
+      %w[insert replace delete]
+    )
+    expect(structured_edit_operation_triad_parity_fixture.dig(:metadata, :remove_alias_encoded)).to be(false)
+    structured_edit_operation_triad_parity_fixture[:cases].each do |entry|
+      request = described_class.structured_edit_request(
+        operation_kind: entry.dig(:application, :request, :operation_kind),
+        content: entry.dig(:application, :request, :content),
+        source_label: entry.dig(:application, :request, :source_label),
+        target_selector: entry.dig(:application, :request, :target_selector),
+        target_selector_family: entry.dig(:application, :request, :target_selector_family),
+        destination_selector: entry.dig(:application, :request, :destination_selector),
+        destination_selector_family: entry.dig(:application, :request, :destination_selector_family),
+        payload_text: entry.dig(:application, :request, :payload_text),
+        if_missing: entry.dig(:application, :request, :if_missing),
+        target_selection: entry.dig(:application, :request, :target_selection),
+        target_match: entry.dig(:application, :request, :target_match),
+        metadata: entry.dig(:application, :request, :metadata)
+      )
+      result = described_class.structured_edit_result(
+        operation_kind: entry.dig(:application, :result, :operation_kind),
+        updated_content: entry.dig(:application, :result, :updated_content),
+        changed: entry.dig(:application, :result, :changed),
+        captured_text: entry.dig(:application, :result, :captured_text),
+        match_count: entry.dig(:application, :result, :match_count),
+        operation_profile: entry.dig(:application, :result, :operation_profile),
+        destination_profile: entry.dig(:application, :result, :destination_profile),
+        metadata: entry.dig(:application, :result, :metadata)
+      )
+      application = described_class.structured_edit_application(
+        request: request,
+        result: result,
+        metadata: entry.dig(:application, :metadata)
+      )
+      expect(json_ready(application)).to eq(json_ready(entry[:application]))
     end
 
     structured_edit_result_fixture[:cases].each do |entry|
