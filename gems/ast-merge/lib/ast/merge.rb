@@ -839,6 +839,25 @@ module Ast
       profile
     end
 
+    def structured_edit_target_match(start_boundary:, end_boundary:, payload_kind:, known_start_boundary:,
+      known_end_boundary:, known_payload_kind:, comment_anchored:, trailing_gap_extended:,
+      start_boundary_family: nil, end_boundary_family: nil, payload_family: nil, metadata: nil)
+      structured_edit_match_profile(
+        start_boundary: start_boundary,
+        end_boundary: end_boundary,
+        payload_kind: payload_kind,
+        known_start_boundary: known_start_boundary,
+        known_end_boundary: known_end_boundary,
+        known_payload_kind: known_payload_kind,
+        comment_anchored: comment_anchored,
+        trailing_gap_extended: trailing_gap_extended,
+        start_boundary_family: start_boundary_family,
+        end_boundary_family: end_boundary_family,
+        payload_family: payload_family,
+        metadata: metadata
+      )
+    end
+
     def structured_edit_operation_profile(operation_kind:, known_operation_kind:, source_requirement:,
       destination_requirement:, replacement_source:, captures_source_text:, supports_if_missing:,
       operation_family: nil, metadata: nil)
@@ -877,7 +896,8 @@ module Ast
 
     def structured_edit_request(operation_kind:, content:, source_label:, target_selector: nil,
       target_selector_family: nil, destination_selector: nil, destination_selector_family: nil,
-      payload_text: nil, if_missing: nil, callable_destination: nil, target_selection: nil, metadata: nil)
+      payload_text: nil, if_missing: nil, callable_destination: nil, target_selection: nil,
+      target_match: nil, metadata: nil)
       request = {
         operation_kind: operation_kind.to_s,
         content: content.to_s,
@@ -886,6 +906,7 @@ module Ast
       request[:target_selector] = target_selector.to_s if target_selector
       request[:target_selector_family] = target_selector_family.to_s if target_selector_family
       request[:target_selection] = deep_dup(target_selection) if target_selection
+      request[:target_match] = deep_dup(target_match) if target_match
       request[:destination_selector] = destination_selector.to_s if destination_selector
       request[:destination_selector_family] = destination_selector_family.to_s if destination_selector_family
       request[:payload_text] = payload_text.to_s unless payload_text.nil?
