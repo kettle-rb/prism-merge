@@ -1118,7 +1118,7 @@ RSpec.describe Ast::Merge do
     ruby_gemspec_dependency_section_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_dependency_section_policy_acceptance")
     ruby_gemspec_files_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_files_policy_acceptance")
     ruby_gemspec_version_loader_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_version_loader_policy_acceptance")
-    project_facts_runtime_context_fixture = diagnostics_fixture("project_facts_runtime_context")
+    runtime_facts_context_fixture = diagnostics_fixture("runtime_facts_context")
     ruby_gemspec_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_self_dependency_policy_acceptance")
     ruby_gemfile_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemfile_self_dependency_policy_acceptance")
     ruby_appraisals_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_self_dependency_policy_acceptance")
@@ -2397,7 +2397,7 @@ RSpec.describe Ast::Merge do
       )
     end
 
-    project_facts_runtime_context_fixture[:cases].each do |entry|
+    runtime_facts_context_fixture[:cases].each do |entry|
       report = described_class.content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
@@ -2409,8 +2409,8 @@ RSpec.describe Ast::Merge do
       expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
-      expect(entry.dig(:report_envelope, :report, :request, :runtime_context, :project_facts, :schema)).to eq(
-        "project_facts.v1"
+      expect(entry.dig(:report_envelope, :report, :request, :runtime_context, :facts, :schema)).to eq(
+        "runtime_facts.v1"
       )
     end
 
