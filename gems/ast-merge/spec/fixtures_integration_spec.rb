@@ -1125,6 +1125,7 @@ RSpec.describe Ast::Merge do
     ruby_appraisals_min_ruby_prune_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_min_ruby_prune_policy_acceptance")
     changelog_unreleased_normalization_acceptance_fixture = diagnostics_fixture("changelog_unreleased_normalization_acceptance")
     readme_supplied_metadata_synchronization_acceptance_fixture = diagnostics_fixture("readme_supplied_metadata_synchronization_acceptance")
+    supplied_markdown_pruning_acceptance_fixture = diagnostics_fixture("supplied_markdown_pruning_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2499,6 +2500,22 @@ RSpec.describe Ast::Merge do
         expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :consumed_context)).to eq("readme_metadata.summary")
       end
       if entry[:label] == "missing-readme-metadata-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_markdown_pruning_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "prune-supplied-table-rows-and-reference-definitions"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("Works with JRuby")
+        expect(final_content).not_to include("[jruby-9.4]:")
+        expect(final_content).not_to include("[jruby-head]:")
+        expect(final_content).to include("Works with MRI Ruby")
+        expect(final_content).to include("[ruby-3.2]:")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_rows)).to eq(1)
+        expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :deleted_reference_definitions)).to eq(2)
+      end
+      if entry[:label] == "missing-prune-selectors-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
