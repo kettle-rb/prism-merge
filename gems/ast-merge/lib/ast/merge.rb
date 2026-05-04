@@ -1040,6 +1040,51 @@ module Ast
       execution_request
     end
 
+    def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
+      template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
+      request = {
+        recipe_name: recipe_name.to_s,
+        recipe_version: recipe_version.to_s,
+        relative_path: relative_path.to_s,
+        provider_family: provider_family.to_s,
+        template_content: template_content.to_s,
+        destination_content: destination_content.to_s,
+        steps: deep_dup(steps)
+      }
+      request[:provider_backend] = provider_backend.to_s if provider_backend
+      request[:runtime_context] = deep_dup(runtime_context) if runtime_context
+      request[:metadata] = deep_dup(metadata) if metadata
+      request
+    end
+
+    def content_recipe_execution_request_envelope(request)
+      {
+        kind: "content_recipe_execution_request",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        request: deep_dup(request)
+      }
+    end
+
+    def content_recipe_execution_report(request:, final_content:, changed:, step_reports:, diagnostics:, metadata: nil)
+      report = {
+        request: deep_dup(request),
+        final_content: final_content.to_s,
+        changed: changed ? true : false,
+        step_reports: deep_dup(step_reports),
+        diagnostics: deep_dup(diagnostics)
+      }
+      report[:metadata] = deep_dup(metadata) if metadata
+      report
+    end
+
+    def content_recipe_execution_report_envelope(report)
+      {
+        kind: "content_recipe_execution_report",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        report: deep_dup(report)
+      }
+    end
+
     def structured_edit_provider_execution_request_envelope(execution_request)
       {
         kind: "structured_edit_provider_execution_request",
