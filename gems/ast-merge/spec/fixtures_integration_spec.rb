@@ -1126,6 +1126,7 @@ RSpec.describe Ast::Merge do
     changelog_unreleased_normalization_acceptance_fixture = diagnostics_fixture("changelog_unreleased_normalization_acceptance")
     readme_supplied_metadata_synchronization_acceptance_fixture = diagnostics_fixture("readme_supplied_metadata_synchronization_acceptance")
     supplied_markdown_pruning_acceptance_fixture = diagnostics_fixture("supplied_markdown_pruning_acceptance")
+    supplied_source_selector_deletion_acceptance_fixture = diagnostics_fixture("supplied_source_selector_deletion_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2516,6 +2517,21 @@ RSpec.describe Ast::Merge do
         expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :deleted_reference_definitions)).to eq(2)
       end
       if entry[:label] == "missing-prune-selectors-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_source_selector_deletion_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "delete-supplied-structural-owner-ranges"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("kettle/scaffold")
+        expect(final_content).not_to include("task :scaffold")
+        expect(final_content).to include('require "bundler/gem_tasks"')
+        expect(final_content).to include("task :spec")
+        expect(final_content).not_to include("\n\n\n")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_ranges)).to eq(2)
+      end
+      if entry[:label] == "missing-delete-selectors-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
