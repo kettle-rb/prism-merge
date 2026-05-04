@@ -1100,6 +1100,7 @@ RSpec.describe Ast::Merge do
     structured_edit_request_envelope_application_fixture = diagnostics_fixture("structured_edit_request_envelope_application")
     structured_edit_execution_report_fixture = diagnostics_fixture("structured_edit_execution_report")
     structured_edit_crispr_overmatch_fail_closed_fixture = diagnostics_fixture("structured_edit_crispr_overmatch_fail_closed")
+    structured_edit_crispr_acceptance_scenario_fixture = diagnostics_fixture("structured_edit_crispr_acceptance_scenario")
     structured_edit_crispr_append_fallback_insert_fixture = diagnostics_fixture("structured_edit_crispr_append_fallback_insert")
     structured_edit_crispr_ruby_comment_owned_rewrite_delete_parity_fixture = diagnostics_fixture("structured_edit_crispr_ruby_comment_owned_rewrite_delete_parity")
     structured_edit_crispr_ruby_callable_destination_move_parity_fixture = diagnostics_fixture("structured_edit_crispr_ruby_callable_destination_move_parity")
@@ -2097,6 +2098,21 @@ RSpec.describe Ast::Merge do
     end
 
     structured_edit_crispr_overmatch_fail_closed_fixture[:cases].each do |entry|
+      report = described_class.structured_edit_execution_report(
+        application: entry.dig(:report, :application),
+        provider_family: entry.dig(:report, :provider_family),
+        provider_backend: entry.dig(:report, :provider_backend),
+        diagnostics: entry.dig(:report, :diagnostics),
+        metadata: entry.dig(:report, :metadata)
+      )
+      expect(json_ready(report)).to eq(json_ready(entry[:report]))
+    end
+
+    expect(structured_edit_crispr_acceptance_scenario_fixture.dig(:metadata, :canonical_operation_kinds)).to eq(
+      %w[insert replace delete]
+    )
+    expect(structured_edit_crispr_acceptance_scenario_fixture.dig(:metadata, :remove_alias_encoded)).to be(false)
+    structured_edit_crispr_acceptance_scenario_fixture[:cases].each do |entry|
       report = described_class.structured_edit_execution_report(
         application: entry.dig(:report, :application),
         provider_family: entry.dig(:report, :provider_family),
