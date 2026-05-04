@@ -95,6 +95,30 @@ module Prism
           source_label: "source",
           target_selector: "managed_snippet",
           target_selector_family: "comment_anchor",
+          target_selection: Ast::Merge.structured_edit_target_selection(
+            selector_kind: "comment_region_owned_owner",
+            selection_intent: "comment_anchored_owner",
+            selection_intent_family: "comment_anchor",
+            known_selection_intent: true,
+            comment_region: "leading",
+            include_trailing_gap: true,
+            comment_anchored: true,
+            metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+          ),
+          target_match: Ast::Merge.structured_edit_target_match(
+            start_boundary: "comment_region_start",
+            start_boundary_family: "comment_anchor",
+            known_start_boundary: true,
+            end_boundary: "owner_end_plus_trailing_gap",
+            end_boundary_family: "gap_extension",
+            known_end_boundary: true,
+            payload_kind: "comment_owned_body",
+            payload_family: "comment_owned",
+            known_payload_kind: true,
+            comment_anchored: true,
+            trailing_gap_extended: true,
+            metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+          ),
           payload_text: "new_call\n",
           metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
         )
