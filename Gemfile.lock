@@ -7,8 +7,8 @@ PATH
 PATH
   remote: gems/ast-template
   specs:
-    ast-template (0.0.0)
-      ast-merge (= 0.0.0)
+    ast-template (0.1.0)
+      ast-merge (= 0.1.0)
 
 PATH
   remote: gems/citrus-toml-merge
@@ -20,9 +20,9 @@ PATH
 PATH
   remote: gems/commonmarker-merge
   specs:
-    commonmarker-merge (0.0.0)
+    commonmarker-merge (0.1.0)
       commonmarker (~> 2.2)
-      markdown-merge (= 0.0.0)
+      markdown-merge (= 0.1.0)
 
 PATH
   remote: gems/go-merge
@@ -41,22 +41,22 @@ PATH
 PATH
   remote: gems/kramdown-merge
   specs:
-    kramdown-merge (0.0.0)
+    kramdown-merge (0.1.0)
       kramdown (~> 2.5)
-      markdown-merge (= 0.0.0)
+      markdown-merge (= 0.1.0)
 
 PATH
   remote: gems/markdown-merge
   specs:
-    markdown-merge (0.0.0)
-      ast-merge (= 0.0.0)
-      tree_haver (= 0.0.0)
+    markdown-merge (0.1.0)
+      ast-merge (= 0.1.0)
+      tree_haver (= 0.1.0)
 
 PATH
   remote: gems/markly-merge
   specs:
-    markly-merge (0.0.0)
-      markdown-merge (= 0.0.0)
+    markly-merge (0.1.0)
+      markdown-merge (= 0.1.0)
       markly (~> 0.9)
 
 PATH
@@ -196,19 +196,19 @@ DEPENDENCIES
 
 CHECKSUMS
   ast-merge (0.1.0)
-  ast-template (0.0.0)
+  ast-template (0.1.0)
   citrus (3.0.2) sha256=4ec2412fc389ad186735f4baee1460f7900a8e130ffe3f216b30d4f9c684f650
   citrus-toml-merge (0.1.0)
   commonmarker (2.8.1-x86_64-linux) sha256=c8f2e903c6ee4e2c7e280aa8b49ef37c53202d388e3a2ee06dfdccc8c6fb634f
-  commonmarker-merge (0.0.0)
+  commonmarker-merge (0.1.0)
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   go-merge (0.1.0)
   json-merge (0.1.0)
   kramdown (2.5.2) sha256=1ba542204c66b6f9111ff00dcc26075b95b220b07f2905d8261740c82f7f02fa
-  kramdown-merge (0.0.0)
-  markdown-merge (0.0.0)
+  kramdown-merge (0.1.0)
+  markdown-merge (0.1.0)
   markly (0.16.0) sha256=6f70d79e385b1efc9e171f74c81628826259039fe6c778e03c3924c71dac5511
-  markly-merge (0.0.0)
+  markly-merge (0.1.0)
   parslet (2.0.0) sha256=d45130695d39b43d7e6a91f4d2ec66b388a8d822bae38de9b4de9a5fbde1f606
   parslet-toml-merge (0.1.0)
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
