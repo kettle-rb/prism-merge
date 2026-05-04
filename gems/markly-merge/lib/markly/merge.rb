@@ -90,13 +90,36 @@ module Markly
         package: PACKAGE_NAME,
         backend: BACKEND_REFERENCE.id,
         structured_edit_request: Ast::Merge.structured_edit_request(
-          operation_kind: "insert",
-          content: "# Title\n\n## Usage\n\nExisting text.\n",
-          source_label: "source",
-          destination_selector: "/heading/usage",
-          destination_selector_family: "section_branch",
-          payload_text: "### Managed\n\nInserted text.\n",
-          if_missing: "append",
+          operation_kind: "replace",
+          content: "# Title\n\n## Synopsis\n\nOld synopsis.\n\n## Install\n\nInstall text.\n",
+          source_label: "README.md",
+          target_selector: "Synopsis@2",
+          target_selector_family: "section_branch",
+          target_selection: Ast::Merge.structured_edit_target_selection(
+            selector_kind: "heading_section",
+            selection_intent: "section_branch",
+            selection_intent_family: "section_branch",
+            known_selection_intent: true,
+            comment_region: nil,
+            include_trailing_gap: false,
+            comment_anchored: false,
+            metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+          ),
+          target_match: Ast::Merge.structured_edit_target_match(
+            start_boundary: "owner_start",
+            start_boundary_family: "structural_owner",
+            known_start_boundary: true,
+            end_boundary: "owner_end",
+            end_boundary_family: "structural_owner",
+            known_end_boundary: true,
+            payload_kind: "section_branch",
+            payload_family: "section_branch",
+            known_payload_kind: true,
+            comment_anchored: false,
+            trailing_gap_extended: false,
+            metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+          ),
+          payload_text: "## Synopsis\n\nNew synopsis.\n",
           metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
         )
       }
@@ -107,32 +130,21 @@ module Markly
         package: PACKAGE_NAME,
         backend: BACKEND_REFERENCE.id,
         structured_edit_result: Ast::Merge.structured_edit_result(
-          operation_kind: "insert",
-          updated_content: "# Title\n\n## Usage\n\nExisting text.\n### Managed\n\nInserted text.\n",
+          operation_kind: "replace",
+          updated_content: "# Title\n\n## Synopsis\n\nNew synopsis.\n\n## Install\n\nInstall text.\n",
           changed: true,
+          captured_text: "## Synopsis\n\nOld synopsis.\n",
+          match_count: 1,
           operation_profile: Ast::Merge.structured_edit_operation_profile(
-            operation_kind: "insert",
-            operation_family: "insertion",
+            operation_kind: "replace",
+            operation_family: "rewrite",
             known_operation_kind: true,
-            source_requirement: "none",
-            destination_requirement: "optional",
+            source_requirement: "required",
+            destination_requirement: "none",
             replacement_source: "explicit_text",
-            captures_source_text: false,
-            supports_if_missing: true,
+            captures_source_text: true,
+            supports_if_missing: false,
             metadata: { source: "legacy_crispr_reference" }
-          ),
-          destination_profile: Ast::Merge.structured_edit_destination_profile(
-            resolution_kind: "append_fallback",
-            resolution_source: "none",
-            anchor_boundary: "none",
-            resolution_family: "append",
-            resolution_source_family: "implicit",
-            anchor_boundary_family: "none",
-            known_resolution_kind: true,
-            known_resolution_source: true,
-            known_anchor_boundary: true,
-            used_if_missing: true,
-            metadata: { family: "shared", source: "legacy_crispr_reference" }
           ),
           metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
         )
