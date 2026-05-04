@@ -1119,6 +1119,7 @@ RSpec.describe Ast::Merge do
     ruby_gemspec_files_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_files_policy_acceptance")
     ruby_gemspec_version_loader_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_version_loader_policy_acceptance")
     project_facts_runtime_context_fixture = diagnostics_fixture("project_facts_runtime_context")
+    ruby_gemspec_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_self_dependency_policy_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2408,6 +2409,24 @@ RSpec.describe Ast::Merge do
       expect(entry.dig(:report_envelope, :report, :request, :runtime_context, :project_facts, :schema)).to eq(
         "project_facts.v1"
       )
+    end
+
+    ruby_gemspec_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
+      report = described_class.content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
+      if entry[:label] == "delete-active-self-dependencies-preserve-comments"
+        expect(entry.dig(:report_envelope, :report, :final_content)).not_to include('spec.add_dependency "demo", "~> 1.0"')
+        expect(entry.dig(:report_envelope, :report, :final_content)).to include('# spec.add_dependency "demo", "~> 0"')
+      end
     end
 
     structured_edit_provider_execution_request_fixture[:cases].each do |entry|
