@@ -1113,6 +1113,7 @@ RSpec.describe Ast::Merge do
     native_structured_edit_recipe_steps_fixture = diagnostics_fixture("native_structured_edit_recipe_steps")
     ruby_gemfile_signature_merge_acceptance_fixture = diagnostics_fixture("ruby_gemfile_signature_merge_acceptance")
     ruby_gemspec_native_boundary_report_fixture = diagnostics_fixture("ruby_gemspec_native_boundary_report")
+    ruby_gemspec_signature_merge_acceptance_fixture = diagnostics_fixture("ruby_gemspec_signature_merge_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2316,6 +2317,20 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.content_recipe_execution_request_envelope(request))).to eq(
       json_ready(ruby_gemspec_native_boundary_report_fixture[:example_native_recipe])
     )
+
+    ruby_gemspec_signature_merge_acceptance_fixture[:cases].each do |entry|
+      report = described_class.content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
+    end
 
     structured_edit_provider_execution_request_fixture[:cases].each do |entry|
       execution_request = described_class.structured_edit_provider_execution_request(
