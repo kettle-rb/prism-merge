@@ -184,6 +184,7 @@ module Prism
     end
 
     def ruby_structured_edit_batch_request_projection
+      content = "class App\n  # managed snippet\n  old_call\n\n  anchor_call\n\n  # obsolete snippet\n  obsolete_call\nend\n"
       {
         package: PACKAGE_NAME,
         backend: BACKEND_REFERENCE.id,
@@ -191,7 +192,7 @@ module Prism
           requests: [
             Ast::Merge.structured_edit_request(
               operation_kind: "replace",
-              content: "class App\n  # managed snippet\n  old_call\n\n  # managed setup\n  setup_call\nend\n",
+              content: content,
               source_label: "source",
               target_selector: "managed_snippet",
               target_selector_family: "comment_anchor",
@@ -199,43 +200,52 @@ module Prism
               metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
             ),
             Ast::Merge.structured_edit_request(
-              operation_kind: "replace",
-              content: "class App\n  # managed snippet\n  old_call\n\n  # managed setup\n  setup_call\nend\n",
+              operation_kind: "insert",
+              content: content,
               source_label: "source",
-              target_selector: "managed_setup",
+              destination_selector: "after_anchor_call",
+              destination_selector_family: "gap_preserving_statement",
+              payload_text: "inserted_call\n",
+              if_missing: "append",
+              metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+            ),
+            Ast::Merge.structured_edit_request(
+              operation_kind: "delete",
+              content: content,
+              source_label: "source",
+              target_selector: "obsolete_snippet",
               target_selector_family: "comment_anchor",
-              payload_text: "configured_call\n",
               metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
             )
           ],
-          metadata: { batch_label: "ruby_prism_pair", source: "legacy_crispr_reference" }
+          metadata: { batch_label: "ruby_prism_triad", source: "legacy_crispr_reference" }
         )
       }
     end
 
     def ruby_structured_edit_batch_report_projection
+      content = "class App\n  # managed snippet\n  old_call\n\n  anchor_call\n\n  # obsolete snippet\n  obsolete_call\nend\n"
       {
         package: PACKAGE_NAME,
         backend: BACKEND_REFERENCE.id,
         structured_edit_batch_report: Ast::Merge.structured_edit_batch_report(
           reports: [
-            ruby_structured_edit_execution_report_projection[:structured_edit_execution_report],
             Ast::Merge.structured_edit_execution_report(
               application: Ast::Merge.structured_edit_application(
                 request: Ast::Merge.structured_edit_request(
                   operation_kind: "replace",
-                  content: "class App\n  # managed setup\n  setup_call\nend\n",
+                  content: content,
                   source_label: "source",
-                  target_selector: "managed_setup",
+                  target_selector: "managed_snippet",
                   target_selector_family: "comment_anchor",
-                  payload_text: "configured_call\n",
+                  payload_text: "new_call\n",
                   metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
                 ),
                 result: Ast::Merge.structured_edit_result(
                   operation_kind: "replace",
-                  updated_content: "class App\n  # managed setup\n  configured_call\nend\n",
+                  updated_content: "class App\n  # managed snippet\n  new_call\n\n  anchor_call\n\n  # obsolete snippet\n  obsolete_call\nend\n",
                   changed: true,
-                  captured_text: "setup_call\n",
+                  captured_text: "old_call\n",
                   match_count: 1,
                   operation_profile: Ast::Merge.structured_edit_operation_profile(
                     operation_kind: "replace",
@@ -244,6 +254,91 @@ module Prism
                     source_requirement: "required",
                     destination_requirement: "none",
                     replacement_source: "explicit_text",
+                    captures_source_text: true,
+                    supports_if_missing: false,
+                    metadata: { source: "legacy_crispr_reference" }
+                  ),
+                  metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                ),
+                metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+              ),
+              provider_family: "ruby",
+              provider_backend: BACKEND_REFERENCE.id,
+              diagnostics: [],
+              metadata: { source: "legacy_crispr_reference" }
+            ),
+            Ast::Merge.structured_edit_execution_report(
+              application: Ast::Merge.structured_edit_application(
+                request: Ast::Merge.structured_edit_request(
+                  operation_kind: "insert",
+                  content: content,
+                  source_label: "source",
+                  destination_selector: "after_anchor_call",
+                  destination_selector_family: "gap_preserving_statement",
+                  payload_text: "inserted_call\n",
+                  if_missing: "append",
+                  metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                ),
+                result: Ast::Merge.structured_edit_result(
+                  operation_kind: "insert",
+                  updated_content: "class App\n  # managed snippet\n  old_call\n\n  anchor_call\n  inserted_call\n\n  # obsolete snippet\n  obsolete_call\nend\n",
+                  changed: true,
+                  operation_profile: Ast::Merge.structured_edit_operation_profile(
+                    operation_kind: "insert",
+                    operation_family: "insertion",
+                    known_operation_kind: true,
+                    source_requirement: "none",
+                    destination_requirement: "optional",
+                    replacement_source: "explicit_text",
+                    captures_source_text: false,
+                    supports_if_missing: true,
+                    metadata: { source: "legacy_crispr_reference" }
+                  ),
+                  destination_profile: Ast::Merge.structured_edit_destination_profile(
+                    resolution_kind: "selector",
+                    resolution_source: "destination_selector",
+                    anchor_boundary: "after",
+                    resolution_family: "anchored",
+                    resolution_source_family: "selector",
+                    anchor_boundary_family: "gap_preserving_statement",
+                    known_resolution_kind: true,
+                    known_resolution_source: true,
+                    known_anchor_boundary: true,
+                    used_if_missing: false,
+                    metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                  ),
+                  metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                ),
+                metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+              ),
+              provider_family: "ruby",
+              provider_backend: BACKEND_REFERENCE.id,
+              diagnostics: [],
+              metadata: { source: "legacy_crispr_reference" }
+            ),
+            Ast::Merge.structured_edit_execution_report(
+              application: Ast::Merge.structured_edit_application(
+                request: Ast::Merge.structured_edit_request(
+                  operation_kind: "delete",
+                  content: content,
+                  source_label: "source",
+                  target_selector: "obsolete_snippet",
+                  target_selector_family: "comment_anchor",
+                  metadata: { family: "ruby", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                ),
+                result: Ast::Merge.structured_edit_result(
+                  operation_kind: "delete",
+                  updated_content: "class App\n  # managed snippet\n  old_call\n\n  anchor_call\nend\n",
+                  changed: true,
+                  captured_text: "obsolete_call\n",
+                  match_count: 1,
+                  operation_profile: Ast::Merge.structured_edit_operation_profile(
+                    operation_kind: "delete",
+                    operation_family: "removal",
+                    known_operation_kind: true,
+                    source_requirement: "required",
+                    destination_requirement: "none",
+                    replacement_source: "none",
                     captures_source_text: true,
                     supports_if_missing: false,
                     metadata: { source: "legacy_crispr_reference" }
@@ -265,7 +360,7 @@ module Prism
               message: "ruby batch preserved request ordering."
             }
           ],
-          metadata: { batch_label: "ruby_prism_pair", source: "legacy_crispr_reference" }
+          metadata: { batch_label: "ruby_prism_triad", source: "legacy_crispr_reference" }
         )
       }
     end

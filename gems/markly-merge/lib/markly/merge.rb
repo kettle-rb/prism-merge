@@ -178,14 +178,24 @@ module Markly
     end
 
     def markdown_structured_edit_batch_request_projection
+      content = "# Title\n\n## Synopsis\n\nOld synopsis.\n\n## Usage\n\nExisting text.\n\n## Deprecated\n\nDeprecated text.\n"
       {
         package: PACKAGE_NAME,
         backend: BACKEND_REFERENCE.id,
         structured_edit_batch_request: Ast::Merge.structured_edit_batch_request(
           requests: [
             Ast::Merge.structured_edit_request(
+              operation_kind: "replace",
+              content: content,
+              source_label: "README.md",
+              target_selector: "Synopsis@2",
+              target_selector_family: "section_branch",
+              payload_text: "## Synopsis\n\nNew synopsis.\n",
+              metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+            ),
+            Ast::Merge.structured_edit_request(
               operation_kind: "insert",
-              content: "# Title\n\n## Usage\n\nExisting text.\n\n## Install\n\nInstall text.\n",
+              content: content,
               source_label: "source",
               destination_selector: "/heading/usage",
               destination_selector_family: "section_branch",
@@ -194,22 +204,21 @@ module Markly
               metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
             ),
             Ast::Merge.structured_edit_request(
-              operation_kind: "insert",
-              content: "# Title\n\n## Usage\n\nExisting text.\n\n## Install\n\nInstall text.\n",
-              source_label: "source",
-              destination_selector: "/heading/install",
-              destination_selector_family: "section_branch",
-              payload_text: "### Managed Install\n\nInserted install text.\n",
-              if_missing: "append",
+              operation_kind: "delete",
+              content: content,
+              source_label: "README.md",
+              target_selector: "Deprecated@2",
+              target_selector_family: "section_branch",
               metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
             )
           ],
-          metadata: { batch_label: "markdown_markly_pair", source: "legacy_crispr_reference" }
+          metadata: { batch_label: "markdown_markly_triad", source: "legacy_crispr_reference" }
         )
       }
     end
 
     def markdown_structured_edit_batch_report_projection
+      content = "# Title\n\n## Synopsis\n\nOld synopsis.\n\n## Usage\n\nExisting text.\n\n## Deprecated\n\nDeprecated text.\n"
       {
         package: PACKAGE_NAME,
         backend: BACKEND_REFERENCE.id,
@@ -218,8 +227,45 @@ module Markly
             Ast::Merge.structured_edit_execution_report(
               application: Ast::Merge.structured_edit_application(
                 request: Ast::Merge.structured_edit_request(
+                  operation_kind: "replace",
+                  content: content,
+                  source_label: "README.md",
+                  target_selector: "Synopsis@2",
+                  target_selector_family: "section_branch",
+                  payload_text: "## Synopsis\n\nNew synopsis.\n",
+                  metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                ),
+                result: Ast::Merge.structured_edit_result(
+                  operation_kind: "replace",
+                  updated_content: "# Title\n\n## Synopsis\n\nNew synopsis.\n\n## Usage\n\nExisting text.\n\n## Deprecated\n\nDeprecated text.\n",
+                  changed: true,
+                  captured_text: "## Synopsis\n\nOld synopsis.\n",
+                  match_count: 1,
+                  operation_profile: Ast::Merge.structured_edit_operation_profile(
+                    operation_kind: "replace",
+                    operation_family: "rewrite",
+                    known_operation_kind: true,
+                    source_requirement: "required",
+                    destination_requirement: "none",
+                    replacement_source: "explicit_text",
+                    captures_source_text: true,
+                    supports_if_missing: false,
+                    metadata: { source: "legacy_crispr_reference" }
+                  ),
+                  metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+                ),
+                metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
+              ),
+              provider_family: "markdown",
+              provider_backend: BACKEND_REFERENCE.id,
+              diagnostics: [],
+              metadata: { source: "legacy_crispr_reference" }
+            ),
+            Ast::Merge.structured_edit_execution_report(
+              application: Ast::Merge.structured_edit_application(
+                request: Ast::Merge.structured_edit_request(
                   operation_kind: "insert",
-                  content: "# Title\n\n## Usage\n\nExisting text.\n",
+                  content: content,
                   source_label: "source",
                   destination_selector: "/heading/usage",
                   destination_selector_family: "section_branch",
@@ -229,7 +275,7 @@ module Markly
                 ),
                 result: Ast::Merge.structured_edit_result(
                   operation_kind: "insert",
-                  updated_content: "# Title\n\n## Usage\n\nExisting text.\n### Managed Usage\n\nInserted usage text.\n",
+                  updated_content: "# Title\n\n## Synopsis\n\nOld synopsis.\n\n## Usage\n\nExisting text.\n### Managed Usage\n\nInserted usage text.\n\n## Deprecated\n\nDeprecated text.\n",
                   changed: true,
                   operation_profile: Ast::Merge.structured_edit_operation_profile(
                     operation_kind: "insert",
@@ -267,42 +313,29 @@ module Markly
             Ast::Merge.structured_edit_execution_report(
               application: Ast::Merge.structured_edit_application(
                 request: Ast::Merge.structured_edit_request(
-                  operation_kind: "insert",
-                  content: "# Title\n\n## Install\n\nInstall text.\n",
-                  source_label: "source",
-                  destination_selector: "/heading/install",
-                  destination_selector_family: "section_branch",
-                  payload_text: "### Managed Install\n\nInserted install text.\n",
-                  if_missing: "append",
+                  operation_kind: "delete",
+                  content: content,
+                  source_label: "README.md",
+                  target_selector: "Deprecated@2",
+                  target_selector_family: "section_branch",
                   metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
                 ),
                 result: Ast::Merge.structured_edit_result(
-                  operation_kind: "insert",
-                  updated_content: "# Title\n\n## Install\n\nInstall text.\n### Managed Install\n\nInserted install text.\n",
+                  operation_kind: "delete",
+                  updated_content: "# Title\n\n## Synopsis\n\nOld synopsis.\n\n## Usage\n\nExisting text.\n",
                   changed: true,
+                  captured_text: "## Deprecated\n\nDeprecated text.\n",
+                  match_count: 1,
                   operation_profile: Ast::Merge.structured_edit_operation_profile(
-                    operation_kind: "insert",
-                    operation_family: "insertion",
+                    operation_kind: "delete",
+                    operation_family: "removal",
                     known_operation_kind: true,
-                    source_requirement: "none",
-                    destination_requirement: "optional",
-                    replacement_source: "explicit_text",
-                    captures_source_text: false,
-                    supports_if_missing: true,
+                    source_requirement: "required",
+                    destination_requirement: "none",
+                    replacement_source: "none",
+                    captures_source_text: true,
+                    supports_if_missing: false,
                     metadata: { source: "legacy_crispr_reference" }
-                  ),
-                  destination_profile: Ast::Merge.structured_edit_destination_profile(
-                    resolution_kind: "append_fallback",
-                    resolution_source: "none",
-                    anchor_boundary: "none",
-                    resolution_family: "append",
-                    resolution_source_family: "implicit",
-                    anchor_boundary_family: "none",
-                    known_resolution_kind: true,
-                    known_resolution_source: true,
-                    known_anchor_boundary: true,
-                    used_if_missing: true,
-                    metadata: { family: "shared", source: "legacy_crispr_reference" }
                   ),
                   metadata: { family: "markdown", provider: BACKEND_REFERENCE.id, source: "legacy_crispr_reference" }
                 ),
@@ -321,7 +354,7 @@ module Markly
               message: "markdown batch preserved request ordering."
             }
           ],
-          metadata: { batch_label: "markdown_markly_pair", source: "legacy_crispr_reference" }
+          metadata: { batch_label: "markdown_markly_triad", source: "legacy_crispr_reference" }
         )
       }
     end
