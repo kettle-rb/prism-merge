@@ -1120,6 +1120,9 @@ RSpec.describe Ast::Merge do
     ruby_gemspec_version_loader_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_version_loader_policy_acceptance")
     project_facts_runtime_context_fixture = diagnostics_fixture("project_facts_runtime_context")
     ruby_gemspec_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_self_dependency_policy_acceptance")
+    ruby_gemfile_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemfile_self_dependency_policy_acceptance")
+    ruby_appraisals_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_self_dependency_policy_acceptance")
+    ruby_appraisals_min_ruby_prune_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_min_ruby_prune_policy_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2426,6 +2429,48 @@ RSpec.describe Ast::Merge do
       if entry[:label] == "delete-active-self-dependencies-preserve-comments"
         expect(entry.dig(:report_envelope, :report, :final_content)).not_to include('spec.add_dependency "demo", "~> 1.0"')
         expect(entry.dig(:report_envelope, :report, :final_content)).to include('# spec.add_dependency "demo", "~> 0"')
+      end
+    end
+
+    ruby_gemfile_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "delete-gemfile-self-dependencies-across-nesting"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include('gem "demo", "~> 1.0"')
+        expect(final_content).not_to include('path: "../dev/demo"')
+        expect(final_content).to include('# gem "demo", "~> 0"')
+        expect(final_content).to include('gem "fallback-gem"')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
+      end
+      if entry[:label] == "missing-project-identity-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    ruby_appraisals_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "delete-appraisals-self-dependencies"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include('gem "demo"')
+        expect(final_content).to include('appraise("rails-6")')
+        expect(final_content).to include('gem "rspec" # Testing')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
+      end
+      if entry[:label] == "missing-project-identity-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    ruby_appraisals_min_ruby_prune_policy_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "delete-ruby-appraisals-below-min-ruby"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("ruby-2-3")
+        expect(final_content).not_to include("ruby-2-7")
+        expect(final_content).not_to include("ruby-3-0")
+        expect(final_content).to include("ruby-3-2")
+        expect(final_content).to include('appraise "style"')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
+      end
+      if entry[:label] == "missing-min-ruby-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
 
