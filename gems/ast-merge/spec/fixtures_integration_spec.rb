@@ -1105,6 +1105,7 @@ RSpec.describe Ast::Merge do
     structured_edit_crispr_ruby_callable_destination_move_parity_fixture = diagnostics_fixture("structured_edit_crispr_ruby_callable_destination_move_parity")
     structured_edit_crispr_markdown_heading_section_replace_parity_fixture = diagnostics_fixture("structured_edit_crispr_markdown_heading_section_replace_parity")
     structured_edit_crispr_example_parity_report_fixture = diagnostics_fixture("structured_edit_crispr_example_parity_report")
+    structured_edit_crispr_parity_substrate_report_fixture = diagnostics_fixture("structured_edit_crispr_parity_substrate_report")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2118,6 +2119,15 @@ RSpec.describe Ast::Merge do
     )
     expect(json_ready(crispr_example_parity_report)).to eq(
       json_ready(structured_edit_crispr_example_parity_report_fixture[:report])
+    )
+
+    crispr_parity_substrate_report = described_class.structured_edit_crispr_example_parity_report(
+      scenarios: structured_edit_crispr_parity_substrate_report_fixture.dig(:report, :scenarios),
+      remaining_gaps: structured_edit_crispr_parity_substrate_report_fixture.dig(:report, :remaining_gaps),
+      metadata: structured_edit_crispr_parity_substrate_report_fixture.dig(:report, :metadata)
+    )
+    expect(json_ready(crispr_parity_substrate_report)).to eq(
+      json_ready(structured_edit_crispr_parity_substrate_report_fixture[:report])
     )
 
     structured_edit_provider_execution_request_fixture[:cases].each do |entry|
