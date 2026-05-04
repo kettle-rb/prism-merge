@@ -917,6 +917,21 @@ module Ast
       [deep_dup(envelope[:application]), nil]
     end
 
+    def structured_edit_request_envelope(request)
+      {
+        kind: "structured_edit_request",
+        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
+        request: deep_dup(request)
+      }
+    end
+
+    def import_structured_edit_request_envelope(envelope)
+      return [nil, { category: "kind_mismatch", message: "expected structured_edit_request envelope kind." }] unless envelope[:kind] == "structured_edit_request"
+      return [nil, { category: "unsupported_version", message: "unsupported structured_edit_request envelope version #{envelope[:version]}." }] unless envelope[:version] == STRUCTURED_EDIT_TRANSPORT_VERSION
+
+      [deep_dup(envelope[:request]), nil]
+    end
+
     def structured_edit_execution_report(application:, provider_family:, diagnostics:, provider_backend: nil, metadata: nil)
       report = {
         application: deep_dup(application),
