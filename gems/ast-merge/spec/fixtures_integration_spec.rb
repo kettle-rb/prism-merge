@@ -1124,6 +1124,7 @@ RSpec.describe Ast::Merge do
     ruby_appraisals_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_self_dependency_policy_acceptance")
     ruby_appraisals_min_ruby_prune_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_min_ruby_prune_policy_acceptance")
     changelog_unreleased_normalization_acceptance_fixture = diagnostics_fixture("changelog_unreleased_normalization_acceptance")
+    readme_supplied_metadata_synchronization_acceptance_fixture = diagnostics_fixture("readme_supplied_metadata_synchronization_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2484,6 +2485,20 @@ RSpec.describe Ast::Merge do
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("insert_or_replace_section")
       end
       if entry[:label] == "missing-entries-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    readme_supplied_metadata_synchronization_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "sync-readme-heading-and-summary-from-supplied-metadata"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to start_with("# Demo Toolkit\n")
+        expect(final_content).to include("A deterministic toolkit for structured merges.")
+        expect(final_content).to include("Destination usage.")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :consumed_context)).to eq("readme_metadata.title")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :consumed_context)).to eq("readme_metadata.summary")
+      end
+      if entry[:label] == "missing-readme-metadata-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
