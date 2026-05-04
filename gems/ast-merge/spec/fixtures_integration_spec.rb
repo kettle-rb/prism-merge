@@ -1144,6 +1144,7 @@ RSpec.describe Ast::Merge do
     structured_edit_provider_batch_execution_replay_bundle_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_batch_execution_replay_bundle_envelope_rejection")
     structured_edit_provider_batch_execution_replay_bundle_envelope_application_fixture = diagnostics_fixture("structured_edit_provider_batch_execution_replay_bundle_envelope_application")
     structured_edit_provider_executor_profile_fixture = diagnostics_fixture("structured_edit_provider_executor_profile")
+    structured_edit_provider_executor_operation_triad_profile_fixture = diagnostics_fixture("structured_edit_provider_executor_operation_triad_profile")
     structured_edit_provider_executor_profile_envelope_fixture = diagnostics_fixture("structured_edit_provider_executor_profile_envelope")
     structured_edit_provider_executor_profile_envelope_rejection_fixture = diagnostics_fixture("structured_edit_provider_executor_profile_envelope_rejection")
     structured_edit_provider_executor_profile_envelope_application_fixture = diagnostics_fixture("structured_edit_provider_executor_profile_envelope_application")
@@ -2555,6 +2556,25 @@ RSpec.describe Ast::Merge do
     end
 
     structured_edit_provider_executor_profile_fixture[:cases].each do |entry|
+      executor_profile = described_class.structured_edit_provider_executor_profile(
+        provider_family: entry.dig(:executor_profile, :provider_family),
+        provider_backend: entry.dig(:executor_profile, :provider_backend),
+        executor_label: entry.dig(:executor_profile, :executor_label),
+        structure_profile: entry.dig(:executor_profile, :structure_profile),
+        selection_profile: entry.dig(:executor_profile, :selection_profile),
+        match_profile: entry.dig(:executor_profile, :match_profile),
+        operation_profiles: entry.dig(:executor_profile, :operation_profiles),
+        destination_profile: entry.dig(:executor_profile, :destination_profile),
+        metadata: entry.dig(:executor_profile, :metadata)
+      )
+      expect(json_ready(executor_profile)).to eq(json_ready(entry[:executor_profile]))
+    end
+
+    expect(structured_edit_provider_executor_operation_triad_profile_fixture.dig(:metadata, :canonical_operation_kinds)).to eq(
+      %w[insert replace delete]
+    )
+    expect(structured_edit_provider_executor_operation_triad_profile_fixture.dig(:metadata, :remove_alias_encoded)).to be(false)
+    structured_edit_provider_executor_operation_triad_profile_fixture[:cases].each do |entry|
       executor_profile = described_class.structured_edit_provider_executor_profile(
         provider_family: entry.dig(:executor_profile, :provider_family),
         provider_backend: entry.dig(:executor_profile, :provider_backend),
