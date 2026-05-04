@@ -1014,6 +1014,22 @@ module Ast
       report
     end
 
+    def structured_edit_kettle_jem_primitive_gap_report(reference_project:, scope:, product_target:,
+      current_substrate:, required_primitives:, script_classifications:, non_goals: nil, next_slices: nil, metadata: nil)
+      report = {
+        reference_project: reference_project.to_s,
+        scope: scope.to_s,
+        product_target: product_target.to_s,
+        current_substrate: deep_dup(current_substrate),
+        required_primitives: deep_dup(required_primitives),
+        script_classifications: deep_dup(script_classifications)
+      }
+      report[:non_goals] = Array(non_goals).map(&:to_s) if non_goals
+      report[:next_slices] = Array(next_slices).map(&:to_s) if next_slices
+      report[:metadata] = deep_dup(metadata) if metadata
+      report
+    end
+
     def structured_edit_provider_execution_request(request:, provider_family:, provider_backend: nil, metadata: nil)
       execution_request = {
         request: deep_dup(request),

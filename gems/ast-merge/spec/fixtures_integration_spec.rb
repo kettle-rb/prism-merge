@@ -1107,6 +1107,7 @@ RSpec.describe Ast::Merge do
     structured_edit_crispr_markdown_heading_section_replace_parity_fixture = diagnostics_fixture("structured_edit_crispr_markdown_heading_section_replace_parity")
     structured_edit_crispr_example_parity_report_fixture = diagnostics_fixture("structured_edit_crispr_example_parity_report")
     structured_edit_crispr_parity_substrate_report_fixture = diagnostics_fixture("structured_edit_crispr_parity_substrate_report")
+    structured_edit_kettle_jem_primitive_gap_report_fixture = diagnostics_fixture("structured_edit_kettle_jem_primitive_gap_report")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2183,6 +2184,21 @@ RSpec.describe Ast::Merge do
     )
     expect(json_ready(crispr_parity_substrate_report)).to eq(
       json_ready(structured_edit_crispr_parity_substrate_report_fixture[:report])
+    )
+
+    kettle_jem_primitive_gap_report = described_class.structured_edit_kettle_jem_primitive_gap_report(
+      reference_project: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :reference_project),
+      scope: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :scope),
+      product_target: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :product_target),
+      current_substrate: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :current_substrate),
+      required_primitives: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :required_primitives),
+      script_classifications: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :script_classifications),
+      non_goals: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :non_goals),
+      next_slices: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :next_slices),
+      metadata: structured_edit_kettle_jem_primitive_gap_report_fixture.dig(:report, :metadata)
+    )
+    expect(json_ready(kettle_jem_primitive_gap_report)).to eq(
+      json_ready(structured_edit_kettle_jem_primitive_gap_report_fixture[:report])
     )
 
     structured_edit_provider_execution_request_fixture[:cases].each do |entry|
