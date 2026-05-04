@@ -1109,6 +1109,7 @@ RSpec.describe Ast::Merge do
     structured_edit_crispr_parity_substrate_report_fixture = diagnostics_fixture("structured_edit_crispr_parity_substrate_report")
     structured_edit_kettle_jem_primitive_gap_report_fixture = diagnostics_fixture("structured_edit_kettle_jem_primitive_gap_report")
     content_recipe_execution_envelope_fixture = diagnostics_fixture("content_recipe_execution_envelope")
+    single_file_readme_heading_section_acceptance_fixture = diagnostics_fixture("single_file_readme_heading_section_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2203,6 +2204,36 @@ RSpec.describe Ast::Merge do
     )
 
     content_recipe_execution_envelope_fixture[:cases].each do |entry|
+      request = described_class.content_recipe_execution_request(
+        recipe_name: entry.dig(:request_envelope, :request, :recipe_name),
+        recipe_version: entry.dig(:request_envelope, :request, :recipe_version),
+        relative_path: entry.dig(:request_envelope, :request, :relative_path),
+        provider_family: entry.dig(:request_envelope, :request, :provider_family),
+        provider_backend: entry.dig(:request_envelope, :request, :provider_backend),
+        template_content: entry.dig(:request_envelope, :request, :template_content),
+        destination_content: entry.dig(:request_envelope, :request, :destination_content),
+        steps: entry.dig(:request_envelope, :request, :steps),
+        runtime_context: entry.dig(:request_envelope, :request, :runtime_context),
+        metadata: entry.dig(:request_envelope, :request, :metadata)
+      )
+      expect(json_ready(described_class.content_recipe_execution_request_envelope(request))).to eq(
+        json_ready(entry[:request_envelope])
+      )
+
+      report = described_class.content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
+    end
+
+    single_file_readme_heading_section_acceptance_fixture[:cases].each do |entry|
       request = described_class.content_recipe_execution_request(
         recipe_name: entry.dig(:request_envelope, :request, :recipe_name),
         recipe_version: entry.dig(:request_envelope, :request, :recipe_version),
