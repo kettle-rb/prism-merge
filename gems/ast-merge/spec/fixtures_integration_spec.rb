@@ -1122,6 +1122,7 @@ RSpec.describe Ast::Merge do
     ruby_gemspec_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_self_dependency_policy_acceptance")
     ruby_gemfile_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemfile_self_dependency_policy_acceptance")
     ruby_appraisals_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_self_dependency_policy_acceptance")
+    ruby_appraisals_min_ruby_prune_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_min_ruby_prune_policy_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2466,6 +2467,26 @@ RSpec.describe Ast::Merge do
         final_content = entry.dig(:report_envelope, :report, :final_content)
         expect(final_content).not_to include('gem "demo"')
         expect(final_content).to include('appraise("rails-6")')
+      end
+    end
+
+    ruby_appraisals_min_ruby_prune_policy_acceptance_fixture[:cases].each do |entry|
+      report = described_class.content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
+      if entry[:label] == "delete-ruby-appraisals-below-min-ruby"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("ruby-2-7")
+        expect(final_content).to include("ruby-3-2")
+        expect(final_content).not_to include("\n\n\n")
       end
     end
 
