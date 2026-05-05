@@ -76,8 +76,12 @@ module Kettle
       facts[:ci][:coverage] = coverage_config unless coverage_config.empty?
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
+      template_facts = {}
       template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
-      facts[:templates] = { source_preferences: template_preferences } unless template_preferences.empty?
+      template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
+      template_tokens = template_tokens(funding)
+      template_facts[:tokens] = template_tokens unless template_tokens.empty?
+      facts[:templates] = template_facts unless template_facts.empty?
       facts
     end
 
@@ -155,6 +159,7 @@ module Kettle
           facts: %w[templates funding]
         )
         recipe[:template_preference] = preference
+        recipe[:template_tokens] = facts.dig(:templates, :tokens) if facts.dig(:templates, :tokens)
         recipes << recipe
       end
       recipes << recipe_entry(
@@ -433,6 +438,7 @@ module Kettle
       metadata = { packaging_recipe: recipe.fetch(:name) }
       metadata[:delete_file] = true if delete_file_recipe?(recipe)
       metadata[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
+      metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
       metadata
     end
 
@@ -454,6 +460,7 @@ module Kettle
         context[:delete_selectors] = deletion.fetch(:delete_selectors)
       end
       context[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
+      context[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
       context
     end
 
@@ -479,6 +486,7 @@ module Kettle
           operation: "select",
           template_source_preference: deep_dup(recipe.fetch(:template_preference)),
         )
+        metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
       end
       return metadata unless deletion
 
@@ -681,6 +689,13 @@ module Kettle
       return nil if org.empty?
 
       { org: org, source: ".opencollective.yml" }
+    end
+
+    def template_tokens(funding)
+      org = funding[:open_collective_org].to_s
+      return {} if org.empty?
+
+      { "KJ|OPENCOLLECTIVE_ORG" => org }
     end
 
     def falsey_config?(value)

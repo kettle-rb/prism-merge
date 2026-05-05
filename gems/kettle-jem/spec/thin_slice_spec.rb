@@ -309,15 +309,32 @@ RSpec.describe Kettle::Jem do
             spec.summary = "Example gem"
           end
         RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            entries:
+              - README.md
+        YAML
         ".opencollective.yml" => <<~YAML,
           collective: yaml-org
         YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          # {KJ|OPENCOLLECTIVE_ORG}
+        MARKDOWN
       })
 
       plan = described_class.plan_project(root, env: { "FUNDING_ORG" => "env-org" })
       expect(plan.dig(:facts, :funding, :open_collective_org)).to eq("env-org")
       expect(plan.dig(:facts, :funding, :open_collective_org_source)).to eq("env.FUNDING_ORG")
       expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/env-org")
+      expect(plan.dig(:facts, :templates, :tokens)).to eq("KJ|OPENCOLLECTIVE_ORG" => "env-org")
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_preference_README_md"
+      end
+      expect(template_report.dig(:metadata, :template_tokens)).to eq("KJ|OPENCOLLECTIVE_ORG" => "env-org")
+      expect(template_report.dig(:request_envelope, :request, :runtime_context, :template_tokens)).to eq(
+        "KJ|OPENCOLLECTIVE_ORG" => "env-org"
+      )
     end
   end
 
