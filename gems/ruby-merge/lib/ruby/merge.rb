@@ -13,6 +13,9 @@ module Ruby
     DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/
     MAGIC_COMMENT_PREFIXES = %w[coding encoding frozen_string_literal shareable_constant_value typed warn_indent].freeze
     REQUIRE_PATTERN = /^\s*require(?:_relative)?\s+["']([^"']+)["']/.freeze
+    DSL_CALL_PATTERN = /^(?<name>source|gemspec|git_source|gem|eval_gemfile|platform|group|desc|task)\b/.freeze
+    RAKEFILE_DEFAULT_TASK_COMMENT = "# Define a base default task early so other files can enhance it."
+    RAKEFILE_DEFAULT_TASK_DESC = 'desc "Default tasks aggregator"'
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
     MODULE_PATTERN = /^\s*module\s+([A-Z]\w*(?:::\w+)*)/.freeze
     DEF_PATTERN = /^\s*def\s+(?:self\.)?([a-zA-Z_]\w*[!?=]?)/.freeze
@@ -86,7 +89,7 @@ module Ruby
       }
     end
 
-    def merge_ruby(template_source, destination_source, dialect)
+    def merge_ruby(template_source, destination_source, dialect, merge_template_requires: false)
       template = parse_ruby(template_source, dialect)
       return template unless template[:ok]
 
@@ -101,21 +104,31 @@ module Ruby
         }
       end
 
-      require_block = collect_ruby_require_entries(destination.dig(:analysis, :source)).map { |entry| entry[:text] }.join("\n").strip
+      destination_requires = collect_ruby_require_entries(destination.dig(:analysis, :source))
+      template_requires = collect_ruby_require_entries(template.dig(:analysis, :source))
       destination_declarations = collect_ruby_declaration_entries(destination.dig(:analysis, :source))
       template_declarations = collect_ruby_declaration_entries(template.dig(:analysis, :source))
       destination_paths = destination_declarations.to_h { |entry| [entry[:path], true] }
+      destination_dsl = collect_top_level_dsl_entries(destination.dig(:analysis, :source))
+      template_dsl = collect_top_level_dsl_entries(template.dig(:analysis, :source))
       sections = []
+      preamble = collect_ruby_preamble(destination.dig(:analysis, :source))
+      sections << preamble unless preamble.empty?
+      requires = merge_template_requires ? merge_ruby_requires(destination_requires, template_requires) : destination_requires
+      require_block = requires.map { |entry| entry[:text] }.join("\n").strip
       sections << require_block unless require_block.empty?
+      sections.concat(merge_top_level_dsl_entries(destination_dsl, template_dsl).map { |entry| entry[:text] })
       sections.concat(destination_declarations.map { |entry| entry[:text] })
       sections.concat(
         template_declarations.reject { |entry| destination_paths[entry[:path]] }.map { |entry| entry[:text] }
       )
 
+      output = "#{sections.join("\n\n").strip}\n"
+
       {
         ok: true,
         diagnostics: [],
-        output: "#{sections.join("\n\n").strip}\n",
+        output: normalize_rakefile_default_task_scaffold(output),
         policies: [DESTINATION_WINS_ARRAY_POLICY]
       }
     end
@@ -354,10 +367,104 @@ module Ruby
 
     def collect_ruby_require_entries(source)
       normalize_source(source).split("\n").filter_map do |line|
-        next unless REQUIRE_PATTERN.match?(line)
+        match = REQUIRE_PATTERN.match(line)
+        next unless match
 
-        { text: line.rstrip }
+        { path: "/requires/#{match[1]}", text: line.rstrip }
       end
+    end
+
+    def collect_ruby_preamble(source)
+      lines = normalize_source(source).split("\n")
+      preamble = []
+      lines.each do |line|
+        break unless line.strip.empty? || comment_line?(line)
+
+        preamble << line.rstrip
+      end
+      preamble.join("\n").strip
+    end
+
+    def collect_top_level_dsl_entries(source)
+      lines = normalize_source(source).split("\n")
+      entries = []
+      pending_comments = []
+      index = 0
+
+      while index < lines.length
+        line = lines[index]
+        stripped = line.strip
+        if comment_line?(line)
+          pending_comments << index
+          index += 1
+          next
+        end
+        if stripped.empty?
+          pending_comments = []
+          index += 1
+          next
+        end
+        if REQUIRE_PATTERN.match?(line) || declaration_for_line(line)
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        if line.match?(/\Abegin\b/)
+          start_index = pending_comments.first || index
+          finish_index = ruby_block_finish_index(lines, index)
+          text = lines[start_index..finish_index].join("\n").strip
+          signature = begin_block_signature(text)
+          entries << { path: "/dsl/#{signature}", name: "begin", signature: signature, text: text }
+          pending_comments = []
+          index = finish_index + 1
+          next
+        end
+
+        match = DSL_CALL_PATTERN.match(line)
+        unless match
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        name = match[:name]
+        if name == "desc" && next_code_line_is_task?(lines, index + 1)
+          pending_comments << index
+          index += 1
+          next
+        end
+
+        start_index = pending_comments.first || index
+        finish_index = dsl_entry_finish_index(lines, index)
+        text = lines[start_index..finish_index].join("\n").strip
+        signature = dsl_entry_signature(name, line)
+        entries << { path: "/dsl/#{signature}", name: name, signature: signature, text: text } if signature
+        pending_comments = []
+        index = finish_index + 1
+      end
+
+      entries
+    end
+
+    def merge_top_level_dsl_entries(destination_entries, template_entries)
+      destination_by_signature = destination_entries.to_h { |entry| [entry[:signature], entry] }
+      template_singletons = template_entries.select { |entry| dsl_singleton_entry?(entry) }
+      template_singleton_signatures = template_singletons.map { |entry| entry[:signature] }.to_h { |signature| [signature, true] }
+      result = []
+      result.concat(template_singletons)
+      result.concat(destination_entries.reject { |entry| template_singleton_signatures[entry[:signature]] })
+      result.concat(
+        template_entries.reject do |entry|
+          dsl_singleton_entry?(entry) || destination_by_signature[entry[:signature]]
+        end
+      )
+      result
+    end
+
+    def merge_ruby_requires(destination_requires, template_requires)
+      destination_paths = destination_requires.to_h { |entry| [entry[:path], true] }
+      destination_requires + template_requires.reject { |entry| destination_paths[entry[:path]] }
     end
 
     def collect_ruby_declaration_entries(source)
@@ -444,6 +551,109 @@ module Ruby
       elsif (match = DEF_PATTERN.match(line))
         { kind: "def", name: match[1] }
       end
+    end
+
+    def next_code_line_is_task?(lines, start_index)
+      lines[start_index..].to_a.each do |line|
+        next if line.strip.empty? || comment_line?(line)
+
+        match = DSL_CALL_PATTERN.match(line)
+        return match && match[:name] == "task"
+      end
+      false
+    end
+
+    def dsl_entry_finish_index(lines, start_index)
+      return start_index unless lines[start_index].match?(/\bdo\b/)
+
+      ruby_block_finish_index(lines, start_index)
+    end
+
+    def ruby_block_finish_index(lines, start_index)
+      depth = 0
+      cursor = start_index
+      while cursor < lines.length
+        stripped = lines[cursor].strip
+        depth += stripped.scan(/\bdo\b/).length
+        depth += 1 if declaration_for_line(stripped) || stripped.match?(/\A(begin|if|unless|case|while|until|for)\b/)
+        depth -= 1 if stripped == "end"
+        return cursor if depth <= 0 && cursor > start_index
+
+        cursor += 1
+      end
+      lines.length - 1
+    end
+
+    def begin_block_signature(text)
+      require_path = text[/^\s*require(?:_relative)?\s+["']([^"']+)["']/, 1]
+      return "begin:require:#{require_path}" if require_path
+
+      "begin:#{text.lines.first.to_s.strip}"
+    end
+
+    def dsl_entry_signature(name, line)
+      case name
+      when "source", "gemspec"
+        name
+      when "git_source", "gem", "eval_gemfile", "platform", "group", "task"
+        first_argument = line[/\b#{Regexp.escape(name)}\s*(?:\(|\s)\s*["']([^"']+)["']/, 1] ||
+          line[/\b#{Regexp.escape(name)}\s*(?:\(|\s)\s*:([a-zA-Z_]\w*[!?=]?)/, 1]
+        first_argument ? "#{name}:#{normalize_dsl_argument(name, first_argument)}" : "#{name}:#{line.strip}"
+      when "desc"
+        "desc:#{line.strip}"
+      end
+    end
+
+    def normalize_dsl_argument(name, argument)
+      return argument.gsub(%r{/r\d+/}, "/") if name == "eval_gemfile"
+
+      argument
+    end
+
+    def dsl_singleton_entry?(entry)
+      %w[source gemspec].include?(entry[:name])
+    end
+
+    def normalize_rakefile_default_task_scaffold(content)
+      lines = normalize_source(content).split("\n")
+      desc_index = lines.find_index { |line| line.strip == RAKEFILE_DEFAULT_TASK_DESC }
+      return content unless desc_index
+
+      comment_index = preceding_code_line_index(lines, desc_index - 1)
+      return content unless comment_index && lines[comment_index].strip == RAKEFILE_DEFAULT_TASK_COMMENT
+
+      next_code_index = next_code_line_index(lines, desc_index + 1)
+      return content if next_code_index && lines[next_code_index].match?(/\Atask\s+:default\b/)
+
+      task_index = lines.each_index.find { |index| lines[index].match?(/\Atask\s+:default\b/) }
+      return content unless task_index
+
+      finish_index = dsl_entry_finish_index(lines, task_index)
+      task_block = lines[task_index..finish_index]
+      lines[task_index..finish_index] = []
+      insertion_index = lines.find_index { |line| line.strip == RAKEFILE_DEFAULT_TASK_DESC } + 1
+      insertion = task_block.dup
+      insertion << "" unless lines[insertion_index].to_s.strip.empty?
+      lines.insert(insertion_index, *insertion)
+      "#{lines.join("\n").sub(/\n+\z/, "")}\n"
+    end
+
+    def preceding_code_line_index(lines, start_index)
+      start_index.downto(0) do |index|
+        next if lines[index].strip.empty?
+
+        return index
+      end
+      nil
+    end
+
+    def next_code_line_index(lines, start_index)
+      start_index.upto(lines.length - 1) do |index|
+        next if lines[index].strip.empty?
+
+        return index
+      end
+      nil
     end
 
     def surfaces_for_owner(owner_name:, comment_entries:)

@@ -26,6 +26,55 @@ RSpec.describe Ast::Merge do
     described_class.json_ready(value)
   end
 
+  def fixture_deep_dup(value)
+    Marshal.load(Marshal.dump(value))
+  end
+
+  def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
+    template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
+    request = {
+      recipe_name: recipe_name.to_s,
+      recipe_version: recipe_version.to_s,
+      relative_path: relative_path.to_s,
+      provider_family: provider_family.to_s,
+      template_content: template_content.to_s,
+      destination_content: destination_content.to_s,
+      steps: fixture_deep_dup(steps)
+    }
+    request[:provider_backend] = provider_backend.to_s if provider_backend
+    request[:runtime_context] = fixture_deep_dup(runtime_context) if runtime_context
+    request[:metadata] = fixture_deep_dup(metadata) if metadata
+    request
+  end
+
+  def content_recipe_execution_request_envelope(request)
+    {
+      kind: "content_recipe_execution_request",
+      version: described_class::STRUCTURED_EDIT_TRANSPORT_VERSION,
+      request: fixture_deep_dup(request)
+    }
+  end
+
+  def content_recipe_execution_report(request:, final_content:, changed:, step_reports:, diagnostics:, metadata: nil)
+    report = {
+      request: fixture_deep_dup(request),
+      final_content: final_content.to_s,
+      changed: changed ? true : false,
+      step_reports: fixture_deep_dup(step_reports),
+      diagnostics: fixture_deep_dup(diagnostics)
+    }
+    report[:metadata] = fixture_deep_dup(metadata) if metadata
+    report
+  end
+
+  def content_recipe_execution_report_envelope(report)
+    {
+      kind: "content_recipe_execution_report",
+      version: described_class::STRUCTURED_EDIT_TRANSPORT_VERSION,
+      report: fixture_deep_dup(report)
+    }
+  end
+
   def read_relative_file_tree(root)
     root = root.expand_path
     root.find.each_with_object({}) do |path, files|
@@ -34,6 +83,10 @@ RSpec.describe Ast::Merge do
       rel = path.relative_path_from(root).to_s
       files[rel] = path.read
     end
+  end
+
+  def ruleset_fixture_paths
+    fixtures_root.join("rulesets").find.select { |path| path.file? && path.extname == ".smrules" }
   end
 
   def repo_temp_dir
@@ -69,6 +122,32 @@ RSpec.describe Ast::Merge do
       configuration_error
       replay_rejected
     ]).to eq(fixture[:categories])
+  end
+
+  it "parses shared compact ruleset fixtures" do
+    paths = ruleset_fixture_paths
+    expect(paths).not_to be_empty
+
+    paths.each do |path|
+      result = described_class.parse_compact_ruleset(path.read)
+      expect(result[:ok]).to be(true), "#{path}: #{result[:diagnostics].inspect}"
+      expect(result.dig(:analysis, :directives)).not_to be_empty
+    end
+  end
+
+  it "rejects malformed compact ruleset edges" do
+    cases = {
+      "missing-required" => "format json\nowners line_bound_statements\nmatch stable_path\nread native_read_portable_write\n",
+      "repeated-format" => "format json\nformat yaml\nowners line_bound_statements\nmatch stable_path\nread native_read_portable_write\nattach layout_only\n",
+      "unknown-read" => "format json\nowners line_bound_statements\nmatch stable_path\nread imaginary\nattach layout_only\n",
+      "unknown-directive" => "format json\nowners line_bound_statements\nmatch stable_path\nread native_read_portable_write\nattach layout_only\nmystery value\n"
+    }
+
+    cases.each do |name, source|
+      result = described_class.parse_compact_ruleset(source)
+      expect(result[:ok]).to be(false), name
+      expect(result[:diagnostics]).not_to be_empty
+    end
   end
 
   it "conforms to the shared policy vocabulary and reporting fixtures" do
@@ -1118,11 +1197,18 @@ RSpec.describe Ast::Merge do
     ruby_gemspec_dependency_section_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_dependency_section_policy_acceptance")
     ruby_gemspec_files_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_files_policy_acceptance")
     ruby_gemspec_version_loader_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_version_loader_policy_acceptance")
-    project_facts_runtime_context_fixture = diagnostics_fixture("project_facts_runtime_context")
+    runtime_facts_context_fixture = diagnostics_fixture("runtime_facts_context")
     ruby_gemspec_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemspec_self_dependency_policy_acceptance")
     ruby_gemfile_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_gemfile_self_dependency_policy_acceptance")
     ruby_appraisals_self_dependency_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_self_dependency_policy_acceptance")
     ruby_appraisals_min_ruby_prune_policy_acceptance_fixture = diagnostics_fixture("ruby_appraisals_min_ruby_prune_policy_acceptance")
+    changelog_unreleased_normalization_acceptance_fixture = diagnostics_fixture("changelog_unreleased_normalization_acceptance")
+    readme_supplied_metadata_synchronization_acceptance_fixture = diagnostics_fixture("readme_supplied_metadata_synchronization_acceptance")
+    supplied_markdown_pruning_acceptance_fixture = diagnostics_fixture("supplied_markdown_pruning_acceptance")
+    supplied_source_selector_deletion_acceptance_fixture = diagnostics_fixture("supplied_source_selector_deletion_acceptance")
+    supplied_yaml_snippet_synchronization_acceptance_fixture = diagnostics_fixture("supplied_yaml_snippet_synchronization_acceptance")
+    supplied_managed_text_block_replacement_acceptance_fixture = diagnostics_fixture("supplied_managed_text_block_replacement_acceptance")
+    supplied_yaml_placeholder_scalar_backfill_acceptance_fixture = diagnostics_fixture("supplied_yaml_placeholder_scalar_backfill_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2217,7 +2303,7 @@ RSpec.describe Ast::Merge do
     )
 
     content_recipe_execution_envelope_fixture[:cases].each do |entry|
-      request = described_class.content_recipe_execution_request(
+      request = content_recipe_execution_request(
         recipe_name: entry.dig(:request_envelope, :request, :recipe_name),
         recipe_version: entry.dig(:request_envelope, :request, :recipe_version),
         relative_path: entry.dig(:request_envelope, :request, :relative_path),
@@ -2229,11 +2315,11 @@ RSpec.describe Ast::Merge do
         runtime_context: entry.dig(:request_envelope, :request, :runtime_context),
         metadata: entry.dig(:request_envelope, :request, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_request_envelope(request))).to eq(
+      expect(json_ready(content_recipe_execution_request_envelope(request))).to eq(
         json_ready(entry[:request_envelope])
       )
 
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2241,13 +2327,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     single_file_readme_heading_section_acceptance_fixture[:cases].each do |entry|
-      request = described_class.content_recipe_execution_request(
+      request = content_recipe_execution_request(
         recipe_name: entry.dig(:request_envelope, :request, :recipe_name),
         recipe_version: entry.dig(:request_envelope, :request, :recipe_version),
         relative_path: entry.dig(:request_envelope, :request, :relative_path),
@@ -2259,11 +2345,11 @@ RSpec.describe Ast::Merge do
         runtime_context: entry.dig(:request_envelope, :request, :runtime_context),
         metadata: entry.dig(:request_envelope, :request, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_request_envelope(request))).to eq(
+      expect(json_ready(content_recipe_execution_request_envelope(request))).to eq(
         json_ready(entry[:request_envelope])
       )
 
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2271,13 +2357,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     native_structured_edit_recipe_steps_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2285,13 +2371,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     ruby_gemfile_signature_merge_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2299,7 +2385,7 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
@@ -2311,7 +2397,7 @@ RSpec.describe Ast::Merge do
     expect(ruby_gemspec_native_boundary_report_fixture[:wrapper_required_behaviors].map { |entry| entry[:name] }).to include(
       "dependency_ruby_floor_comment_alignment"
     )
-    request = described_class.content_recipe_execution_request(
+    request = content_recipe_execution_request(
       recipe_name: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :recipe_name),
       recipe_version: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :recipe_version),
       relative_path: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :relative_path),
@@ -2323,12 +2409,12 @@ RSpec.describe Ast::Merge do
       runtime_context: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :runtime_context),
       metadata: ruby_gemspec_native_boundary_report_fixture.dig(:example_native_recipe, :request, :metadata)
     )
-    expect(json_ready(described_class.content_recipe_execution_request_envelope(request))).to eq(
+    expect(json_ready(content_recipe_execution_request_envelope(request))).to eq(
       json_ready(ruby_gemspec_native_boundary_report_fixture[:example_native_recipe])
     )
 
     ruby_gemspec_signature_merge_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2336,13 +2422,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     ruby_gemspec_field_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2350,13 +2436,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     ruby_gemspec_dependency_section_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2364,13 +2450,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     ruby_gemspec_files_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2378,13 +2464,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
     ruby_gemspec_version_loader_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2392,13 +2478,13 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
     end
 
-    project_facts_runtime_context_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+    runtime_facts_context_fixture[:cases].each do |entry|
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2406,16 +2492,16 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
-      expect(entry.dig(:report_envelope, :report, :request, :runtime_context, :project_facts, :schema)).to eq(
-        "project_facts.v1"
+      expect(entry.dig(:report_envelope, :report, :request, :runtime_context, :facts, :schema)).to eq(
+        "runtime_facts.v1"
       )
     end
 
     ruby_gemspec_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2423,7 +2509,7 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
       if entry[:label] == "delete-active-self-dependencies-preserve-comments"
@@ -2433,7 +2519,7 @@ RSpec.describe Ast::Merge do
     end
 
     ruby_gemfile_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2441,18 +2527,24 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
       if entry[:label] == "delete-gemfile-self-dependencies-across-nesting"
         final_content = entry.dig(:report_envelope, :report, :final_content)
         expect(final_content).not_to include('gem "demo", "~> 1.0"')
+        expect(final_content).not_to include('path: "../dev/demo"')
         expect(final_content).to include('# gem "demo", "~> 0"')
+        expect(final_content).to include('gem "fallback-gem"')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
+      end
+      if entry[:label] == "missing-project-identity-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
 
     ruby_appraisals_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2460,18 +2552,23 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
       if entry[:label] == "delete-appraisals-self-dependencies"
         final_content = entry.dig(:report_envelope, :report, :final_content)
         expect(final_content).not_to include('gem "demo"')
         expect(final_content).to include('appraise("rails-6")')
+        expect(final_content).to include('gem "rspec" # Testing')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
+      end
+      if entry[:label] == "missing-project-identity-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
 
     ruby_appraisals_min_ruby_prune_policy_acceptance_fixture[:cases].each do |entry|
-      report = described_class.content_recipe_execution_report(
+      report = content_recipe_execution_report(
         request: entry.dig(:report_envelope, :report, :request),
         final_content: entry.dig(:report_envelope, :report, :final_content),
         changed: entry.dig(:report_envelope, :report, :changed),
@@ -2479,14 +2576,135 @@ RSpec.describe Ast::Merge do
         diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
         metadata: entry.dig(:report_envelope, :report, :metadata)
       )
-      expect(json_ready(described_class.content_recipe_execution_report_envelope(report))).to eq(
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
         json_ready(entry[:report_envelope])
       )
       if entry[:label] == "delete-ruby-appraisals-below-min-ruby"
         final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("ruby-2-3")
         expect(final_content).not_to include("ruby-2-7")
+        expect(final_content).not_to include("ruby-3-0")
         expect(final_content).to include("ruby-3-2")
+        expect(final_content).to include('appraise "style"')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
         expect(final_content).not_to include("\n\n\n")
+      end
+      if entry[:label] == "missing-min-ruby-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    changelog_unreleased_normalization_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "create-unreleased-section-from-supplied-entries"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content.index("## Unreleased")).to be < final_content.index("## 1.2.0")
+        expect(final_content).to include("- Added native Markdown recipe boundary.")
+        expect(final_content).to include("- Existing release.")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("insert_or_replace_section")
+      end
+      if entry[:label] == "missing-entries-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    readme_supplied_metadata_synchronization_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "sync-readme-heading-and-summary-from-supplied-metadata"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to start_with("# Demo Toolkit\n")
+        expect(final_content).to include("A deterministic toolkit for structured merges.")
+        expect(final_content).to include("Destination usage.")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :consumed_context)).to eq("readme_metadata.title")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :consumed_context)).to eq("readme_metadata.summary")
+      end
+      if entry[:label] == "missing-readme-metadata-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_markdown_pruning_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "prune-supplied-table-rows-and-reference-definitions"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("Works with JRuby")
+        expect(final_content).not_to include("[jruby-9.4]:")
+        expect(final_content).not_to include("[jruby-head]:")
+        expect(final_content).to include("Works with MRI Ruby")
+        expect(final_content).to include("[ruby-3.2]:")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_rows)).to eq(1)
+        expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :deleted_reference_definitions)).to eq(2)
+      end
+      if entry[:label] == "missing-prune-selectors-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_source_selector_deletion_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "delete-supplied-structural-owner-ranges"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).not_to include("kettle/scaffold")
+        expect(final_content).not_to include("task :scaffold")
+        expect(final_content).to include('require "bundler/gem_tasks"')
+        expect(final_content).to include("task :spec")
+        expect(final_content).not_to include("\n\n\n")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_ranges)).to eq(2)
+      end
+      if entry[:label] == "missing-delete-selectors-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_yaml_snippet_synchronization_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "apply-supplied-sections-and-scalar-pins"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include("concurrency:")
+        expect(final_content).to include("permissions:")
+        expect(final_content).to include("actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd")
+        expect(final_content).to include("ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92")
+        expect(final_content).not_to include("actions/checkout@v3")
+        expect(final_content).not_to include("ruby/setup-ruby@v1")
+        expect(final_content).to include("gemfiles/current.gemfile")
+        expect(final_content).to include('ruby-version: ${{ matrix.ruby }}')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :updated_sections)).to eq(2)
+        expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :updated_scalars)).to eq(2)
+      end
+      if entry[:label] == "missing-yaml-updates-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_managed_text_block_replacement_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "replace-existing-managed-text-block"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include('gem "debug", "~> 1.9"')
+        expect(final_content).to include('gem "irb", "~> 1.15"')
+        expect(final_content).not_to include("old-debug")
+        expect(final_content).to include('gem "rake"')
+        expect(final_content).to include('gem "rspec"')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :replaced_blocks)).to eq(1)
+      end
+      if entry[:label] == "append-missing-managed-text-block"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include("# <<kettle-jem:generated>>")
+        expect(final_content).to include("# (no shunted dependencies)")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :appended_blocks)).to eq(1)
+      end
+      if entry[:label] == "missing-managed-block-updates-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_yaml_placeholder_scalar_backfill_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "backfill-placeholder-and-blank-scalars"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include('name: "demo-toolkit"')
+        expect(final_content).to include("namespace: 'Demo::Toolkit'")
+        expect(final_content).to include('homepage: "https://example.invalid/existing"')
+        expect(final_content).to include("# ENV: KJ_GEM_NAME")
+        expect(final_content).to include("# keep concrete value")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :updated_scalars)).to eq(2)
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :preserved_scalars)).to eq(1)
+      end
+      if entry[:label] == "missing-yaml-scalar-backfills-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
 

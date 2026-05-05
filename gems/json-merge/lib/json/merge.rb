@@ -186,7 +186,7 @@ module Json
 
     def merge_json_values(template, destination)
       if template.is_a?(Hash) && destination.is_a?(Hash)
-        (template.keys | destination.keys).sort.each_with_object({}) do |key, merged|
+        ordered_merge_keys(template, destination).each_with_object({}) do |key, merged|
           if !template.key?(key)
             merged[key] = destination[key]
           elsif !destination.key?(key)
@@ -200,6 +200,11 @@ module Json
       end
     end
     private_class_method :merge_json_values
+
+    def ordered_merge_keys(template, destination)
+      template.keys + destination.keys.reject { |key| template.key?(key) }
+    end
+    private_class_method :ordered_merge_keys
 
     def detect_trailing_comma(source)
       state = scanner_state

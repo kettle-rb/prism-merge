@@ -1,0 +1,2494 @@
+# frozen_string_literal: true
+
+require "fileutils"
+require "find"
+require "ruby/merge"
+require "token/resolver"
+require "toml-merge"
+require "yaml"
+require "yaml/merge"
+require "ast/merge"
+require_relative "jem/version"
+
+module Kettle
+  module Jem
+    PACKAGE_NAME = "kettle-jem"
+    CONTENT_RECIPE_TRANSPORT_VERSION = Ast::Merge::STRUCTURED_EDIT_TRANSPORT_VERSION
+    MANAGED_BLOCK_OPEN = "# <<kettle-jem:generated>> do not edit below this line"
+    MANAGED_BLOCK_CLOSE = "# <</kettle-jem:generated>>"
+    OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
+    OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
+    FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
+    PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
+    SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
+    RUBY_TEMPLATE_BASENAMES = %w[Gemfile Rakefile Appraisals Appraisal.root.gemfile .simplecov].freeze
+    RUBY_TEMPLATE_SUFFIXES = %w[.gemspec .gemfile].freeze
+    RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
+    TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
+    EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
+    README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
+    README_TOP_LOGO_MODES = %w[org project org_and_project].freeze
+    README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
+    README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
+    README_SECTION_ALIASES = {
+      "summary" => "synopsis",
+      "usage" => "basic usage",
+      "configuration options" => "configuration",
+      "setup" => "basic usage",
+    }.freeze
+    README_STATIC_TOP_LOGO_ROW = "[![Galtzo FLOSS Logo by Aboling0, CC BY-SA 4.0][🖼️galtzo-i]][🖼️galtzo-discord] [![ruby-lang Logo, Yukihiro Matsumoto, Ruby Visual Identity Team, CC BY-SA 2.5][🖼️ruby-lang-i]][🖼️ruby-lang]"
+    README_STATIC_TOP_LOGO_REFS = [
+      "[🖼️galtzo-i]: https://logos.galtzo.com/assets/images/galtzo-floss/avatar-192px.svg",
+      "[🖼️galtzo-discord]: https://discord.gg/3qme4XHNKN",
+      "[🖼️ruby-lang-i]: https://logos.galtzo.com/assets/images/ruby-lang/avatar-192px.svg",
+      "[🖼️ruby-lang]: https://www.ruby-lang.org/",
+    ].join("\n").freeze
+    RUBOCOP_VERSION_MAP = [
+      [Gem::Version.new("1.8"), "~> 0.1"],
+      [Gem::Version.new("1.9"), "~> 2.0"],
+      [Gem::Version.new("2.0"), "~> 4.0"],
+      [Gem::Version.new("2.1"), "~> 6.0"],
+      [Gem::Version.new("2.2"), "~> 8.0"],
+      [Gem::Version.new("2.3"), "~> 10.0"],
+      [Gem::Version.new("2.4"), "~> 12.0"],
+      [Gem::Version.new("2.5"), "~> 14.0"],
+      [Gem::Version.new("2.6"), "~> 16.0"],
+      [Gem::Version.new("2.7"), "~> 18.0"],
+      [Gem::Version.new("3.0"), "~> 20.0"],
+      [Gem::Version.new("3.1"), "~> 22.0"],
+      [Gem::Version.new("3.2"), "~> 24.0"],
+      [Gem::Version.new("3.3"), "~> 26.0"],
+      [Gem::Version.new("3.4"), "~> 28.0"],
+    ].freeze
+    FORGE_USER_ENV_KEYS = {
+      gh_user: "KJ_GH_USER",
+      gl_user: "KJ_GL_USER",
+      cb_user: "KJ_CB_USER",
+      sh_user: "KJ_SH_USER",
+    }.freeze
+    FUNDING_TOKEN_ENV_KEYS = {
+      patreon: "KJ_FUNDING_PATREON",
+      kofi: "KJ_FUNDING_KOFI",
+      paypal: "KJ_FUNDING_PAYPAL",
+      buymeacoffee: "KJ_FUNDING_BUYMEACOFFEE",
+      polar: "KJ_FUNDING_POLAR",
+      liberapay: "KJ_FUNDING_LIBERAPAY",
+      issuehunt: "KJ_FUNDING_ISSUEHUNT",
+    }.freeze
+    SOCIAL_TOKEN_ENV_KEYS = {
+      mastodon: "KJ_SOCIAL_MASTODON",
+      bluesky: "KJ_SOCIAL_BLUESKY",
+      linktree: "KJ_SOCIAL_LINKTREE",
+      devto: "KJ_SOCIAL_DEVTO",
+    }.freeze
+    APACHE_LICENSE_COMPAT_CATEGORIES = {
+      "Apache-2.0" => :a,
+      "MIT" => :a,
+      "AGPL-3.0-only" => :x,
+      "PolyForm-Noncommercial-1.0.0" => :x,
+      "PolyForm-Small-Business-1.0.0" => :x,
+      "LicenseRef-Big-Time-Public-License" => :x,
+    }.freeze
+    APACHE_LICENSE_COMPAT_BADGE_DATA = {
+      a: {
+        alt: "Apache license compatibility: Category A",
+        label: "Apache_Compatible:_Category_A",
+        message: "\u2713",
+        color: "259D6C",
+        ref: "https://www.apache.org/legal/resolved.html#category-a",
+      },
+      b: {
+        alt: "Apache license compatibility: Category B",
+        label: "Apache_Maybe_Compatible:_Category_B",
+        message: "?",
+        color: "D9A407",
+        ref: "https://www.apache.org/legal/resolved.html#category-b",
+      },
+      x: {
+        alt: "Apache license compatibility: Category X",
+        label: "Apache_Incompatible:_Category_X",
+        message: "\u2717",
+        color: "C0392B",
+        ref: "https://www.apache.org/legal/resolved.html#category-x",
+      },
+      unknown: {
+        alt: "Apache license compatibility: Unknown",
+        label: "Apache_Compatibility",
+        message: "Unknown",
+        color: "6C757D",
+        ref: "https://www.apache.org/legal/resolved.html",
+      },
+    }.freeze
+
+    module_function
+
+    def discover_facts(project_root, env: ENV)
+      gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
+      raise ArgumentError, "no gemspec found in #{project_root}" unless gemspec_path
+
+      gemspec = File.read(gemspec_path)
+      name = extract_gemspec_assignment(gemspec, "spec.name") || File.basename(gemspec_path, ".gemspec")
+      homepage_url = extract_gemspec_assignment(gemspec, "spec.homepage")
+      metadata_source_url = extract_metadata_value(gemspec, "source_code_uri")
+      source_url = concrete_github_url(metadata_source_url) || concrete_github_url(homepage_url) || metadata_source_url || homepage_url
+
+      kettle_config = kettle_jem_config(project_root)
+      author = author_facts(gemspec, kettle_config, env)
+      license = license_facts(kettle_config, extract_gemspec_array(gemspec, "spec.licenses"), author_email: author[:email])
+      project_runtime = project_runtime_facts(
+        kettle_config,
+        env,
+        package_name: name,
+        source_url: source_url,
+        author_domain: author[:domain],
+        min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
+        version: extract_gemspec_assignment(gemspec, "spec.version")
+      )
+      facts = {
+        package: compact_hash(
+          ecosystem: "rubygems",
+          name: name,
+          slug: name,
+          description: extract_gemspec_assignment(gemspec, "spec.description") ||
+            extract_gemspec_assignment(gemspec, "spec.summary"),
+          homepage_url: homepage_url,
+          source_url: source_url,
+          license_expression: license[:expression],
+        ),
+        rubygems: compact_hash(
+          gemspec_path: File.basename(gemspec_path),
+          namespace: classify_namespace(name),
+          min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
+        ),
+      }
+      bootstrap = kettle_config_bootstrap_facts(project_root, env)
+      facts[:kettle_config_bootstrap] = bootstrap if bootstrap
+      facts[:author] = author unless author.empty?
+      forge = forge_facts(kettle_config, env)
+      facts[:forge] = forge unless forge.empty?
+      social = social_facts(kettle_config, env)
+      facts[:social] = social unless social.empty?
+      opencollective_policy = opencollective_policy(kettle_config, env)
+      opencollective_disabled = opencollective_policy.fetch(:disabled)
+      open_collective_org = opencollective_org(project_root, env, opencollective_disabled: opencollective_disabled)
+      funding = compact_hash(
+        urls: funding_urls(
+          project_root,
+          gemspec,
+          name,
+          opencollective_disabled: opencollective_disabled,
+          open_collective_org: open_collective_org && open_collective_org.fetch(:org)
+        )
+      )
+      funding_tokens = funding_platform_token_facts(kettle_config, env)
+      funding[:platform_tokens] = funding_tokens unless funding_tokens.empty?
+      funding[:open_collective_disabled] = true if opencollective_disabled
+      funding[:open_collective_disabled_source] = opencollective_policy[:source] if opencollective_disabled
+      if open_collective_org
+        funding[:open_collective_org] = open_collective_org.fetch(:org)
+        funding[:open_collective_org_source] = open_collective_org.fetch(:source)
+      end
+      open_collective_files = opencollective_disabled ? opencollective_disabled_files(project_root) : []
+      funding[:open_collective_files] = open_collective_files unless open_collective_files.empty?
+      facts[:funding] = funding unless funding.empty?
+      facts[:ci] = {
+        provider: "github_actions",
+        default_branch: "main",
+        ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
+        obsolete_workflows: github_actions_obsolete_workflows(project_root),
+        custom_workflows: github_actions_custom_workflows(project_root, opencollective_disabled: opencollective_disabled),
+      }
+      coverage_config = github_actions_coverage_config(kettle_config)
+      facts[:ci][:coverage] = coverage_config unless coverage_config.empty?
+      framework_matrix = github_actions_framework_matrix(kettle_config)
+      facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
+      template_facts = {}
+      template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
+      template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
+      unless template_preferences.empty?
+        facts[:license] = license unless license.empty?
+        facts[:project_runtime] = project_runtime unless project_runtime.empty?
+        readme_logo = readme_logo_facts(kettle_config, package_name: name, github_org: project_runtime[:github_org])
+        facts[:readme_logo] = readme_logo unless readme_logo.empty?
+        template_tokens = template_tokens(facts, funding)
+        template_facts[:tokens] = template_tokens unless template_tokens.empty?
+      end
+      facts[:templates] = template_facts unless template_facts.empty?
+      facts
+    end
+
+    def recipe_pack(facts)
+      recipes = [
+        recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
+        recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
+        recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+        recipe_entry(
+          "github_funding_yml",
+          ".github/FUNDING.yml",
+          "yaml",
+          "supplied_github_funding_yaml_synchronization",
+          facts: %w[package funding]
+        ),
+        recipe_entry(
+          "github_actions_ci",
+          ".github/workflows/ci.yml",
+          "yaml",
+          "supplied_github_actions_workflow_synchronization",
+          facts: %w[package rubygems ci]
+        ),
+      ]
+      if facts[:kettle_config_bootstrap]
+        recipes.unshift(kettle_config_bootstrap_recipe(facts.fetch(:kettle_config_bootstrap)))
+      end
+      if facts.dig(:ci, :framework_matrix)
+        recipes << recipe_entry(
+          "github_actions_framework_ci",
+          ".github/workflows/framework-ci.yml",
+          "yaml",
+          "supplied_github_actions_framework_workflow_synchronization",
+          facts: %w[package rubygems ci]
+        )
+      end
+      if facts.dig(:ci, :coverage)
+        recipes << recipe_entry(
+          "github_actions_coverage_ci",
+          ".github/workflows/coverage.yml",
+          "yaml",
+          "supplied_github_actions_coverage_workflow_synchronization",
+          facts: %w[package rubygems ci]
+        )
+      end
+      facts.dig(:ci, :obsolete_workflows).to_a.each do |workflow_path|
+        recipes << recipe_entry(
+          "github_actions_obsolete_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
+          workflow_path,
+          "file",
+          "supplied_obsolete_file_deletion",
+          facts: %w[ci]
+        )
+      end
+      facts.dig(:funding, :open_collective_files).to_a.each do |relative_path|
+        recipes << recipe_entry(
+          "opencollective_disabled_file_cleanup_#{workflow_recipe_slug(relative_path)}",
+          relative_path,
+          "file",
+          "supplied_disabled_opencollective_file_deletion",
+          facts: %w[funding]
+        )
+      end
+      facts.dig(:ci, :custom_workflows).to_a.each do |workflow_path|
+        recipes << recipe_entry(
+          "github_actions_workflow_snippets_#{workflow_recipe_slug(workflow_path)}",
+          workflow_path,
+          "yaml",
+          "supplied_github_actions_workflow_snippet_merge",
+          facts: %w[ci]
+        )
+      end
+      facts.dig(:templates, :source_preferences).to_a.each do |preference|
+        apply_template = preference.fetch(:apply, false)
+        recipe = recipe_entry(
+          "#{apply_template ? "template_source_application" : "template_source_preference"}_#{workflow_recipe_slug(preference.fetch(:target_path))}",
+          preference.fetch(:target_path),
+          "file",
+          apply_template ? "supplied_template_source_application" : "supplied_template_source_preference",
+          facts: %w[templates funding]
+        )
+        recipe[:template_preference] = preference
+        recipe[:template_tokens] = facts.dig(:templates, :tokens) if facts.dig(:templates, :tokens)
+        recipes << recipe
+      end
+      recipes << recipe_entry(
+        "rakefile_scaffold_cleanup",
+        "Rakefile",
+        "generic_ast",
+        "supplied_source_selector_deletion",
+        provider_backend: "generic_structural_owners",
+        facts: %w[rubygems rakefile],
+        selectors: %w[rakefile_scaffold]
+      )
+
+      {
+        name: "kettle-jem-core",
+        version: 1,
+        ecosystem: "rubygems",
+        recipes: recipes,
+      }
+    end
+
+    def plan_project(project_root, env: ENV)
+      facts = discover_facts(project_root, env: env)
+      pack = recipe_pack(facts)
+      files = read_project_files(project_root, pack)
+      recipe_reports = pack.fetch(:recipes).map do |recipe|
+        execute_recipe(project_root: project_root, recipe: recipe, facts: facts, files: files)
+      end
+      changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.sort
+
+      {
+        mode: "plan",
+        ready: true,
+        facts: facts,
+        recipe_pack: pack,
+        recipe_reports: recipe_reports,
+        changed_files: changed_files,
+        diagnostics: recipe_reports.flat_map { |report| report[:diagnostics] },
+      }
+    end
+
+    def apply_project(project_root, env: ENV)
+      report = plan_project(project_root, env: env).merge(mode: "apply")
+      report.fetch(:recipe_reports).each do |recipe_report|
+        next unless recipe_report[:changed]
+
+        path = File.join(project_root, recipe_report.fetch(:relative_path))
+        if recipe_report.dig(:metadata, :delete_file)
+          FileUtils.rm_f(path)
+        else
+          FileUtils.mkdir_p(File.dirname(path))
+          File.write(path, recipe_report.fetch(:final_content))
+        end
+      end
+      report
+    end
+
+    def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
+      template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
+      compact_hash(
+        recipe_name: recipe_name.to_s,
+        recipe_version: recipe_version.to_s,
+        relative_path: relative_path.to_s,
+        provider_family: provider_family.to_s,
+        provider_backend: provider_backend&.to_s,
+        template_content: template_content.to_s,
+        destination_content: destination_content.to_s,
+        steps: deep_dup(steps),
+        runtime_context: deep_dup(runtime_context || {}),
+        metadata: deep_dup(metadata || {}),
+      )
+    end
+
+    def content_recipe_execution_request_envelope(request)
+      {
+        kind: "content_recipe_execution_request",
+        version: CONTENT_RECIPE_TRANSPORT_VERSION,
+        request: deep_dup(request),
+      }
+    end
+
+    def content_recipe_execution_report(request:, final_content:, changed:, step_reports:, diagnostics:, metadata: nil)
+      compact_hash(
+        request: deep_dup(request),
+        final_content: final_content.to_s,
+        changed: changed ? true : false,
+        step_reports: deep_dup(step_reports),
+        diagnostics: deep_dup(diagnostics),
+        metadata: deep_dup(metadata || {}),
+      )
+    end
+
+    def content_recipe_execution_report_envelope(report)
+      {
+        kind: "content_recipe_execution_report",
+        version: CONTENT_RECIPE_TRANSPORT_VERSION,
+        report: deep_dup(report),
+      }
+    end
+
+    def synchronize_readme(content, facts)
+      package = facts.fetch(:package)
+      lines = content.to_s.split("\n", -1)
+      heading = "# #{package.fetch(:name)}"
+      h1_index = lines.index { |line| line.start_with?("# ") }
+      unless h1_index
+        lines.unshift(heading, "")
+      end
+      replace_markdown_managed_block(lines.join("\n"), "kettle-jem:metadata", readme_metadata_block(facts))
+    end
+
+    def normalize_changelog(content, facts)
+      text = content.to_s
+      title = "# Changelog"
+      text = "#{title}\n\n#{text}" unless text.lines.first&.start_with?("# ")
+      return ensure_trailing_newline(text) if text.match?(/^##\s+\[?Unreleased\]?/i)
+
+      lines = text.split("\n", -1)
+      insert_at = lines.index { |line| line.start_with?("## ") } || lines.length
+      section = [
+        "## [Unreleased]",
+        "",
+        "### Added",
+        "",
+        "### Changed",
+        "",
+        "### Fixed",
+        "",
+      ]
+      lines.insert(insert_at, *section)
+      ensure_trailing_newline(lines.join("\n").gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def synchronize_managed_block(content, facts)
+      replacement = [
+        MANAGED_BLOCK_OPEN,
+        "# package: #{facts.fetch(:package).fetch(:name)}",
+        "# generated by kettle-jem vNext",
+        MANAGED_BLOCK_CLOSE,
+        "",
+      ].join("\n")
+      replace_text_managed_block(content.to_s, replacement)
+    end
+
+    def execute_recipe(project_root:, recipe:, facts:, files:)
+      relative_path = recipe.fetch(:target_path)
+      original = files.fetch(relative_path, "")
+      deletion = recipe.fetch(:name) == "rakefile_scaffold_cleanup" ? delete_rakefile_scaffold(original) : nil
+      final = case recipe.fetch(:name)
+      when "readme_metadata"
+        synchronize_readme(original, facts)
+      when "changelog_unreleased"
+        normalize_changelog(original, facts)
+      when "generated_block_sync"
+        synchronize_managed_block(original, facts)
+      when "github_funding_yml"
+        synchronize_github_funding_yml(original, facts)
+      when "github_actions_ci"
+        synchronize_github_actions_ci(original, facts)
+      when "github_actions_framework_ci"
+        synchronize_github_actions_framework_ci(original, facts)
+      when "github_actions_coverage_ci"
+        synchronize_github_actions_coverage_ci(original, facts)
+      when /\Agithub_actions_obsolete_workflow_cleanup_/
+        ""
+      when /\Aopencollective_disabled_file_cleanup_/
+        ""
+      when /\Agithub_actions_workflow_snippets_/
+        synchronize_github_actions_workflow_snippets(original)
+      when "kettle_config_bootstrap"
+        apply_kettle_config_bootstrap(project_root, recipe)
+      when /\Atemplate_source_preference_/
+        original
+      when /\Atemplate_source_application_/
+        apply_template_source(project_root, recipe, original)
+      when "rakefile_scaffold_cleanup"
+        deletion.fetch(:content)
+      else
+        original
+      end
+
+      template_content = recipe_template_content(project_root, recipe)
+      request = content_recipe_execution_request(
+        recipe_name: recipe.fetch(:primitive),
+        recipe_version: "1",
+        relative_path: relative_path,
+        provider_family: recipe.fetch(:provider_family),
+        provider_backend: recipe[:provider_backend],
+        template_content: template_content,
+        destination_content: original,
+        steps: [content_recipe_step(recipe)],
+        runtime_context: recipe_runtime_context(recipe, facts, deletion),
+        metadata: { packaging_recipe: recipe.fetch(:name), project_root: project_root.to_s },
+      )
+      changed = delete_file_recipe?(recipe) || final != original
+      step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
+      report = content_recipe_execution_report(
+        request: request,
+        final_content: final,
+        changed: changed,
+        step_reports: [step_report],
+        diagnostics: [],
+        metadata: recipe_report_metadata(recipe),
+      )
+
+      {
+        recipe_name: recipe.fetch(:name),
+        relative_path: relative_path,
+        changed: changed,
+        request_envelope: content_recipe_execution_request_envelope(request),
+        report_envelope: content_recipe_execution_report_envelope(report),
+        final_content: final,
+        metadata: recipe_report_metadata(recipe),
+        diagnostics: [],
+      }
+    end
+
+    def content_recipe_step(recipe)
+      step = {
+        step_id: recipe.fetch(:name),
+        step_kind: recipe.fetch(:primitive),
+        name: recipe.fetch(:name),
+        provider_family: recipe.fetch(:provider_family),
+        metadata: { target_path: recipe.fetch(:target_path) },
+      }
+      step[:provider_backend] = recipe[:provider_backend] if recipe[:provider_backend]
+      if recipe.fetch(:primitive) == "supplied_source_selector_deletion"
+        step[:step_kind] = "native_policy"
+        step[:policy] = {
+          policy_kind: "delete_supplied_structural_owners",
+          required_context: "delete_selectors",
+          operation: "delete",
+          selector_family: "structural_owner_range",
+          normalize_blank_lines: true,
+        }
+      end
+      step
+    end
+
+    def content_recipe_step_report(recipe:, request:, original:, final:, changed:, deletion: nil)
+      operation_profile = Ast::Merge.structured_edit_operation_profile(
+        operation_kind: recipe.fetch(:primitive),
+        known_operation_kind: true,
+        source_requirement: "destination_content",
+        destination_requirement: "relative_path",
+        replacement_source: "runtime_context",
+        captures_source_text: false,
+        supports_if_missing: true,
+        operation_family: "kettle-jem",
+      )
+      result = Ast::Merge.structured_edit_result(
+        operation_kind: recipe.fetch(:primitive),
+        updated_content: final,
+        changed: changed,
+        operation_profile: operation_profile,
+      )
+      application = Ast::Merge.structured_edit_application(request: request, result: result)
+      {
+        step_id: recipe.fetch(:name),
+        step_kind: recipe.fetch(:primitive),
+        status: changed ? "applied" : "unchanged",
+        changed: changed,
+        input_content: original,
+        output_content: final,
+        application: application,
+        diagnostics: [],
+        metadata: step_report_metadata(recipe, deletion),
+      }
+    end
+
+    def read_project_files(project_root, pack)
+      pack.fetch(:recipes).to_h do |recipe|
+        relative_path = recipe.fetch(:target_path)
+        path = File.join(project_root, relative_path)
+        [relative_path, File.exist?(path) ? File.read(path) : ""]
+      end
+    end
+
+    def recipe_template_content(project_root, recipe)
+      return "" unless %w[
+        supplied_kettle_config_bootstrap
+        supplied_template_source_preference
+        supplied_template_source_application
+      ].include?(recipe.fetch(:primitive))
+
+      preference = recipe.fetch(:template_preference)
+      path = File.join(
+        preference.fetch(:source_root_path, project_root),
+        preference.fetch(:source_relative_path, preference.fetch(:selected_source))
+      )
+      File.read(path)
+    end
+
+    def apply_template_source(project_root, recipe, original)
+      strategy = recipe.dig(:template_preference, :strategy).to_s
+      return original if strategy == "keep_destination"
+
+      content = recipe_template_content(project_root, recipe)
+      return content if strategy == "raw_copy"
+
+      resolved = resolve_template_tokens(
+        content,
+        recipe.fetch(:template_tokens, {}),
+        scan_unresolved: unresolved_template_scan?(recipe)
+      )
+    rescue ArgumentError => e
+      raise ArgumentError, "#{recipe.fetch(:target_path)}: #{e.message}"
+    else
+      if recipe.fetch(:target_path) == "README.md" && (strategy.empty? || strategy == "merge")
+        return merge_readme_template(
+          template_content: resolved,
+          destination_content: original,
+          preserve_config: recipe.dig(:template_preference, :readme_preserve_config) || {}
+        )
+      end
+      return merge_config_template_source(recipe, resolved, original) if strategy.empty? || strategy == "merge"
+
+      resolved
+    end
+
+    def merge_config_template_source(recipe, template_content, destination_content)
+      file_type = template_file_type(recipe)
+      return template_content if destination_content.to_s.strip.empty?
+      return destination_content if destination_content == template_content
+
+      case file_type
+      when :gemspec
+        return merge_gemspec_template_source(template_content, destination_content)
+      when :ruby, :gemfile, :appraisals, :rakefile
+        merge_result = Ruby::Merge.merge_ruby(
+          template_content,
+          destination_content,
+          "ruby",
+          merge_template_requires: file_type == :rakefile
+        )
+      when :yaml
+        merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
+      when :toml
+        merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
+      else
+        return template_content
+      end
+      return merge_result.fetch(:output) if merge_result[:ok]
+
+      diagnostics = merge_result.fetch(:diagnostics, [])
+      message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
+      raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def merge_gemspec_template_source(template_content, destination_content)
+      replacements = gemspec_preserved_assignments(destination_content)
+      return template_content if replacements.empty?
+
+      replacements.reduce(template_content.dup) do |content, (field, source_line)|
+        pattern = /^(\s*spec\.#{Regexp.escape(field)}\s*=\s*).*$/
+        content.match?(pattern) ? content.sub(pattern, source_line.rstrip) : content
+      end
+    end
+
+    def gemspec_preserved_assignments(source)
+      %w[
+        name
+        authors
+        email
+        summary
+        description
+        homepage
+        licenses
+        required_ruby_version
+        executables
+      ].each_with_object({}) do |field, assignments|
+        line = source.to_s.lines.find { |candidate| candidate.match?(/^\s*spec\.#{Regexp.escape(field)}\s*=/) }
+        next unless line
+        next if line.include?("TODO:")
+
+        assignments[field] = line
+      end
+    end
+
+    def template_file_type(recipe)
+      configured = recipe.dig(:template_preference, :file_type).to_s
+      return configured.to_sym unless configured.empty?
+
+      relative_path = recipe.fetch(:target_path).to_s
+      basename = File.basename(relative_path)
+      extension = File.extname(relative_path).downcase
+      return :gemfile if basename == "Gemfile" || basename.end_with?(".gemfile")
+      return :appraisals if basename.start_with?("Appraisals") || basename == "Appraisal.root.gemfile"
+      return :gemspec if basename.end_with?(".gemspec")
+      return :rakefile if basename == "Rakefile" || extension == ".rake"
+      return :ruby if RUBY_TEMPLATE_BASENAMES.include?(basename) ||
+        RUBY_TEMPLATE_SUFFIXES.any? { |suffix| basename.end_with?(suffix) } ||
+        RUBY_TEMPLATE_EXTENSIONS.include?(extension)
+      return :yaml if extension.match?(/\A\.ya?ml\z/) || File.basename(relative_path).casecmp("citation.cff").zero?
+      return :toml if extension == ".toml"
+      return :markdown if extension.match?(/\A\.md(?:own)?\z/)
+
+      :text
+    end
+
+    def apply_kettle_config_bootstrap(project_root, recipe)
+      content = recipe_template_content(project_root, recipe)
+      tokens = stringify_template_tokens(recipe.fetch(:template_tokens, {}))
+      content.gsub("{KJ|MIN_DIVERGENCE_THRESHOLD}", tokens.fetch("KJ|MIN_DIVERGENCE_THRESHOLD", ""))
+    end
+
+    def recipe_report_metadata(recipe)
+      metadata = { packaging_recipe: recipe.fetch(:name) }
+      metadata[:delete_file] = true if delete_file_recipe?(recipe)
+      metadata[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
+      metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      metadata[:bootstrap_file] = true if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
+      metadata
+    end
+
+    def recipe_entry(name, target_path, provider_family, primitive, facts:, provider_backend: nil, selectors: [])
+      {
+        name: name,
+        target_path: target_path,
+        provider_family: provider_family,
+        provider_backend: provider_backend,
+        primitive: primitive,
+        facts: facts,
+        selectors: selectors,
+      }
+    end
+
+    def recipe_runtime_context(recipe, facts, deletion)
+      context = deep_dup(facts)
+      if recipe.fetch(:primitive) == "supplied_source_selector_deletion" && deletion
+        context[:delete_selectors] = deletion.fetch(:delete_selectors)
+      end
+      context[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
+      context[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      context
+    end
+
+    def step_report_metadata(recipe, deletion)
+      metadata = { target_path: recipe.fetch(:target_path) }
+      if recipe.fetch(:primitive) == "supplied_obsolete_file_deletion"
+        metadata.merge!(
+          policy_kind: "delete_obsolete_file",
+          operation: "delete",
+          deleted_file: recipe.fetch(:target_path),
+        )
+      end
+      if recipe.fetch(:primitive) == "supplied_disabled_opencollective_file_deletion"
+        metadata.merge!(
+          policy_kind: "delete_disabled_opencollective_file",
+          operation: "delete",
+          deleted_file: recipe.fetch(:target_path),
+        )
+      end
+      if recipe.fetch(:primitive) == "supplied_template_source_preference"
+        metadata.merge!(
+          policy_kind: "select_template_source",
+          operation: "select",
+          template_source_preference: deep_dup(recipe.fetch(:template_preference)),
+        )
+        metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      end
+      if recipe.fetch(:primitive) == "supplied_template_source_application"
+        metadata.merge!(
+          policy_kind: "apply_template_source",
+          operation: "replace",
+          template_source_preference: deep_dup(recipe.fetch(:template_preference)),
+        )
+        metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      end
+      if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
+        metadata.merge!(
+          policy_kind: "bootstrap_kettle_config",
+          operation: "create",
+          template_source_preference: deep_dup(recipe.fetch(:template_preference)),
+        )
+        metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      end
+      return metadata unless deletion
+
+      metadata.merge(
+        policy_kind: "delete_supplied_structural_owners",
+        operation: "delete",
+        consumed_context: "delete_selectors",
+        deleted_ranges: deletion.fetch(:delete_selectors).length,
+        deleted_selector_ids: deletion.fetch(:delete_selectors).map { |selector| selector.fetch(:selector_id) },
+      )
+    end
+
+    def extract_gemspec_assignment(source, field)
+      match = source.match(/#{Regexp.escape(field)}\s*=\s*["']([^"']*)["']/)
+      match && match[1]
+    end
+
+    def extract_gemspec_array(source, field)
+      match = source.match(/#{Regexp.escape(field)}\s*=\s*\[([^\]]*)\]/m)
+      return [] unless match
+
+      match[1].scan(/["']([^"']+)["']/).flatten
+    end
+
+    def extract_metadata_value(source, key)
+      match = source.match(/spec\.metadata\[\s*["']#{Regexp.escape(key)}["']\s*\]\s*=\s*["']([^"']*)["']/)
+      match && match[1]
+    end
+
+    def funding_urls(project_root, gemspec_source, package_name, opencollective_disabled: false, open_collective_org: nil)
+      urls = [extract_metadata_value(gemspec_source, "funding_uri")]
+      path = File.join(project_root, ".github", "FUNDING.yml")
+      urls.concat(github_funding_urls(path, opencollective_disabled: opencollective_disabled)) if File.exist?(path)
+      urls << github_funding_platform_urls("open_collective", [open_collective_org]).first unless opencollective_disabled
+      urls << github_funding_platform_urls("tidelift", ["rubygems/#{package_name}"]).first
+
+      urls.compact.uniq.sort
+    end
+
+    def github_funding_urls(path, opencollective_disabled: false)
+      funding = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
+      return [] unless funding.is_a?(Hash)
+
+      funding.flat_map do |platform, value|
+        next [] if opencollective_disabled && platform.to_s == "open_collective"
+
+        github_funding_platform_urls(platform.to_s, Array(value).compact)
+      end
+    end
+
+    def github_funding_platform_urls(platform, values)
+      values.filter_map do |value|
+        handle = value.to_s.strip.delete_prefix("@")
+        next if handle.empty?
+
+        case platform
+        when "buy_me_a_coffee"
+          "https://www.buymeacoffee.com/#{handle}"
+        when "custom"
+          handle if handle.match?(%r{\Ahttps?://})
+        when "github"
+          "https://github.com/sponsors/#{handle}"
+        when "issuehunt"
+          "https://issuehunt.io/u/#{handle}"
+        when "ko_fi"
+          "https://ko-fi.com/#{handle}"
+        when "liberapay"
+          "https://liberapay.com/#{handle}/donate"
+        when "open_collective"
+          "https://opencollective.com/#{handle}"
+        when "patreon"
+          "https://patreon.com/#{handle}"
+        when "polar"
+          "https://polar.sh/#{handle}"
+        when "thanks_dev"
+          "https://thanks.dev/#{handle}"
+        when "tidelift"
+          "https://tidelift.com/funding/github/#{handle}"
+        end
+      end
+    end
+
+    def github_actions_ruby_versions(min_ruby)
+      floor = min_ruby.to_s[/\d+\.\d+/] || "3.1"
+      candidates = %w[3.1 3.2 3.3 3.4]
+      selected = candidates.select { |version| Gem::Version.new(version) >= Gem::Version.new(floor) }
+      selected.empty? ? [floor] : selected
+    end
+
+    def github_actions_custom_workflows(project_root, opencollective_disabled: false)
+      workflow_root = File.join(project_root, ".github", "workflows")
+      return [] unless Dir.exist?(workflow_root)
+
+      Dir.glob(File.join(workflow_root, "*.{yml,yaml}")).filter_map do |path|
+        relative_path = path.delete_prefix("#{project_root}/")
+        next if opencollective_disabled && opencollective_disabled_file?(relative_path)
+        next if generated_or_obsolete_github_workflow?(relative_path)
+
+        relative_path
+      end.sort
+    end
+
+    def github_actions_obsolete_workflows(project_root)
+      workflow_root = File.join(project_root, ".github", "workflows")
+      OBSOLETE_GITHUB_WORKFLOWS.filter_map do |workflow|
+        relative_path = ".github/workflows/#{workflow}"
+        path = File.join(workflow_root, workflow)
+        relative_path if File.exist?(path)
+      end.sort
+    end
+
+    def generated_or_obsolete_github_workflow?(relative_path)
+      return true if %w[.github/workflows/ci.yml .github/workflows/coverage.yml .github/workflows/framework-ci.yml].include?(relative_path)
+
+      OBSOLETE_GITHUB_WORKFLOWS.include?(File.basename(relative_path))
+    end
+
+    def opencollective_disabled_files(project_root)
+      OPENCOLLECTIVE_DISABLED_FILES.select do |relative_path|
+        File.exist?(File.join(project_root, relative_path))
+      end
+    end
+
+    def opencollective_disabled_file?(relative_path)
+      OPENCOLLECTIVE_DISABLED_FILES.include?(relative_path.to_s)
+    end
+
+    def delete_file_recipe?(recipe)
+      FILE_DELETION_PRIMITIVES.include?(recipe.fetch(:primitive))
+    end
+
+    def workflow_recipe_slug(workflow_path)
+      workflow_path.gsub(/[^a-zA-Z0-9]+/, "_").gsub(/\A_+|_+\z/, "")
+    end
+
+    def kettle_jem_config(project_root)
+      path = File.join(project_root, ".kettle-jem.yml")
+      return {} unless File.exist?(path)
+
+      config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
+      config.is_a?(Hash) ? config : {}
+    end
+
+    def opencollective_disabled?(config, env: ENV)
+      opencollective_policy(config, env).fetch(:disabled)
+    end
+
+    def opencollective_policy(config, env)
+      funding = config["funding"]
+      if funding.is_a?(Hash) && funding.key?("open_collective")
+        config_value = funding["open_collective"]
+        return {
+          disabled: falsey_config?(config_value),
+          source: "config.funding.open_collective",
+          value: config_value.to_s,
+        }
+      end
+
+      env_falsey = opencollective_falsey_env(env)
+      return { disabled: true, source: "env.#{env_falsey.fetch(:key)}", value: env_falsey.fetch(:value).to_s } if env_falsey
+
+      { disabled: false }
+    end
+
+    def opencollective_falsey_env(env)
+      %w[OPENCOLLECTIVE_HANDLE FUNDING_ORG].each do |key|
+        value = env[key]
+        return { key: key, value: value } if falsey_config?(value)
+      end
+      nil
+    end
+
+    def opencollective_org(project_root, env, opencollective_disabled: false)
+      return nil if opencollective_disabled
+
+      env_org = opencollective_org_env(env)
+      return env_org if env_org
+
+      opencollective_org_file(project_root)
+    end
+
+    def opencollective_org_env(env)
+      %w[OPENCOLLECTIVE_HANDLE FUNDING_ORG].each do |key|
+        value = env[key].to_s.strip
+        next if value.empty? || falsey_config?(value)
+
+        return { org: value, source: "env.#{key}" }
+      end
+      nil
+    end
+
+    def opencollective_org_file(project_root)
+      path = File.join(project_root, ".opencollective.yml")
+      return nil unless File.exist?(path)
+
+      config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
+      return nil unless config.is_a?(Hash)
+
+      org = config.fetch("collective", config["org"]).to_s.strip
+      return nil if org.empty?
+
+      { org: org, source: ".opencollective.yml" }
+    end
+
+    def template_tokens(facts, funding)
+      package = facts.fetch(:package)
+      rubygems = facts.fetch(:rubygems)
+      tokens = {
+        "KJ|GEM_NAME" => package.fetch(:name).to_s,
+        "KJ|GEM_NAME_PATH" => package.fetch(:name).to_s.tr("-", "/"),
+        "KJ|GEM_SHIELD" => shield_token(package.fetch(:name).to_s),
+        "KJ|GEM_MAJOR" => gem_major_token(facts.fetch(:project_runtime, {})[:version]),
+        "KJ|GH_ORG" => facts.fetch(:project_runtime, {})[:github_org].to_s,
+        "KJ|NAMESPACE" => rubygems.fetch(:namespace).to_s,
+        "KJ|NAMESPACE_SHIELD" => shield_token(rubygems.fetch(:namespace).to_s),
+        "KJ|MIN_RUBY" => minimum_ruby_token(rubygems[:min_ruby]),
+        "KJ|MIN_DEV_RUBY" => minimum_dev_ruby_token(rubygems[:min_ruby]),
+      }.merge(
+        rubocop_template_tokens(rubygems[:min_ruby])
+      ).merge(
+        author_template_tokens(facts.fetch(:author, {}))
+      ).merge(
+        forge_template_tokens(facts.fetch(:forge, {}))
+      ).merge(
+        funding_template_tokens(funding)
+      ).merge(
+        social_template_tokens(facts.fetch(:social, {}))
+      ).merge(
+        license_template_tokens(facts.fetch(:license, {}))
+      ).merge(
+        project_runtime_template_tokens(facts.fetch(:project_runtime, {}))
+      ).merge(
+        readme_logo_template_tokens(facts.fetch(:readme_logo, {}))
+      )
+      org = funding[:open_collective_org].to_s
+      tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
+
+      tokens.reject { |key, value| value.empty? && !EMPTY_TEMPLATE_TOKENS.include?(key) }
+    end
+
+    def minimum_ruby_token(requirement)
+      requirement.to_s[/\d+(?:\.\d+){1,2}/].to_s
+    end
+
+    def minimum_dev_ruby_token(requirement)
+      min_ruby = minimum_ruby_token(requirement)
+      return "" if min_ruby.empty?
+
+      [Gem::Version.new(min_ruby), Gem::Version.new("2.3")].max.to_s
+    rescue ArgumentError
+      "2.3"
+    end
+
+    def gem_major_token(version)
+      Gem::Version.new(version.to_s).segments.first.to_s
+    rescue ArgumentError
+      "0"
+    end
+
+    def author_facts(gemspec_source, config, env)
+      token_config = token_config_values(config)
+      author_config = token_config["author"].is_a?(Hash) ? token_config["author"] : {}
+      derived_name = extract_gemspec_array(gemspec_source, "spec.authors").first
+      derived_email = extract_gemspec_array(gemspec_source, "spec.email").first
+      name = preferred_template_token_value(derived_name, author_config["name"], env, "KJ_AUTHOR_NAME").to_s
+      email = preferred_template_token_value(derived_email, author_config["email"], env, "KJ_AUTHOR_EMAIL").to_s
+      given_names = preferred_template_token_value(author_given_names(name), author_config["given_names"], env, "KJ_AUTHOR_GIVEN_NAMES")
+      family_names = preferred_template_token_value(author_family_names(name), author_config["family_names"], env, "KJ_AUTHOR_FAMILY_NAMES")
+      domain = preferred_template_token_value(email.split("@", 2)[1], author_config["domain"], env, "KJ_AUTHOR_DOMAIN")
+      orcid = preferred_template_token_value(nil, author_config["orcid"], env, "KJ_AUTHOR_ORCID")
+      compact_hash(
+        name: name,
+        given_names: given_names.to_s,
+        family_names: family_names.to_s,
+        email: email,
+        domain: domain.to_s,
+        orcid: orcid.to_s
+      )
+    end
+
+    def token_config_values(config)
+      raw = config.is_a?(Hash) ? config["tokens"] : nil
+      raw.is_a?(Hash) ? raw : {}
+    end
+
+    def preferred_template_token_value(derived_value, config_value, env, env_key)
+      env_clean = env[env_key].to_s.strip
+      return env_clean if present_template_token_value?(env_clean)
+
+      config_clean = config_value.to_s.strip
+      return config_clean if present_template_token_value?(config_clean)
+      return unless present_template_token_value?(derived_value)
+
+      derived_value.to_s.strip
+    end
+
+    def present_template_token_value?(value)
+      clean = value.to_s.strip
+      !clean.empty? && !token_placeholder?(clean)
+    end
+
+    def token_placeholder?(value)
+      value.to_s.strip.match?(%r{\A\{KJ\|[A-Z][A-Z0-9_:]*\}\z})
+    end
+
+    def author_template_tokens(author)
+      {
+        "KJ|AUTHOR:NAME" => author[:name].to_s,
+        "KJ|AUTHOR:GIVEN_NAMES" => author[:given_names].to_s,
+        "KJ|AUTHOR:FAMILY_NAMES" => author[:family_names].to_s,
+        "KJ|AUTHOR:EMAIL" => author[:email].to_s,
+        "KJ|AUTHOR:DOMAIN" => author[:domain].to_s,
+        "KJ|AUTHOR:ORCID" => author[:orcid].to_s,
+      }
+    end
+
+    def forge_facts(config, env)
+      token_config = token_config_values(config)
+      forge_config = token_config["forge"].is_a?(Hash) ? token_config["forge"] : {}
+      compact_hash(
+        gh_user: forge_user_value(forge_config, env, :gh_user).to_s,
+        gl_user: forge_user_value(forge_config, env, :gl_user).to_s,
+        cb_user: forge_user_value(forge_config, env, :cb_user).to_s,
+        sh_user: forge_user_value(forge_config, env, :sh_user).to_s
+      )
+    end
+
+    def forge_user_value(forge_config, env, key)
+      preferred_template_token_value(nil, forge_config[key.to_s], env, FORGE_USER_ENV_KEYS.fetch(key))
+    end
+
+    def forge_template_tokens(forge)
+      {
+        "KJ|GH:USER" => forge[:gh_user].to_s,
+        "KJ|GL:USER" => forge[:gl_user].to_s,
+        "KJ|CB:USER" => forge[:cb_user].to_s,
+        "KJ|SH:USER" => forge[:sh_user].to_s,
+      }
+    end
+
+    def funding_platform_token_facts(config, env)
+      token_config = token_config_values(config)
+      funding_config = token_config["funding"].is_a?(Hash) ? token_config["funding"] : {}
+      compact_hash(
+        patreon: funding_platform_token_value(funding_config, env, :patreon).to_s,
+        kofi: funding_platform_token_value(funding_config, env, :kofi).to_s,
+        paypal: funding_platform_token_value(funding_config, env, :paypal).to_s,
+        buymeacoffee: funding_platform_token_value(funding_config, env, :buymeacoffee).to_s,
+        polar: funding_platform_token_value(funding_config, env, :polar).to_s,
+        liberapay: funding_platform_token_value(funding_config, env, :liberapay).to_s,
+        issuehunt: funding_platform_token_value(funding_config, env, :issuehunt).to_s
+      )
+    end
+
+    def funding_platform_token_value(funding_config, env, key)
+      preferred_template_token_value(nil, funding_config[key.to_s], env, FUNDING_TOKEN_ENV_KEYS.fetch(key))
+    end
+
+    def funding_template_tokens(funding)
+      platform_tokens = funding.fetch(:platform_tokens, {})
+      {
+        "KJ|FUNDING:PATREON" => platform_tokens[:patreon].to_s,
+        "KJ|FUNDING:KOFI" => platform_tokens[:kofi].to_s,
+        "KJ|FUNDING:PAYPAL" => platform_tokens[:paypal].to_s,
+        "KJ|FUNDING:BUYMEACOFFEE" => platform_tokens[:buymeacoffee].to_s,
+        "KJ|FUNDING:POLAR" => platform_tokens[:polar].to_s,
+        "KJ|FUNDING:LIBERAPAY" => platform_tokens[:liberapay].to_s,
+        "KJ|FUNDING:ISSUEHUNT" => platform_tokens[:issuehunt].to_s,
+      }
+    end
+
+    def social_facts(config, env)
+      token_config = token_config_values(config)
+      social_config = token_config["social"].is_a?(Hash) ? token_config["social"] : {}
+      compact_hash(
+        mastodon: social_token_value(social_config, env, :mastodon).to_s,
+        bluesky: social_token_value(social_config, env, :bluesky).to_s,
+        linktree: social_token_value(social_config, env, :linktree).to_s,
+        devto: social_token_value(social_config, env, :devto).to_s
+      )
+    end
+
+    def social_token_value(social_config, env, key)
+      preferred_template_token_value(nil, social_config[key.to_s], env, SOCIAL_TOKEN_ENV_KEYS.fetch(key))
+    end
+
+    def social_template_tokens(social)
+      {
+        "KJ|SOCIAL:MASTODON" => social[:mastodon].to_s,
+        "KJ|SOCIAL:BLUESKY" => social[:bluesky].to_s,
+        "KJ|SOCIAL:LINKTREE" => social[:linktree].to_s,
+        "KJ|SOCIAL:DEVTO" => social[:devto].to_s,
+      }
+    end
+
+    def project_runtime_facts(config, env, package_name:, source_url:, author_domain:, min_ruby:, version:)
+      run_timestamp = Time.now
+      compact_hash(
+        freeze_token: config.dig("defaults", "freeze_token").to_s.empty? ? "kettle-jem" : config.dig("defaults", "freeze_token").to_s,
+        kettle_jem_version: VERSION,
+        template_run_date: run_timestamp.strftime("%Y-%m-%d"),
+        template_run_year: run_timestamp.year.to_s,
+        kettle_dev_gem: "kettle-dev",
+        yard_host: "#{package_name.to_s.tr("_", "-")}.#{author_domain.to_s.empty? ? "example.com" : author_domain}",
+        project_emoji: preferred_template_token_value(nil, config["project_emoji"], env, "KJ_PROJECT_EMOJI").to_s,
+        min_divergence_threshold: preferred_template_token_value(nil, config["min_divergence_threshold"], env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
+        min_dev_ruby: minimum_dev_ruby_token(min_ruby),
+        version: version.to_s,
+        github_org: github_org_from_url(source_url).to_s
+      )
+    end
+
+    def project_runtime_template_tokens(project_runtime)
+      {
+        "KJ|FREEZE_TOKEN" => project_runtime[:freeze_token].to_s,
+        "KJ|KETTLE_JEM_VERSION" => project_runtime[:kettle_jem_version].to_s,
+        "KJ|TEMPLATE_RUN_DATE" => project_runtime[:template_run_date].to_s,
+        "KJ|TEMPLATE_RUN_YEAR" => project_runtime[:template_run_year].to_s,
+        "KJ|KETTLE_DEV_GEM" => project_runtime[:kettle_dev_gem].to_s,
+        "KJ|YARD_HOST" => project_runtime[:yard_host].to_s,
+        "KJ|PROJECT_EMOJI" => project_runtime[:project_emoji].to_s,
+        "KJ|MIN_DIVERGENCE_THRESHOLD" => project_runtime[:min_divergence_threshold].to_s,
+      }
+    end
+
+    def shield_token(value)
+      value.to_s.gsub("-", "--").gsub("_", "__").gsub("::", "%3A%3A").tr(" ", "_")
+    end
+
+    def github_org_from_url(url)
+      match = url.to_s.match(%r{\Ahttps?://github\.com/([^/]+)/})
+      match && match[1]
+    end
+
+    def concrete_github_url(url)
+      github_org_from_url(url) ? url.to_s : nil
+    end
+
+    def readme_logo_facts(config, package_name:, github_org:)
+      entries = readme_top_logo_entries(readme_top_logo_mode(config), org: github_org.to_s, gem_name: package_name.to_s)
+      compact_hash(
+        top_logo_mode: readme_top_logo_mode(config),
+        top_logo_row: [README_STATIC_TOP_LOGO_ROW, readme_top_logo_row(entries)].reject(&:empty?).join(" "),
+        top_logo_refs: [README_STATIC_TOP_LOGO_REFS, readme_top_logo_refs(entries)].reject(&:empty?).join("\n")
+      )
+    end
+
+    def readme_top_logo_mode(config)
+      raw_config = config.is_a?(Hash) ? config["readme"] : nil
+      readme_config = raw_config.is_a?(Hash) ? raw_config : {}
+      normalized = readme_config["top_logo_mode"].to_s.strip.downcase.tr("-", "_")
+      return README_TOP_LOGO_MODE_DEFAULT if normalized.empty?
+      return normalized if README_TOP_LOGO_MODES.include?(normalized)
+
+      README_TOP_LOGO_MODE_DEFAULT
+    end
+
+    def readme_top_logo_entries(mode, org:, gem_name:)
+      return [] if org.empty?
+
+      entries = []
+      if mode == "org" || mode == "org_and_project"
+        entries << {
+          label: org,
+          image_ref: "#{org}-i",
+          link_ref: org,
+          image_url: "https://logos.galtzo.com/assets/images/#{org}/avatar-192px.svg",
+          href: "https://github.com/#{org}",
+        }
+      end
+      if mode == "project" || mode == "org_and_project"
+        entries << {
+          label: gem_name,
+          image_ref: "#{gem_name}-i",
+          link_ref: gem_name,
+          image_url: "https://logos.galtzo.com/assets/images/#{org}/#{gem_name}/avatar-192px.svg",
+          href: "https://github.com/#{org}/#{gem_name}",
+        }
+      end
+      entries.uniq { |entry| [entry[:image_ref], entry[:link_ref], entry[:image_url], entry[:href]] }
+    end
+
+    def readme_top_logo_row(entries)
+      entries.map do |entry|
+        "[![#{entry[:label]} Logo by Aboling0, CC BY-SA 4.0][🖼️#{entry[:image_ref]}]][🖼️#{entry[:link_ref]}]"
+      end.join(" ")
+    end
+
+    def readme_top_logo_refs(entries)
+      entries.flat_map do |entry|
+        [
+          "[🖼️#{entry[:image_ref]}]: #{entry[:image_url]}",
+          "[🖼️#{entry[:link_ref]}]: #{entry[:href]}",
+        ]
+      end.join("\n")
+    end
+
+    def readme_logo_template_tokens(readme_logo)
+      {
+        "KJ|README:TOP_LOGO_ROW" => readme_logo[:top_logo_row].to_s,
+        "KJ|README:TOP_LOGO_REFS" => readme_logo[:top_logo_refs].to_s,
+      }
+    end
+
+    def rubocop_template_tokens(min_ruby)
+      constraint, gem_name = rubocop_tokens_for(min_ruby_version(min_ruby))
+      {
+        "KJ|RUBOCOP_LTS_CONSTRAINT" => constraint,
+        "KJ|RUBOCOP_RUBY_GEM" => gem_name,
+      }
+    end
+
+    def rubocop_tokens_for(min_ruby)
+      fallback = RUBOCOP_VERSION_MAP.first
+      selected = nil
+      RUBOCOP_VERSION_MAP.reverse_each do |minimum, constraint|
+        next unless min_ruby && min_ruby >= minimum
+
+        selected = [minimum, constraint]
+        break
+      end
+      selected ||= fallback
+      [selected[1], "rubocop-ruby#{selected[0].segments.join("_")}"]
+    end
+
+    def min_ruby_version(requirement)
+      token = minimum_ruby_token(requirement)
+      return nil if token.empty?
+
+      Gem::Version.new(token)
+    rescue ArgumentError
+      nil
+    end
+
+    def license_facts(config, gemspec_licenses, author_email: nil)
+      licenses = resolved_licenses(config, gemspec_licenses)
+      primary = licenses.first
+      compat_category = license_compat_category(licenses)
+      compact_hash(
+        spdx: licenses,
+        expression: licenses.join(" OR "),
+        primary_spdx: primary,
+        license_md_content: license_md_content(licenses, author_email: author_email),
+        readme_license_intro: readme_license_intro(licenses, author_email: author_email),
+        readme_license_badge: license_badge(primary),
+        readme_license_compat_badge: license_compat_badge(compat_category),
+        readme_license_refs: readme_license_refs(primary, compat_category),
+        copyright_prefix: polyform_licenses?(licenses) ? "Required Notice: " : ""
+      )
+    end
+
+    def resolved_licenses(config, gemspec_licenses)
+      config_licenses = config.is_a?(Hash) ? config["licenses"] : nil
+      licenses = Array(config_licenses).map { |license| license.to_s.strip }.reject(&:empty?)
+      return licenses unless licenses.empty?
+
+      licenses = Array(gemspec_licenses).map { |license| license.to_s.strip }.reject(&:empty?)
+      licenses.empty? ? ["MIT"] : licenses
+    end
+
+    def license_template_tokens(license)
+      {
+        "KJ|LICENSE_MD_CONTENT" => license[:license_md_content].to_s,
+        "KJ|README:LICENSE_INTRO" => license[:readme_license_intro].to_s,
+        "KJ|LICENSE:PRIMARY_SPDX" => license[:primary_spdx].to_s,
+        "KJ|README:LICENSE_BADGE" => license[:readme_license_badge].to_s,
+        "KJ|README:LICENSE_COMPAT_BADGE" => license[:readme_license_compat_badge].to_s,
+        "KJ|README:LICENSE_REFS" => license[:readme_license_refs].to_s,
+        "KJ|COPYRIGHT_PREFIX" => license[:copyright_prefix].to_s,
+      }
+    end
+
+    def license_md_content(licenses, author_email: nil)
+      content = <<~MARKDOWN.chomp
+        # License
+
+        This project is made available under the following license#{"s" if licenses.size > 1}.
+        Choose the option that best fits your use case:
+
+        #{licenses.map { |license| "- #{license_link(license)}" }.join("\n")}
+      MARKDOWN
+      guide_table = license_use_case_guide_table(licenses, author_email: author_email)
+      content += "\n\n## Use-case guide\n\n#{guide_table}" if guide_table
+      content += "\n\n#{license_contact_line(author_email, context: :license_md)}" if non_mit_licenses?(licenses)
+      content
+    end
+
+    def readme_license_intro(licenses, author_email: nil)
+      return mit_readme_license_intro if licenses == ["MIT"]
+
+      intro = "The gem is available under the following license#{"s" if licenses.size > 1}: " \
+        "#{licenses.map { |license| license_link(license) }.join(", ")}.\n" \
+        "See [LICENSE.md][#{paperclip_ref(:license)}] for details."
+      intro += "\n\n#{license_contact_line(author_email, context: :readme)}" if non_mit_licenses?(licenses)
+      guide_table = license_use_case_guide_table(licenses, author_email: author_email)
+      intro += "\n\n### License use-case guide\n\n#{guide_table}" if guide_table
+      intro
+    end
+
+    def mit_readme_license_intro
+      "The gem is available as open source under the terms of\n" \
+        "the #{license_link("MIT")} #{license_badge("MIT")}."
+    end
+
+    def license_contact_line(author_email, context:)
+      if author_email.to_s.empty?
+        return "If none of the above licenses fit your use case, please contact the project maintainer to discuss a custom commercial license." if context == :license_md
+
+        "If none of the available licenses suit your use case, please contact the project maintainer to discuss a custom commercial license."
+      elsif context == :license_md
+        "If none of the above licenses fit your use case, please [contact us](mailto:#{author_email}) to discuss a custom commercial license."
+      else
+        "If none of the available licenses suit your use case, please [contact us](mailto:#{author_email}) to discuss a custom commercial license."
+      end
+    end
+
+    def readme_license_refs(primary, compat_category)
+      [
+        "[#{paperclip_ref(:copyright_notice_explainer)}]: https://opensource.stackexchange.com/questions/5778/why-do-licenses-such-as-the-mit-license-specify-a-single-year",
+        "[#{paperclip_ref(:license)}]: LICENSE.md",
+        "[#{paperclip_ref(:license_ref)}]: #{license_badge_ref(primary)}",
+        "[#{paperclip_ref(:license_img)}]: #{license_badge_img(primary)}",
+        "[#{paperclip_ref(:license_compat)}]: #{license_compat_ref(compat_category)}",
+        "[#{paperclip_ref(:license_compat_img)}]: #{license_compat_img(compat_category)}",
+      ].join("\n")
+    end
+
+    def spdx_basename(spdx_id)
+      spdx_id.to_s.sub(/\ALicenseRef-/, "")
+    end
+
+    def license_link(spdx_id)
+      base = spdx_basename(spdx_id)
+      "[#{base}](#{base}.md)"
+    end
+
+    def license_badge(spdx_id)
+      base = spdx_basename(spdx_id)
+      "[![License: #{base}][#{paperclip_ref(:license_img)}]][#{paperclip_ref(:license_ref)}]"
+    end
+
+    def license_badge_ref(spdx_id)
+      "#{spdx_basename(spdx_id)}.md"
+    end
+
+    def license_badge_img(spdx_id)
+      base = spdx_basename(spdx_id).gsub("-", "--").gsub("_", "__").tr(" ", "_")
+      "https://img.shields.io/badge/License-#{base}-259D6C.svg"
+    end
+
+    def license_compat_category(licenses)
+      categories = Array(licenses).filter_map { |license| APACHE_LICENSE_COMPAT_CATEGORIES[license.to_s] }.uniq
+      return :a if categories.include?(:a)
+      return :b if categories.include?(:b)
+      return :x if categories.any? && categories.all?(:x)
+
+      :unknown
+    end
+
+    def license_compat_badge(category)
+      data = APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category)
+      "[![#{data.fetch(:alt)}][#{paperclip_ref(:license_compat_img)}]][#{paperclip_ref(:license_compat)}]"
+    end
+
+    def license_compat_ref(category)
+      APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category).fetch(:ref)
+    end
+
+    def license_compat_img(category)
+      data = APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category)
+      "https://img.shields.io/badge/#{data.fetch(:label)}-#{data.fetch(:message)}-#{data.fetch(:color)}.svg?style=flat&logo=Apache"
+    end
+
+    def polyform_licenses?(licenses)
+      licenses.any? { |license| license.to_s.start_with?("PolyForm-") }
+    end
+
+    def non_mit_licenses?(licenses)
+      licenses.any? { |license| license != "MIT" }
+    end
+
+    def license_use_case_guide_table(licenses, author_email: nil)
+      has_floss_oss = licenses.include?("MIT") || licenses.include?("AGPL-3.0-only")
+      has_polyform = licenses.include?("PolyForm-Noncommercial-1.0.0") || licenses.include?("PolyForm-Small-Business-1.0.0")
+      has_big_time = licenses.include?("LicenseRef-Big-Time-Public-License")
+      return unless has_floss_oss && has_polyform && has_big_time
+
+      rows = license_use_case_rows(licenses, author_email: author_email)
+      return if rows.empty?
+
+      "| Use case | License |\n|---|---|\n" +
+        rows.map { |use_case, license| "| #{use_case} | #{license} |" }.join("\n")
+    end
+
+    def license_use_case_rows(licenses, author_email: nil)
+      rows = []
+      rows << ["FLOSS (free and open source)", license_link("MIT")] if licenses.include?("MIT")
+      rows << ["Copy-left open source", license_link("AGPL-3.0-only")] if licenses.include?("AGPL-3.0-only")
+      noncommercial_links = %w[PolyForm-Noncommercial-1.0.0 PolyForm-Small-Business-1.0.0 LicenseRef-Big-Time-Public-License]
+        .select { |license| licenses.include?(license) }
+        .map { |license| license_link(license) }
+      rows << ["Non-commercial (research, education, personal use)", noncommercial_links.join(" or ")] unless noncommercial_links.empty?
+      small_business_links = %w[PolyForm-Small-Business-1.0.0 LicenseRef-Big-Time-Public-License]
+        .select { |license| licenses.include?(license) }
+        .map { |license| license_link(license) }
+      rows << ["Small business commercial", small_business_links.join(" or ")] unless small_business_links.empty?
+      rows << ["Larger business commercial", large_business_license_cell(author_email)] if licenses.include?("LicenseRef-Big-Time-Public-License")
+      rows
+    end
+
+    def large_business_license_cell(author_email)
+      cell = license_link("LicenseRef-Big-Time-Public-License")
+      if author_email.to_s.empty?
+        "#{cell} or contact us for a custom license"
+      else
+        "#{cell} or [contact us](mailto:#{author_email}) for a custom license"
+      end
+    end
+
+    def paperclip_ref(name)
+      {
+        copyright_notice_explainer: "\u{1F4C4}copyright-notice-explainer",
+        license: "\u{1F4C4}license",
+        license_ref: "\u{1F4C4}license-ref",
+        license_img: "\u{1F4C4}license-img",
+        license_compat: "\u{1F4C4}license-compat",
+        license_compat_img: "\u{1F4C4}license-compat-img",
+      }.fetch(name)
+    end
+
+    def author_given_names(name)
+      parts = name.to_s.strip.split(/\s+/)
+      return "" if parts.size < 2
+
+      parts[0...-1].join(" ")
+    end
+
+    def author_family_names(name)
+      parts = name.to_s.strip.split(/\s+/)
+      return "" if parts.size < 2
+
+      parts[-1]
+    end
+
+    def resolve_template_tokens(content, tokens, scan_unresolved: true)
+      resolver = Token::Resolver::Resolve.new(on_missing: :keep)
+      document = Token::Resolver::Document.new(content.to_s, config: TEMPLATE_TOKEN_CONFIG)
+      resolved = resolver.resolve(document, stringify_template_tokens(tokens))
+      return resolved unless scan_unresolved
+
+      unresolved = Token::Resolver::Document.new(resolved, config: TEMPLATE_TOKEN_CONFIG).token_keys.grep(/\AKJ\|/).sort
+      return resolved if unresolved.empty?
+
+      raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.map { |token| "{#{token}}" }.join(", ")}"
+    end
+
+    def unresolved_template_scan?(recipe)
+      return false if recipe.fetch(:target_path).to_s == ".kettle-jem.yml"
+      return false if recipe.dig(:template_preference, :skip_unresolved_scan)
+
+      true
+    end
+
+    def stringify_template_tokens(tokens)
+      tokens.to_h.transform_keys(&:to_s).transform_values(&:to_s)
+    end
+
+    def falsey_config?(value)
+      %w[false no 0].include?(value.to_s.strip.downcase)
+    end
+
+    def merge_readme_template(template_content:, destination_content:, preserve_config: {})
+      return template_content if destination_content.to_s.strip.empty?
+
+      preserved = preserve_readme_sections(template_content, destination_content, preserve_config)
+      preserve_readme_h1(preserved, destination_content)
+    end
+
+    def preserve_readme_sections(template_content, destination_content, preserve_config)
+      template_sections = markdown_sections(template_content)
+      destination_sections = markdown_sections(destination_content)
+      destination_lookup = destination_sections.to_h { |section| [section.fetch(:base), section] }
+      preserve_targets = readme_preserve_targets(template_sections, destination_lookup, preserve_config)
+      return template_content if preserve_targets.empty?
+
+      lines = template_content.split("\n", -1)
+      template_sections.reverse_each do |section|
+        next unless preserve_targets.include?(section.fetch(:base))
+
+        destination_section = destination_lookup[section.fetch(:base)] ||
+          aliased_readme_destination_section(section.fetch(:base), destination_lookup, preserve_config)
+        next unless destination_section
+
+        replacement = "#{section.fetch(:heading)}\n#{destination_section.fetch(:body)}".split("\n", -1)
+        lines[section.fetch(:start)..section.fetch(:end)] = replacement
+      end
+      lines.join("\n")
+    end
+
+    def preserve_readme_h1(merged_content, destination_content)
+      merged_h1 = markdown_sections(merged_content).find { |section| section.fetch(:level) == 1 }
+      destination_h1 = markdown_sections(destination_content).find { |section| section.fetch(:level) == 1 }
+      return merged_content unless merged_h1 && destination_h1
+      return merged_content if semantic_readme_heading(destination_h1.fetch(:heading_text)) == semantic_readme_heading(merged_h1.fetch(:heading_text))
+
+      lines = merged_content.split("\n", -1)
+      lines[merged_h1.fetch(:start)] = destination_h1.fetch(:heading)
+      lines.join("\n")
+    end
+
+    def markdown_sections(content)
+      lines = content.to_s.split("\n", -1)
+      headings = []
+      in_fence = false
+      fence_marker = nil
+      lines.each_with_index do |line, index|
+        stripped = line.lstrip
+        if in_fence
+          if stripped.match?(/\A#{Regexp.escape(fence_marker)}\s*\z/)
+            in_fence = false
+            fence_marker = nil
+          end
+          next
+        end
+        if (fence = stripped.match(/\A(`{3,}|~{3,})/))
+          in_fence = true
+          fence_marker = fence[1]
+          next
+        end
+        next unless (heading = line.match(/\A(\#{1,6})\s+(.+?)\s*#*\s*\z/))
+
+        headings << {
+          start: index,
+          level: heading[1].length,
+          heading: line,
+          heading_text: heading[2],
+          base: normalize_readme_heading(heading[2]),
+        }
+      end
+
+      headings.each_with_index.map do |heading, index|
+        following = headings[(index + 1)..].to_a.find { |candidate| candidate.fetch(:level) <= heading.fetch(:level) }
+        branch_end = following ? following.fetch(:start) - 1 : lines.length - 1
+        body = (lines[(heading.fetch(:start) + 1)..branch_end] || []).join("\n")
+        heading.merge(end: branch_end, body: body)
+      end
+    end
+
+    def readme_preserve_targets(template_sections, destination_lookup, preserve_config)
+      sections = Array(preserve_config[:sections]).map { |section| normalize_readme_heading(section) }
+      sections = README_DEFAULT_PRESERVE_SECTIONS.dup if sections.empty?
+      patterns = Array(preserve_config[:patterns]).map { |pattern| pattern.to_s.strip.downcase }
+      patterns = README_DEFAULT_PRESERVE_PATTERNS.dup if patterns.empty?
+      aliases = preserve_config[:aliases] || README_SECTION_ALIASES
+      targets = sections.dup
+      template_sections.each do |section|
+        base = section.fetch(:base)
+        targets << base if patterns.any? { |pattern| File.fnmatch?(pattern, base, File::FNM_PATHNAME) }
+      end
+      aliases.each do |from, to|
+        targets << to if destination_lookup.key?(from) && targets.include?(to)
+      end
+      targets.uniq
+    end
+
+    def aliased_readme_destination_section(template_base, destination_lookup, preserve_config)
+      aliases = preserve_config[:aliases] || README_SECTION_ALIASES
+      aliases.each do |from, to|
+        return destination_lookup[from] if to == template_base && destination_lookup.key?(from)
+      end
+      nil
+    end
+
+    def readme_preserve_config(config)
+      readme = config["readme"]
+      return {} unless readme.is_a?(Hash)
+
+      result = {}
+      result[:sections] = Array(readme["preserve_sections"]) if readme.key?("preserve_sections")
+      result[:patterns] = Array(readme["preserve_patterns"]) if readme.key?("preserve_patterns")
+      if readme["section_aliases"].is_a?(Hash)
+        result[:aliases] = README_SECTION_ALIASES.merge(
+          readme["section_aliases"].transform_keys { |key| normalize_readme_heading(key) }
+                                   .transform_values { |value| normalize_readme_heading(value) }
+        )
+      end
+      result
+    end
+
+    def normalize_readme_heading(text)
+      strip_readme_heading_adornment(text).strip.downcase
+    end
+
+    def semantic_readme_heading(text)
+      normalize_readme_heading(text)
+    end
+
+    def strip_readme_heading_adornment(text)
+      text.to_s.sub(/\A(?:\d\uFE0F?\u20E3|[^[:alnum:][:space:]])+[ \t]*/u, "")
+    end
+
+    def template_source_preferences(project_root, config, opencollective_disabled: false)
+      templates = config["templates"]
+      return [] unless templates.is_a?(Hash)
+
+      root = template_root(project_root, templates)
+      entries = template_entries(project_root, root, templates)
+      return [] if entries.empty?
+
+      apply_templates = templates["apply"] == true
+      entries.filter_map do |entry|
+        template_source_preference(
+          project_root,
+          root,
+          entry,
+          config,
+          opencollective_disabled: opencollective_disabled,
+          apply_templates: apply_templates
+        )
+      end
+    end
+
+    def template_entries(project_root, root, templates)
+      return templates["entries"] if templates["entries"].is_a?(Array)
+      return [] if templates.key?("entries")
+
+      template_inventory_entries(project_root, root.fetch(:path))
+    end
+
+    def template_inventory_entries(project_root, template_root_path)
+      logical_paths = []
+      Find.find(template_root_path) do |path|
+        next if File.directory?(path)
+
+        relative_path = path.delete_prefix("#{template_root_path}/")
+        logical_path = relative_path
+          .sub(/\.no-osc\.example\z/, "")
+          .sub(/\.example\z/, "")
+        logical_paths << logical_path unless logical_path.empty?
+      end
+
+      logical_paths.uniq.sort.map do |logical_path|
+        target_path = template_inventory_target_path(project_root, logical_path)
+        if target_path == logical_path
+          logical_path
+        else
+          { "source" => logical_path, "target" => target_path }
+        end
+      end
+    end
+
+    def template_inventory_target_path(project_root, logical_path)
+      return ".env.local.example" if logical_path == ".env.local"
+
+      if logical_path.end_with?(".gemspec")
+        existing_gemspec = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
+        return File.basename(existing_gemspec) if existing_gemspec
+      end
+
+      logical_path
+    end
+
+    def kettle_config_bootstrap_facts(project_root, env)
+      return if File.exist?(File.join(project_root, ".kettle-jem.yml"))
+
+      selected_source = preferred_template_source(PACKAGED_TEMPLATE_ROOT, ".kettle-jem.yml")
+      return unless selected_source
+
+      {
+        template_preference: {
+          target_path: ".kettle-jem.yml",
+          configured_source: ".kettle-jem.yml",
+          selected_source: selected_source,
+          source_relative_path: selected_source,
+          source_root: "packaged",
+          source_root_path: PACKAGED_TEMPLATE_ROOT,
+          selection_reason: template_source_selection_reason(".kettle-jem.yml", selected_source),
+          apply: true,
+        },
+        min_divergence_threshold: preferred_template_token_value(nil, nil, env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
+      }
+    end
+
+    def kettle_config_bootstrap_recipe(bootstrap)
+      recipe = recipe_entry(
+        "kettle_config_bootstrap",
+        ".kettle-jem.yml",
+        "yaml",
+        "supplied_kettle_config_bootstrap",
+        facts: %w[kettle_config_bootstrap]
+      )
+      recipe[:template_preference] = bootstrap.fetch(:template_preference)
+      recipe[:template_tokens] = {
+        "KJ|MIN_DIVERGENCE_THRESHOLD" => bootstrap.fetch(:min_divergence_threshold).to_s,
+      }
+      recipe
+    end
+
+    def template_source_preference(project_root, template_root, entry, config, opencollective_disabled: false, apply_templates: false)
+      source_path, target_path = template_entry_paths(entry)
+      return nil if source_path.to_s.empty? || target_path.to_s.empty?
+
+      selected_source = preferred_template_source(template_root.fetch(:path), source_path, opencollective_disabled: opencollective_disabled)
+      return nil unless selected_source
+
+      strategy_config = template_strategy_config(config, target_path)
+      preference = {
+        target_path: target_path,
+        configured_source: source_path,
+        selected_source: template_source_display_path(template_root, selected_source),
+        selection_reason: template_source_selection_reason(source_path, template_source_display_path(template_root, selected_source)),
+        apply: template_entry_apply?(entry, apply_templates),
+      }
+      preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
+      preference[:file_type] = strategy_config.fetch(:file_type).to_s if strategy_config&.key?(:file_type)
+      preserve_config = readme_preserve_config(config)
+      preference[:readme_preserve_config] = preserve_config if target_path == "README.md" && !preserve_config.empty?
+      if template_root.fetch(:kind) == "packaged"
+        preference[:source_relative_path] = selected_source
+        preference[:source_root] = template_root.fetch(:kind)
+        preference[:source_root_path] = template_root.fetch(:path)
+      end
+      preference
+    end
+
+    def template_strategy_config(config, target_path)
+      template_file_strategy_config(config, target_path) || template_pattern_strategy_config(config, target_path)
+    end
+
+    def template_file_strategy_config(config, target_path)
+      files = config["files"]
+      return unless files.is_a?(Hash)
+
+      current = files
+      target_path.to_s.delete_prefix("./").split("/").each do |part|
+        return unless current.is_a?(Hash) && current.key?(part)
+
+        current = current[part]
+      end
+      return unless current.is_a?(Hash) && current.key?("strategy")
+
+      template_strategy_entry(config, nil, current)
+    end
+
+    def template_pattern_strategy_config(config, target_path)
+      patterns = config["patterns"]
+      return unless patterns.is_a?(Array)
+
+      match = patterns.find do |entry|
+        entry.is_a?(Hash) &&
+          File.fnmatch?(entry["path"].to_s, target_path.to_s, File::FNM_PATHNAME | File::FNM_EXTGLOB | File::FNM_DOTMATCH)
+      end
+      return unless match
+
+      template_strategy_entry(config, match["path"].to_s, match)
+    end
+
+    def template_strategy_entry(config, path, entry)
+      strategy = entry["strategy"].to_s.strip.downcase.to_sym
+      raise ArgumentError, "unknown kettle-jem template strategy: #{entry["strategy"]}" unless SUPPORTED_TEMPLATE_STRATEGIES.include?(strategy)
+
+      result = { strategy: strategy }
+      result[:path] = path if path
+      result[:skip_unresolved_scan] = true if entry["skip_unresolved_scan"]
+      if entry.key?("file_type")
+        file_type = entry["file_type"].to_s.strip.downcase.tr("-", "_").to_sym
+        raise ArgumentError, "unknown kettle-jem template file_type: #{entry["file_type"]}" unless SUPPORTED_TEMPLATE_FILE_TYPES.include?(file_type)
+
+        result[:file_type] = file_type
+      end
+      if strategy == :merge
+        defaults = config["defaults"].is_a?(Hash) ? config["defaults"] : {}
+        result[:preference] = (entry.key?("preference") ? entry["preference"] : defaults["preference"]).to_s if entry.key?("preference") || defaults.key?("preference")
+        if entry.key?("add_template_only_nodes") || defaults.key?("add_template_only_nodes")
+          result[:add_template_only_nodes] = entry.key?("add_template_only_nodes") ? entry["add_template_only_nodes"] : defaults["add_template_only_nodes"]
+        end
+        result[:freeze_token] = (entry.key?("freeze_token") ? entry["freeze_token"] : defaults["freeze_token"]).to_s if entry.key?("freeze_token") || defaults.key?("freeze_token")
+      end
+      result
+    end
+
+    def template_root(project_root, templates)
+      configured_root = templates["root"].to_s
+      if configured_root.empty?
+        local_root = File.join(project_root, "template")
+        return { kind: "project", path: local_root, display_prefix: "template" } if Dir.exist?(local_root)
+
+        return { kind: "packaged", path: PACKAGED_TEMPLATE_ROOT }
+      end
+
+      return { kind: "packaged", path: PACKAGED_TEMPLATE_ROOT } if configured_root == "packaged"
+
+      path = configured_root.start_with?("/") ? configured_root : File.join(project_root, configured_root)
+      { kind: "project", path: path, display_prefix: configured_root }
+    end
+
+    def template_source_display_path(template_root, selected_source)
+      prefix = template_root[:display_prefix].to_s
+      return selected_source if prefix.empty?
+
+      File.join(prefix, selected_source)
+    end
+
+    def template_entry_paths(entry)
+      if entry.is_a?(Hash)
+        source_path = entry.fetch("source", entry["target"]).to_s
+        target_path = entry.fetch("target", source_path.sub(/\.example\z/, "")).to_s
+        [source_path, target_path]
+      else
+        source_path = entry.to_s
+        [source_path, source_path.sub(/\.example\z/, "")]
+      end
+    end
+
+    def template_entry_apply?(entry, apply_templates)
+      return entry["apply"] == true if entry.is_a?(Hash) && entry.key?("apply")
+
+      apply_templates
+    end
+
+    def preferred_template_source(template_root, configured_source, opencollective_disabled: false)
+      base = configured_source.sub(/\.example\z/, "")
+      candidates = []
+      candidates << "#{base}.no-osc.example" if opencollective_disabled
+      candidates << "#{base}.example"
+      candidates << configured_source
+      candidates.find { |relative_path| File.exist?(File.join(template_root, relative_path)) }
+    end
+
+    def template_source_selection_reason(configured_source, selected_source)
+      if selected_source.end_with?(".no-osc.example")
+        "opencollective_disabled_no_osc_variant"
+      elsif selected_source.end_with?(".example")
+        "default_example_variant"
+      elsif selected_source == configured_source
+        "configured_source"
+      else
+        "fallback_source"
+      end
+    end
+
+    def github_actions_framework_matrix(config)
+      workflows = config["workflows"]
+      return {} unless workflows.is_a?(Hash) && workflows["preset"].to_s.strip.downcase == "framework"
+
+      raw = workflows["framework_matrix"]
+      return {} unless raw.is_a?(Hash)
+
+      dimension = raw["dimension"].to_s.strip
+      versions = raw["versions"]
+      pattern = raw["gemfile_pattern"].to_s.strip
+      return {} unless !dimension.empty? && versions.is_a?(Array) && !versions.empty? && !pattern.empty?
+
+      normalized_versions = versions.map { |version| version.to_s.strip }.reject(&:empty?)
+      return {} if normalized_versions.empty?
+
+      {
+        dimension: dimension,
+        versions: normalized_versions,
+        gemfile_pattern: pattern,
+        include: normalized_versions.map do |version|
+          gemfile = expand_framework_gemfile_pattern(pattern, version)
+          { framework_version: version, gemfile: framework_gemfile_path(gemfile) }
+        end,
+      }
+    end
+
+    def github_actions_coverage_config(config)
+      workflows = config["workflows"]
+      return {} unless workflows.is_a?(Hash)
+
+      raw = workflows["coverage"]
+      enabled = raw == true || (raw.is_a?(Hash) && raw.fetch("enabled", false) == true)
+      return {} unless enabled
+
+      raw = {} unless raw.is_a?(Hash)
+      {
+        enabled: true,
+        command: raw.fetch("command", "rake test").to_s,
+        appraisal: raw.fetch("appraisal", "coverage").to_s,
+      }
+    end
+
+    def expand_framework_gemfile_pattern(pattern, version)
+      replacement = if pattern.include?("_{version}") || pattern.include?("{version}_")
+        version.tr(".", "_")
+      else
+        version
+      end
+      pattern.gsub("{version}", replacement)
+    end
+
+    def framework_gemfile_path(gemfile)
+      gemfile.include?("/") ? gemfile : "gemfiles/#{gemfile}"
+    end
+
+    def classify_namespace(name)
+      name.to_s.split(/[-_]/).map { |part| part[0].to_s.upcase + part[1..].to_s }.join("::")
+    end
+
+    def readme_metadata_block(facts)
+      package = facts.fetch(:package)
+      funding_urls = facts.fetch(:funding, {}).fetch(:urls, [])
+      rows = [
+        ["Package", package[:name]],
+        ["Description", package[:description]],
+        ["Homepage", package[:homepage_url]],
+        ["Source", package[:source_url]],
+        ["License", package[:license_expression]],
+        ["Funding", funding_urls.join(", ")],
+      ].reject { |(_, value)| value.to_s.empty? }
+
+      [
+        "<!-- kettle-jem:metadata:start -->",
+        "| Field | Value |",
+        "|---|---|",
+        *rows.map { |field, value| "| #{field} | #{value} |" },
+        "<!-- kettle-jem:metadata:end -->",
+      ].join("\n")
+    end
+
+    def synchronize_github_funding_yml(content, facts)
+      funding = YAML.safe_load(content.to_s, permitted_classes: [], aliases: false) || {}
+      funding = {} unless funding.is_a?(Hash)
+      funding = funding.each_with_object({}) do |(key, value), memo|
+        next if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+
+        memo[key.to_s] = value
+      end
+      funding.delete("open_collective") if facts.fetch(:funding, {})[:open_collective_disabled]
+      funding["tidelift"] ||= "rubygems/#{facts.fetch(:package).fetch(:name)}"
+      YAML.dump(funding).sub(/\A---\n?/, "")
+    end
+
+    def delete_rakefile_scaffold(content)
+      selectors = rakefile_scaffold_delete_selectors(content)
+      {
+        content: delete_line_ranges(content.to_s, selectors),
+        delete_selectors: selectors,
+      }
+    end
+
+    def rakefile_scaffold_delete_selectors(content)
+      lines = content.to_s.lines
+      selectors = []
+      lines.each_with_index do |line, index|
+        case line
+        when /\A\s*require\s+["']bundler\/gem_tasks["']\s*(?:#.*)?\n?\z/
+          selectors << rakefile_selector(
+            "rakefile_scaffold_require_bundler_gem_tasks",
+            index + 1,
+            index + 1,
+            "wrapper_selected_scaffold_require"
+          )
+        when /\A\s*require\s+["']rspec\/core\/rake_task["']\s*(?:#.*)?\n?\z/
+          selectors << rakefile_selector(
+            "rakefile_scaffold_require_rspec_core_rake_task",
+            index + 1,
+            index + 1,
+            "wrapper_selected_scaffold_require"
+          )
+        when /\A\s*require\s+["']rubocop\/rake_task["']\s*(?:#.*)?\n?\z/
+          selectors << rakefile_selector(
+            "rakefile_scaffold_require_rubocop_rake_task",
+            index + 1,
+            index + 1,
+            "wrapper_selected_scaffold_require"
+          )
+        when /\A\s*RSpec::Core::RakeTask\.new\b/
+          selectors << rakefile_selector("rakefile_scaffold_rspec_task", index + 1, index + 1,
+            "wrapper_selected_scaffold_task")
+        when /\A\s*RuboCop::RakeTask\.new\b/
+          selectors << rakefile_selector("rakefile_scaffold_rubocop_task", index + 1, index + 1,
+            "wrapper_selected_scaffold_task")
+        end
+      end
+      selectors.concat(rakefile_task_block_selectors(lines))
+      selectors.sort_by { |selector| [selector.fetch(:start_line), selector.fetch(:end_line)] }
+    end
+
+    def rakefile_task_block_selectors(lines)
+      selectors = []
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        if line.match?(/\A\s*task\s+default:/) || line.match?(/\A\s*task\s+:default\b/)
+          unless rakefile_template_default_task?(lines, index)
+            end_index = rakefile_block_end(lines, index)
+            selectors << rakefile_selector("rakefile_scaffold_task_default", index + 1, end_index + 1,
+              "wrapper_selected_scaffold_task")
+            index = end_index + 1
+            next
+          end
+        end
+        index += 1
+      end
+      selectors
+    end
+
+    def rakefile_template_default_task?(lines, task_index)
+      cursor = task_index - 1
+      cursor -= 1 while cursor >= 0 && lines[cursor].strip.empty?
+      return false unless cursor >= 0
+
+      lines[cursor].strip == 'desc "Default tasks aggregator"'
+    end
+
+    def rakefile_block_end(lines, start_index)
+      return start_index unless lines[start_index].match?(/\bdo\b/)
+
+      depth = 0
+      (start_index...lines.length).each do |index|
+        stripped = lines[index].strip
+        depth += 1 if stripped.match?(/\bdo\b/)
+        return index if depth.positive? && stripped == "end" && (depth -= 1).zero?
+        return index if depth.zero? && index > start_index && !stripped.empty?
+      end
+      lines.length - 1
+    end
+
+    def rakefile_selector(selector_id, start_line, end_line, reason)
+      {
+        selector_id: selector_id,
+        selector_family: "structural_owner_range",
+        start_line: start_line,
+        end_line: end_line,
+        reason: reason,
+      }
+    end
+
+    def delete_line_ranges(content, selectors)
+      lines = content.lines
+      selectors.sort_by { |selector| -selector.fetch(:start_line) }.each do |selector|
+        start_index = selector.fetch(:start_line) - 1
+        end_index = selector.fetch(:end_line) - 1
+        lines.slice!(start_index..end_index)
+      end
+      lines.join.gsub(/\n{3,}/, "\n\n")
+    end
+
+    def synchronize_github_actions_ci(_content, facts)
+      package = facts.fetch(:package)
+      ci = facts.fetch(:ci)
+      ruby_versions = ci.fetch(:ruby_versions)
+      ruby_matrix = ruby_versions.map { |version| "          - \"#{version}\"" }.join("\n")
+
+      <<~YAML
+        name: CI
+
+        permissions:
+          contents: read
+
+        on:
+          push:
+            branches:
+              - "#{ci.fetch(:default_branch)}"
+              - "*-stable"
+            tags:
+              - "!*" # Do not execute on tags
+          pull_request:
+            branches:
+              - "*"
+          workflow_dispatch:
+
+        concurrency:
+          group: "${{ github.workflow }}-${{ github.ref }}"
+          cancel-in-progress: true
+
+        jobs:
+          test:
+            if: "!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')"
+            name: Specs ${{ matrix.ruby }}
+            runs-on: ubuntu-latest
+            continue-on-error: ${{ endsWith(matrix.ruby, 'head') }}
+            strategy:
+              fail-fast: false
+              matrix:
+                ruby:
+        #{ruby_matrix}
+                rubygems:
+                  - default
+                bundler:
+                  - default
+
+            steps:
+              - name: Checkout #{package.fetch(:name)}
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+              - name: Setup Ruby & RubyGems
+                uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
+                with:
+                  ruby-version: "${{ matrix.ruby }}"
+                  rubygems: "${{ matrix.rubygems }}"
+                  bundler: "${{ matrix.bundler }}"
+                  bundler-cache: true
+
+              - name: Tests
+                run: bundle exec rake
+      YAML
+    end
+
+    def synchronize_github_actions_framework_ci(_content, facts)
+      ci = facts.fetch(:ci)
+      framework_matrix = ci.fetch(:framework_matrix)
+      ruby_matrix = ci.fetch(:ruby_versions).map { |version| "          - \"#{version}\"" }.join("\n")
+      include_matrix = framework_matrix.fetch(:include).map do |entry|
+        [
+          "          - framework_version: \"#{entry.fetch(:framework_version)}\"",
+          "            gemfile: \"#{entry.fetch(:gemfile)}\"",
+        ].join("\n")
+      end.join("\n")
+      dimension = framework_matrix.fetch(:dimension)
+      label = dimension.split(/[-_]/).map { |part| part[0].to_s.upcase + part[1..].to_s }.join(" ")
+
+      <<~YAML
+        name: #{label} CI
+
+        permissions:
+          contents: read
+
+        on:
+          push:
+            branches:
+              - "#{ci.fetch(:default_branch)}"
+              - "*-stable"
+            tags:
+              - "!*" # Do not execute on tags
+          pull_request:
+            branches:
+              - "*"
+          workflow_dispatch:
+
+        concurrency:
+          group: "${{ github.workflow }}-${{ github.ref }}"
+          cancel-in-progress: true
+
+        jobs:
+          test:
+            if: "!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')"
+            name: Specs ${{ matrix.ruby }}@${{ matrix.framework_version }}
+            runs-on: ubuntu-latest
+            continue-on-error: ${{ endsWith(matrix.ruby, 'head') }}
+            env:
+              BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}
+            strategy:
+              fail-fast: false
+              matrix:
+                ruby:
+        #{ruby_matrix}
+                rubygems:
+                  - default
+                bundler:
+                  - default
+                include:
+        #{include_matrix}
+
+            steps:
+              - name: Checkout
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+              - name: Setup Ruby & RubyGems
+                uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
+                with:
+                  ruby-version: "${{ matrix.ruby }}"
+                  rubygems: "${{ matrix.rubygems }}"
+                  bundler: "${{ matrix.bundler }}"
+                  bundler-cache: true
+
+              - name: Tests for ${{ matrix.ruby }}@${{ matrix.framework_version }}
+                run: bundle exec rake test
+      YAML
+    end
+
+    def synchronize_github_actions_coverage_ci(_content, facts)
+      ci = facts.fetch(:ci)
+      coverage = ci.fetch(:coverage)
+      <<~YAML
+        name: Test Coverage
+
+        permissions:
+          contents: read
+          pull-requests: write
+          id-token: write
+
+        env:
+          K_SOUP_COV_MIN_BRANCH: 100
+          K_SOUP_COV_MIN_LINE: 100
+          K_SOUP_COV_MIN_HARD: true
+          K_SOUP_COV_FORMATTERS: "xml,rcov,lcov,tty"
+          K_SOUP_COV_DO: true
+          K_SOUP_COV_MULTI_FORMATTERS: true
+          K_SOUP_COV_COMMAND_NAME: "Test Coverage"
+
+        on:
+          push:
+            branches:
+              - "#{ci.fetch(:default_branch)}"
+              - "*-stable"
+            tags:
+              - "!*" # Do not execute on tags
+          pull_request:
+            branches:
+              - "*"
+          workflow_dispatch:
+
+        concurrency:
+          group: "${{ github.workflow }}-${{ github.ref }}"
+          cancel-in-progress: true
+
+        jobs:
+          coverage:
+            if: "!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')"
+            name: Code Coverage on ${{ matrix.ruby }}@current
+            runs-on: ubuntu-latest
+            continue-on-error: ${{ matrix.experimental || endsWith(matrix.ruby, 'head') }}
+            env:
+              BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}.gemfile
+            strategy:
+              fail-fast: false
+              matrix:
+                include:
+                  - ruby: "ruby"
+                    appraisal: "#{coverage.fetch(:appraisal)}"
+                    exec_cmd: "#{coverage.fetch(:command)}"
+                    gemfile: "Appraisal.root"
+                    rubygems: latest
+                    bundler: latest
+
+            steps:
+              - name: Checkout
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+              - name: Setup Ruby & RubyGems
+                uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
+                with:
+                  ruby-version: "${{ matrix.ruby }}"
+                  rubygems: "${{ matrix.rubygems }}"
+                  bundler: "${{ matrix.bundler }}"
+                  bundler-cache: true
+
+              - name: "[Attempt 1] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
+                id: bundleAppraisalAttempt1
+                run: bundle exec appraisal ${{ matrix.appraisal }} install
+                continue-on-error: true
+
+              - name: "[Attempt 2] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
+                id: bundleAppraisalAttempt2
+                if: ${{ steps.bundleAppraisalAttempt1.outcome == 'failure' }}
+                run: bundle exec appraisal ${{ matrix.appraisal }} install
+
+              - name: Tests for ${{ matrix.ruby }}@current via ${{ matrix.exec_cmd }}
+                run: bundle exec appraisal ${{ matrix.appraisal }} bundle exec ${{ matrix.exec_cmd }}
+        #{github_actions_coverage_steps}
+      YAML
+    end
+
+    def synchronize_github_actions_workflow_snippets(content)
+      updated = ensure_workflow_top_level_section(
+        content.to_s,
+        "permissions",
+        "permissions:\n  contents: read\n\n",
+        before: "on"
+      )
+      updated = ensure_workflow_top_level_section(
+        updated,
+        "concurrency",
+        "concurrency:\n  group: \"${{ github.workflow }}-${{ github.ref }}\"\n  cancel-in-progress: true\n\n",
+        before: "jobs"
+      )
+      updated = append_github_actions_coverage_steps(updated) if github_actions_coverage_enabled?(updated)
+      update_github_actions_pins(updated)
+    end
+
+    def github_actions_coverage_enabled?(content)
+      content.match?(/K_SOUP_COV_DO:\s*["']?true["']?/)
+    end
+
+    def append_github_actions_coverage_steps(content)
+      return content if content.include?("Upload coverage to Coveralls") || content.include?("Upload coverage to CodeCov")
+
+      lines = content.lines
+      steps_index = lines.index { |line| line.match?(/^    steps:\s*$/) }
+      return content unless steps_index
+
+      insert_index = lines.length
+      ((steps_index + 1)...lines.length).each do |index|
+        line = lines[index]
+        next if line.strip.empty?
+        next unless line.match?(/^\S|^  \S|^    \S/) && !line.match?(/^      /)
+
+        insert_index = index
+        break
+      end
+      lines.insert(insert_index, github_actions_coverage_steps)
+      lines.join
+    end
+
+    def github_actions_coverage_steps
+      <<~YAML.lines.map { |line| line.strip.empty? ? line : "      #{line}" }.join
+        - name: Upload coverage to Coveralls
+          if: ${{ !env.ACT }}
+          uses: coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # main
+          with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+
+        - name: Upload coverage to QLTY
+          if: ${{ !env.ACT }}
+          uses: qltysh/qlty-action/coverage@a19242102d17e497f437d7466aa01b528537e899 # v2.2.0
+          with:
+            token: ${{secrets.QLTY_COVERAGE_TOKEN}}
+            files: coverage/.resultset.json
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+
+        - name: Upload coverage to CodeCov
+          if: ${{ !env.ACT }}
+          uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+          with:
+            use_oidc: true
+            fail_ci_if_error: false
+            files: coverage/lcov.info,coverage/coverage.xml
+            verbose: true
+
+        - name: Code Coverage Summary Report
+          if: ${{ !env.ACT && github.event_name == 'pull_request' }}
+          uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
+          with:
+            filename: ./coverage/coverage.xml
+            badge: true
+            fail_below_min: true
+            format: markdown
+            hide_branch_rate: false
+            hide_complexity: true
+            indicators: true
+            output: both
+            thresholds: '100 100'
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+
+        - name: Add Coverage PR Comment
+          uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+          if: ${{ !env.ACT && github.event_name == 'pull_request' }}
+          with:
+            recreate: true
+            path: code-coverage-results.md
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+      YAML
+    end
+
+    def ensure_workflow_top_level_section(content, key, section, before:)
+      return content if content.match?(/^#{Regexp.escape(key)}:/)
+
+      lines = content.lines
+      index = lines.index { |line| line.match?(/^#{Regexp.escape(before)}:/) }
+      if index
+        prepared_section = index.zero? || lines[index - 1].strip.empty? ? section : "\n#{section}"
+        lines.insert(index, prepared_section)
+      else
+        lines << "\n" unless lines.empty? || lines.last == "\n"
+        lines << section
+      end
+      lines.join
+    end
+
+    def update_github_actions_pins(content)
+      github_actions_step_pins.reduce(content) do |updated, (action_prefix, pinned_value)|
+        updated.gsub(/^(\s*(?:-\s*)?uses:\s*)#{Regexp.escape(action_prefix)}@\S+(?:\s+#.*)?$/) do
+          "#{$1}#{pinned_value}"
+        end
+      end
+    end
+
+    def github_actions_step_pins
+      {
+        "actions/checkout" => "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
+        "ruby/setup-ruby" => "ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0",
+        "coverallsapp/github-action" => "coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # main",
+        "qltysh/qlty-action/coverage" => "qltysh/qlty-action/coverage@a19242102d17e497f437d7466aa01b528537e899 # v2.2.0",
+        "codecov/codecov-action" => "codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0",
+        "irongut/CodeCoverageSummary" => "irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0",
+        "marocchino/sticky-pull-request-comment" => "marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4",
+      }
+    end
+
+    def replace_markdown_managed_block(content, marker, replacement)
+      open = "<!-- #{marker}:start -->"
+      close = "<!-- #{marker}:end -->"
+      replace_between_markers(content, open, close, replacement) do
+        [content.rstrip, "", replacement, ""].join("\n")
+      end
+    end
+
+    def replace_text_managed_block(content, replacement)
+      replace_between_markers(content, MANAGED_BLOCK_OPEN, MANAGED_BLOCK_CLOSE, replacement) do
+        [content.rstrip, replacement].reject(&:empty?).join("\n")
+      end
+    end
+
+    def replace_between_markers(content, open_marker, close_marker, replacement)
+      open_index = content.index(open_marker)
+      close_index = content.index(close_marker)
+      return yield unless open_index && close_index && close_index >= open_index
+
+      close_end = close_index + close_marker.length
+      close_end += 1 if content[close_end] == "\n"
+      "#{content[0...open_index]}#{replacement}\n#{content[close_end..]}"
+    end
+
+    def ensure_trailing_newline(text)
+      text.end_with?("\n") ? text : "#{text}\n"
+    end
+
+    def compact_hash(hash)
+      hash.reject { |_key, value| value.nil? || (value.respond_to?(:empty?) && value.empty?) }
+    end
+
+    def deep_dup(value)
+      Marshal.load(Marshal.dump(value))
+    end
+  end
+end

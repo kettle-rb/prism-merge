@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../gems/ast-merge/spec/spec_helper"
+require_relative "../gems/kettle-jem/spec/spec_helper"
 require_relative "../gems/tree_haver/spec/spec_helper"
 require_relative "../gems/text-merge/spec/spec_helper"
 require_relative "../gems/json-merge/spec/spec_helper"

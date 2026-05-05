@@ -1,0 +1,16 @@
+⚡️ A message from a fellow meat-based-AI ⚡️
+- [❤️] Finely-crafted open-source tools like <%= @gem_name %> (& many more) require time and effort.
+- [❤️] Though I adore my work, it lacks financial sustainability.
+- [❤️] Please, help me continue enhancing your tools by becoming a sponsor:
+  - [💲] https://liberapay.com/{KJ|FUNDING:LIBERAPAY}/donate
+  - [💲] https://github.com/sponsors/{KJ|GH:USER}
+
+<% if ENV["GIT_HOOK_FOOTER_APPEND_DEBUG"] == "true" %>
+    @pwd = <%= @pwd %>
+    @gemspecs = <%= @gemspecs %>
+    @spec = <%= @spec %>
+    @gemspec_path = <%= @gemspec_path %>
+    @gem_name <%= @gem_name %>
+    @spec_name <%= @spec_name %>
+    @content <%= @content %>
+<% end %>

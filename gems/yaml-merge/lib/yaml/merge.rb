@@ -155,26 +155,27 @@ module Yaml
       if scalar?(value)
         { ok: true, value: value }
       elsif value.is_a?(Array)
-        if value.all? { |item| scalar?(item) }
-          { ok: true, value: value }
-        else
-          unsupported_feature_result("Unsupported YAML sequence value at #{display_path(path)}. Only scalar sequences are supported.")
+        value.each_with_index.each_with_object({ ok: true, value: [] }) do |(item, index), memo|
+          validated = validate_yaml_node(item, "#{path}/#{index}")
+          return validated unless validated[:ok]
+
+          memo[:value] << validated[:value]
         end
       elsif value.is_a?(Hash)
-        value.keys.sort.each_with_object({ ok: true, value: {} }) do |key, memo|
+        value.keys.each_with_object({ ok: true, value: {} }) do |key, memo|
           validated = validate_yaml_node(value[key], "#{path}/#{key}")
           return validated unless validated[:ok]
 
           memo[:value][key] = validated[:value]
         end
       else
-        unsupported_feature_result("Unsupported YAML value at #{display_path(path)}. Only mappings, scalar values, and scalar sequences are supported.")
+        unsupported_feature_result("Unsupported YAML value at #{display_path(path)}. Only mappings, scalar values, and sequences are supported.")
       end
     end
     private_class_method :validate_yaml_node
 
     def scalar?(value)
-      value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
+      value.nil? || value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
     end
     private_class_method :scalar?
 
@@ -184,7 +185,9 @@ module Yaml
     private_class_method :display_path
 
     def render_yaml_scalar(value)
-      if value.is_a?(String)
+      if value.nil?
+        ""
+      elsif value.is_a?(String)
         value.match?(/\A[A-Za-z0-9_.-]+\z/) ? value : JSON.generate(value)
       elsif value == true || value == false
         value ? "true" : "false"
@@ -197,9 +200,11 @@ module Yaml
     def render_yaml_node(key, value, indent)
       prefix = " " * indent
       if value.is_a?(Array)
-        ["#{prefix}#{key}:"] + value.map { |item| "#{" " * (indent + 2)}- #{render_yaml_scalar(item)}" }
+        ["#{prefix}#{key}:"] + render_yaml_sequence(value, indent + 2)
       elsif value.is_a?(Hash)
         ["#{prefix}#{key}:"] + render_yaml_mapping(value, indent + 2)
+      elsif value.nil?
+        ["#{prefix}#{key}:"]
       else
         ["#{prefix}#{key}: #{render_yaml_scalar(value)}"]
       end
@@ -207,11 +212,27 @@ module Yaml
     private_class_method :render_yaml_node
 
     def render_yaml_mapping(mapping, indent = 0)
-      mapping.keys.sort.flat_map do |key|
+      mapping.keys.flat_map do |key|
         render_yaml_node(key, mapping[key], indent)
       end
     end
     private_class_method :render_yaml_mapping
+
+    def render_yaml_sequence(sequence, indent)
+      prefix = " " * indent
+      sequence.flat_map do |item|
+        if scalar?(item)
+          ["#{prefix}- #{render_yaml_scalar(item)}"]
+        elsif item.is_a?(Hash)
+          ["#{prefix}-"] + render_yaml_mapping(item, indent + 2)
+        elsif item.is_a?(Array)
+          ["#{prefix}-"] + render_yaml_sequence(item, indent + 2)
+        else
+          ["#{prefix}- #{render_yaml_scalar(item)}"]
+        end
+      end
+    end
+    private_class_method :render_yaml_sequence
 
     def canonical_yaml(mapping)
       "#{render_yaml_mapping(mapping).join("\n")}\n"
@@ -224,7 +245,11 @@ module Yaml
         value = mapping[key]
         if value.is_a?(Array)
           [{ path: path, owner_kind: "key_value", match_key: key }] +
-            value.each_index.map { |index| { path: "#{path}/#{index}", owner_kind: "sequence_item" } }
+            value.each_with_index.flat_map do |item, index|
+              item_path = "#{path}/#{index}"
+              nested = item.is_a?(Hash) ? collect_yaml_owners(item, item_path) : []
+              [{ path: item_path, owner_kind: "sequence_item" }] + nested
+            end
         elsif value.is_a?(Hash)
           [{ path: path, owner_kind: "mapping", match_key: key }] + collect_yaml_owners(value, path)
         else
@@ -235,7 +260,7 @@ module Yaml
     private_class_method :collect_yaml_owners
 
     def merge_yaml_mappings(template, destination)
-      (template.keys | destination.keys).sort.each_with_object({}) do |key, merged|
+      ordered_merge_keys(template, destination).each_with_object({}) do |key, merged|
         if !template.key?(key)
           merged[key] = destination[key]
         elsif !destination.key?(key)
@@ -248,6 +273,11 @@ module Yaml
       end
     end
     private_class_method :merge_yaml_mappings
+
+    def ordered_merge_keys(template, destination)
+      template.keys + destination.keys.reject { |key| template.key?(key) }
+    end
+    private_class_method :ordered_merge_keys
 
     def parse_error_result(message)
       { ok: false, diagnostics: [{ severity: "error", category: "parse_error", message: message }], policies: [] }

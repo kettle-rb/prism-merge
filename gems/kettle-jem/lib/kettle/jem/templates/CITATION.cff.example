@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "{KJ|GEM_NAME}"
+message: >-
+  If you use this work and you want to cite it,
+  then you can use the metadata from this file.
+type: software
+authors:
+  - given-names: "{KJ|AUTHOR:GIVEN_NAMES}"
+    family-names: "{KJ|AUTHOR:FAMILY_NAMES}"
+    email: "{KJ|AUTHOR:EMAIL}"
+    affiliation: "{KJ|AUTHOR:DOMAIN}"
+    orcid: 'https://orcid.org/{KJ|AUTHOR:ORCID}'
+identifiers:
+  - type: url
+    value: 'https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}'
+    description: "{KJ|GEM_NAME}"
+repository-code: 'https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}'
+abstract: >-
+  {KJ|GEM_NAME}
+license: See license file

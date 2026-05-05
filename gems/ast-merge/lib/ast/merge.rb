@@ -10,6 +10,16 @@ module Ast
     REVIEW_TRANSPORT_VERSION = 1
     STRUCTURED_EDIT_TRANSPORT_VERSION = 1
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
+    COMPACT_RULESET_REQUIRED_DIRECTIVES = %w[format owners match read attach].freeze
+    COMPACT_RULESET_SINGLETON_DIRECTIVES = %w[format owners match read attach comment_style render].freeze
+    COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES = %w[capability logical_owner repair surface delegate].freeze
+    COMPACT_RULESET_READ_VALUES = %w[source_augmented_portable_write native_read_portable_write native_mutation].freeze
+    COMPACT_RULESET_ATTACH_VALUES = %w[
+      layout_only
+      tracker_layout_merge
+      augmenter_preferred_tracker_layout
+      normalize_tracked_layout_merge
+    ].freeze
 
     module_function
 
@@ -26,6 +36,68 @@ module Ast
     def conformance_family_feature_profile_path(manifest, family)
       entry = manifest.fetch(:family_feature_profiles, []).find { |candidate| candidate[:family] == family.to_s }
       entry && deep_dup(entry[:path])
+    end
+
+    def parse_compact_ruleset(source)
+      ruleset = { directives: [], comments: [] }
+      diagnostics = []
+      seen_directives = {}
+      seen_repeatable_keys = {}
+
+      source.to_s.split("\n").each_with_index do |raw_line, index|
+        line_number = index + 1
+        line = raw_line.strip
+        next if line.empty?
+
+        if line.start_with?("#")
+          ruleset[:comments] << line
+          next
+        end
+
+        name, *arguments = line.split(/\s+/)
+        path = line_number.to_s
+        unless compact_ruleset_identifier?(name)
+          diagnostics << compact_ruleset_diagnostic("invalid directive token #{name.inspect}", path)
+          next
+        end
+        unless compact_ruleset_known_directive?(name)
+          diagnostics << compact_ruleset_diagnostic("unknown directive #{name.inspect}", path)
+          next
+        end
+        if arguments.empty?
+          diagnostics << compact_ruleset_diagnostic("directive #{name.inspect} requires at least one argument", path)
+          next
+        end
+
+        arguments.each do |argument|
+          next if %w[true false].include?(argument) || compact_ruleset_identifier?(argument) || compact_ruleset_token?(argument)
+
+          diagnostics << compact_ruleset_diagnostic("invalid argument token #{argument.inspect}", path)
+        end
+
+        if COMPACT_RULESET_SINGLETON_DIRECTIVES.include?(name) && seen_directives.key?(name)
+          diagnostics << compact_ruleset_diagnostic(
+            "repeated singleton directive #{name.inspect} first seen on line #{seen_directives.fetch(name)}",
+            path
+          )
+        end
+        if COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES.include?(name)
+          key = [name, arguments.fetch(0)]
+          diagnostics << compact_ruleset_diagnostic("repeated #{name.inspect} key #{arguments.fetch(0).inspect}", path) if seen_repeatable_keys[key]
+          seen_repeatable_keys[key] = true
+        end
+        diagnostics << compact_ruleset_diagnostic("unknown read value #{arguments.fetch(0).inspect}", path) if name == "read" && !COMPACT_RULESET_READ_VALUES.include?(arguments.fetch(0))
+        diagnostics << compact_ruleset_diagnostic("unknown attach value #{arguments.fetch(0).inspect}", path) if name == "attach" && !COMPACT_RULESET_ATTACH_VALUES.include?(arguments.fetch(0))
+
+        seen_directives[name] = line_number
+        ruleset[:directives] << { name: name, arguments: arguments, line: line_number }
+      end
+
+      COMPACT_RULESET_REQUIRED_DIRECTIVES.each do |required|
+        diagnostics << compact_ruleset_diagnostic("missing required directive #{required.inspect}") unless seen_directives.key?(required)
+      end
+
+      diagnostics.empty? ? { ok: true, diagnostics: [], analysis: ruleset, policies: [] } : { ok: false, diagnostics: diagnostics, policies: [] }
     end
 
     def normalize_template_source_path(path)
@@ -1038,51 +1110,6 @@ module Ast
       execution_request[:provider_backend] = provider_backend.to_s if provider_backend
       execution_request[:metadata] = deep_dup(metadata) if metadata
       execution_request
-    end
-
-    def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
-      template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
-      request = {
-        recipe_name: recipe_name.to_s,
-        recipe_version: recipe_version.to_s,
-        relative_path: relative_path.to_s,
-        provider_family: provider_family.to_s,
-        template_content: template_content.to_s,
-        destination_content: destination_content.to_s,
-        steps: deep_dup(steps)
-      }
-      request[:provider_backend] = provider_backend.to_s if provider_backend
-      request[:runtime_context] = deep_dup(runtime_context) if runtime_context
-      request[:metadata] = deep_dup(metadata) if metadata
-      request
-    end
-
-    def content_recipe_execution_request_envelope(request)
-      {
-        kind: "content_recipe_execution_request",
-        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
-        request: deep_dup(request)
-      }
-    end
-
-    def content_recipe_execution_report(request:, final_content:, changed:, step_reports:, diagnostics:, metadata: nil)
-      report = {
-        request: deep_dup(request),
-        final_content: final_content.to_s,
-        changed: changed ? true : false,
-        step_reports: deep_dup(step_reports),
-        diagnostics: deep_dup(diagnostics)
-      }
-      report[:metadata] = deep_dup(metadata) if metadata
-      report
-    end
-
-    def content_recipe_execution_report_envelope(report)
-      {
-        kind: "content_recipe_execution_report",
-        version: STRUCTURED_EDIT_TRANSPORT_VERSION,
-        report: deep_dup(report)
-      }
     end
 
     def structured_edit_provider_execution_request_envelope(execution_request)
@@ -3391,6 +3418,27 @@ module Ast
       output
     end
     private_class_method :diagnostic
+
+    def compact_ruleset_identifier?(value)
+      value.to_s.match?(/\A[A-Za-z][A-Za-z0-9_.-]*\z/)
+    end
+    private_class_method :compact_ruleset_identifier?
+
+    def compact_ruleset_token?(value)
+      value.to_s.match?(/\A[\x21\x24-\x7e]+\z/)
+    end
+    private_class_method :compact_ruleset_token?
+
+    def compact_ruleset_known_directive?(value)
+      COMPACT_RULESET_SINGLETON_DIRECTIVES.include?(value) ||
+        COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES.include?(value)
+    end
+    private_class_method :compact_ruleset_known_directive?
+
+    def compact_ruleset_diagnostic(message, path = nil)
+      diagnostic("error", "configuration_error", message, path: path)
+    end
+    private_class_method :compact_ruleset_diagnostic
 
     def join_comma(values)
       values.join(", ")

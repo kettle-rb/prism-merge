@@ -1,0 +1,7 @@
+header:
+  license:
+    spdx-id: "{KJ|LICENSE:PRIMARY_SPDX}"
+
+dependency:
+  files:
+    - Gemfile.lock
