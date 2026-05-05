@@ -75,6 +75,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
         entries:
           - README.md
           - .github/dependabot.yml
+          - Gemfile
           - gemfiles/modular/style.gemfile
     YAML
     File.write(path, content)
@@ -135,6 +136,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     apply = Kettle::Jem.apply_project(gem_root, env: env)
     expect(apply.fetch(:changed_files)).to include(
       ".github/dependabot.yml",
+      "Gemfile",
       "README.md",
       "gemfiles/modular/style.gemfile"
     )
@@ -164,6 +166,13 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     style_gemfile = File.read(File.join(gem_root, "gemfiles/modular/style.gemfile"))
     expect(style_gemfile).to include('gem "rubocop-lts", "~> 24.0"')
     expect(style_gemfile).to include('gem "rubocop-ruby3_2"')
+
+    gemfile = File.read(File.join(gem_root, "Gemfile"))
+    expect(gemfile).to include('source "https://gem.coop"')
+    expect(gemfile).not_to include('source "https://rubygems.org"')
+    expect(gemfile.scan(/^gemspec$/).size).to eq(1)
+    expect(gemfile.scan('eval_gemfile "gemfiles/modular/style.gemfile"').size).to eq(1)
+    expect(gemfile).to include('gem "irb"')
 
     expect(File.read(File.join(gem_root, "Rakefile"))).not_to include("bundler/gem_tasks")
   end
