@@ -37,6 +37,44 @@ module Kettle
       linktree: "KJ_SOCIAL_LINKTREE",
       devto: "KJ_SOCIAL_DEVTO",
     }.freeze
+    APACHE_LICENSE_COMPAT_CATEGORIES = {
+      "Apache-2.0" => :a,
+      "MIT" => :a,
+      "AGPL-3.0-only" => :x,
+      "PolyForm-Noncommercial-1.0.0" => :x,
+      "PolyForm-Small-Business-1.0.0" => :x,
+      "LicenseRef-Big-Time-Public-License" => :x,
+    }.freeze
+    APACHE_LICENSE_COMPAT_BADGE_DATA = {
+      a: {
+        alt: "Apache license compatibility: Category A",
+        label: "Apache_Compatible:_Category_A",
+        message: "\u2713",
+        color: "259D6C",
+        ref: "https://www.apache.org/legal/resolved.html#category-a",
+      },
+      b: {
+        alt: "Apache license compatibility: Category B",
+        label: "Apache_Maybe_Compatible:_Category_B",
+        message: "?",
+        color: "D9A407",
+        ref: "https://www.apache.org/legal/resolved.html#category-b",
+      },
+      x: {
+        alt: "Apache license compatibility: Category X",
+        label: "Apache_Incompatible:_Category_X",
+        message: "\u2717",
+        color: "C0392B",
+        ref: "https://www.apache.org/legal/resolved.html#category-x",
+      },
+      unknown: {
+        alt: "Apache license compatibility: Unknown",
+        label: "Apache_Compatibility",
+        message: "Unknown",
+        color: "6C757D",
+        ref: "https://www.apache.org/legal/resolved.html",
+      },
+    }.freeze
 
     module_function
 
@@ -50,6 +88,8 @@ module Kettle
         extract_gemspec_assignment(gemspec, "spec.homepage")
 
       kettle_config = kettle_jem_config(project_root)
+      author = author_facts(gemspec, kettle_config, env)
+      license = license_facts(kettle_config, extract_gemspec_array(gemspec, "spec.licenses"), author_email: author[:email])
       facts = {
         package: compact_hash(
           ecosystem: "rubygems",
@@ -59,7 +99,7 @@ module Kettle
             extract_gemspec_assignment(gemspec, "spec.summary"),
           homepage_url: extract_gemspec_assignment(gemspec, "spec.homepage"),
           source_url: source_url,
-          license_expression: Array(extract_gemspec_array(gemspec, "spec.licenses")).join(" OR "),
+          license_expression: license[:expression],
         ),
         rubygems: compact_hash(
           gemspec_path: File.basename(gemspec_path),
@@ -67,7 +107,6 @@ module Kettle
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
         ),
       }
-      author = author_facts(gemspec, kettle_config, env)
       facts[:author] = author unless author.empty?
       forge = forge_facts(kettle_config, env)
       facts[:forge] = forge unless forge.empty?
@@ -111,6 +150,7 @@ module Kettle
       template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
       unless template_preferences.empty?
+        facts[:license] = license unless license.empty?
         template_tokens = template_tokens(facts, funding)
         template_facts[:tokens] = template_tokens unless template_tokens.empty?
       end
@@ -763,6 +803,8 @@ module Kettle
         funding_template_tokens(funding)
       ).merge(
         social_template_tokens(facts.fetch(:social, {}))
+      ).merge(
+        license_template_tokens(facts.fetch(:license, {}))
       )
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
@@ -908,6 +950,202 @@ module Kettle
         "KJ|SOCIAL:LINKTREE" => social[:linktree].to_s,
         "KJ|SOCIAL:DEVTO" => social[:devto].to_s,
       }
+    end
+
+    def license_facts(config, gemspec_licenses, author_email: nil)
+      licenses = resolved_licenses(config, gemspec_licenses)
+      primary = licenses.first
+      compat_category = license_compat_category(licenses)
+      compact_hash(
+        spdx: licenses,
+        expression: licenses.join(" OR "),
+        primary_spdx: primary,
+        license_md_content: license_md_content(licenses, author_email: author_email),
+        readme_license_intro: readme_license_intro(licenses, author_email: author_email),
+        readme_license_badge: license_badge(primary),
+        readme_license_compat_badge: license_compat_badge(compat_category),
+        readme_license_refs: readme_license_refs(primary, compat_category),
+        copyright_prefix: polyform_licenses?(licenses) ? "Required Notice: " : ""
+      )
+    end
+
+    def resolved_licenses(config, gemspec_licenses)
+      config_licenses = config.is_a?(Hash) ? config["licenses"] : nil
+      licenses = Array(config_licenses).map { |license| license.to_s.strip }.reject(&:empty?)
+      return licenses unless licenses.empty?
+
+      licenses = Array(gemspec_licenses).map { |license| license.to_s.strip }.reject(&:empty?)
+      licenses.empty? ? ["MIT"] : licenses
+    end
+
+    def license_template_tokens(license)
+      {
+        "KJ|LICENSE_MD_CONTENT" => license[:license_md_content].to_s,
+        "KJ|README:LICENSE_INTRO" => license[:readme_license_intro].to_s,
+        "KJ|LICENSE:PRIMARY_SPDX" => license[:primary_spdx].to_s,
+        "KJ|README:LICENSE_BADGE" => license[:readme_license_badge].to_s,
+        "KJ|README:LICENSE_COMPAT_BADGE" => license[:readme_license_compat_badge].to_s,
+        "KJ|README:LICENSE_REFS" => license[:readme_license_refs].to_s,
+        "KJ|COPYRIGHT_PREFIX" => license[:copyright_prefix].to_s,
+      }
+    end
+
+    def license_md_content(licenses, author_email: nil)
+      content = <<~MARKDOWN.chomp
+        # License
+
+        This project is made available under the following license#{"s" if licenses.size > 1}.
+        Choose the option that best fits your use case:
+
+        #{licenses.map { |license| "- #{license_link(license)}" }.join("\n")}
+      MARKDOWN
+      guide_table = license_use_case_guide_table(licenses, author_email: author_email)
+      content += "\n\n## Use-case guide\n\n#{guide_table}" if guide_table
+      content += "\n\n#{license_contact_line(author_email, context: :license_md)}" if non_mit_licenses?(licenses)
+      content
+    end
+
+    def readme_license_intro(licenses, author_email: nil)
+      return mit_readme_license_intro if licenses == ["MIT"]
+
+      intro = "The gem is available under the following license#{"s" if licenses.size > 1}: " \
+        "#{licenses.map { |license| license_link(license) }.join(", ")}.\n" \
+        "See [LICENSE.md][#{paperclip_ref(:license)}] for details."
+      intro += "\n\n#{license_contact_line(author_email, context: :readme)}" if non_mit_licenses?(licenses)
+      guide_table = license_use_case_guide_table(licenses, author_email: author_email)
+      intro += "\n\n### License use-case guide\n\n#{guide_table}" if guide_table
+      intro
+    end
+
+    def mit_readme_license_intro
+      "The gem is available as open source under the terms of\n" \
+        "the #{license_link("MIT")} #{license_badge("MIT")}."
+    end
+
+    def license_contact_line(author_email, context:)
+      if author_email.to_s.empty?
+        return "If none of the above licenses fit your use case, please contact the project maintainer to discuss a custom commercial license." if context == :license_md
+
+        "If none of the available licenses suit your use case, please contact the project maintainer to discuss a custom commercial license."
+      elsif context == :license_md
+        "If none of the above licenses fit your use case, please [contact us](mailto:#{author_email}) to discuss a custom commercial license."
+      else
+        "If none of the available licenses suit your use case, please [contact us](mailto:#{author_email}) to discuss a custom commercial license."
+      end
+    end
+
+    def readme_license_refs(primary, compat_category)
+      [
+        "[#{paperclip_ref(:copyright_notice_explainer)}]: https://opensource.stackexchange.com/questions/5778/why-do-licenses-such-as-the-mit-license-specify-a-single-year",
+        "[#{paperclip_ref(:license)}]: LICENSE.md",
+        "[#{paperclip_ref(:license_ref)}]: #{license_badge_ref(primary)}",
+        "[#{paperclip_ref(:license_img)}]: #{license_badge_img(primary)}",
+        "[#{paperclip_ref(:license_compat)}]: #{license_compat_ref(compat_category)}",
+        "[#{paperclip_ref(:license_compat_img)}]: #{license_compat_img(compat_category)}",
+      ].join("\n")
+    end
+
+    def spdx_basename(spdx_id)
+      spdx_id.to_s.sub(/\ALicenseRef-/, "")
+    end
+
+    def license_link(spdx_id)
+      base = spdx_basename(spdx_id)
+      "[#{base}](#{base}.md)"
+    end
+
+    def license_badge(spdx_id)
+      base = spdx_basename(spdx_id)
+      "[![License: #{base}][#{paperclip_ref(:license_img)}]][#{paperclip_ref(:license_ref)}]"
+    end
+
+    def license_badge_ref(spdx_id)
+      "#{spdx_basename(spdx_id)}.md"
+    end
+
+    def license_badge_img(spdx_id)
+      base = spdx_basename(spdx_id).gsub("-", "--").gsub("_", "__").tr(" ", "_")
+      "https://img.shields.io/badge/License-#{base}-259D6C.svg"
+    end
+
+    def license_compat_category(licenses)
+      categories = Array(licenses).filter_map { |license| APACHE_LICENSE_COMPAT_CATEGORIES[license.to_s] }.uniq
+      return :a if categories.include?(:a)
+      return :b if categories.include?(:b)
+      return :x if categories.any? && categories.all?(:x)
+
+      :unknown
+    end
+
+    def license_compat_badge(category)
+      data = APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category)
+      "[![#{data.fetch(:alt)}][#{paperclip_ref(:license_compat_img)}]][#{paperclip_ref(:license_compat)}]"
+    end
+
+    def license_compat_ref(category)
+      APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category).fetch(:ref)
+    end
+
+    def license_compat_img(category)
+      data = APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category)
+      "https://img.shields.io/badge/#{data.fetch(:label)}-#{data.fetch(:message)}-#{data.fetch(:color)}.svg?style=flat&logo=Apache"
+    end
+
+    def polyform_licenses?(licenses)
+      licenses.any? { |license| license.to_s.start_with?("PolyForm-") }
+    end
+
+    def non_mit_licenses?(licenses)
+      licenses.any? { |license| license != "MIT" }
+    end
+
+    def license_use_case_guide_table(licenses, author_email: nil)
+      has_floss_oss = licenses.include?("MIT") || licenses.include?("AGPL-3.0-only")
+      has_polyform = licenses.include?("PolyForm-Noncommercial-1.0.0") || licenses.include?("PolyForm-Small-Business-1.0.0")
+      has_big_time = licenses.include?("LicenseRef-Big-Time-Public-License")
+      return unless has_floss_oss && has_polyform && has_big_time
+
+      rows = license_use_case_rows(licenses, author_email: author_email)
+      return if rows.empty?
+
+      "| Use case | License |\n|---|---|\n" +
+        rows.map { |use_case, license| "| #{use_case} | #{license} |" }.join("\n")
+    end
+
+    def license_use_case_rows(licenses, author_email: nil)
+      rows = []
+      rows << ["FLOSS (free and open source)", license_link("MIT")] if licenses.include?("MIT")
+      rows << ["Copy-left open source", license_link("AGPL-3.0-only")] if licenses.include?("AGPL-3.0-only")
+      noncommercial_links = %w[PolyForm-Noncommercial-1.0.0 PolyForm-Small-Business-1.0.0 LicenseRef-Big-Time-Public-License]
+        .select { |license| licenses.include?(license) }
+        .map { |license| license_link(license) }
+      rows << ["Non-commercial (research, education, personal use)", noncommercial_links.join(" or ")] unless noncommercial_links.empty?
+      small_business_links = %w[PolyForm-Small-Business-1.0.0 LicenseRef-Big-Time-Public-License]
+        .select { |license| licenses.include?(license) }
+        .map { |license| license_link(license) }
+      rows << ["Small business commercial", small_business_links.join(" or ")] unless small_business_links.empty?
+      rows << ["Larger business commercial", large_business_license_cell(author_email)] if licenses.include?("LicenseRef-Big-Time-Public-License")
+      rows
+    end
+
+    def large_business_license_cell(author_email)
+      cell = license_link("LicenseRef-Big-Time-Public-License")
+      if author_email.to_s.empty?
+        "#{cell} or contact us for a custom license"
+      else
+        "#{cell} or [contact us](mailto:#{author_email}) for a custom license"
+      end
+    end
+
+    def paperclip_ref(name)
+      {
+        copyright_notice_explainer: "\u{1F4C4}copyright-notice-explainer",
+        license: "\u{1F4C4}license",
+        license_ref: "\u{1F4C4}license-ref",
+        license_img: "\u{1F4C4}license-img",
+        license_compat: "\u{1F4C4}license-compat",
+        license_compat_img: "\u{1F4C4}license-compat-img",
+      }.fetch(name)
     end
 
     def author_given_names(name)

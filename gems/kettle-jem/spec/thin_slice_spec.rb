@@ -699,6 +699,77 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects license template tokens from configured licenses" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-license-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.authors = ["Jane Q Public"]
+            spec.email = ["jane@example.test"]
+            spec.licenses = ["MIT"]
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          licenses:
+            - AGPL-3.0-only
+            - PolyForm-Small-Business-1.0.0
+            - LicenseRef-Big-Time-Public-License
+          templates:
+            root: template
+            apply: true
+            entries:
+              - LICENSE.md
+        YAML
+        "template/LICENSE.md.example" => <<~MARKDOWN,
+          Primary: {KJ|LICENSE:PRIMARY_SPDX}
+          Prefix: {KJ|COPYRIGHT_PREFIX}
+          Badge: {KJ|README:LICENSE_BADGE}
+          Compat: {KJ|README:LICENSE_COMPAT_BADGE}
+          Refs:
+          {KJ|README:LICENSE_REFS}
+          Intro:
+          {KJ|README:LICENSE_INTRO}
+          Content:
+          {KJ|LICENSE_MD_CONTENT}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_LICENSE_md"
+      end
+      final_content = template_report.fetch(:final_content)
+      expect(plan.dig(:facts, :license, :spdx)).to eq(
+        ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0", "LicenseRef-Big-Time-Public-License"]
+      )
+      expect(plan.dig(:facts, :package, :license_expression)).to eq(
+        "AGPL-3.0-only OR PolyForm-Small-Business-1.0.0 OR LicenseRef-Big-Time-Public-License"
+      )
+      expect(final_content).to include("Primary: AGPL-3.0-only")
+      expect(final_content).to include("Prefix: Required Notice: ")
+      expect(final_content).to include("[AGPL-3.0-only](AGPL-3.0-only.md)")
+      expect(final_content).to include("[PolyForm-Small-Business-1.0.0](PolyForm-Small-Business-1.0.0.md)")
+      expect(final_content).to include("[Big-Time-Public-License](Big-Time-Public-License.md)")
+      expect(final_content).to include("Apache license compatibility: Category X")
+      expect(final_content).to include("## Use-case guide")
+      expect(final_content).to include("[contact us](mailto:jane@example.test)")
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|COPYRIGHT_PREFIX" => "Required Notice: ",
+        "KJ|LICENSE:PRIMARY_SPDX" => "AGPL-3.0-only"
+      )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|LICENSE_MD_CONTENT")).to include(
+        "This project is made available under the following licenses."
+      )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|README:LICENSE_REFS")).to include(
+        "AGPL-3.0-only.md"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
