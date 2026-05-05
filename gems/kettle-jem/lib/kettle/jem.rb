@@ -28,6 +28,7 @@ module Kettle
       source_url = extract_metadata_value(gemspec, "source_code_uri") ||
         extract_gemspec_assignment(gemspec, "spec.homepage")
 
+      kettle_config = kettle_jem_config(project_root)
       facts = {
         package: compact_hash(
           ecosystem: "rubygems",
@@ -45,9 +46,8 @@ module Kettle
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
         ),
       }
-      author = author_facts(gemspec)
+      author = author_facts(gemspec, kettle_config, env)
       facts[:author] = author unless author.empty?
-      kettle_config = kettle_jem_config(project_root)
       opencollective_policy = opencollective_policy(kettle_config, env)
       opencollective_disabled = opencollective_policy.fetch(:disabled)
       open_collective_org = opencollective_org(project_root, env, opencollective_disabled: opencollective_disabled)
@@ -739,16 +739,48 @@ module Kettle
       requirement.to_s[/\d+(?:\.\d+){1,2}/].to_s
     end
 
-    def author_facts(gemspec_source)
-      name = extract_gemspec_array(gemspec_source, "spec.authors").first.to_s.strip
-      email = extract_gemspec_array(gemspec_source, "spec.email").first.to_s.strip
+    def author_facts(gemspec_source, config, env)
+      token_config = token_config_values(config)
+      author_config = token_config["author"].is_a?(Hash) ? token_config["author"] : {}
+      derived_name = extract_gemspec_array(gemspec_source, "spec.authors").first
+      derived_email = extract_gemspec_array(gemspec_source, "spec.email").first
+      name = preferred_template_token_value(derived_name, author_config["name"], env, "KJ_AUTHOR_NAME").to_s
+      email = preferred_template_token_value(derived_email, author_config["email"], env, "KJ_AUTHOR_EMAIL").to_s
+      given_names = preferred_template_token_value(author_given_names(name), author_config["given_names"], env, "KJ_AUTHOR_GIVEN_NAMES")
+      family_names = preferred_template_token_value(author_family_names(name), author_config["family_names"], env, "KJ_AUTHOR_FAMILY_NAMES")
+      domain = preferred_template_token_value(email.split("@", 2)[1], author_config["domain"], env, "KJ_AUTHOR_DOMAIN")
       compact_hash(
         name: name,
-        given_names: author_given_names(name),
-        family_names: author_family_names(name),
+        given_names: given_names.to_s,
+        family_names: family_names.to_s,
         email: email,
-        domain: email.split("@", 2)[1].to_s
+        domain: domain.to_s
       )
+    end
+
+    def token_config_values(config)
+      raw = config.is_a?(Hash) ? config["tokens"] : nil
+      raw.is_a?(Hash) ? raw : {}
+    end
+
+    def preferred_template_token_value(derived_value, config_value, env, env_key)
+      env_clean = env[env_key].to_s.strip
+      return env_clean if present_template_token_value?(env_clean)
+
+      config_clean = config_value.to_s.strip
+      return config_clean if present_template_token_value?(config_clean)
+      return unless present_template_token_value?(derived_value)
+
+      derived_value.to_s.strip
+    end
+
+    def present_template_token_value?(value)
+      clean = value.to_s.strip
+      !clean.empty? && !token_placeholder?(clean)
+    end
+
+    def token_placeholder?(value)
+      value.to_s.strip.match?(%r{\A\{KJ\|[A-Z][A-Z0-9_:]*\}\z})
     end
 
     def author_template_tokens(author)

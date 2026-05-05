@@ -447,6 +447,70 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "honors author template token config and environment overrides" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-author-token-override-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.authors = ["Jane Q Public"]
+            spec.email = ["jane@example.test"]
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          tokens:
+            author:
+              name: Config Person
+              given_names: Config
+              family_names: Person
+              email: config@example.test
+              domain: config.example.test
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Author: {KJ|AUTHOR:NAME}
+          Given: {KJ|AUTHOR:GIVEN_NAMES}
+          Family: {KJ|AUTHOR:FAMILY_NAMES}
+          Email: {KJ|AUTHOR:EMAIL}
+          Domain: {KJ|AUTHOR:DOMAIN}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(
+        root,
+        env: {
+          "KJ_AUTHOR_NAME" => "Env A Writer",
+          "KJ_AUTHOR_EMAIL" => "env@example.test",
+          "KJ_AUTHOR_DOMAIN" => "env.example.test",
+        }
+      )
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(template_report.fetch(:final_content)).to eq(<<~MARKDOWN)
+        Author: Env A Writer
+        Given: Config
+        Family: Person
+        Email: env@example.test
+        Domain: env.example.test
+      MARKDOWN
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|AUTHOR:DOMAIN" => "env.example.test",
+        "KJ|AUTHOR:EMAIL" => "env@example.test",
+        "KJ|AUTHOR:FAMILY_NAMES" => "Person",
+        "KJ|AUTHOR:GIVEN_NAMES" => "Config",
+        "KJ|AUTHOR:NAME" => "Env A Writer"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
