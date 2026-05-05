@@ -39,6 +39,12 @@ PATH
       tree_haver (= 0.1.0)
 
 PATH
+  remote: gems/kettle-jem
+  specs:
+    kettle-jem (0.1.0)
+      ast-merge (= 0.1.0)
+
+PATH
   remote: gems/kramdown-merge
   specs:
     kramdown-merge (0.1.0)
@@ -177,6 +183,7 @@ DEPENDENCIES
   commonmarker-merge!
   go-merge!
   json-merge!
+  kettle-jem!
   kramdown-merge!
   markdown-merge!
   markly-merge!
@@ -204,6 +211,7 @@ CHECKSUMS
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   go-merge (0.1.0)
   json-merge (0.1.0)
+  kettle-jem (0.1.0)
   kramdown (2.5.2) sha256=1ba542204c66b6f9111ff00dcc26075b95b220b07f2905d8261740c82f7f02fa
   kramdown-merge (0.1.0)
   markdown-merge (0.1.0)
