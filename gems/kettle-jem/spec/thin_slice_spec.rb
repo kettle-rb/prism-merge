@@ -468,6 +468,7 @@ RSpec.describe Kettle::Jem do
               family_names: Person
               email: config@example.test
               domain: config.example.test
+              orcid: "{KJ|AUTHOR:ORCID}"
           templates:
             root: template
             apply: true
@@ -480,6 +481,7 @@ RSpec.describe Kettle::Jem do
           Family: {KJ|AUTHOR:FAMILY_NAMES}
           Email: {KJ|AUTHOR:EMAIL}
           Domain: {KJ|AUTHOR:DOMAIN}
+          ORCID: {KJ|AUTHOR:ORCID}
         MARKDOWN
       })
 
@@ -489,6 +491,7 @@ RSpec.describe Kettle::Jem do
           "KJ_AUTHOR_NAME" => "Env A Writer",
           "KJ_AUTHOR_EMAIL" => "env@example.test",
           "KJ_AUTHOR_DOMAIN" => "env.example.test",
+          "KJ_AUTHOR_ORCID" => "0000-0002-1825-0097",
         }
       )
       template_report = plan[:recipe_reports].find do |report|
@@ -500,13 +503,15 @@ RSpec.describe Kettle::Jem do
         Family: Person
         Email: env@example.test
         Domain: env.example.test
+        ORCID: 0000-0002-1825-0097
       MARKDOWN
       expect(template_report.dig(:metadata, :template_tokens)).to include(
         "KJ|AUTHOR:DOMAIN" => "env.example.test",
         "KJ|AUTHOR:EMAIL" => "env@example.test",
         "KJ|AUTHOR:FAMILY_NAMES" => "Person",
         "KJ|AUTHOR:GIVEN_NAMES" => "Config",
-        "KJ|AUTHOR:NAME" => "Env A Writer"
+        "KJ|AUTHOR:NAME" => "Env A Writer",
+        "KJ|AUTHOR:ORCID" => "0000-0002-1825-0097"
       )
     end
   end

@@ -749,12 +749,14 @@ module Kettle
       given_names = preferred_template_token_value(author_given_names(name), author_config["given_names"], env, "KJ_AUTHOR_GIVEN_NAMES")
       family_names = preferred_template_token_value(author_family_names(name), author_config["family_names"], env, "KJ_AUTHOR_FAMILY_NAMES")
       domain = preferred_template_token_value(email.split("@", 2)[1], author_config["domain"], env, "KJ_AUTHOR_DOMAIN")
+      orcid = preferred_template_token_value(nil, author_config["orcid"], env, "KJ_AUTHOR_ORCID")
       compact_hash(
         name: name,
         given_names: given_names.to_s,
         family_names: family_names.to_s,
         email: email,
-        domain: domain.to_s
+        domain: domain.to_s,
+        orcid: orcid.to_s
       )
     end
 
@@ -790,6 +792,7 @@ module Kettle
         "KJ|AUTHOR:FAMILY_NAMES" => author[:family_names].to_s,
         "KJ|AUTHOR:EMAIL" => author[:email].to_s,
         "KJ|AUTHOR:DOMAIN" => author[:domain].to_s,
+        "KJ|AUTHOR:ORCID" => author[:orcid].to_s,
       }
     end
 
