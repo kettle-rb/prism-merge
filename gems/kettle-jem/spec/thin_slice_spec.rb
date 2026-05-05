@@ -516,6 +516,63 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "honors forge user template token config and environment overrides" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-forge-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          tokens:
+            forge:
+              gh_user: config-gh
+              gl_user: config-gl
+              cb_user: "{KJ|CB:USER}"
+              sh_user: config-sh
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          GitHub: {KJ|GH:USER}
+          GitLab: {KJ|GL:USER}
+          Codeberg: {KJ|CB:USER}
+          SourceHut: {KJ|SH:USER}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(
+        root,
+        env: {
+          "KJ_GH_USER" => "env-gh",
+          "KJ_CB_USER" => "env-cb",
+        }
+      )
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(template_report.fetch(:final_content)).to eq(<<~MARKDOWN)
+        GitHub: env-gh
+        GitLab: config-gl
+        Codeberg: env-cb
+        SourceHut: config-sh
+      MARKDOWN
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|CB:USER" => "env-cb",
+        "KJ|GH:USER" => "env-gh",
+        "KJ|GL:USER" => "config-gl",
+        "KJ|SH:USER" => "config-sh"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

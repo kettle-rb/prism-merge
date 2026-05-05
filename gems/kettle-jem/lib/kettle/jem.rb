@@ -16,6 +16,12 @@ module Kettle
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
+    FORGE_USER_ENV_KEYS = {
+      gh_user: "KJ_GH_USER",
+      gl_user: "KJ_GL_USER",
+      cb_user: "KJ_CB_USER",
+      sh_user: "KJ_SH_USER",
+    }.freeze
 
     module_function
 
@@ -48,6 +54,8 @@ module Kettle
       }
       author = author_facts(gemspec, kettle_config, env)
       facts[:author] = author unless author.empty?
+      forge = forge_facts(kettle_config, env)
+      facts[:forge] = forge unless forge.empty?
       opencollective_policy = opencollective_policy(kettle_config, env)
       opencollective_disabled = opencollective_policy.fetch(:disabled)
       open_collective_org = opencollective_org(project_root, env, opencollective_disabled: opencollective_disabled)
@@ -728,7 +736,11 @@ module Kettle
         "KJ|GEM_NAME_PATH" => package.fetch(:name).to_s.tr("-", "/"),
         "KJ|NAMESPACE" => rubygems.fetch(:namespace).to_s,
         "KJ|MIN_RUBY" => minimum_ruby_token(rubygems[:min_ruby]),
-      }.merge(author_template_tokens(facts.fetch(:author, {})))
+      }.merge(
+        author_template_tokens(facts.fetch(:author, {}))
+      ).merge(
+        forge_template_tokens(facts.fetch(:forge, {}))
+      )
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
 
@@ -793,6 +805,30 @@ module Kettle
         "KJ|AUTHOR:EMAIL" => author[:email].to_s,
         "KJ|AUTHOR:DOMAIN" => author[:domain].to_s,
         "KJ|AUTHOR:ORCID" => author[:orcid].to_s,
+      }
+    end
+
+    def forge_facts(config, env)
+      token_config = token_config_values(config)
+      forge_config = token_config["forge"].is_a?(Hash) ? token_config["forge"] : {}
+      compact_hash(
+        gh_user: forge_user_value(forge_config, env, :gh_user).to_s,
+        gl_user: forge_user_value(forge_config, env, :gl_user).to_s,
+        cb_user: forge_user_value(forge_config, env, :cb_user).to_s,
+        sh_user: forge_user_value(forge_config, env, :sh_user).to_s
+      )
+    end
+
+    def forge_user_value(forge_config, env, key)
+      preferred_template_token_value(nil, forge_config[key.to_s], env, FORGE_USER_ENV_KEYS.fetch(key))
+    end
+
+    def forge_template_tokens(forge)
+      {
+        "KJ|GH:USER" => forge[:gh_user].to_s,
+        "KJ|GL:USER" => forge[:gl_user].to_s,
+        "KJ|CB:USER" => forge[:cb_user].to_s,
+        "KJ|SH:USER" => forge[:sh_user].to_s,
       }
     end
 
