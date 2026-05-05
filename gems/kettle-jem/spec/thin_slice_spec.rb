@@ -556,7 +556,7 @@ RSpec.describe Kettle::Jem do
             README.md:
               strategy: keep_destination
           templates:
-            root: template
+            root: packaged
             apply: true
             entries:
               - README.md
@@ -564,10 +564,9 @@ RSpec.describe Kettle::Jem do
                 target: certs/pboling.pem
         YAML
         "README.md" => "# destination\n",
-        "template/README.md.example" => "# {KJ|GEM_NAME}\n",
-        "template/certs/pboling.pem.example" => "raw {KJ|GEM_NAME}\n",
       })
 
+      packaged_cert = File.read(File.join(__dir__, "../lib/kettle/jem/templates/certs/pboling.pem.example"))
       plan = described_class.plan_project(root, env: {})
       readme_report = plan[:recipe_reports].find do |report|
         report.fetch(:recipe_name) == "template_source_application_README_md"
@@ -579,7 +578,7 @@ RSpec.describe Kettle::Jem do
       expect(readme_report.fetch(:final_content)).to eq("# destination\n")
       expect(readme_report.dig(:metadata, :template_source_preference)).to include(strategy: "keep_destination")
       expect(cert_report.fetch(:changed)).to be(true)
-      expect(cert_report.fetch(:final_content)).to eq("raw {KJ|GEM_NAME}\n")
+      expect(cert_report.fetch(:final_content)).to eq(packaged_cert)
       expect(cert_report.dig(:metadata, :template_source_preference)).to include(strategy: "raw_copy")
     end
   end
