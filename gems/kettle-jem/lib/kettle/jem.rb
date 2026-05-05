@@ -22,6 +22,15 @@ module Kettle
       cb_user: "KJ_CB_USER",
       sh_user: "KJ_SH_USER",
     }.freeze
+    FUNDING_TOKEN_ENV_KEYS = {
+      patreon: "KJ_FUNDING_PATREON",
+      kofi: "KJ_FUNDING_KOFI",
+      paypal: "KJ_FUNDING_PAYPAL",
+      buymeacoffee: "KJ_FUNDING_BUYMEACOFFEE",
+      polar: "KJ_FUNDING_POLAR",
+      liberapay: "KJ_FUNDING_LIBERAPAY",
+      issuehunt: "KJ_FUNDING_ISSUEHUNT",
+    }.freeze
 
     module_function
 
@@ -68,6 +77,8 @@ module Kettle
           open_collective_org: open_collective_org && open_collective_org.fetch(:org)
         )
       )
+      funding_tokens = funding_platform_token_facts(kettle_config, env)
+      funding[:platform_tokens] = funding_tokens unless funding_tokens.empty?
       funding[:open_collective_disabled] = true if opencollective_disabled
       funding[:open_collective_disabled_source] = opencollective_policy[:source] if opencollective_disabled
       if open_collective_org
@@ -740,6 +751,8 @@ module Kettle
         author_template_tokens(facts.fetch(:author, {}))
       ).merge(
         forge_template_tokens(facts.fetch(:forge, {}))
+      ).merge(
+        funding_template_tokens(funding)
       )
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
@@ -829,6 +842,37 @@ module Kettle
         "KJ|GL:USER" => forge[:gl_user].to_s,
         "KJ|CB:USER" => forge[:cb_user].to_s,
         "KJ|SH:USER" => forge[:sh_user].to_s,
+      }
+    end
+
+    def funding_platform_token_facts(config, env)
+      token_config = token_config_values(config)
+      funding_config = token_config["funding"].is_a?(Hash) ? token_config["funding"] : {}
+      compact_hash(
+        patreon: funding_platform_token_value(funding_config, env, :patreon).to_s,
+        kofi: funding_platform_token_value(funding_config, env, :kofi).to_s,
+        paypal: funding_platform_token_value(funding_config, env, :paypal).to_s,
+        buymeacoffee: funding_platform_token_value(funding_config, env, :buymeacoffee).to_s,
+        polar: funding_platform_token_value(funding_config, env, :polar).to_s,
+        liberapay: funding_platform_token_value(funding_config, env, :liberapay).to_s,
+        issuehunt: funding_platform_token_value(funding_config, env, :issuehunt).to_s
+      )
+    end
+
+    def funding_platform_token_value(funding_config, env, key)
+      preferred_template_token_value(nil, funding_config[key.to_s], env, FUNDING_TOKEN_ENV_KEYS.fetch(key))
+    end
+
+    def funding_template_tokens(funding)
+      platform_tokens = funding.fetch(:platform_tokens, {})
+      {
+        "KJ|FUNDING:PATREON" => platform_tokens[:patreon].to_s,
+        "KJ|FUNDING:KOFI" => platform_tokens[:kofi].to_s,
+        "KJ|FUNDING:PAYPAL" => platform_tokens[:paypal].to_s,
+        "KJ|FUNDING:BUYMEACOFFEE" => platform_tokens[:buymeacoffee].to_s,
+        "KJ|FUNDING:POLAR" => platform_tokens[:polar].to_s,
+        "KJ|FUNDING:LIBERAPAY" => platform_tokens[:liberapay].to_s,
+        "KJ|FUNDING:ISSUEHUNT" => platform_tokens[:issuehunt].to_s,
       }
     end
 

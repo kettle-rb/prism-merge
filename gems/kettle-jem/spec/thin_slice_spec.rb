@@ -573,6 +573,75 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "honors funding platform template token config and environment overrides" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-funding-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          tokens:
+            funding:
+              patreon: config-patreon
+              kofi: config-kofi
+              paypal: "{KJ|FUNDING:PAYPAL}"
+              buymeacoffee: config-bmac
+              polar: config-polar
+              liberapay: config-liberapay
+              issuehunt: config-issuehunt
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Patreon: {KJ|FUNDING:PATREON}
+          Ko-fi: {KJ|FUNDING:KOFI}
+          PayPal: {KJ|FUNDING:PAYPAL}
+          BuyMeACoffee: {KJ|FUNDING:BUYMEACOFFEE}
+          Polar: {KJ|FUNDING:POLAR}
+          Liberapay: {KJ|FUNDING:LIBERAPAY}
+          IssueHunt: {KJ|FUNDING:ISSUEHUNT}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(
+        root,
+        env: {
+          "KJ_FUNDING_PATREON" => "env-patreon",
+          "KJ_FUNDING_PAYPAL" => "env-paypal",
+        }
+      )
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(template_report.fetch(:final_content)).to eq(<<~MARKDOWN)
+        Patreon: env-patreon
+        Ko-fi: config-kofi
+        PayPal: env-paypal
+        BuyMeACoffee: config-bmac
+        Polar: config-polar
+        Liberapay: config-liberapay
+        IssueHunt: config-issuehunt
+      MARKDOWN
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|FUNDING:BUYMEACOFFEE" => "config-bmac",
+        "KJ|FUNDING:ISSUEHUNT" => "config-issuehunt",
+        "KJ|FUNDING:KOFI" => "config-kofi",
+        "KJ|FUNDING:LIBERAPAY" => "config-liberapay",
+        "KJ|FUNDING:PATREON" => "env-patreon",
+        "KJ|FUNDING:PAYPAL" => "env-paypal",
+        "KJ|FUNDING:POLAR" => "config-polar"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
