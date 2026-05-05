@@ -545,6 +545,53 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "classifies template entries with files and patterns strategy config" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-template-strategy-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          patterns:
+            - path: "certs/**"
+              strategy: raw_copy
+          files:
+            README.md:
+              strategy: keep_destination
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+              - source: certs/pboling.pem.example
+                target: certs/pboling.pem
+        YAML
+        "README.md" => "# destination\n",
+        "template/README.md.example" => "# {KJ|GEM_NAME}\n",
+        "template/certs/pboling.pem.example" => "raw {KJ|GEM_NAME}\n",
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      readme_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      cert_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_certs_pboling_pem"
+      end
+      expect(readme_report.fetch(:changed)).to be(false)
+      expect(readme_report.fetch(:final_content)).to eq("# destination\n")
+      expect(readme_report.dig(:metadata, :template_source_preference)).to include(strategy: "keep_destination")
+      expect(cert_report.fetch(:changed)).to be(true)
+      expect(cert_report.fetch(:final_content)).to eq("raw {KJ|GEM_NAME}\n")
+      expect(cert_report.dig(:metadata, :template_source_preference)).to include(strategy: "raw_copy")
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

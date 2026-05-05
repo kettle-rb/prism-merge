@@ -16,6 +16,7 @@ module Kettle
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
+    SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
@@ -454,7 +455,7 @@ module Kettle
       when /\Atemplate_source_preference_/
         original
       when /\Atemplate_source_application_/
-        apply_template_source(project_root, recipe)
+        apply_template_source(project_root, recipe, original)
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
@@ -573,8 +574,14 @@ module Kettle
       File.read(path)
     end
 
-    def apply_template_source(project_root, recipe)
-      resolve_template_tokens(recipe_template_content(project_root, recipe), recipe.fetch(:template_tokens, {}))
+    def apply_template_source(project_root, recipe, original)
+      strategy = recipe.dig(:template_preference, :strategy).to_s
+      return original if strategy == "keep_destination"
+
+      content = recipe_template_content(project_root, recipe)
+      return content if strategy == "raw_copy"
+
+      resolve_template_tokens(content, recipe.fetch(:template_tokens, {}))
     end
 
     def apply_kettle_config_bootstrap(project_root, recipe)
@@ -1421,7 +1428,14 @@ module Kettle
 
       apply_templates = templates["apply"] == true
       entries.filter_map do |entry|
-        template_source_preference(project_root, root, entry, opencollective_disabled: opencollective_disabled, apply_templates: apply_templates)
+        template_source_preference(
+          project_root,
+          root,
+          entry,
+          config,
+          opencollective_disabled: opencollective_disabled,
+          apply_templates: apply_templates
+        )
       end
     end
 
@@ -1461,13 +1475,14 @@ module Kettle
       recipe
     end
 
-    def template_source_preference(project_root, template_root, entry, opencollective_disabled: false, apply_templates: false)
+    def template_source_preference(project_root, template_root, entry, config, opencollective_disabled: false, apply_templates: false)
       source_path, target_path = template_entry_paths(entry)
       return nil if source_path.to_s.empty? || target_path.to_s.empty?
 
       selected_source = preferred_template_source(template_root.fetch(:path), source_path, opencollective_disabled: opencollective_disabled)
       return nil unless selected_source
 
+      strategy_config = template_strategy_config(config, target_path)
       preference = {
         target_path: target_path,
         configured_source: source_path,
@@ -1475,12 +1490,62 @@ module Kettle
         selection_reason: template_source_selection_reason(source_path, template_source_display_path(template_root, selected_source)),
         apply: template_entry_apply?(entry, apply_templates),
       }
+      preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
       if template_root.fetch(:kind) == "packaged"
         preference[:source_relative_path] = selected_source
         preference[:source_root] = template_root.fetch(:kind)
         preference[:source_root_path] = template_root.fetch(:path)
       end
       preference
+    end
+
+    def template_strategy_config(config, target_path)
+      template_file_strategy_config(config, target_path) || template_pattern_strategy_config(config, target_path)
+    end
+
+    def template_file_strategy_config(config, target_path)
+      files = config["files"]
+      return unless files.is_a?(Hash)
+
+      current = files
+      target_path.to_s.delete_prefix("./").split("/").each do |part|
+        return unless current.is_a?(Hash) && current.key?(part)
+
+        current = current[part]
+      end
+      return unless current.is_a?(Hash) && current.key?("strategy")
+
+      template_strategy_entry(config, nil, current)
+    end
+
+    def template_pattern_strategy_config(config, target_path)
+      patterns = config["patterns"]
+      return unless patterns.is_a?(Array)
+
+      match = patterns.find do |entry|
+        entry.is_a?(Hash) &&
+          File.fnmatch?(entry["path"].to_s, target_path.to_s, File::FNM_PATHNAME | File::FNM_EXTGLOB | File::FNM_DOTMATCH)
+      end
+      return unless match
+
+      template_strategy_entry(config, match["path"].to_s, match)
+    end
+
+    def template_strategy_entry(config, path, entry)
+      strategy = entry["strategy"].to_s.strip.downcase.to_sym
+      raise ArgumentError, "unknown kettle-jem template strategy: #{entry["strategy"]}" unless SUPPORTED_TEMPLATE_STRATEGIES.include?(strategy)
+
+      result = { strategy: strategy }
+      result[:path] = path if path
+      if strategy == :merge
+        defaults = config["defaults"].is_a?(Hash) ? config["defaults"] : {}
+        result[:preference] = (entry.key?("preference") ? entry["preference"] : defaults["preference"]).to_s if entry.key?("preference") || defaults.key?("preference")
+        if entry.key?("add_template_only_nodes") || defaults.key?("add_template_only_nodes")
+          result[:add_template_only_nodes] = entry.key?("add_template_only_nodes") ? entry["add_template_only_nodes"] : defaults["add_template_only_nodes"]
+        end
+        result[:freeze_token] = (entry.key?("freeze_token") ? entry["freeze_token"] : defaults["freeze_token"]).to_s if entry.key?("freeze_token") || defaults.key?("freeze_token")
+      end
+      result
     end
 
     def template_root(project_root, templates)
