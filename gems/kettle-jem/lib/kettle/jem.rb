@@ -46,9 +46,22 @@ module Kettle
       kettle_config = kettle_jem_config(project_root)
       opencollective_policy = opencollective_policy(kettle_config, env)
       opencollective_disabled = opencollective_policy.fetch(:disabled)
-      funding = compact_hash(urls: funding_urls(project_root, gemspec, name, opencollective_disabled: opencollective_disabled))
+      open_collective_org = opencollective_org(project_root, env, opencollective_disabled: opencollective_disabled)
+      funding = compact_hash(
+        urls: funding_urls(
+          project_root,
+          gemspec,
+          name,
+          opencollective_disabled: opencollective_disabled,
+          open_collective_org: open_collective_org && open_collective_org.fetch(:org)
+        )
+      )
       funding[:open_collective_disabled] = true if opencollective_disabled
       funding[:open_collective_disabled_source] = opencollective_policy[:source] if opencollective_disabled
+      if open_collective_org
+        funding[:open_collective_org] = open_collective_org.fetch(:org)
+        funding[:open_collective_org_source] = open_collective_org.fetch(:source)
+      end
       open_collective_files = opencollective_disabled ? opencollective_disabled_files(project_root) : []
       funding[:open_collective_files] = open_collective_files unless open_collective_files.empty?
       facts[:funding] = funding unless funding.empty?
@@ -495,10 +508,11 @@ module Kettle
       match && match[1]
     end
 
-    def funding_urls(project_root, gemspec_source, package_name, opencollective_disabled: false)
+    def funding_urls(project_root, gemspec_source, package_name, opencollective_disabled: false, open_collective_org: nil)
       urls = [extract_metadata_value(gemspec_source, "funding_uri")]
       path = File.join(project_root, ".github", "FUNDING.yml")
       urls.concat(github_funding_urls(path, opencollective_disabled: opencollective_disabled)) if File.exist?(path)
+      urls << github_funding_platform_urls("open_collective", [open_collective_org]).first unless opencollective_disabled
       urls << github_funding_platform_urls("tidelift", ["rubygems/#{package_name}"]).first
 
       urls.compact.uniq.sort
@@ -635,6 +649,38 @@ module Kettle
         return { key: key, value: value } if falsey_config?(value)
       end
       nil
+    end
+
+    def opencollective_org(project_root, env, opencollective_disabled: false)
+      return nil if opencollective_disabled
+
+      env_org = opencollective_org_env(env)
+      return env_org if env_org
+
+      opencollective_org_file(project_root)
+    end
+
+    def opencollective_org_env(env)
+      %w[OPENCOLLECTIVE_HANDLE FUNDING_ORG].each do |key|
+        value = env[key].to_s.strip
+        next if value.empty? || falsey_config?(value)
+
+        return { org: value, source: "env.#{key}" }
+      end
+      nil
+    end
+
+    def opencollective_org_file(project_root)
+      path = File.join(project_root, ".opencollective.yml")
+      return nil unless File.exist?(path)
+
+      config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
+      return nil unless config.is_a?(Hash)
+
+      org = config.fetch("collective", config["org"]).to_s.strip
+      return nil if org.empty?
+
+      { org: org, source: ".opencollective.yml" }
     end
 
     def falsey_config?(value)

@@ -265,6 +265,7 @@ RSpec.describe Kettle::Jem do
       plan = described_class.plan_project(root, env: { "OPENCOLLECTIVE_HANDLE" => "NO" })
       expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be(true)
       expect(plan.dig(:facts, :funding, :open_collective_disabled_source)).to eq("env.OPENCOLLECTIVE_HANDLE")
+      expect(plan.dig(:facts, :funding, :open_collective_org)).to be_nil
       expect(plan.dig(:facts, :funding, :urls)).not_to include("https://opencollective.com/example")
       expect(plan[:changed_files]).to include(".opencollective.yml")
     end
@@ -294,6 +295,52 @@ RSpec.describe Kettle::Jem do
       plan = described_class.plan_project(root, env: { "FUNDING_ORG" => "0" })
       expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be_nil
       expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/example")
+    end
+  end
+
+  it "discovers Open Collective org from environment before .opencollective.yml" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-opencollective-env-org-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".opencollective.yml" => <<~YAML,
+          collective: yaml-org
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: { "FUNDING_ORG" => "env-org" })
+      expect(plan.dig(:facts, :funding, :open_collective_org)).to eq("env-org")
+      expect(plan.dig(:facts, :funding, :open_collective_org_source)).to eq("env.FUNDING_ORG")
+      expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/env-org")
+    end
+  end
+
+  it "discovers Open Collective org from .opencollective.yml when env is absent" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-opencollective-yaml-org-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".opencollective.yml" => <<~YAML,
+          org: yaml-org
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      expect(plan.dig(:facts, :funding, :open_collective_org)).to eq("yaml-org")
+      expect(plan.dig(:facts, :funding, :open_collective_org_source)).to eq(".opencollective.yml")
+      expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/yaml-org")
     end
   end
 end
