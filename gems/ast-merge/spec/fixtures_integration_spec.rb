@@ -2519,6 +2519,17 @@ RSpec.describe Ast::Merge do
     end
 
     ruby_gemfile_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
+      report = content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
       if entry[:label] == "delete-gemfile-self-dependencies-across-nesting"
         final_content = entry.dig(:report_envelope, :report, :final_content)
         expect(final_content).not_to include('gem "demo", "~> 1.0"')
@@ -2533,6 +2544,17 @@ RSpec.describe Ast::Merge do
     end
 
     ruby_appraisals_self_dependency_policy_acceptance_fixture[:cases].each do |entry|
+      report = content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
       if entry[:label] == "delete-appraisals-self-dependencies"
         final_content = entry.dig(:report_envelope, :report, :final_content)
         expect(final_content).not_to include('gem "demo"')
@@ -2546,6 +2568,17 @@ RSpec.describe Ast::Merge do
     end
 
     ruby_appraisals_min_ruby_prune_policy_acceptance_fixture[:cases].each do |entry|
+      report = content_recipe_execution_report(
+        request: entry.dig(:report_envelope, :report, :request),
+        final_content: entry.dig(:report_envelope, :report, :final_content),
+        changed: entry.dig(:report_envelope, :report, :changed),
+        step_reports: entry.dig(:report_envelope, :report, :step_reports),
+        diagnostics: entry.dig(:report_envelope, :report, :diagnostics),
+        metadata: entry.dig(:report_envelope, :report, :metadata)
+      )
+      expect(json_ready(content_recipe_execution_report_envelope(report))).to eq(
+        json_ready(entry[:report_envelope])
+      )
       if entry[:label] == "delete-ruby-appraisals-below-min-ruby"
         final_content = entry.dig(:report_envelope, :report, :final_content)
         expect(final_content).not_to include("ruby-2-3")
@@ -2554,6 +2587,7 @@ RSpec.describe Ast::Merge do
         expect(final_content).to include("ruby-3-2")
         expect(final_content).to include('appraise "style"')
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :operation)).to eq("delete")
+        expect(final_content).not_to include("\n\n\n")
       end
       if entry[:label] == "missing-min-ruby-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
