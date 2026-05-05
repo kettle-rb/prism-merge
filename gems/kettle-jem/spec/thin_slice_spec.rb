@@ -150,7 +150,7 @@ RSpec.describe Kettle::Jem do
           funding:
             open_collective: false
           templates:
-            root: template
+            root: packaged
             entries:
               - README.md
               - source: FUNDING.md.example
@@ -173,19 +173,6 @@ RSpec.describe Kettle::Jem do
               steps:
                 - uses: actions/checkout@v3
         YAML
-        "template/README.md.example" => <<~MARKDOWN,
-          # Example
-
-          Open Collective enabled.
-        MARKDOWN
-        "template/README.md.no-osc.example" => <<~MARKDOWN,
-          # Example
-
-          Open Collective disabled.
-        MARKDOWN
-        "template/FUNDING.md.example" => <<~MARKDOWN,
-          # Funding
-        MARKDOWN
       })
 
       plan = described_class.plan_project(root, env: {})
@@ -199,30 +186,32 @@ RSpec.describe Kettle::Jem do
       expect(recipe_names).to include("opencollective_disabled_file_cleanup_opencollective_yml")
       expect(recipe_names).to include("opencollective_disabled_file_cleanup_github_workflows_opencollective_yml")
       expect(recipe_names).not_to include("github_actions_workflow_snippets_github_workflows_opencollective_yml")
-      expect(plan.dig(:facts, :templates, :source_preferences)).to eq(
-        [
-          {
-            target_path: "README.md",
-            configured_source: "README.md",
-            selected_source: "template/README.md.no-osc.example",
-            selection_reason: "opencollective_disabled_no_osc_variant",
-            apply: false,
-          },
-          {
-            target_path: "FUNDING.md",
-            configured_source: "FUNDING.md.example",
-            selected_source: "template/FUNDING.md.example",
-            selection_reason: "default_example_variant",
-            apply: false,
-          },
-        ]
+      expect(plan.dig(:facts, :templates, :source_preferences)).to contain_exactly(
+        a_hash_including(
+          target_path: "README.md",
+          configured_source: "README.md",
+          selected_source: "README.md.no-osc.example",
+          source_relative_path: "README.md.no-osc.example",
+          source_root: "packaged",
+          selection_reason: "opencollective_disabled_no_osc_variant",
+          apply: false
+        ),
+        a_hash_including(
+          target_path: "FUNDING.md",
+          configured_source: "FUNDING.md.example",
+          selected_source: "FUNDING.md.no-osc.example",
+          source_relative_path: "FUNDING.md.no-osc.example",
+          source_root: "packaged",
+          selection_reason: "opencollective_disabled_no_osc_variant",
+          apply: false
+        )
       )
       template_report = plan[:recipe_reports].find do |report|
         report.fetch(:recipe_name) == "template_source_preference_README_md"
       end
       expect(template_report.fetch(:changed)).to be(false)
       expect(template_report.dig(:metadata, :template_source_preference, :selected_source)).to eq(
-        "template/README.md.no-osc.example"
+        "README.md.no-osc.example"
       )
       expect(template_report.dig(:request_envelope, :request, :runtime_context, :template_source_preference, :selection_reason)).to eq(
         "opencollective_disabled_no_osc_variant"
