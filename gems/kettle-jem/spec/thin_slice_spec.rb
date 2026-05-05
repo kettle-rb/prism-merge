@@ -891,6 +891,46 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects RuboCop LTS template tokens from minimum Ruby" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-rubocop-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.1"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - gemfiles/modular/style.gemfile
+        YAML
+        "template/gemfiles/modular/style.gemfile.example" => <<~RUBY,
+          gem "rubocop-lts", "{KJ|RUBOCOP_LTS_CONSTRAINT}"
+          gem "{KJ|RUBOCOP_RUBY_GEM}"
+        RUBY
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_gemfiles_modular_style_gemfile"
+      end
+      expect(template_report.fetch(:final_content)).to eq(<<~RUBY)
+        gem "rubocop-lts", "~> 22.0"
+        gem "rubocop-ruby3_1"
+      RUBY
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|RUBOCOP_LTS_CONSTRAINT" => "~> 22.0",
+        "KJ|RUBOCOP_RUBY_GEM" => "rubocop-ruby3_1"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

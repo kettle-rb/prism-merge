@@ -26,6 +26,23 @@ module Kettle
       "[🖼️ruby-lang-i]: https://logos.galtzo.com/assets/images/ruby-lang/avatar-192px.svg",
       "[🖼️ruby-lang]: https://www.ruby-lang.org/",
     ].join("\n").freeze
+    RUBOCOP_VERSION_MAP = [
+      [Gem::Version.new("1.8"), "~> 0.1"],
+      [Gem::Version.new("1.9"), "~> 2.0"],
+      [Gem::Version.new("2.0"), "~> 4.0"],
+      [Gem::Version.new("2.1"), "~> 6.0"],
+      [Gem::Version.new("2.2"), "~> 8.0"],
+      [Gem::Version.new("2.3"), "~> 10.0"],
+      [Gem::Version.new("2.4"), "~> 12.0"],
+      [Gem::Version.new("2.5"), "~> 14.0"],
+      [Gem::Version.new("2.6"), "~> 16.0"],
+      [Gem::Version.new("2.7"), "~> 18.0"],
+      [Gem::Version.new("3.0"), "~> 20.0"],
+      [Gem::Version.new("3.1"), "~> 22.0"],
+      [Gem::Version.new("3.2"), "~> 24.0"],
+      [Gem::Version.new("3.3"), "~> 26.0"],
+      [Gem::Version.new("3.4"), "~> 28.0"],
+    ].freeze
     FORGE_USER_ENV_KEYS = {
       gh_user: "KJ_GH_USER",
       gl_user: "KJ_GL_USER",
@@ -823,6 +840,8 @@ module Kettle
         "KJ|MIN_RUBY" => minimum_ruby_token(rubygems[:min_ruby]),
         "KJ|MIN_DEV_RUBY" => minimum_dev_ruby_token(rubygems[:min_ruby]),
       }.merge(
+        rubocop_template_tokens(rubygems[:min_ruby])
+      ).merge(
         author_template_tokens(facts.fetch(:author, {}))
       ).merge(
         forge_template_tokens(facts.fetch(:forge, {}))
@@ -1101,6 +1120,36 @@ module Kettle
         "KJ|README:TOP_LOGO_ROW" => readme_logo[:top_logo_row].to_s,
         "KJ|README:TOP_LOGO_REFS" => readme_logo[:top_logo_refs].to_s,
       }
+    end
+
+    def rubocop_template_tokens(min_ruby)
+      constraint, gem_name = rubocop_tokens_for(min_ruby_version(min_ruby))
+      {
+        "KJ|RUBOCOP_LTS_CONSTRAINT" => constraint,
+        "KJ|RUBOCOP_RUBY_GEM" => gem_name,
+      }
+    end
+
+    def rubocop_tokens_for(min_ruby)
+      fallback = RUBOCOP_VERSION_MAP.first
+      selected = nil
+      RUBOCOP_VERSION_MAP.reverse_each do |minimum, constraint|
+        next unless min_ruby && min_ruby >= minimum
+
+        selected = [minimum, constraint]
+        break
+      end
+      selected ||= fallback
+      [selected[1], "rubocop-ruby#{selected[0].segments.join("_")}"]
+    end
+
+    def min_ruby_version(requirement)
+      token = minimum_ruby_token(requirement)
+      return nil if token.empty?
+
+      Gem::Version.new(token)
+    rescue ArgumentError
+      nil
     end
 
     def license_facts(config, gemspec_licenses, author_email: nil)
