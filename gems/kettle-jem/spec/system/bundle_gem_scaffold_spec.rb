@@ -184,10 +184,29 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(rakefile.scan('task("kettle:jem:selftest")').size).to eq(1)
     expect(rakefile.scan('task("build:generate_checksums")').size).to eq(1)
 
-    second_apply = Kettle::Jem.apply_project(gem_root, env: env)
-    expect(second_apply.fetch(:changed_files)).not_to include(
+    selected_template_paths = [
       ".github/dependabot.yml",
-      "Gemfile"
-    )
+      "Gemfile",
+      "gemfiles/modular/style.gemfile",
+    ]
+    before_second_apply = selected_template_paths.to_h do |relative_path|
+      [relative_path, File.read(File.join(gem_root, relative_path))]
+    end
+
+    Kettle::Jem.apply_project(gem_root, env: env)
+
+    expect(selected_template_paths.to_h { |relative_path|
+      [relative_path, File.read(File.join(gem_root, relative_path))]
+    }).to eq(before_second_apply)
+
+    readme_after_second_apply = File.read(File.join(gem_root, "README.md"))
+    expect(readme_after_second_apply).to include("# 💎 Dummy::Gem")
+    expect(readme_after_second_apply).to include("## 🌻 Synopsis\n\nDestination synopsis from the scaffolded project.")
+
+    rakefile_after_second_apply = File.read(File.join(gem_root, "Rakefile"))
+    expect(rakefile_after_second_apply).to include('require "bundler/gem_tasks"')
+    expect(rakefile_after_second_apply).to include('require "kettle/dev"')
+    expect(rakefile_after_second_apply.scan('task("kettle:jem:selftest")').size).to eq(1)
+    expect(rakefile_after_second_apply.scan('task("build:generate_checksums")').size).to eq(1)
   end
 end

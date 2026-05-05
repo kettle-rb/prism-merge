@@ -400,9 +400,7 @@ module Kettle
       lines = content.to_s.split("\n", -1)
       heading = "# #{package.fetch(:name)}"
       h1_index = lines.index { |line| line.start_with?("# ") }
-      if h1_index
-        lines[h1_index] = heading
-      else
+      unless h1_index
         lines.unshift(heading, "")
       end
       replace_markdown_managed_block(lines.join("\n"), "kettle-jem:metadata", readme_metadata_block(facts))
@@ -613,6 +611,7 @@ module Kettle
     def merge_config_template_source(recipe, template_content, destination_content)
       file_type = template_file_type(recipe)
       return template_content if destination_content.to_s.strip.empty?
+      return destination_content if destination_content == template_content
 
       case file_type
       when :ruby, :gemfile, :appraisals, :gemspec, :rakefile
@@ -2005,15 +2004,25 @@ module Kettle
       while index < lines.length
         line = lines[index]
         if line.match?(/\A\s*task\s+default:/) || line.match?(/\A\s*task\s+:default\b/)
-          end_index = rakefile_block_end(lines, index)
-          selectors << rakefile_selector("rakefile_scaffold_task_default", index + 1, end_index + 1,
-            "wrapper_selected_scaffold_task")
-          index = end_index + 1
-          next
+          unless rakefile_template_default_task?(lines, index)
+            end_index = rakefile_block_end(lines, index)
+            selectors << rakefile_selector("rakefile_scaffold_task_default", index + 1, end_index + 1,
+              "wrapper_selected_scaffold_task")
+            index = end_index + 1
+            next
+          end
         end
         index += 1
       end
       selectors
+    end
+
+    def rakefile_template_default_task?(lines, task_index)
+      cursor = task_index - 1
+      cursor -= 1 while cursor >= 0 && lines[cursor].strip.empty?
+      return false unless cursor >= 0
+
+      lines[cursor].strip == 'desc "Default tasks aggregator"'
     end
 
     def rakefile_block_end(lines, start_index)
