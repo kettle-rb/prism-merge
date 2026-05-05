@@ -1614,7 +1614,7 @@ module Kettle
     end
 
     def semantic_readme_heading(text)
-      strip_readme_heading_adornment(text).downcase.gsub(/[^\p{Alnum}\s]/u, "").squeeze(" ").strip
+      normalize_readme_heading(text)
     end
 
     def strip_readme_heading_adornment(text)
