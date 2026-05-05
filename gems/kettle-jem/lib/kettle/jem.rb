@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "yaml"
 require "ast/merge"
 require_relative "jem/version"
 
@@ -39,7 +40,7 @@ module Kettle
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
         ),
       }
-      funding = compact_hash(urls: funding_urls(project_root))
+      funding = compact_hash(urls: funding_urls(project_root, gemspec))
       facts[:funding] = funding unless funding.empty?
       facts
     end
@@ -302,11 +303,53 @@ module Kettle
       match && match[1]
     end
 
-    def funding_urls(project_root)
+    def funding_urls(project_root, gemspec_source)
+      urls = [extract_metadata_value(gemspec_source, "funding_uri")]
       path = File.join(project_root, ".github", "FUNDING.yml")
-      return [] unless File.exist?(path)
+      urls.concat(github_funding_urls(path)) if File.exist?(path)
 
-      File.read(path).scan(%r{https?://\S+}).map { |url| url.delete_suffix("\"").delete_suffix("'") }.uniq.sort
+      urls.compact.uniq.sort
+    end
+
+    def github_funding_urls(path)
+      funding = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
+      return [] unless funding.is_a?(Hash)
+
+      funding.flat_map do |platform, value|
+        github_funding_platform_urls(platform.to_s, Array(value).compact)
+      end
+    end
+
+    def github_funding_platform_urls(platform, values)
+      values.filter_map do |value|
+        handle = value.to_s.strip.delete_prefix("@")
+        next if handle.empty?
+
+        case platform
+        when "buy_me_a_coffee"
+          "https://www.buymeacoffee.com/#{handle}"
+        when "custom"
+          handle if handle.match?(%r{\Ahttps?://})
+        when "github"
+          "https://github.com/sponsors/#{handle}"
+        when "issuehunt"
+          "https://issuehunt.io/u/#{handle}"
+        when "ko_fi"
+          "https://ko-fi.com/#{handle}"
+        when "liberapay"
+          "https://liberapay.com/#{handle}/donate"
+        when "open_collective"
+          "https://opencollective.com/#{handle}"
+        when "patreon"
+          "https://patreon.com/#{handle}"
+        when "polar"
+          "https://polar.sh/#{handle}"
+        when "thanks_dev"
+          "https://thanks.dev/#{handle}"
+        when "tidelift"
+          "https://tidelift.com/funding/github/#{handle}"
+        end
+      end
     end
 
     def classify_namespace(name)
@@ -315,12 +358,14 @@ module Kettle
 
     def readme_metadata_block(facts)
       package = facts.fetch(:package)
+      funding_urls = facts.fetch(:funding, {}).fetch(:urls, [])
       rows = [
         ["Package", package[:name]],
         ["Description", package[:description]],
         ["Homepage", package[:homepage_url]],
         ["Source", package[:source_url]],
         ["License", package[:license_expression]],
+        ["Funding", funding_urls.join(", ")],
       ].reject { |(_, value)| value.to_s.empty? }
 
       [
