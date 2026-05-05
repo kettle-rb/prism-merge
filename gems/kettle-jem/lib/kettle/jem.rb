@@ -47,6 +47,7 @@ module Kettle
         provider: "github_actions",
         default_branch: "main",
         ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
+        custom_workflows: github_actions_custom_workflows(project_root),
       }
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
@@ -73,6 +74,15 @@ module Kettle
           "yaml",
           "supplied_github_actions_framework_workflow_synchronization",
           facts: %w[package rubygems ci]
+        )
+      end
+      facts.dig(:ci, :custom_workflows).to_a.each do |workflow_path|
+        recipes << recipe_entry(
+          "github_actions_workflow_snippets_#{workflow_recipe_slug(workflow_path)}",
+          workflow_path,
+          "yaml",
+          "supplied_github_actions_workflow_snippet_merge",
+          facts: %w[ci]
         )
       end
       recipes << recipe_entry(
@@ -229,6 +239,8 @@ module Kettle
         synchronize_github_actions_ci(original, facts)
       when "github_actions_framework_ci"
         synchronize_github_actions_framework_ci(original, facts)
+      when /\Agithub_actions_workflow_snippets_/
+        synchronize_github_actions_workflow_snippets(original)
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
@@ -434,6 +446,22 @@ module Kettle
       candidates = %w[3.1 3.2 3.3 3.4]
       selected = candidates.select { |version| Gem::Version.new(version) >= Gem::Version.new(floor) }
       selected.empty? ? [floor] : selected
+    end
+
+    def github_actions_custom_workflows(project_root)
+      workflow_root = File.join(project_root, ".github", "workflows")
+      return [] unless Dir.exist?(workflow_root)
+
+      Dir.glob(File.join(workflow_root, "*.{yml,yaml}")).filter_map do |path|
+        relative_path = path.delete_prefix("#{project_root}/")
+        next if %w[.github/workflows/ci.yml .github/workflows/framework-ci.yml].include?(relative_path)
+
+        relative_path
+      end.sort
+    end
+
+    def workflow_recipe_slug(workflow_path)
+      workflow_path.gsub(/[^a-zA-Z0-9]+/, "_").gsub(/\A_+|_+\z/, "")
     end
 
     def kettle_jem_config(project_root)
@@ -735,6 +763,54 @@ module Kettle
               - name: Tests for ${{ matrix.ruby }}@${{ matrix.framework_version }}
                 run: bundle exec rake test
       YAML
+    end
+
+    def synchronize_github_actions_workflow_snippets(content)
+      updated = ensure_workflow_top_level_section(
+        content.to_s,
+        "permissions",
+        "permissions:\n  contents: read\n\n",
+        before: "on"
+      )
+      updated = ensure_workflow_top_level_section(
+        updated,
+        "concurrency",
+        "concurrency:\n  group: \"${{ github.workflow }}-${{ github.ref }}\"\n  cancel-in-progress: true\n\n",
+        before: "jobs"
+      )
+      update_github_actions_pins(updated)
+    end
+
+    def ensure_workflow_top_level_section(content, key, section, before:)
+      return content if content.match?(/^#{Regexp.escape(key)}:/)
+
+      lines = content.lines
+      index = lines.index { |line| line.match?(/^#{Regexp.escape(before)}:/) }
+      if index
+        prepared_section = index.zero? || lines[index - 1].strip.empty? ? section : "\n#{section}"
+        lines.insert(index, prepared_section)
+      else
+        lines << "\n" unless lines.empty? || lines.last == "\n"
+        lines << section
+      end
+      lines.join
+    end
+
+    def update_github_actions_pins(content)
+      github_actions_step_pins.reduce(content) do |updated, (action_prefix, pinned_value)|
+        updated.gsub(/^(\s*(?:-\s*)?uses:\s*)#{Regexp.escape(action_prefix)}@\S+(?:\s+#.*)?$/) do
+          "#{$1}#{pinned_value}"
+        end
+      end
+    end
+
+    def github_actions_step_pins
+      {
+        "actions/checkout" => "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
+        "ruby/setup-ruby" => "ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0",
+        "coverallsapp/github-action" => "coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # main",
+        "codecov/codecov-action" => "codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0",
+      }
     end
 
     def replace_markdown_managed_block(content, marker, replacement)

@@ -49,6 +49,7 @@ RSpec.describe Kettle::Jem do
       expect(recipe_names).to include("github_actions_ci")
       expect(recipe_names).to include("github_actions_framework_ci")
       expect(recipe_names).to include("rakefile_scaffold_cleanup")
+      expect(recipe_names).to include(a_string_starting_with("github_actions_workflow_snippets_"))
       expect(plan[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
       expect(plan[:recipe_reports].map { |report| report[:request_envelope][:kind] }.uniq).to eq(
         [contract.fetch(:report_contract).fetch(:request_envelope_kind)]
@@ -70,6 +71,14 @@ RSpec.describe Kettle::Jem do
       expect(framework_ci_report.fetch(:final_content)).to include("name: Rails CI")
       expect(framework_ci_report.fetch(:final_content)).to include("gemfiles/rails_7_0")
       expect(framework_ci_report.fetch(:final_content)).to include("BUNDLE_GEMFILE")
+      custom_ci_report = plan[:recipe_reports].find do |report|
+        report.fetch(:relative_path) == ".github/workflows/custom-ci.yml"
+      end
+      expect(custom_ci_report.fetch(:final_content)).to include("permissions:")
+      expect(custom_ci_report.fetch(:final_content)).to include("concurrency:")
+      expect(custom_ci_report.fetch(:final_content)).to include("actions/checkout@de0fac2")
+      expect(custom_ci_report.fetch(:final_content)).to include("ruby/setup-ruby@e65c17")
+      expect(custom_ci_report.fetch(:final_content)).to include("ruby: [\"3.2\", \"3.3\"]")
 
       apply = described_class.apply_project(root)
       expect(apply[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
