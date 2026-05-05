@@ -175,7 +175,7 @@ module Yaml
     private_class_method :validate_yaml_node
 
     def scalar?(value)
-      value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
+      value.nil? || value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
     end
     private_class_method :scalar?
 
@@ -185,7 +185,9 @@ module Yaml
     private_class_method :display_path
 
     def render_yaml_scalar(value)
-      if value.is_a?(String)
+      if value.nil?
+        ""
+      elsif value.is_a?(String)
         value.match?(/\A[A-Za-z0-9_.-]+\z/) ? value : JSON.generate(value)
       elsif value == true || value == false
         value ? "true" : "false"
@@ -201,6 +203,8 @@ module Yaml
         ["#{prefix}#{key}:"] + render_yaml_sequence(value, indent + 2)
       elsif value.is_a?(Hash)
         ["#{prefix}#{key}:"] + render_yaml_mapping(value, indent + 2)
+      elsif value.nil?
+        ["#{prefix}#{key}:"]
       else
         ["#{prefix}#{key}: #{render_yaml_scalar(value)}"]
       end

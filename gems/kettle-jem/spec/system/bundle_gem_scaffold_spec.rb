@@ -6,7 +6,44 @@ require "open3"
 RSpec.describe "bundle gem scaffold + kettle-jem", :system do
   let(:sandbox_root) { File.expand_path("../../../tmp/sandbox", __dir__) }
   let(:gem_root) { File.join(sandbox_root, "dummy-gem") }
-  let(:env) { { "KJ_MIN_DIVERGENCE_THRESHOLD" => "5" } }
+  let(:env) do
+    {
+      "FUNDING_ORG" => "acme",
+      "KJ_MIN_DIVERGENCE_THRESHOLD" => "5",
+    }
+  end
+  let(:expected_hidden_directories) do
+    %w[
+      .config
+      .config/mise
+      .devcontainer
+      .devcontainer/apt-install
+      .devcontainer/scripts
+      .git-hooks
+      .github
+      .github/workflows
+      .idea
+      .qlty
+    ]
+  end
+  let(:expected_hidden_files) do
+    %w[
+      .config/mise/env.sh
+      .devcontainer/apt-install/devcontainer-feature.json
+      .devcontainer/apt-install/install.sh
+      .devcontainer/devcontainer.json
+      .devcontainer/scripts/setup-tree-sitter.sh
+      .git-hooks/commit-msg
+      .git-hooks/footer-template.erb.txt
+      .git-hooks/prepare-commit-msg
+      .github/.codecov.yml
+      .github/copilot_instructions.md
+      .github/dependabot.yml
+      .github/workflows/templating.yml
+      .idea/.gitignore
+      .qlty/qlty.toml
+    ]
+  end
 
   before do
     FileUtils.rm_rf(gem_root)
@@ -71,12 +108,6 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
       templates:
         root: packaged
         apply: true
-        entries:
-          - README.md
-          - .github/dependabot.yml
-          - Gemfile
-          - Rakefile
-          - gemfiles/modular/style.gemfile
     YAML
     File.write(path, content)
   end
@@ -134,13 +165,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     seed_destination_dependabot!
 
     apply = Kettle::Jem.apply_project(gem_root, env: env)
-    expect(apply.fetch(:changed_files)).to include(
-      ".github/dependabot.yml",
-      "Gemfile",
-      "Rakefile",
-      "README.md",
-      "gemfiles/modular/style.gemfile"
-    )
+    expect(apply.fetch(:changed_files)).to include(".github/dependabot.yml", "Gemfile", "Rakefile", "README.md")
     expect(File).to exist(File.join(gem_root, ".github/FUNDING.yml"))
     expect(File).to exist(File.join(gem_root, ".github/workflows/ci.yml"))
 
@@ -184,9 +209,24 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(rakefile.scan('task("kettle:jem:selftest")').size).to eq(1)
     expect(rakefile.scan('task("build:generate_checksums")').size).to eq(1)
 
+    aggregate_failures "hidden packaged template directories" do
+      expected_hidden_directories.each do |relative_path|
+        expect(Dir).to exist(File.join(gem_root, relative_path)), "expected #{relative_path} to exist"
+      end
+    end
+
+    aggregate_failures "hidden packaged template files" do
+      expected_hidden_files.each do |relative_path|
+        expect(File).to exist(File.join(gem_root, relative_path)), "expected #{relative_path} to exist"
+      end
+    end
+
     selected_template_paths = [
+      ".github/copilot_instructions.md",
       ".github/dependabot.yml",
+      ".qlty/qlty.toml",
       "Gemfile",
+      "certs/pboling.pem",
       "gemfiles/modular/style.gemfile",
     ]
     before_second_apply = selected_template_paths.to_h do |relative_path|

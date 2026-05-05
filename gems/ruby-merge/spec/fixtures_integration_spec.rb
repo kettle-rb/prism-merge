@@ -128,6 +128,35 @@ RSpec.describe "Ruby::Merge" do
     expect(gemfile_merge[:output]).to include('gem "rspec"')
     expect(gemfile_merge[:output]).to include('gem "rake"')
 
+    modular_gemfile_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        gem "reek", "~> 6.5"
+
+        platform :mri do
+          gem "rubocop-lts", "~> 23.0"
+          gem "rubocop-ruby2_3"
+        end
+      RUBY
+      <<~RUBY,
+        # frozen_string_literal: true
+
+        # Destination style guidance.
+
+        gem "reek", "~> 6.5"
+
+        platform :mri do
+          gem "rubocop-lts", "~> 24.0"
+          gem "rubocop-ruby3_2"
+        end
+      RUBY
+      "ruby"
+    )
+    expect(modular_gemfile_merge[:ok]).to be(true)
+    expect(modular_gemfile_merge[:output]).to include("# frozen_string_literal: true")
+    expect(modular_gemfile_merge[:output]).to include("# Destination style guidance.")
+    expect(modular_gemfile_merge[:output]).to include("platform :mri do")
+    expect(modular_gemfile_merge[:output]).to include('gem "rubocop-ruby3_2"')
+
     rakefile_merge = RUBY_MERGE.merge_ruby(
       <<~RUBY,
         desc "Default task"

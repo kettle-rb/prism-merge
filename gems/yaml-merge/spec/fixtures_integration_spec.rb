@@ -128,6 +128,24 @@ RSpec.describe Yaml::Merge do
     )
   end
 
+  it "merges null scalar mapping values from template YAML" do
+    template = <<~YAML
+      community_bridge:
+      github: [acme]
+    YAML
+    destination = <<~YAML
+      tidelift: rubygems/example
+    YAML
+
+    result = described_class.merge_yaml(template, destination, "yaml", backend: "kreuzberg-language-pack")
+    expect(result[:ok]).to be(true)
+    expect(YAML.safe_load(result.fetch(:output))).to eq(
+      "community_bridge" => nil,
+      "github" => ["acme"],
+      "tidelift" => "rubygems/example"
+    )
+  end
+
   it "conforms to the slice-183 YAML polyglot backend feature profile fixtures" do
     fixture = read_json(
       fixtures_root.join(

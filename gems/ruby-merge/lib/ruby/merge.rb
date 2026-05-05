@@ -13,7 +13,7 @@ module Ruby
     DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/
     MAGIC_COMMENT_PREFIXES = %w[coding encoding frozen_string_literal shareable_constant_value typed warn_indent].freeze
     REQUIRE_PATTERN = /^\s*require(?:_relative)?\s+["']([^"']+)["']/.freeze
-    DSL_CALL_PATTERN = /^(?<name>source|gemspec|git_source|gem|eval_gemfile|desc|task)\b/.freeze
+    DSL_CALL_PATTERN = /^(?<name>source|gemspec|git_source|gem|eval_gemfile|platform|group|desc|task)\b/.freeze
     RAKEFILE_DEFAULT_TASK_COMMENT = "# Define a base default task early so other files can enhance it."
     RAKEFILE_DEFAULT_TASK_DESC = 'desc "Default tasks aggregator"'
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
@@ -112,6 +112,8 @@ module Ruby
       destination_dsl = collect_top_level_dsl_entries(destination.dig(:analysis, :source))
       template_dsl = collect_top_level_dsl_entries(template.dig(:analysis, :source))
       sections = []
+      preamble = collect_ruby_preamble(destination.dig(:analysis, :source))
+      sections << preamble unless preamble.empty?
       requires = merge_template_requires ? merge_ruby_requires(destination_requires, template_requires) : destination_requires
       require_block = requires.map { |entry| entry[:text] }.join("\n").strip
       sections << require_block unless require_block.empty?
@@ -372,6 +374,17 @@ module Ruby
       end
     end
 
+    def collect_ruby_preamble(source)
+      lines = normalize_source(source).split("\n")
+      preamble = []
+      lines.each do |line|
+        break unless line.strip.empty? || comment_line?(line)
+
+        preamble << line.rstrip
+      end
+      preamble.join("\n").strip
+    end
+
     def collect_top_level_dsl_entries(source)
       lines = normalize_source(source).split("\n")
       entries = []
@@ -582,7 +595,7 @@ module Ruby
       case name
       when "source", "gemspec"
         name
-      when "git_source", "gem", "eval_gemfile", "task"
+      when "git_source", "gem", "eval_gemfile", "platform", "group", "task"
         first_argument = line[/\b#{Regexp.escape(name)}\s*(?:\(|\s)\s*["']([^"']+)["']/, 1] ||
           line[/\b#{Regexp.escape(name)}\s*(?:\(|\s)\s*:([a-zA-Z_]\w*[!?=]?)/, 1]
         first_argument ? "#{name}:#{normalize_dsl_argument(name, first_argument)}" : "#{name}:#{line.strip}"

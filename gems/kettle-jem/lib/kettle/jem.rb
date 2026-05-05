@@ -129,8 +129,9 @@ module Kettle
 
       gemspec = File.read(gemspec_path)
       name = extract_gemspec_assignment(gemspec, "spec.name") || File.basename(gemspec_path, ".gemspec")
-      source_url = extract_metadata_value(gemspec, "source_code_uri") ||
-        extract_gemspec_assignment(gemspec, "spec.homepage")
+      homepage_url = extract_gemspec_assignment(gemspec, "spec.homepage")
+      metadata_source_url = extract_metadata_value(gemspec, "source_code_uri")
+      source_url = concrete_github_url(metadata_source_url) || concrete_github_url(homepage_url) || metadata_source_url || homepage_url
 
       kettle_config = kettle_jem_config(project_root)
       author = author_facts(gemspec, kettle_config, env)
@@ -151,7 +152,7 @@ module Kettle
           slug: name,
           description: extract_gemspec_assignment(gemspec, "spec.description") ||
             extract_gemspec_assignment(gemspec, "spec.summary"),
-          homepage_url: extract_gemspec_assignment(gemspec, "spec.homepage"),
+          homepage_url: homepage_url,
           source_url: source_url,
           license_expression: license[:expression],
         ),
@@ -595,7 +596,14 @@ module Kettle
       content = recipe_template_content(project_root, recipe)
       return content if strategy == "raw_copy"
 
-      resolved = resolve_template_tokens(content, recipe.fetch(:template_tokens, {}))
+      resolved = resolve_template_tokens(
+        content,
+        recipe.fetch(:template_tokens, {}),
+        scan_unresolved: unresolved_template_scan?(recipe)
+      )
+    rescue ArgumentError => e
+      raise ArgumentError, "#{recipe.fetch(:target_path)}: #{e.message}"
+    else
       if recipe.fetch(:target_path) == "README.md" && (strategy.empty? || strategy == "merge")
         return merge_readme_template(
           template_content: resolved,
@@ -614,7 +622,9 @@ module Kettle
       return destination_content if destination_content == template_content
 
       case file_type
-      when :ruby, :gemfile, :appraisals, :gemspec, :rakefile
+      when :gemspec
+        return template_content
+      when :ruby, :gemfile, :appraisals, :rakefile
         merge_result = Ruby::Merge.merge_ruby(
           template_content,
           destination_content,
@@ -1166,6 +1176,10 @@ module Kettle
       match && match[1]
     end
 
+    def concrete_github_url(url)
+      github_org_from_url(url) ? url.to_s : nil
+    end
+
     def readme_logo_facts(config, package_name:, github_org:)
       entries = readme_top_logo_entries(readme_top_logo_mode(config), org: github_org.to_s, gem_name: package_name.to_s)
       compact_hash(
@@ -1472,14 +1486,23 @@ module Kettle
       parts[-1]
     end
 
-    def resolve_template_tokens(content, tokens)
+    def resolve_template_tokens(content, tokens, scan_unresolved: true)
       resolver = Token::Resolver::Resolve.new(on_missing: :keep)
       document = Token::Resolver::Document.new(content.to_s, config: TEMPLATE_TOKEN_CONFIG)
       resolved = resolver.resolve(document, stringify_template_tokens(tokens))
+      return resolved unless scan_unresolved
+
       unresolved = Token::Resolver::Document.new(resolved, config: TEMPLATE_TOKEN_CONFIG).token_keys.grep(/\AKJ\|/).sort
       return resolved if unresolved.empty?
 
       raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.map { |token| "{#{token}}" }.join(", ")}"
+    end
+
+    def unresolved_template_scan?(recipe)
+      return false if recipe.fetch(:target_path).to_s == ".kettle-jem.yml"
+      return false if recipe.dig(:template_preference, :skip_unresolved_scan)
+
+      true
     end
 
     def stringify_template_tokens(tokens)
@@ -1782,6 +1805,7 @@ module Kettle
 
       result = { strategy: strategy }
       result[:path] = path if path
+      result[:skip_unresolved_scan] = true if entry["skip_unresolved_scan"]
       if entry.key?("file_type")
         file_type = entry["file_type"].to_s.strip.downcase.tr("-", "_").to_sym
         raise ArgumentError, "unknown kettle-jem template file_type: #{entry["file_type"]}" unless SUPPORTED_TEMPLATE_FILE_TYPES.include?(file_type)
