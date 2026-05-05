@@ -93,6 +93,40 @@ RSpec.describe TreeHaver do
     )
   end
 
+  it "conforms to the slice-721 Kaitai tree-haver substrate fixture" do
+    fixture = diagnostics_fixture("kaitai_tree_haver_substrate")
+
+    expect(json_ready(described_class::KAITAI_STRUCT_BACKEND.to_h)).to eq(json_ready(fixture[:backend]))
+    expect(json_ready(described_class.kaitai_adapter_info.to_h)).to eq(json_ready(fixture[:adapter_info]))
+    expect(json_ready(described_class.kaitai_feature_profile.to_h)).to eq(json_ready(fixture[:feature_profile]))
+
+    node_fixture = fixture[:tree_node]
+    child_fixture = node_fixture[:children].first
+    node = described_class::KaitaiTreeNode.new(
+      kind: node_fixture[:kind],
+      schema_path: node_fixture[:schema_path],
+      span: described_class::KaitaiByteSpan.new(**node_fixture[:span]),
+      fields: node_fixture[:fields],
+      children: [
+        described_class::KaitaiTreeNode.new(
+          kind: child_fixture[:kind],
+          schema_path: child_fixture[:schema_path],
+          span: described_class::KaitaiByteSpan.new(**child_fixture[:span]),
+          fields: child_fixture[:fields],
+          children: []
+        )
+      ]
+    )
+    analysis = described_class::KaitaiTreeAnalysis.new(
+      schema: "png.ksy",
+      root: node,
+      backend_ref: described_class::KAITAI_STRUCT_BACKEND
+    )
+
+    expect(analysis.kind).to eq("kaitai-tree")
+    expect(json_ready(analysis.root.to_h)).to eq(json_ready(node_fixture))
+  end
+
   it "conforms to the slice-100 process baseline fixture" do
     fixture = diagnostics_fixture("process_baseline")
     result = described_class.process_with_language_pack(

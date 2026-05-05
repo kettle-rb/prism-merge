@@ -157,4 +157,46 @@ module TreeHaver
       }
     end
   end
+
+  KaitaiByteSpan = Struct.new(:start_byte, :end_byte, keyword_init: true) do
+    def to_h
+      {
+        start_byte: start_byte,
+        end_byte: end_byte
+      }
+    end
+  end
+
+  KaitaiTreeNode = Struct.new(:kind, :schema_path, :span, :fields, :children, keyword_init: true) do
+    def to_h
+      {
+        kind: kind,
+        schema_path: schema_path,
+        span: span.to_h,
+        fields: deep_dup(fields || {}),
+        children: (children || []).map(&:to_h)
+      }
+    end
+
+    private
+
+    def deep_dup(value)
+      Marshal.load(Marshal.dump(value))
+    end
+  end
+
+  KaitaiTreeAnalysis = Struct.new(:schema, :root, :backend_ref, keyword_init: true) do
+    def kind
+      "kaitai-tree"
+    end
+
+    def to_h
+      {
+        kind: kind,
+        schema: schema,
+        root: root.to_h,
+        backend_ref: backend_ref.to_h
+      }
+    end
+  end
 end
