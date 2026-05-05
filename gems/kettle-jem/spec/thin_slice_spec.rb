@@ -44,7 +44,9 @@ RSpec.describe Kettle::Jem do
 
       plan = described_class.plan_project(root)
       expect(json_ready(plan[:facts])).to eq(json_ready(fixture.fetch(:expected).fetch(:facts)))
-      expect(plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }).to eq(expected_recipe_names)
+      recipe_names = plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }
+      expect(recipe_names.take(expected_recipe_names.length)).to eq(expected_recipe_names)
+      expect(recipe_names).to include("rakefile_scaffold_cleanup")
       expect(plan[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
       expect(plan[:recipe_reports].map { |report| report[:request_envelope][:kind] }.uniq).to eq(
         [contract.fetch(:report_contract).fetch(:request_envelope_kind)]
@@ -52,6 +54,12 @@ RSpec.describe Kettle::Jem do
       expect(plan[:recipe_reports].map { |report| report[:report_envelope][:kind] }.uniq).to eq(
         [contract.fetch(:report_contract).fetch(:report_envelope_kind)]
       )
+      rakefile_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "rakefile_scaffold_cleanup" }
+      expect(rakefile_report.dig(:request_envelope, :request, :runtime_context, :delete_selectors).length).to eq(4)
+      expect(rakefile_report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_ranges)).to eq(4)
+      expect(rakefile_report.fetch(:final_content)).to include("task :custom")
+      expect(rakefile_report.fetch(:final_content)).not_to include("bundler/gem_tasks")
+      expect(rakefile_report.fetch(:final_content)).not_to include("RSpec::Core::RakeTask")
 
       apply = described_class.apply_project(root)
       expect(apply[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))

@@ -54,6 +54,15 @@ module Kettle
           recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
           recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
           recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+          recipe_entry(
+            "rakefile_scaffold_cleanup",
+            "Rakefile",
+            "generic_ast",
+            "supplied_source_selector_deletion",
+            provider_backend: "generic_structural_owners",
+            facts: %w[rubygems rakefile],
+            selectors: %w[rakefile_scaffold]
+          ),
         ],
       }
     end
@@ -182,6 +191,7 @@ module Kettle
     def execute_recipe(project_root:, recipe:, facts:, files:)
       relative_path = recipe.fetch(:target_path)
       original = files.fetch(relative_path, "")
+      deletion = recipe.fetch(:name) == "rakefile_scaffold_cleanup" ? delete_rakefile_scaffold(original) : nil
       final = case recipe.fetch(:name)
       when "readme_metadata"
         synchronize_readme(original, facts)
@@ -189,6 +199,8 @@ module Kettle
         normalize_changelog(original, facts)
       when "generated_block_sync"
         synchronize_managed_block(original, facts)
+      when "rakefile_scaffold_cleanup"
+        deletion.fetch(:content)
       else
         original
       end
@@ -198,14 +210,15 @@ module Kettle
         recipe_version: "1",
         relative_path: relative_path,
         provider_family: recipe.fetch(:provider_family),
+        provider_backend: recipe[:provider_backend],
         template_content: "",
         destination_content: original,
         steps: [content_recipe_step(recipe)],
-        runtime_context: facts,
+        runtime_context: recipe_runtime_context(recipe, facts, deletion),
         metadata: { packaging_recipe: recipe.fetch(:name), project_root: project_root.to_s },
       )
       changed = final != original
-      step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed)
+      step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
       report = content_recipe_execution_report(
         request: request,
         final_content: final,
@@ -227,16 +240,28 @@ module Kettle
     end
 
     def content_recipe_step(recipe)
-      {
+      step = {
         step_id: recipe.fetch(:name),
         step_kind: recipe.fetch(:primitive),
         name: recipe.fetch(:name),
         provider_family: recipe.fetch(:provider_family),
         metadata: { target_path: recipe.fetch(:target_path) },
       }
+      step[:provider_backend] = recipe[:provider_backend] if recipe[:provider_backend]
+      if recipe.fetch(:primitive) == "supplied_source_selector_deletion"
+        step[:step_kind] = "native_policy"
+        step[:policy] = {
+          policy_kind: "delete_supplied_structural_owners",
+          required_context: "delete_selectors",
+          operation: "delete",
+          selector_family: "structural_owner_range",
+          normalize_blank_lines: true,
+        }
+      end
+      step
     end
 
-    def content_recipe_step_report(recipe:, request:, original:, final:, changed:)
+    def content_recipe_step_report(recipe:, request:, original:, final:, changed:, deletion: nil)
       operation_profile = Ast::Merge.structured_edit_operation_profile(
         operation_kind: recipe.fetch(:primitive),
         known_operation_kind: true,
@@ -263,7 +288,7 @@ module Kettle
         output_content: final,
         application: application,
         diagnostics: [],
-        metadata: { target_path: recipe.fetch(:target_path) },
+        metadata: step_report_metadata(recipe, deletion),
       }
     end
 
@@ -275,15 +300,37 @@ module Kettle
       end
     end
 
-    def recipe_entry(name, target_path, provider_family, primitive, facts:)
+    def recipe_entry(name, target_path, provider_family, primitive, facts:, provider_backend: nil, selectors: [])
       {
         name: name,
         target_path: target_path,
         provider_family: provider_family,
+        provider_backend: provider_backend,
         primitive: primitive,
         facts: facts,
-        selectors: [],
+        selectors: selectors,
       }
+    end
+
+    def recipe_runtime_context(recipe, facts, deletion)
+      context = deep_dup(facts)
+      if recipe.fetch(:primitive) == "supplied_source_selector_deletion" && deletion
+        context[:delete_selectors] = deletion.fetch(:delete_selectors)
+      end
+      context
+    end
+
+    def step_report_metadata(recipe, deletion)
+      metadata = { target_path: recipe.fetch(:target_path) }
+      return metadata unless deletion
+
+      metadata.merge(
+        policy_kind: "delete_supplied_structural_owners",
+        operation: "delete",
+        consumed_context: "delete_selectors",
+        deleted_ranges: deletion.fetch(:delete_selectors).length,
+        deleted_selector_ids: deletion.fetch(:delete_selectors).map { |selector| selector.fetch(:selector_id) },
+      )
     end
 
     def extract_gemspec_assignment(source, field)
@@ -375,6 +422,102 @@ module Kettle
         *rows.map { |field, value| "| #{field} | #{value} |" },
         "<!-- kettle-jem:metadata:end -->",
       ].join("\n")
+    end
+
+    def delete_rakefile_scaffold(content)
+      selectors = rakefile_scaffold_delete_selectors(content)
+      {
+        content: delete_line_ranges(content.to_s, selectors),
+        delete_selectors: selectors,
+      }
+    end
+
+    def rakefile_scaffold_delete_selectors(content)
+      lines = content.to_s.lines
+      selectors = []
+      lines.each_with_index do |line, index|
+        case line
+        when /\A\s*require\s+["']bundler\/gem_tasks["']\s*(?:#.*)?\n?\z/
+          selectors << rakefile_selector(
+            "rakefile_scaffold_require_bundler_gem_tasks",
+            index + 1,
+            index + 1,
+            "wrapper_selected_scaffold_require"
+          )
+        when /\A\s*require\s+["']rspec\/core\/rake_task["']\s*(?:#.*)?\n?\z/
+          selectors << rakefile_selector(
+            "rakefile_scaffold_require_rspec_core_rake_task",
+            index + 1,
+            index + 1,
+            "wrapper_selected_scaffold_require"
+          )
+        when /\A\s*require\s+["']rubocop\/rake_task["']\s*(?:#.*)?\n?\z/
+          selectors << rakefile_selector(
+            "rakefile_scaffold_require_rubocop_rake_task",
+            index + 1,
+            index + 1,
+            "wrapper_selected_scaffold_require"
+          )
+        when /\A\s*RSpec::Core::RakeTask\.new\b/
+          selectors << rakefile_selector("rakefile_scaffold_rspec_task", index + 1, index + 1,
+            "wrapper_selected_scaffold_task")
+        when /\A\s*RuboCop::RakeTask\.new\b/
+          selectors << rakefile_selector("rakefile_scaffold_rubocop_task", index + 1, index + 1,
+            "wrapper_selected_scaffold_task")
+        end
+      end
+      selectors.concat(rakefile_task_block_selectors(lines))
+      selectors.sort_by { |selector| [selector.fetch(:start_line), selector.fetch(:end_line)] }
+    end
+
+    def rakefile_task_block_selectors(lines)
+      selectors = []
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        if line.match?(/\A\s*task\s+default:/) || line.match?(/\A\s*task\s+:default\b/)
+          end_index = rakefile_block_end(lines, index)
+          selectors << rakefile_selector("rakefile_scaffold_task_default", index + 1, end_index + 1,
+            "wrapper_selected_scaffold_task")
+          index = end_index + 1
+          next
+        end
+        index += 1
+      end
+      selectors
+    end
+
+    def rakefile_block_end(lines, start_index)
+      return start_index unless lines[start_index].match?(/\bdo\b/)
+
+      depth = 0
+      (start_index...lines.length).each do |index|
+        stripped = lines[index].strip
+        depth += 1 if stripped.match?(/\bdo\b/)
+        return index if depth.positive? && stripped == "end" && (depth -= 1).zero?
+        return index if depth.zero? && index > start_index && !stripped.empty?
+      end
+      lines.length - 1
+    end
+
+    def rakefile_selector(selector_id, start_line, end_line, reason)
+      {
+        selector_id: selector_id,
+        selector_family: "structural_owner_range",
+        start_line: start_line,
+        end_line: end_line,
+        reason: reason,
+      }
+    end
+
+    def delete_line_ranges(content, selectors)
+      lines = content.lines
+      selectors.sort_by { |selector| -selector.fetch(:start_line) }.each do |selector|
+        start_index = selector.fetch(:start_line) - 1
+        end_index = selector.fetch(:end_line) - 1
+        lines.slice!(start_index..end_index)
+      end
+      lines.join.gsub(/\n{3,}/, "\n\n")
     end
 
     def replace_markdown_managed_block(content, marker, replacement)
