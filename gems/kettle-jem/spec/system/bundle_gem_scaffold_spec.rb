@@ -22,7 +22,6 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
       .git-hooks
       .github
       .github/workflows
-      .idea
       .qlty
     ]
   end
@@ -40,7 +39,6 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
       .github/copilot_instructions.md
       .github/dependabot.yml
       .github/workflows/templating.yml
-      .idea/.gitignore
       .qlty/qlty.toml
     ]
   end
