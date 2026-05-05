@@ -12,6 +12,8 @@ module Kettle
     MANAGED_BLOCK_OPEN = "# <<kettle-jem:generated>> do not edit below this line"
     MANAGED_BLOCK_CLOSE = "# <</kettle-jem:generated>>"
     OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
+    OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
+    FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
 
     module_function
 
@@ -45,13 +47,15 @@ module Kettle
       opencollective_disabled = opencollective_disabled?(kettle_config)
       funding = compact_hash(urls: funding_urls(project_root, gemspec, name, opencollective_disabled: opencollective_disabled))
       funding[:open_collective_disabled] = true if opencollective_disabled
+      open_collective_files = opencollective_disabled ? opencollective_disabled_files(project_root) : []
+      funding[:open_collective_files] = open_collective_files unless open_collective_files.empty?
       facts[:funding] = funding unless funding.empty?
       facts[:ci] = {
         provider: "github_actions",
         default_branch: "main",
         ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
         obsolete_workflows: github_actions_obsolete_workflows(project_root),
-        custom_workflows: github_actions_custom_workflows(project_root),
+        custom_workflows: github_actions_custom_workflows(project_root, opencollective_disabled: opencollective_disabled),
       }
       coverage_config = github_actions_coverage_config(kettle_config)
       facts[:ci][:coverage] = coverage_config unless coverage_config.empty?
@@ -105,6 +109,15 @@ module Kettle
           "file",
           "supplied_obsolete_file_deletion",
           facts: %w[ci]
+        )
+      end
+      facts.dig(:funding, :open_collective_files).to_a.each do |relative_path|
+        recipes << recipe_entry(
+          "opencollective_disabled_file_cleanup_#{workflow_recipe_slug(relative_path)}",
+          relative_path,
+          "file",
+          "supplied_disabled_opencollective_file_deletion",
+          facts: %w[funding]
         )
       end
       facts.dig(:ci, :custom_workflows).to_a.each do |workflow_path|
@@ -280,6 +293,8 @@ module Kettle
         synchronize_github_actions_coverage_ci(original, facts)
       when /\Agithub_actions_obsolete_workflow_cleanup_/
         ""
+      when /\Aopencollective_disabled_file_cleanup_/
+        ""
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
       when "rakefile_scaffold_cleanup"
@@ -300,7 +315,7 @@ module Kettle
         runtime_context: recipe_runtime_context(recipe, facts, deletion),
         metadata: { packaging_recipe: recipe.fetch(:name), project_root: project_root.to_s },
       )
-      changed = final != original
+      changed = delete_file_recipe?(recipe) || final != original
       step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
       report = content_recipe_execution_report(
         request: request,
@@ -386,7 +401,7 @@ module Kettle
 
     def recipe_report_metadata(recipe)
       metadata = { packaging_recipe: recipe.fetch(:name) }
-      metadata[:delete_file] = true if recipe.fetch(:primitive) == "supplied_obsolete_file_deletion"
+      metadata[:delete_file] = true if delete_file_recipe?(recipe)
       metadata
     end
 
@@ -415,6 +430,13 @@ module Kettle
       if recipe.fetch(:primitive) == "supplied_obsolete_file_deletion"
         metadata.merge!(
           policy_kind: "delete_obsolete_file",
+          operation: "delete",
+          deleted_file: recipe.fetch(:target_path),
+        )
+      end
+      if recipe.fetch(:primitive) == "supplied_disabled_opencollective_file_deletion"
+        metadata.merge!(
+          policy_kind: "delete_disabled_opencollective_file",
           operation: "delete",
           deleted_file: recipe.fetch(:target_path),
         )
@@ -506,12 +528,13 @@ module Kettle
       selected.empty? ? [floor] : selected
     end
 
-    def github_actions_custom_workflows(project_root)
+    def github_actions_custom_workflows(project_root, opencollective_disabled: false)
       workflow_root = File.join(project_root, ".github", "workflows")
       return [] unless Dir.exist?(workflow_root)
 
       Dir.glob(File.join(workflow_root, "*.{yml,yaml}")).filter_map do |path|
         relative_path = path.delete_prefix("#{project_root}/")
+        next if opencollective_disabled && opencollective_disabled_file?(relative_path)
         next if generated_or_obsolete_github_workflow?(relative_path)
 
         relative_path
@@ -531,6 +554,20 @@ module Kettle
       return true if %w[.github/workflows/ci.yml .github/workflows/coverage.yml .github/workflows/framework-ci.yml].include?(relative_path)
 
       OBSOLETE_GITHUB_WORKFLOWS.include?(File.basename(relative_path))
+    end
+
+    def opencollective_disabled_files(project_root)
+      OPENCOLLECTIVE_DISABLED_FILES.select do |relative_path|
+        File.exist?(File.join(project_root, relative_path))
+      end
+    end
+
+    def opencollective_disabled_file?(relative_path)
+      OPENCOLLECTIVE_DISABLED_FILES.include?(relative_path.to_s)
+    end
+
+    def delete_file_recipe?(recipe)
+      FILE_DELETION_PRIMITIVES.include?(recipe.fetch(:primitive))
     end
 
     def workflow_recipe_slug(workflow_path)

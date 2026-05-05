@@ -153,14 +153,46 @@ RSpec.describe Kettle::Jem do
           github: [example]
           open_collective: example
         YAML
+        ".opencollective.yml" => <<~YAML,
+          collective: example
+        YAML
+        ".github/workflows/opencollective.yml" => <<~YAML,
+          name: Open Collective
+          on:
+            workflow_dispatch:
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v3
+        YAML
       })
 
       plan = described_class.plan_project(root)
       expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be(true)
+      expect(plan.dig(:facts, :funding, :open_collective_files)).to eq(
+        [".opencollective.yml", ".github/workflows/opencollective.yml"]
+      )
       expect(plan.dig(:facts, :funding, :urls)).not_to include("https://opencollective.com/example")
+      recipe_names = plan[:recipe_pack][:recipes].map { |recipe| recipe.fetch(:name) }
+      expect(recipe_names).to include("opencollective_disabled_file_cleanup_opencollective_yml")
+      expect(recipe_names).to include("opencollective_disabled_file_cleanup_github_workflows_opencollective_yml")
+      expect(recipe_names).not_to include("github_actions_workflow_snippets_github_workflows_opencollective_yml")
       funding_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_funding_yml" }
       expect(funding_report.fetch(:final_content)).not_to include("open_collective")
       expect(funding_report.fetch(:final_content)).to include("tidelift: rubygems/example")
+      open_collective_reports = plan[:recipe_reports].select do |report|
+        report.fetch(:recipe_name).start_with?("opencollective_disabled_file_cleanup_")
+      end
+      expect(open_collective_reports.map { |report| report.fetch(:relative_path) }).to eq(
+        [".opencollective.yml", ".github/workflows/opencollective.yml"]
+      )
+      expect(open_collective_reports).to all(satisfy { |report| report.fetch(:metadata).fetch(:delete_file) == true })
+
+      apply = described_class.apply_project(root)
+      expect(apply[:changed_files]).to include(".opencollective.yml", ".github/workflows/opencollective.yml")
+      expect(File).not_to exist(File.join(root, ".opencollective.yml"))
+      expect(File).not_to exist(File.join(root, ".github/workflows/opencollective.yml"))
     end
   end
 end
