@@ -61,6 +61,8 @@ module Kettle
       facts[:ci][:coverage] = coverage_config unless coverage_config.empty?
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
+      template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
+      facts[:templates] = { source_preferences: template_preferences } unless template_preferences.empty?
       facts
     end
 
@@ -128,6 +130,17 @@ module Kettle
           "supplied_github_actions_workflow_snippet_merge",
           facts: %w[ci]
         )
+      end
+      facts.dig(:templates, :source_preferences).to_a.each do |preference|
+        recipe = recipe_entry(
+          "template_source_preference_#{workflow_recipe_slug(preference.fetch(:target_path))}",
+          preference.fetch(:target_path),
+          "file",
+          "supplied_template_source_preference",
+          facts: %w[templates funding]
+        )
+        recipe[:template_preference] = preference
+        recipes << recipe
       end
       recipes << recipe_entry(
         "rakefile_scaffold_cleanup",
@@ -297,6 +310,8 @@ module Kettle
         ""
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
+      when /\Atemplate_source_preference_/
+        original
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
@@ -402,6 +417,7 @@ module Kettle
     def recipe_report_metadata(recipe)
       metadata = { packaging_recipe: recipe.fetch(:name) }
       metadata[:delete_file] = true if delete_file_recipe?(recipe)
+      metadata[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
       metadata
     end
 
@@ -422,6 +438,7 @@ module Kettle
       if recipe.fetch(:primitive) == "supplied_source_selector_deletion" && deletion
         context[:delete_selectors] = deletion.fetch(:delete_selectors)
       end
+      context[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
       context
     end
 
@@ -439,6 +456,13 @@ module Kettle
           policy_kind: "delete_disabled_opencollective_file",
           operation: "delete",
           deleted_file: recipe.fetch(:target_path),
+        )
+      end
+      if recipe.fetch(:primitive) == "supplied_template_source_preference"
+        metadata.merge!(
+          policy_kind: "select_template_source",
+          operation: "select",
+          template_source_preference: deep_dup(recipe.fetch(:template_preference)),
         )
       end
       return metadata unless deletion
@@ -590,6 +614,66 @@ module Kettle
 
     def falsey_config?(value)
       %w[false no 0].include?(value.to_s.strip.downcase)
+    end
+
+    def template_source_preferences(project_root, config, opencollective_disabled: false)
+      templates = config["templates"]
+      return [] unless templates.is_a?(Hash)
+
+      root = templates.fetch("root", "template").to_s
+      entries = templates["entries"]
+      return [] unless entries.is_a?(Array)
+
+      entries.filter_map do |entry|
+        template_source_preference(project_root, root, entry, opencollective_disabled: opencollective_disabled)
+      end
+    end
+
+    def template_source_preference(project_root, template_root, entry, opencollective_disabled: false)
+      source_path, target_path = template_entry_paths(entry)
+      return nil if source_path.to_s.empty? || target_path.to_s.empty?
+
+      selected_source = preferred_template_source(project_root, File.join(template_root, source_path), opencollective_disabled: opencollective_disabled)
+      return nil unless selected_source
+
+      {
+        target_path: target_path,
+        configured_source: source_path,
+        selected_source: selected_source,
+        selection_reason: template_source_selection_reason(source_path, selected_source),
+      }
+    end
+
+    def template_entry_paths(entry)
+      if entry.is_a?(Hash)
+        source_path = entry.fetch("source", entry["target"]).to_s
+        target_path = entry.fetch("target", source_path.sub(/\.example\z/, "")).to_s
+        [source_path, target_path]
+      else
+        source_path = entry.to_s
+        [source_path, source_path.sub(/\.example\z/, "")]
+      end
+    end
+
+    def preferred_template_source(project_root, configured_source, opencollective_disabled: false)
+      base = configured_source.sub(/\.example\z/, "")
+      candidates = []
+      candidates << "#{base}.no-osc.example" if opencollective_disabled
+      candidates << "#{base}.example"
+      candidates << configured_source
+      candidates.find { |relative_path| File.exist?(File.join(project_root, relative_path)) }
+    end
+
+    def template_source_selection_reason(configured_source, selected_source)
+      if selected_source.end_with?(".no-osc.example")
+        "opencollective_disabled_no_osc_variant"
+      elsif selected_source.end_with?(".example")
+        "default_example_variant"
+      elsif selected_source == configured_source
+        "configured_source"
+      else
+        "fallback_source"
+      end
     end
 
     def github_actions_framework_matrix(config)

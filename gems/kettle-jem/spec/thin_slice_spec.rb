@@ -148,6 +148,12 @@ RSpec.describe Kettle::Jem do
         ".kettle-jem.yml" => <<~YAML,
           funding:
             open_collective: false
+          templates:
+            root: template
+            entries:
+              - README.md
+              - source: FUNDING.md.example
+                target: FUNDING.md
         YAML
         ".github/FUNDING.yml" => <<~YAML,
           github: [example]
@@ -166,6 +172,19 @@ RSpec.describe Kettle::Jem do
               steps:
                 - uses: actions/checkout@v3
         YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          # Example
+
+          Open Collective enabled.
+        MARKDOWN
+        "template/README.md.no-osc.example" => <<~MARKDOWN,
+          # Example
+
+          Open Collective disabled.
+        MARKDOWN
+        "template/FUNDING.md.example" => <<~MARKDOWN,
+          # Funding
+        MARKDOWN
       })
 
       plan = described_class.plan_project(root)
@@ -178,6 +197,32 @@ RSpec.describe Kettle::Jem do
       expect(recipe_names).to include("opencollective_disabled_file_cleanup_opencollective_yml")
       expect(recipe_names).to include("opencollective_disabled_file_cleanup_github_workflows_opencollective_yml")
       expect(recipe_names).not_to include("github_actions_workflow_snippets_github_workflows_opencollective_yml")
+      expect(plan.dig(:facts, :templates, :source_preferences)).to eq(
+        [
+          {
+            target_path: "README.md",
+            configured_source: "README.md",
+            selected_source: "template/README.md.no-osc.example",
+            selection_reason: "opencollective_disabled_no_osc_variant",
+          },
+          {
+            target_path: "FUNDING.md",
+            configured_source: "FUNDING.md.example",
+            selected_source: "template/FUNDING.md.example",
+            selection_reason: "default_example_variant",
+          },
+        ]
+      )
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_preference_README_md"
+      end
+      expect(template_report.fetch(:changed)).to be(false)
+      expect(template_report.dig(:metadata, :template_source_preference, :selected_source)).to eq(
+        "template/README.md.no-osc.example"
+      )
+      expect(template_report.dig(:request_envelope, :request, :runtime_context, :template_source_preference, :selection_reason)).to eq(
+        "opencollective_disabled_no_osc_variant"
+      )
       funding_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_funding_yml" }
       expect(funding_report.fetch(:final_content)).not_to include("open_collective")
       expect(funding_report.fetch(:final_content)).to include("tidelift: rubygems/example")
