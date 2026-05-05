@@ -15,6 +15,7 @@ module Kettle
     OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
+    PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
@@ -553,7 +554,11 @@ module Kettle
     def recipe_template_content(project_root, recipe)
       return "" unless %w[supplied_template_source_preference supplied_template_source_application].include?(recipe.fetch(:primitive))
 
-      path = File.join(project_root, recipe.fetch(:template_preference).fetch(:selected_source))
+      preference = recipe.fetch(:template_preference)
+      path = File.join(
+        preference.fetch(:source_root_path, project_root),
+        preference.fetch(:source_relative_path, preference.fetch(:selected_source))
+      )
       File.read(path)
     end
 
@@ -1384,7 +1389,7 @@ module Kettle
       templates = config["templates"]
       return [] unless templates.is_a?(Hash)
 
-      root = templates.fetch("root", "template").to_s
+      root = template_root(project_root, templates)
       entries = templates["entries"]
       return [] unless entries.is_a?(Array)
 
@@ -1398,16 +1403,44 @@ module Kettle
       source_path, target_path = template_entry_paths(entry)
       return nil if source_path.to_s.empty? || target_path.to_s.empty?
 
-      selected_source = preferred_template_source(project_root, File.join(template_root, source_path), opencollective_disabled: opencollective_disabled)
+      selected_source = preferred_template_source(template_root.fetch(:path), source_path, opencollective_disabled: opencollective_disabled)
       return nil unless selected_source
 
-      {
+      preference = {
         target_path: target_path,
         configured_source: source_path,
-        selected_source: selected_source,
-        selection_reason: template_source_selection_reason(source_path, selected_source),
+        selected_source: template_source_display_path(template_root, selected_source),
+        selection_reason: template_source_selection_reason(source_path, template_source_display_path(template_root, selected_source)),
         apply: template_entry_apply?(entry, apply_templates),
       }
+      if template_root.fetch(:kind) == "packaged"
+        preference[:source_relative_path] = selected_source
+        preference[:source_root] = template_root.fetch(:kind)
+        preference[:source_root_path] = template_root.fetch(:path)
+      end
+      preference
+    end
+
+    def template_root(project_root, templates)
+      configured_root = templates["root"].to_s
+      if configured_root.empty?
+        local_root = File.join(project_root, "template")
+        return { kind: "project", path: local_root, display_prefix: "template" } if Dir.exist?(local_root)
+
+        return { kind: "packaged", path: PACKAGED_TEMPLATE_ROOT }
+      end
+
+      return { kind: "packaged", path: PACKAGED_TEMPLATE_ROOT } if configured_root == "packaged"
+
+      path = configured_root.start_with?("/") ? configured_root : File.join(project_root, configured_root)
+      { kind: "project", path: path, display_prefix: configured_root }
+    end
+
+    def template_source_display_path(template_root, selected_source)
+      prefix = template_root[:display_prefix].to_s
+      return selected_source if prefix.empty?
+
+      File.join(prefix, selected_source)
     end
 
     def template_entry_paths(entry)
@@ -1427,13 +1460,13 @@ module Kettle
       apply_templates
     end
 
-    def preferred_template_source(project_root, configured_source, opencollective_disabled: false)
+    def preferred_template_source(template_root, configured_source, opencollective_disabled: false)
       base = configured_source.sub(/\.example\z/, "")
       candidates = []
       candidates << "#{base}.no-osc.example" if opencollective_disabled
       candidates << "#{base}.example"
       candidates << configured_source
-      candidates.find { |relative_path| File.exist?(File.join(project_root, relative_path)) }
+      candidates.find { |relative_path| File.exist?(File.join(template_root, relative_path)) }
     end
 
     def template_source_selection_reason(configured_source, selected_source)

@@ -447,6 +447,48 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "applies packaged template files when no project template root exists" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-packaged-template-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.metadata["source_code_uri"] = "https://github.com/acme/example"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            apply: true
+            entries:
+              - README.md
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(template_report.dig(:metadata, :template_source_preference)).to include(
+        selected_source: "README.md.example",
+        source_relative_path: "README.md.example",
+        source_root: "packaged"
+      )
+      expect(template_report.dig(:metadata, :template_source_preference, :source_root_path)).to end_with(
+        "lib/kettle/jem/templates"
+      )
+      expect(template_report.dig(:request_envelope, :request, :template_content)).to include("# {KJ|GEM_NAME}")
+      expect(template_report.fetch(:final_content)).to include("# example")
+      expect(template_report.fetch(:final_content)).to include("Generated with kettle-dev")
+      expect(template_report.fetch(:final_content)).to include("https://github.com/acme/example")
+
+      described_class.apply_project(root, env: {})
+      expect(File.read(File.join(root, "README.md"))).to eq(template_report.fetch(:final_content))
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
