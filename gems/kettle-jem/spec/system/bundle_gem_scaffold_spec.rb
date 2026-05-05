@@ -200,6 +200,15 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(gemfile.scan('eval_gemfile "gemfiles/modular/style.gemfile"').size).to eq(1)
     expect(gemfile).to include('gem "irb"')
 
+    gemspec = File.read(File.join(gem_root, "dummy-gem.gemspec"))
+    expect(gemspec.scan("Gem::Specification.new").size).to eq(1)
+    expect(gemspec).to include('spec.name = "dummy-gem"')
+    expect(gemspec).to include('spec.summary = "Dummy gem"')
+    expect(gemspec).to include('spec.description = "Dummy gem for kettle-jem system testing."')
+    expect(gemspec).to include('spec.homepage = "https://github.com/acme/dummy-gem"')
+    expect(gemspec).to include('spec.required_ruby_version = ">= 3.2.0"')
+    expect(gemspec).to include('spec.metadata["source_code_uri"] = "#{spec.homepage}/tree/v#{spec.version}"')
+
     rakefile = File.read(File.join(gem_root, "Rakefile"))
     expect(rakefile).to include('require "bundler/gem_tasks"')
     expect(rakefile).to include('require "kettle/dev"')

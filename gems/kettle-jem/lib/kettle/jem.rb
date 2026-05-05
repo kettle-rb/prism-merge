@@ -623,7 +623,7 @@ module Kettle
 
       case file_type
       when :gemspec
-        return template_content
+        return merge_gemspec_template_source(template_content, destination_content)
       when :ruby, :gemfile, :appraisals, :rakefile
         merge_result = Ruby::Merge.merge_ruby(
           template_content,
@@ -643,6 +643,36 @@ module Kettle
       diagnostics = merge_result.fetch(:diagnostics, [])
       message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
       raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def merge_gemspec_template_source(template_content, destination_content)
+      replacements = gemspec_preserved_assignments(destination_content)
+      return template_content if replacements.empty?
+
+      replacements.reduce(template_content.dup) do |content, (field, source_line)|
+        pattern = /^(\s*spec\.#{Regexp.escape(field)}\s*=\s*).*$/
+        content.match?(pattern) ? content.sub(pattern, source_line.rstrip) : content
+      end
+    end
+
+    def gemspec_preserved_assignments(source)
+      %w[
+        name
+        authors
+        email
+        summary
+        description
+        homepage
+        licenses
+        required_ruby_version
+        executables
+      ].each_with_object({}) do |field, assignments|
+        line = source.to_s.lines.find { |candidate| candidate.match?(/^\s*spec\.#{Regexp.escape(field)}\s*=/) }
+        next unless line
+        next if line.include?("TODO:")
+
+        assignments[field] = line
+      end
     end
 
     def template_file_type(recipe)
