@@ -78,6 +78,9 @@ RSpec.describe Kettle::Jem do
       expect(custom_ci_report.fetch(:final_content)).to include("concurrency:")
       expect(custom_ci_report.fetch(:final_content)).to include("actions/checkout@de0fac2")
       expect(custom_ci_report.fetch(:final_content)).to include("ruby/setup-ruby@e65c17")
+      expect(custom_ci_report.fetch(:final_content)).to include("Upload coverage to Coveralls")
+      expect(custom_ci_report.fetch(:final_content)).to include("qltysh/qlty-action/coverage@a192421")
+      expect(custom_ci_report.fetch(:final_content)).to include("Code Coverage Summary Report")
       expect(custom_ci_report.fetch(:final_content)).to include("ruby: [\"3.2\", \"3.3\"]")
 
       apply = described_class.apply_project(root)

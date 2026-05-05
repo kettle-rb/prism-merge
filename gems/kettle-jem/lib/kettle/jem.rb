@@ -778,7 +778,83 @@ module Kettle
         "concurrency:\n  group: \"${{ github.workflow }}-${{ github.ref }}\"\n  cancel-in-progress: true\n\n",
         before: "jobs"
       )
+      updated = append_github_actions_coverage_steps(updated) if github_actions_coverage_enabled?(updated)
       update_github_actions_pins(updated)
+    end
+
+    def github_actions_coverage_enabled?(content)
+      content.match?(/K_SOUP_COV_DO:\s*["']?true["']?/)
+    end
+
+    def append_github_actions_coverage_steps(content)
+      return content if content.include?("Upload coverage to Coveralls") || content.include?("Upload coverage to CodeCov")
+
+      lines = content.lines
+      steps_index = lines.index { |line| line.match?(/^    steps:\s*$/) }
+      return content unless steps_index
+
+      insert_index = lines.length
+      ((steps_index + 1)...lines.length).each do |index|
+        line = lines[index]
+        next if line.strip.empty?
+        next unless line.match?(/^\S|^  \S|^    \S/) && !line.match?(/^      /)
+
+        insert_index = index
+        break
+      end
+      lines.insert(insert_index, github_actions_coverage_steps)
+      lines.join
+    end
+
+    def github_actions_coverage_steps
+      <<~YAML.lines.map { |line| line.strip.empty? ? line : "      #{line}" }.join
+        - name: Upload coverage to Coveralls
+          if: ${{ !env.ACT }}
+          uses: coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # main
+          with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+
+        - name: Upload coverage to QLTY
+          if: ${{ !env.ACT }}
+          uses: qltysh/qlty-action/coverage@a19242102d17e497f437d7466aa01b528537e899 # v2.2.0
+          with:
+            token: ${{secrets.QLTY_COVERAGE_TOKEN}}
+            files: coverage/.resultset.json
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+
+        - name: Upload coverage to CodeCov
+          if: ${{ !env.ACT }}
+          uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+          with:
+            use_oidc: true
+            fail_ci_if_error: false
+            files: coverage/lcov.info,coverage/coverage.xml
+            verbose: true
+
+        - name: Code Coverage Summary Report
+          if: ${{ !env.ACT && github.event_name == 'pull_request' }}
+          uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
+          with:
+            filename: ./coverage/coverage.xml
+            badge: true
+            fail_below_min: true
+            format: markdown
+            hide_branch_rate: false
+            hide_complexity: true
+            indicators: true
+            output: both
+            thresholds: '100 100'
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+
+        - name: Add Coverage PR Comment
+          uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+          if: ${{ !env.ACT && github.event_name == 'pull_request' }}
+          with:
+            recreate: true
+            path: code-coverage-results.md
+          continue-on-error: ${{ matrix.experimental != 'false' }}
+      YAML
     end
 
     def ensure_workflow_top_level_section(content, key, section, before:)
@@ -809,7 +885,10 @@ module Kettle
         "actions/checkout" => "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
         "ruby/setup-ruby" => "ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0",
         "coverallsapp/github-action" => "coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # main",
+        "qltysh/qlty-action/coverage" => "qltysh/qlty-action/coverage@a19242102d17e497f437d7466aa01b528537e899 # v2.2.0",
         "codecov/codecov-action" => "codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0",
+        "irongut/CodeCoverageSummary" => "irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0",
+        "marocchino/sticky-pull-request-comment" => "marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4",
       }
     end
 
