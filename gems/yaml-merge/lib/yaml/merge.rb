@@ -162,7 +162,7 @@ module Yaml
           memo[:value] << validated[:value]
         end
       elsif value.is_a?(Hash)
-        value.keys.sort.each_with_object({ ok: true, value: {} }) do |key, memo|
+        value.keys.each_with_object({ ok: true, value: {} }) do |key, memo|
           validated = validate_yaml_node(value[key], "#{path}/#{key}")
           return validated unless validated[:ok]
 
@@ -212,7 +212,7 @@ module Yaml
     private_class_method :render_yaml_node
 
     def render_yaml_mapping(mapping, indent = 0)
-      mapping.keys.sort.flat_map do |key|
+      mapping.keys.flat_map do |key|
         render_yaml_node(key, mapping[key], indent)
       end
     end
@@ -260,7 +260,7 @@ module Yaml
     private_class_method :collect_yaml_owners
 
     def merge_yaml_mappings(template, destination)
-      (template.keys | destination.keys).sort.each_with_object({}) do |key, merged|
+      ordered_merge_keys(template, destination).each_with_object({}) do |key, merged|
         if !template.key?(key)
           merged[key] = destination[key]
         elsif !destination.key?(key)
@@ -273,6 +273,11 @@ module Yaml
       end
     end
     private_class_method :merge_yaml_mappings
+
+    def ordered_merge_keys(template, destination)
+      template.keys + destination.keys.reject { |key| template.key?(key) }
+    end
+    private_class_method :ordered_merge_keys
 
     def parse_error_result(message)
       { ok: false, diagnostics: [{ severity: "error", category: "parse_error", message: message }], policies: [] }
