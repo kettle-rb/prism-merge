@@ -143,6 +143,52 @@ RSpec.describe TreeHaver do
     expect(described_class.byte_offset_for_point(fixture[:source], point)).to eq(fixture.dig(:expected, :line_column_offset))
   end
 
+  it "conforms to the slice-723 binary core contract fixture" do
+    fixture = diagnostics_fixture("binary_core_contract")
+    scalar_values = fixture[:scalar_values].map do |item|
+      described_class::BinaryScalarValue.new(**item)
+    end
+    render_policies = fixture[:render_policies].map do |item|
+      described_class::BinaryRenderPolicy.new(
+        schema_path: item[:schema_path],
+        byte_range: described_class::ByteRange.new(**item[:byte_range]),
+        operation: item[:operation],
+        disposition: item[:disposition],
+        reason: item[:reason]
+      )
+    end
+    report_fixture = fixture[:merge_report]
+    report = described_class::BinaryMergeReport.new(
+      format: report_fixture[:format],
+      schema: report_fixture[:schema],
+      matched_schema_paths: report_fixture[:matched_schema_paths],
+      preserved_ranges: report_fixture[:preserved_ranges].map { |range| described_class::ByteRange.new(**range) },
+      rewritten_nodes: report_fixture[:rewritten_nodes],
+      checksum_updates: report_fixture[:checksum_updates],
+      nested_dispatches: report_fixture[:nested_dispatches].map { |dispatch| described_class::BinaryNestedDispatch.new(**dispatch) },
+      diagnostics: report_fixture[:diagnostics].map do |diagnostic|
+        described_class::BinaryDiagnostic.new(
+          severity: diagnostic[:severity],
+          category: diagnostic[:category],
+          message: diagnostic[:message],
+          schema_path: diagnostic[:schema_path],
+          byte_range: diagnostic[:byte_range] && described_class::ByteRange.new(**diagnostic[:byte_range])
+        )
+      end
+    )
+
+    expect(scalar_values.length).to eq(9)
+    expect(scalar_values.first.kind).to eq("string")
+    expect(scalar_values.last.kind).to eq("null")
+    expect(render_policies[0].operation).to eq("preserve")
+    expect(render_policies[1].disposition).to eq("requires_renderer")
+    expect(render_policies[2].disposition).to eq("unsafe")
+    expect(report.format).to eq("png")
+    expect(report.preserved_ranges.first.length).to eq(25)
+    expect(report.nested_dispatches.first.family).to eq("text")
+    expect(report.diagnostics.first.category).to eq("unsupported_checksum_rewrite")
+  end
+
   it "conforms to the slice-100 process baseline fixture" do
     fixture = diagnostics_fixture("process_baseline")
     result = described_class.process_with_language_pack(

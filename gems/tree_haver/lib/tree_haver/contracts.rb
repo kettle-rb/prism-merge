@@ -137,6 +137,75 @@ module TreeHaver
     end
   end
 
+  BinaryScalarValue = Struct.new(:kind, :value, :symbol, :raw_value, :encoding, :format, :description, keyword_init: true) do
+    def to_h
+      {
+        kind: kind,
+        **(value.nil? ? {} : { value: value }),
+        **(symbol.nil? ? {} : { symbol: symbol }),
+        **(raw_value.nil? ? {} : { raw_value: raw_value }),
+        **(encoding.nil? ? {} : { encoding: encoding }),
+        **(format.nil? ? {} : { format: format }),
+        **(description.nil? ? {} : { description: description })
+      }
+    end
+  end
+
+  BinaryRenderPolicy = Struct.new(:schema_path, :byte_range, :operation, :disposition, :reason, keyword_init: true) do
+    def to_h
+      {
+        schema_path: schema_path,
+        **(byte_range ? { byte_range: byte_range.to_h } : {}),
+        operation: operation,
+        disposition: disposition,
+        reason: reason
+      }
+    end
+  end
+
+  BinaryDiagnostic = Struct.new(:severity, :category, :message, :schema_path, :byte_range, keyword_init: true) do
+    def to_h
+      {
+        severity: severity,
+        category: category,
+        message: message,
+        schema_path: schema_path,
+        **(byte_range ? { byte_range: byte_range.to_h } : {})
+      }
+    end
+  end
+
+  BinaryNestedDispatch = Struct.new(:schema_path, :family, :status, keyword_init: true) do
+    def to_h
+      {
+        schema_path: schema_path,
+        family: family,
+        status: status
+      }
+    end
+  end
+
+  BinaryMergeReport = Struct.new(:format, :schema, :matched_schema_paths, :preserved_ranges, :rewritten_nodes, :checksum_updates, :nested_dispatches, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        format: format,
+        schema: schema,
+        matched_schema_paths: deep_dup(matched_schema_paths || []),
+        preserved_ranges: (preserved_ranges || []).map(&:to_h),
+        rewritten_nodes: deep_dup(rewritten_nodes || []),
+        checksum_updates: deep_dup(checksum_updates || []),
+        nested_dispatches: (nested_dispatches || []).map(&:to_h),
+        diagnostics: (diagnostics || []).map(&:to_h)
+      }
+    end
+
+    private
+
+    def deep_dup(value)
+      Marshal.load(Marshal.dump(value))
+    end
+  end
+
   def self.slice_byte_range(source, byte_range)
     source_bytesize = source.to_s.bytesize
     unless byte_range.valid? && byte_range.end_byte.to_i <= source_bytesize
