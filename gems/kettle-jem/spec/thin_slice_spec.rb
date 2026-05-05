@@ -456,10 +456,31 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "example"
             spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
             spec.metadata["source_code_uri"] = "https://github.com/acme/example"
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "💎"
+          tokens:
+            forge:
+              gh_user: acme
+              gl_user: acme
+              cb_user: acme
+              sh_user: acme
+            funding:
+              patreon: acme
+              kofi: acme
+              paypal: acme
+              buymeacoffee: acme
+              polar: acme
+              liberapay: acme
+              issuehunt: acme
+            social:
+              mastodon: "@acme@example.social"
+              bluesky: acme.example
+              linktree: acme
+              devto: acme
           templates:
             apply: true
             entries:
@@ -479,9 +500,10 @@ RSpec.describe Kettle::Jem do
       expect(template_report.dig(:metadata, :template_source_preference, :source_root_path)).to end_with(
         "lib/kettle/jem/templates"
       )
-      expect(template_report.dig(:request_envelope, :request, :template_content)).to include("# {KJ|GEM_NAME}")
-      expect(template_report.fetch(:final_content)).to include("# example")
-      expect(template_report.fetch(:final_content)).to include("Generated with kettle-dev")
+      expect(template_report.dig(:request_envelope, :request, :template_content)).to include("# {KJ|PROJECT_EMOJI} {KJ|NAMESPACE}")
+      expect(template_report.fetch(:final_content)).to include("# 💎 Example")
+      expect(template_report.fetch(:final_content)).to include("Compatible with MRI Ruby 3.2+")
+      expect(template_report.fetch(:final_content)).to include("https://patreon.com/acme")
       expect(template_report.fetch(:final_content)).to include("https://github.com/acme/example")
 
       described_class.apply_project(root, env: {})
