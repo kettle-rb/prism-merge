@@ -79,8 +79,10 @@ module Kettle
       template_facts = {}
       template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
-      template_tokens = template_tokens(funding)
-      template_facts[:tokens] = template_tokens unless template_tokens.empty?
+      unless template_preferences.empty?
+        template_tokens = template_tokens(facts, funding)
+        template_facts[:tokens] = template_tokens unless template_tokens.empty?
+      end
       facts[:templates] = template_facts unless template_facts.empty?
       facts
     end
@@ -714,11 +716,18 @@ module Kettle
       { org: org, source: ".opencollective.yml" }
     end
 
-    def template_tokens(funding)
+    def template_tokens(facts, funding)
+      package = facts.fetch(:package)
+      rubygems = facts.fetch(:rubygems)
+      tokens = {
+        "KJ|GEM_NAME" => package.fetch(:name).to_s,
+        "KJ|GEM_NAME_PATH" => package.fetch(:name).to_s.tr("-", "/"),
+        "KJ|NAMESPACE" => rubygems.fetch(:namespace).to_s,
+      }
       org = funding[:open_collective_org].to_s
-      return {} if org.empty?
+      tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
 
-      { "KJ|OPENCOLLECTIVE_ORG" => org }
+      tokens.reject { |_, value| value.empty? }
     end
 
     def resolve_template_tokens(content, tokens)

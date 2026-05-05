@@ -329,12 +329,17 @@ RSpec.describe Kettle::Jem do
       expect(plan.dig(:facts, :funding, :open_collective_org)).to eq("env-org")
       expect(plan.dig(:facts, :funding, :open_collective_org_source)).to eq("env.FUNDING_ORG")
       expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/env-org")
-      expect(plan.dig(:facts, :templates, :tokens)).to eq("KJ|OPENCOLLECTIVE_ORG" => "env-org")
+      expect(plan.dig(:facts, :templates, :tokens)).to include(
+        "KJ|GEM_NAME" => "example",
+        "KJ|GEM_NAME_PATH" => "example",
+        "KJ|NAMESPACE" => "Example",
+        "KJ|OPENCOLLECTIVE_ORG" => "env-org"
+      )
       template_report = plan[:recipe_reports].find do |report|
         report.fetch(:recipe_name) == "template_source_preference_README_md"
       end
-      expect(template_report.dig(:metadata, :template_tokens)).to eq("KJ|OPENCOLLECTIVE_ORG" => "env-org")
-      expect(template_report.dig(:request_envelope, :request, :runtime_context, :template_tokens)).to eq(
+      expect(template_report.dig(:metadata, :template_tokens)).to include("KJ|OPENCOLLECTIVE_ORG" => "env-org")
+      expect(template_report.dig(:request_envelope, :request, :runtime_context, :template_tokens)).to include(
         "KJ|OPENCOLLECTIVE_ORG" => "env-org"
       )
     end
@@ -386,7 +391,11 @@ RSpec.describe Kettle::Jem do
           collective: yaml-org
         YAML
         "template/README.md.example" => <<~MARKDOWN,
-          # {KJ|OPENCOLLECTIVE_ORG}
+          # {KJ|GEM_NAME}
+
+          Namespace: {KJ|NAMESPACE}
+          Path: {KJ|GEM_NAME_PATH}
+          Funding: {KJ|OPENCOLLECTIVE_ORG}
         MARKDOWN
       })
 
@@ -395,12 +404,23 @@ RSpec.describe Kettle::Jem do
         report.fetch(:recipe_name) == "template_source_application_README_md"
       end
       expect(template_report.fetch(:changed)).to be(true)
-      expect(template_report.dig(:request_envelope, :request, :template_content)).to eq("# {KJ|OPENCOLLECTIVE_ORG}\n")
-      expect(template_report.fetch(:final_content)).to eq("# yaml-org\n")
-      expect(template_report.dig(:metadata, :template_tokens)).to eq("KJ|OPENCOLLECTIVE_ORG" => "yaml-org")
+      expect(template_report.dig(:request_envelope, :request, :template_content)).to include("{KJ|GEM_NAME}")
+      expect(template_report.fetch(:final_content)).to eq(<<~MARKDOWN)
+        # example
+
+        Namespace: Example
+        Path: example
+        Funding: yaml-org
+      MARKDOWN
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|GEM_NAME" => "example",
+        "KJ|GEM_NAME_PATH" => "example",
+        "KJ|NAMESPACE" => "Example",
+        "KJ|OPENCOLLECTIVE_ORG" => "yaml-org"
+      )
 
       described_class.apply_project(root, env: {})
-      expect(File.read(File.join(root, "README.md"))).to eq("# yaml-org\n")
+      expect(File.read(File.join(root, "README.md"))).to eq(template_report.fetch(:final_content))
     end
   end
 
