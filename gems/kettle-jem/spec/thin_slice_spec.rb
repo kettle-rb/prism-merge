@@ -48,6 +48,7 @@ RSpec.describe Kettle::Jem do
       expect(recipe_names.take(expected_recipe_names.length)).to eq(expected_recipe_names)
       expect(recipe_names).to include("github_actions_ci")
       expect(recipe_names).to include("github_actions_framework_ci")
+      expect(recipe_names).to include(a_string_starting_with("github_actions_obsolete_workflow_cleanup_"))
       expect(recipe_names).to include("rakefile_scaffold_cleanup")
       expect(recipe_names).to include(a_string_starting_with("github_actions_workflow_snippets_"))
       expect(plan[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
@@ -82,6 +83,13 @@ RSpec.describe Kettle::Jem do
       expect(custom_ci_report.fetch(:final_content)).to include("qltysh/qlty-action/coverage@a192421")
       expect(custom_ci_report.fetch(:final_content)).to include("Code Coverage Summary Report")
       expect(custom_ci_report.fetch(:final_content)).to include("ruby: [\"3.2\", \"3.3\"]")
+      obsolete_workflow_report = plan[:recipe_reports].find do |report|
+        report.fetch(:relative_path) == ".github/workflows/ancient.yml"
+      end
+      expect(obsolete_workflow_report.fetch(:metadata).fetch(:delete_file)).to be(true)
+      expect(obsolete_workflow_report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_file)).to eq(
+        ".github/workflows/ancient.yml"
+      )
 
       apply = described_class.apply_project(root)
       expect(apply[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))

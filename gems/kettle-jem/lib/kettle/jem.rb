@@ -11,6 +11,7 @@ module Kettle
     CONTENT_RECIPE_TRANSPORT_VERSION = Ast::Merge::STRUCTURED_EDIT_TRANSPORT_VERSION
     MANAGED_BLOCK_OPEN = "# <<kettle-jem:generated>> do not edit below this line"
     MANAGED_BLOCK_CLOSE = "# <</kettle-jem:generated>>"
+    OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
 
     module_function
 
@@ -47,6 +48,7 @@ module Kettle
         provider: "github_actions",
         default_branch: "main",
         ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
+        obsolete_workflows: github_actions_obsolete_workflows(project_root),
         custom_workflows: github_actions_custom_workflows(project_root),
       }
       coverage_config = github_actions_coverage_config(kettle_config)
@@ -85,6 +87,15 @@ module Kettle
           "yaml",
           "supplied_github_actions_coverage_workflow_synchronization",
           facts: %w[package rubygems ci]
+        )
+      end
+      facts.dig(:ci, :obsolete_workflows).to_a.each do |workflow_path|
+        recipes << recipe_entry(
+          "github_actions_obsolete_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
+          workflow_path,
+          "file",
+          "supplied_obsolete_file_deletion",
+          facts: %w[ci]
         )
       end
       facts.dig(:ci, :custom_workflows).to_a.each do |workflow_path|
@@ -140,8 +151,12 @@ module Kettle
         next unless recipe_report[:changed]
 
         path = File.join(project_root, recipe_report.fetch(:relative_path))
-        FileUtils.mkdir_p(File.dirname(path))
-        File.write(path, recipe_report.fetch(:final_content))
+        if recipe_report.dig(:metadata, :delete_file)
+          FileUtils.rm_f(path)
+        else
+          FileUtils.mkdir_p(File.dirname(path))
+          File.write(path, recipe_report.fetch(:final_content))
+        end
       end
       report
     end
@@ -252,6 +267,8 @@ module Kettle
         synchronize_github_actions_framework_ci(original, facts)
       when "github_actions_coverage_ci"
         synchronize_github_actions_coverage_ci(original, facts)
+      when /\Agithub_actions_obsolete_workflow_cleanup_/
+        ""
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
       when "rakefile_scaffold_cleanup"
@@ -280,7 +297,7 @@ module Kettle
         changed: changed,
         step_reports: [step_report],
         diagnostics: [],
-        metadata: { packaging_recipe: recipe.fetch(:name) },
+        metadata: recipe_report_metadata(recipe),
       )
 
       {
@@ -290,6 +307,7 @@ module Kettle
         request_envelope: content_recipe_execution_request_envelope(request),
         report_envelope: content_recipe_execution_report_envelope(report),
         final_content: final,
+        metadata: recipe_report_metadata(recipe),
         diagnostics: [],
       }
     end
@@ -355,6 +373,12 @@ module Kettle
       end
     end
 
+    def recipe_report_metadata(recipe)
+      metadata = { packaging_recipe: recipe.fetch(:name) }
+      metadata[:delete_file] = true if recipe.fetch(:primitive) == "supplied_obsolete_file_deletion"
+      metadata
+    end
+
     def recipe_entry(name, target_path, provider_family, primitive, facts:, provider_backend: nil, selectors: [])
       {
         name: name,
@@ -377,6 +401,13 @@ module Kettle
 
     def step_report_metadata(recipe, deletion)
       metadata = { target_path: recipe.fetch(:target_path) }
+      if recipe.fetch(:primitive) == "supplied_obsolete_file_deletion"
+        metadata.merge!(
+          policy_kind: "delete_obsolete_file",
+          operation: "delete",
+          deleted_file: recipe.fetch(:target_path),
+        )
+      end
       return metadata unless deletion
 
       metadata.merge(
@@ -467,10 +498,25 @@ module Kettle
 
       Dir.glob(File.join(workflow_root, "*.{yml,yaml}")).filter_map do |path|
         relative_path = path.delete_prefix("#{project_root}/")
-        next if %w[.github/workflows/ci.yml .github/workflows/coverage.yml .github/workflows/framework-ci.yml].include?(relative_path)
+        next if generated_or_obsolete_github_workflow?(relative_path)
 
         relative_path
       end.sort
+    end
+
+    def github_actions_obsolete_workflows(project_root)
+      workflow_root = File.join(project_root, ".github", "workflows")
+      OBSOLETE_GITHUB_WORKFLOWS.filter_map do |workflow|
+        relative_path = ".github/workflows/#{workflow}"
+        path = File.join(workflow_root, workflow)
+        relative_path if File.exist?(path)
+      end.sort
+    end
+
+    def generated_or_obsolete_github_workflow?(relative_path)
+      return true if %w[.github/workflows/ci.yml .github/workflows/coverage.yml .github/workflows/framework-ci.yml].include?(relative_path)
+
+      OBSOLETE_GITHUB_WORKFLOWS.include?(File.basename(relative_path))
     end
 
     def workflow_recipe_slug(workflow_path)
