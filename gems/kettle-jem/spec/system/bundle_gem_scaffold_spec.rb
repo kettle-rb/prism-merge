@@ -4,20 +4,19 @@ require_relative "../spec_helper"
 require "open3"
 
 RSpec.describe "bundle gem scaffold + kettle-jem", :system do
-  let(:tmp_root) { File.expand_path("../../tmp/system", __dir__) }
-  let(:sandbox_root) { File.join(tmp_root, "bundle-gem-system") }
+  let(:sandbox_root) { File.expand_path("../../../tmp/sandbox", __dir__) }
   let(:gem_root) { File.join(sandbox_root, "dummy-gem") }
   let(:env) { { "KJ_MIN_DIVERGENCE_THRESHOLD" => "5" } }
 
   before do
-    FileUtils.rm_rf(sandbox_root)
+    FileUtils.rm_rf(gem_root)
     FileUtils.mkdir_p(sandbox_root)
     scaffold_bundle_gem!
     normalize_scaffold_gemspec!
   end
 
   after do
-    FileUtils.rm_rf(sandbox_root)
+    FileUtils.rm_rf(gem_root)
   end
 
   def scaffold_bundle_gem!
