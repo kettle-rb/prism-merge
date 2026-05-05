@@ -770,6 +770,82 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects project runtime template tokens" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-project-runtime-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example-gem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.version = "2.4.6"
+            spec.summary = "Example gem"
+            spec.authors = ["Jane Q Public"]
+            spec.email = ["jane@example.test"]
+            spec.required_ruby_version = ">= 3.2"
+            spec.metadata["source_code_uri"] = "https://github.com/acme/example-gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "🫖"
+          min_divergence_threshold: "{KJ|MIN_DIVERGENCE_THRESHOLD}"
+          defaults:
+            freeze_token: custom-freeze
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Gem shield: {KJ|GEM_SHIELD}
+          Major: {KJ|GEM_MAJOR}
+          GitHub org: {KJ|GH_ORG}
+          Namespace shield: {KJ|NAMESPACE_SHIELD}
+          Min dev Ruby: {KJ|MIN_DEV_RUBY}
+          Freeze: {KJ|FREEZE_TOKEN}
+          Version: {KJ|KETTLE_JEM_VERSION}
+          Date: {KJ|TEMPLATE_RUN_DATE}
+          Year: {KJ|TEMPLATE_RUN_YEAR}
+          Dev gem: {KJ|KETTLE_DEV_GEM}
+          YARD: {KJ|YARD_HOST}
+          Emoji: {KJ|PROJECT_EMOJI}
+          Divergence: {KJ|MIN_DIVERGENCE_THRESHOLD}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(root, env: { "KJ_MIN_DIVERGENCE_THRESHOLD" => "12" })
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      final_content = template_report.fetch(:final_content)
+      expect(final_content).to include("Gem shield: example--gem")
+      expect(final_content).to include("Major: 2")
+      expect(final_content).to include("GitHub org: acme")
+      expect(final_content).to include("Namespace shield: Example%3A%3AGem")
+      expect(final_content).to include("Min dev Ruby: 3.2")
+      expect(final_content).to include("Freeze: custom-freeze")
+      expect(final_content).to include("Version: #{Kettle::Jem::VERSION}")
+      expect(final_content).to include("Date: #{Time.now.strftime("%Y-%m-%d")}")
+      expect(final_content).to include("Year: #{Time.now.year}")
+      expect(final_content).to include("Dev gem: kettle-dev")
+      expect(final_content).to include("YARD: example-gem.example.test")
+      expect(final_content).to include("Emoji: 🫖")
+      expect(final_content).to include("Divergence: 12")
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|FREEZE_TOKEN" => "custom-freeze",
+        "KJ|GEM_MAJOR" => "2",
+        "KJ|GEM_SHIELD" => "example--gem",
+        "KJ|GH_ORG" => "acme",
+        "KJ|MIN_DEV_RUBY" => "3.2",
+        "KJ|MIN_DIVERGENCE_THRESHOLD" => "12",
+        "KJ|NAMESPACE_SHIELD" => "Example%3A%3AGem",
+        "KJ|PROJECT_EMOJI" => "🫖",
+        "KJ|YARD_HOST" => "example-gem.example.test"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

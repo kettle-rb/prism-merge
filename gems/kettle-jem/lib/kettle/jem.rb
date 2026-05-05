@@ -16,6 +16,7 @@ module Kettle
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
+    EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
     FORGE_USER_ENV_KEYS = {
       gh_user: "KJ_GH_USER",
       gl_user: "KJ_GL_USER",
@@ -90,6 +91,15 @@ module Kettle
       kettle_config = kettle_jem_config(project_root)
       author = author_facts(gemspec, kettle_config, env)
       license = license_facts(kettle_config, extract_gemspec_array(gemspec, "spec.licenses"), author_email: author[:email])
+      project_runtime = project_runtime_facts(
+        kettle_config,
+        env,
+        package_name: name,
+        source_url: source_url,
+        author_domain: author[:domain],
+        min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
+        version: extract_gemspec_assignment(gemspec, "spec.version")
+      )
       facts = {
         package: compact_hash(
           ecosystem: "rubygems",
@@ -151,6 +161,7 @@ module Kettle
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
       unless template_preferences.empty?
         facts[:license] = license unless license.empty?
+        facts[:project_runtime] = project_runtime unless project_runtime.empty?
         template_tokens = template_tokens(facts, funding)
         template_facts[:tokens] = template_tokens unless template_tokens.empty?
       end
@@ -793,8 +804,13 @@ module Kettle
       tokens = {
         "KJ|GEM_NAME" => package.fetch(:name).to_s,
         "KJ|GEM_NAME_PATH" => package.fetch(:name).to_s.tr("-", "/"),
+        "KJ|GEM_SHIELD" => shield_token(package.fetch(:name).to_s),
+        "KJ|GEM_MAJOR" => gem_major_token(facts.fetch(:project_runtime, {})[:version]),
+        "KJ|GH_ORG" => facts.fetch(:project_runtime, {})[:github_org].to_s,
         "KJ|NAMESPACE" => rubygems.fetch(:namespace).to_s,
+        "KJ|NAMESPACE_SHIELD" => shield_token(rubygems.fetch(:namespace).to_s),
         "KJ|MIN_RUBY" => minimum_ruby_token(rubygems[:min_ruby]),
+        "KJ|MIN_DEV_RUBY" => minimum_dev_ruby_token(rubygems[:min_ruby]),
       }.merge(
         author_template_tokens(facts.fetch(:author, {}))
       ).merge(
@@ -805,15 +821,32 @@ module Kettle
         social_template_tokens(facts.fetch(:social, {}))
       ).merge(
         license_template_tokens(facts.fetch(:license, {}))
+      ).merge(
+        project_runtime_template_tokens(facts.fetch(:project_runtime, {}))
       )
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
 
-      tokens.reject { |_, value| value.empty? }
+      tokens.reject { |key, value| value.empty? && !EMPTY_TEMPLATE_TOKENS.include?(key) }
     end
 
     def minimum_ruby_token(requirement)
       requirement.to_s[/\d+(?:\.\d+){1,2}/].to_s
+    end
+
+    def minimum_dev_ruby_token(requirement)
+      min_ruby = minimum_ruby_token(requirement)
+      return "" if min_ruby.empty?
+
+      [Gem::Version.new(min_ruby), Gem::Version.new("2.3")].max.to_s
+    rescue ArgumentError
+      "2.3"
+    end
+
+    def gem_major_token(version)
+      Gem::Version.new(version.to_s).segments.first.to_s
+    rescue ArgumentError
+      "0"
     end
 
     def author_facts(gemspec_source, config, env)
@@ -950,6 +983,45 @@ module Kettle
         "KJ|SOCIAL:LINKTREE" => social[:linktree].to_s,
         "KJ|SOCIAL:DEVTO" => social[:devto].to_s,
       }
+    end
+
+    def project_runtime_facts(config, env, package_name:, source_url:, author_domain:, min_ruby:, version:)
+      run_timestamp = Time.now
+      compact_hash(
+        freeze_token: config.dig("defaults", "freeze_token").to_s.empty? ? "kettle-jem" : config.dig("defaults", "freeze_token").to_s,
+        kettle_jem_version: VERSION,
+        template_run_date: run_timestamp.strftime("%Y-%m-%d"),
+        template_run_year: run_timestamp.year.to_s,
+        kettle_dev_gem: "kettle-dev",
+        yard_host: "#{package_name.to_s.tr("_", "-")}.#{author_domain.to_s.empty? ? "example.com" : author_domain}",
+        project_emoji: preferred_template_token_value(nil, config["project_emoji"], env, "KJ_PROJECT_EMOJI").to_s,
+        min_divergence_threshold: preferred_template_token_value(nil, config["min_divergence_threshold"], env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
+        min_dev_ruby: minimum_dev_ruby_token(min_ruby),
+        version: version.to_s,
+        github_org: github_org_from_url(source_url).to_s
+      )
+    end
+
+    def project_runtime_template_tokens(project_runtime)
+      {
+        "KJ|FREEZE_TOKEN" => project_runtime[:freeze_token].to_s,
+        "KJ|KETTLE_JEM_VERSION" => project_runtime[:kettle_jem_version].to_s,
+        "KJ|TEMPLATE_RUN_DATE" => project_runtime[:template_run_date].to_s,
+        "KJ|TEMPLATE_RUN_YEAR" => project_runtime[:template_run_year].to_s,
+        "KJ|KETTLE_DEV_GEM" => project_runtime[:kettle_dev_gem].to_s,
+        "KJ|YARD_HOST" => project_runtime[:yard_host].to_s,
+        "KJ|PROJECT_EMOJI" => project_runtime[:project_emoji].to_s,
+        "KJ|MIN_DIVERGENCE_THRESHOLD" => project_runtime[:min_divergence_threshold].to_s,
+      }
+    end
+
+    def shield_token(value)
+      value.to_s.gsub("-", "--").gsub("_", "__").gsub("::", "%3A%3A").tr(" ", "_")
+    end
+
+    def github_org_from_url(url)
+      match = url.to_s.match(%r{\Ahttps?://github\.com/([^/]+)/})
+      match && match[1]
     end
 
     def license_facts(config, gemspec_licenses, author_email: nil)
