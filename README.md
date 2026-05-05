@@ -16,15 +16,28 @@ Project links:
 
 This is a Ruby monorepo for StructuredMerge packages.
 
-Initial packages:
+Package directories:
 
-- `tree-haver`
-- `ast-merge`
-- `text-merge`
-- `json-merge`
-- `toml-merge`
-- `yaml-merge`
-- source-family packages for TypeScript, Rust, Go, and Ruby cases
+- [`ast-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge)
+- [`ast-template`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-template)
+- [`citrus-toml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/citrus-toml-merge)
+- [`commonmarker-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/commonmarker-merge)
+- [`go-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/go-merge)
+- [`json-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge)
+- [`kettle-jem`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/kettle-jem)
+- [`kramdown-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/kramdown-merge)
+- [`markdown-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markdown-merge)
+- [`markly-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markly-merge)
+- [`parslet-toml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/parslet-toml-merge)
+- [`prism-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge)
+- [`psych-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/psych-merge)
+- [`ruby-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ruby-merge)
+- [`rust-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/rust-merge)
+- [`text-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/text-merge)
+- [`toml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/toml-merge)
+- [`tree_haver`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver)
+- [`typescript-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/typescript-merge)
+- [`yaml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/yaml-merge)
 
 ## Conformance
 
