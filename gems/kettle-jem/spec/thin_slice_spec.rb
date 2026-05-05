@@ -1050,25 +1050,27 @@ RSpec.describe Kettle::Jem do
         RUBY
         ".kettle-jem.yml" => <<~YAML,
           templates:
-            root: template
+            root: packaged
             apply: true
             entries:
               - gemfiles/modular/style.gemfile
         YAML
-        "template/gemfiles/modular/style.gemfile.example" => <<~RUBY,
-          gem "rubocop-lts", "{KJ|RUBOCOP_LTS_CONSTRAINT}"
-          gem "{KJ|RUBOCOP_RUBY_GEM}"
-        RUBY
       })
 
       plan = described_class.plan_project(root, env: {})
       template_report = plan[:recipe_reports].find do |report|
         report.fetch(:recipe_name) == "template_source_application_gemfiles_modular_style_gemfile"
       end
-      expect(template_report.fetch(:final_content)).to eq(<<~RUBY)
-        gem "rubocop-lts", "~> 22.0"
-        gem "rubocop-ruby3_1"
-      RUBY
+      expect(template_report.dig(:metadata, :template_source_preference)).to include(
+        selected_source: "gemfiles/modular/style.gemfile.example",
+        source_relative_path: "gemfiles/modular/style.gemfile.example",
+        source_root: "packaged"
+      )
+      expect(template_report.dig(:request_envelope, :request, :template_content)).to include(
+        "We run rubocop on the latest version of Ruby"
+      )
+      expect(template_report.fetch(:final_content)).to include('gem "rubocop-lts", "~> 22.0"')
+      expect(template_report.fetch(:final_content)).to include('gem "rubocop-ruby3_1"')
       expect(template_report.dig(:metadata, :template_tokens)).to include(
         "KJ|RUBOCOP_LTS_CONSTRAINT" => "~> 22.0",
         "KJ|RUBOCOP_RUBY_GEM" => "rubocop-ruby3_1"
