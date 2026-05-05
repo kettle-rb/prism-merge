@@ -43,6 +43,7 @@ PATH
   specs:
     kettle-jem (0.1.0)
       ast-merge (= 0.1.0)
+      ruby-merge (= 0.1.0)
       token-resolver (~> 1.0, >= 1.0.2)
       toml-merge (= 0.1.0)
       yaml-merge (= 0.1.0)

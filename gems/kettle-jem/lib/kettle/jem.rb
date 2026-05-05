@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "find"
+require "ruby/merge"
 require "token/resolver"
 require "toml-merge"
 require "yaml"
@@ -20,7 +21,10 @@ module Kettle
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
-    SUPPORTED_TEMPLATE_FILE_TYPES = %i[yaml toml markdown text].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
+    RUBY_TEMPLATE_BASENAMES = %w[Gemfile Rakefile Appraisals Appraisal.root.gemfile .simplecov].freeze
+    RUBY_TEMPLATE_SUFFIXES = %w[.gemspec .gemfile].freeze
+    RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
@@ -611,6 +615,8 @@ module Kettle
       return template_content if destination_content.to_s.strip.empty?
 
       case file_type
+      when :ruby, :gemfile, :appraisals, :gemspec, :rakefile
+        merge_result = Ruby::Merge.merge_ruby(template_content, destination_content, "ruby")
       when :yaml
         merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
       when :toml
@@ -630,7 +636,15 @@ module Kettle
       return configured.to_sym unless configured.empty?
 
       relative_path = recipe.fetch(:target_path).to_s
+      basename = File.basename(relative_path)
       extension = File.extname(relative_path).downcase
+      return :gemfile if basename == "Gemfile" || basename.end_with?(".gemfile")
+      return :appraisals if basename.start_with?("Appraisals") || basename == "Appraisal.root.gemfile"
+      return :gemspec if basename.end_with?(".gemspec")
+      return :rakefile if basename == "Rakefile" || extension == ".rake"
+      return :ruby if RUBY_TEMPLATE_BASENAMES.include?(basename) ||
+        RUBY_TEMPLATE_SUFFIXES.any? { |suffix| basename.end_with?(suffix) } ||
+        RUBY_TEMPLATE_EXTENSIONS.include?(extension)
       return :yaml if extension.match?(/\A\.ya?ml\z/) || File.basename(relative_path).casecmp("citation.cff").zero?
       return :toml if extension == ".toml"
       return :markdown if extension.match?(/\A\.md(?:own)?\z/)

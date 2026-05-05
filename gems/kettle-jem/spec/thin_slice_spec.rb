@@ -865,6 +865,65 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "merges Ruby-family template applications with destination declarations" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-ruby-merge-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - lib/example.rb
+        YAML
+        "lib/example.rb" => <<~RUBY,
+          require "set"
+
+          class Existing
+            def keep
+              :destination
+            end
+          end
+        RUBY
+        "template/lib/example.rb.example" => <<~RUBY,
+          require "json"
+
+          class Existing
+            def keep
+              :template
+            end
+          end
+
+          class Added
+            def call
+              :template_only
+            end
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      ruby_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_lib_example_rb"
+      end
+      final_content = ruby_report.fetch(:final_content)
+
+      expect(final_content).to include('require "set"')
+      expect(final_content).not_to include('require "json"')
+      expect(final_content).to include("def keep\n    :destination\n  end")
+      expect(final_content).to include("class Added")
+      expect(final_content).to include(":template_only")
+      expect(File.read(File.join(root, "lib/example.rb"))).to eq(final_content)
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
