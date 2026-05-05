@@ -46,6 +46,7 @@ RSpec.describe Kettle::Jem do
       expect(json_ready(plan[:facts])).to eq(json_ready(fixture.fetch(:expected).fetch(:facts)))
       recipe_names = plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }
       expect(recipe_names.take(expected_recipe_names.length)).to eq(expected_recipe_names)
+      expect(recipe_names).to include("github_actions_ci")
       expect(recipe_names).to include("rakefile_scaffold_cleanup")
       expect(plan[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
       expect(plan[:recipe_reports].map { |report| report[:request_envelope][:kind] }.uniq).to eq(
@@ -60,6 +61,10 @@ RSpec.describe Kettle::Jem do
       expect(rakefile_report.fetch(:final_content)).to include("task :custom")
       expect(rakefile_report.fetch(:final_content)).not_to include("bundler/gem_tasks")
       expect(rakefile_report.fetch(:final_content)).not_to include("RSpec::Core::RakeTask")
+      ci_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_ci" }
+      expect(ci_report.dig(:request_envelope, :request, :provider_family)).to eq("yaml")
+      expect(ci_report.fetch(:final_content)).to include("ruby/setup-ruby@")
+      expect(ci_report.fetch(:final_content)).to include("- \"3.2\"")
 
       apply = described_class.apply_project(root)
       expect(apply[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))

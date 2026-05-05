@@ -42,6 +42,11 @@ module Kettle
       }
       funding = compact_hash(urls: funding_urls(project_root, gemspec))
       facts[:funding] = funding unless funding.empty?
+      facts[:ci] = {
+        provider: "github_actions",
+        default_branch: "main",
+        ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
+      }
       facts
     end
 
@@ -54,6 +59,13 @@ module Kettle
           recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
           recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
           recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+          recipe_entry(
+            "github_actions_ci",
+            ".github/workflows/ci.yml",
+            "yaml",
+            "supplied_github_actions_workflow_synchronization",
+            facts: %w[package rubygems ci]
+          ),
           recipe_entry(
             "rakefile_scaffold_cleanup",
             "Rakefile",
@@ -199,6 +211,8 @@ module Kettle
         normalize_changelog(original, facts)
       when "generated_block_sync"
         synchronize_managed_block(original, facts)
+      when "github_actions_ci"
+        synchronize_github_actions_ci(original, facts)
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
@@ -399,6 +413,13 @@ module Kettle
       end
     end
 
+    def github_actions_ruby_versions(min_ruby)
+      floor = min_ruby.to_s[/\d+\.\d+/] || "3.1"
+      candidates = %w[3.1 3.2 3.3 3.4]
+      selected = candidates.select { |version| Gem::Version.new(version) >= Gem::Version.new(floor) }
+      selected.empty? ? [floor] : selected
+    end
+
     def classify_namespace(name)
       name.to_s.split(/[-_]/).map { |part| part[0].to_s.upcase + part[1..].to_s }.join("::")
     end
@@ -518,6 +539,67 @@ module Kettle
         lines.slice!(start_index..end_index)
       end
       lines.join.gsub(/\n{3,}/, "\n\n")
+    end
+
+    def synchronize_github_actions_ci(_content, facts)
+      package = facts.fetch(:package)
+      ci = facts.fetch(:ci)
+      ruby_versions = ci.fetch(:ruby_versions)
+      ruby_matrix = ruby_versions.map { |version| "          - \"#{version}\"" }.join("\n")
+
+      <<~YAML
+        name: CI
+
+        permissions:
+          contents: read
+
+        on:
+          push:
+            branches:
+              - "#{ci.fetch(:default_branch)}"
+              - "*-stable"
+            tags:
+              - "!*" # Do not execute on tags
+          pull_request:
+            branches:
+              - "*"
+          workflow_dispatch:
+
+        concurrency:
+          group: "${{ github.workflow }}-${{ github.ref }}"
+          cancel-in-progress: true
+
+        jobs:
+          test:
+            if: "!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')"
+            name: Specs ${{ matrix.ruby }}
+            runs-on: ubuntu-latest
+            continue-on-error: ${{ endsWith(matrix.ruby, 'head') }}
+            strategy:
+              fail-fast: false
+              matrix:
+                ruby:
+        #{ruby_matrix}
+                rubygems:
+                  - default
+                bundler:
+                  - default
+
+            steps:
+              - name: Checkout #{package.fetch(:name)}
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+              - name: Setup Ruby & RubyGems
+                uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
+                with:
+                  ruby-version: "${{ matrix.ruby }}"
+                  rubygems: "${{ matrix.rubygems }}"
+                  bundler: "${{ matrix.bundler }}"
+                  bundler-cache: true
+
+              - name: Tests
+                run: bundle exec rake
+      YAML
     end
 
     def replace_markdown_managed_block(content, marker, replacement)

@@ -33,15 +33,26 @@
           "https://github.com/sponsors/example",
           "https://opencollective.com/example"
         ]
+      },
+      "ci": {
+        "provider": "github_actions",
+        "default_branch": "main",
+        "ruby_versions": [
+          "3.2",
+          "3.3",
+          "3.4"
+        ]
       }
     },
     "changed_files": [
+      ".github/workflows/ci.yml",
       "CHANGELOG.md",
       "README.md",
       "Rakefile",
       "gemfiles/modular/shunted.gemfile"
     ],
     "files": {
+      ".github/workflows/ci.yml": "name: CI\n\npermissions:\n  contents: read\n\non:\n  push:\n    branches:\n      - \"main\"\n      - \"*-stable\"\n    tags:\n      - \"!*\" # Do not execute on tags\n  pull_request:\n    branches:\n      - \"*\"\n  workflow_dispatch:\n\nconcurrency:\n  group: \"${{ github.workflow }}-${{ github.ref }}\"\n  cancel-in-progress: true\n\njobs:\n  test:\n    if: \"!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')\"\n    name: Specs ${{ matrix.ruby }}\n    runs-on: ubuntu-latest\n    continue-on-error: ${{ endsWith(matrix.ruby, 'head') }}\n    strategy:\n      fail-fast: false\n      matrix:\n        ruby:\n          - \"3.2\"\n          - \"3.3\"\n          - \"3.4\"\n        rubygems:\n          - default\n        bundler:\n          - default\n\n    steps:\n      - name: Checkout example\n        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2\n\n      - name: Setup Ruby & RubyGems\n        uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0\n        with:\n          ruby-version: \"${{ matrix.ruby }}\"\n          rubygems: \"${{ matrix.rubygems }}\"\n          bundler: \"${{ matrix.bundler }}\"\n          bundler-cache: true\n\n      - name: Tests\n        run: bundle exec rake\n",
       "README.md": "# example\n\nExisting intro.\n\n<!-- kettle-jem:metadata:start -->\n| Field | Value |\n|---|---|\n| Package | example |\n| Description | Example gem for kettle-jem |\n| Homepage | https://example.test |\n| Source | https://github.com/example/example |\n| License | MIT |\n| Funding | https://example.test/fund, https://github.com/sponsors/example, https://opencollective.com/example |\n<!-- kettle-jem:metadata:end -->\n",
       "CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n\n### Added\n\n### Changed\n\n### Fixed\n\n## [0.1.0] - 2026-01-01\n\n- Initial release.\n",
       "Rakefile": "# frozen_string_literal: true\n\n# Keep custom task.\ntask :custom do\n  puts \"custom\"\nend\n",
