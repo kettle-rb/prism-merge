@@ -49,6 +49,8 @@ module Kettle
         ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
         custom_workflows: github_actions_custom_workflows(project_root),
       }
+      coverage_config = github_actions_coverage_config(kettle_config)
+      facts[:ci][:coverage] = coverage_config unless coverage_config.empty?
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
       facts
@@ -73,6 +75,15 @@ module Kettle
           ".github/workflows/framework-ci.yml",
           "yaml",
           "supplied_github_actions_framework_workflow_synchronization",
+          facts: %w[package rubygems ci]
+        )
+      end
+      if facts.dig(:ci, :coverage)
+        recipes << recipe_entry(
+          "github_actions_coverage_ci",
+          ".github/workflows/coverage.yml",
+          "yaml",
+          "supplied_github_actions_coverage_workflow_synchronization",
           facts: %w[package rubygems ci]
         )
       end
@@ -239,6 +250,8 @@ module Kettle
         synchronize_github_actions_ci(original, facts)
       when "github_actions_framework_ci"
         synchronize_github_actions_framework_ci(original, facts)
+      when "github_actions_coverage_ci"
+        synchronize_github_actions_coverage_ci(original, facts)
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
       when "rakefile_scaffold_cleanup"
@@ -454,7 +467,7 @@ module Kettle
 
       Dir.glob(File.join(workflow_root, "*.{yml,yaml}")).filter_map do |path|
         relative_path = path.delete_prefix("#{project_root}/")
-        next if %w[.github/workflows/ci.yml .github/workflows/framework-ci.yml].include?(relative_path)
+        next if %w[.github/workflows/ci.yml .github/workflows/coverage.yml .github/workflows/framework-ci.yml].include?(relative_path)
 
         relative_path
       end.sort
@@ -495,6 +508,22 @@ module Kettle
           gemfile = expand_framework_gemfile_pattern(pattern, version)
           { framework_version: version, gemfile: framework_gemfile_path(gemfile) }
         end,
+      }
+    end
+
+    def github_actions_coverage_config(config)
+      workflows = config["workflows"]
+      return {} unless workflows.is_a?(Hash)
+
+      raw = workflows["coverage"]
+      enabled = raw == true || (raw.is_a?(Hash) && raw.fetch("enabled", false) == true)
+      return {} unless enabled
+
+      raw = {} unless raw.is_a?(Hash)
+      {
+        enabled: true,
+        command: raw.fetch("command", "rake test").to_s,
+        appraisal: raw.fetch("appraisal", "coverage").to_s,
       }
     end
 
@@ -762,6 +791,89 @@ module Kettle
 
               - name: Tests for ${{ matrix.ruby }}@${{ matrix.framework_version }}
                 run: bundle exec rake test
+      YAML
+    end
+
+    def synchronize_github_actions_coverage_ci(_content, facts)
+      ci = facts.fetch(:ci)
+      coverage = ci.fetch(:coverage)
+      <<~YAML
+        name: Test Coverage
+
+        permissions:
+          contents: read
+          pull-requests: write
+          id-token: write
+
+        env:
+          K_SOUP_COV_MIN_BRANCH: 100
+          K_SOUP_COV_MIN_LINE: 100
+          K_SOUP_COV_MIN_HARD: true
+          K_SOUP_COV_FORMATTERS: "xml,rcov,lcov,tty"
+          K_SOUP_COV_DO: true
+          K_SOUP_COV_MULTI_FORMATTERS: true
+          K_SOUP_COV_COMMAND_NAME: "Test Coverage"
+
+        on:
+          push:
+            branches:
+              - "#{ci.fetch(:default_branch)}"
+              - "*-stable"
+            tags:
+              - "!*" # Do not execute on tags
+          pull_request:
+            branches:
+              - "*"
+          workflow_dispatch:
+
+        concurrency:
+          group: "${{ github.workflow }}-${{ github.ref }}"
+          cancel-in-progress: true
+
+        jobs:
+          coverage:
+            if: "!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')"
+            name: Code Coverage on ${{ matrix.ruby }}@current
+            runs-on: ubuntu-latest
+            continue-on-error: ${{ matrix.experimental || endsWith(matrix.ruby, 'head') }}
+            env:
+              BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}.gemfile
+            strategy:
+              fail-fast: false
+              matrix:
+                include:
+                  - ruby: "ruby"
+                    appraisal: "#{coverage.fetch(:appraisal)}"
+                    exec_cmd: "#{coverage.fetch(:command)}"
+                    gemfile: "Appraisal.root"
+                    rubygems: latest
+                    bundler: latest
+
+            steps:
+              - name: Checkout
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+              - name: Setup Ruby & RubyGems
+                uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
+                with:
+                  ruby-version: "${{ matrix.ruby }}"
+                  rubygems: "${{ matrix.rubygems }}"
+                  bundler: "${{ matrix.bundler }}"
+                  bundler-cache: true
+
+              - name: "[Attempt 1] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
+                id: bundleAppraisalAttempt1
+                run: bundle exec appraisal ${{ matrix.appraisal }} install
+                continue-on-error: true
+
+              - name: "[Attempt 2] Appraisal for ${{ matrix.ruby }}@${{ matrix.appraisal }}"
+                id: bundleAppraisalAttempt2
+                if: ${{ steps.bundleAppraisalAttempt1.outcome == 'failure' }}
+                run: bundle exec appraisal ${{ matrix.appraisal }} install
+
+              - name: Tests for ${{ matrix.ruby }}@current via ${{ matrix.exec_cmd }}
+                run: bundle exec appraisal ${{ matrix.appraisal }} bundle exec ${{ matrix.exec_cmd }}
+        #{github_actions_coverage_steps}
       YAML
     end
 

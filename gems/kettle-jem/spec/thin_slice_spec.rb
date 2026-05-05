@@ -88,4 +88,37 @@ RSpec.describe Kettle::Jem do
       expect(project_files(root, fixture.fetch(:expected).fetch(:files).keys.map(&:to_s))).to eq(fixture.fetch(:expected).fetch(:files))
     end
   end
+
+  it "generates a coverage workflow when configured" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-coverage-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          workflows:
+            coverage:
+              enabled: true
+              appraisal: coverage
+              command: rake test
+        YAML
+      })
+
+      plan = described_class.plan_project(root)
+      coverage_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_coverage_ci" }
+      expect(coverage_report.dig(:request_envelope, :request, :provider_family)).to eq("yaml")
+      expect(coverage_report.fetch(:relative_path)).to eq(".github/workflows/coverage.yml")
+      expect(coverage_report.fetch(:final_content)).to include("name: Test Coverage")
+      expect(coverage_report.fetch(:final_content)).to include("K_SOUP_COV_DO: true")
+      expect(coverage_report.fetch(:final_content)).to include("bundle exec appraisal ${{ matrix.appraisal }} bundle exec ${{ matrix.exec_cmd }}")
+      expect(coverage_report.fetch(:final_content)).to include("Upload coverage to CodeCov")
+      expect(plan[:changed_files]).to include(".github/workflows/coverage.yml")
+    end
+  end
 end
