@@ -1127,6 +1127,7 @@ RSpec.describe Ast::Merge do
     readme_supplied_metadata_synchronization_acceptance_fixture = diagnostics_fixture("readme_supplied_metadata_synchronization_acceptance")
     supplied_markdown_pruning_acceptance_fixture = diagnostics_fixture("supplied_markdown_pruning_acceptance")
     supplied_source_selector_deletion_acceptance_fixture = diagnostics_fixture("supplied_source_selector_deletion_acceptance")
+    supplied_yaml_snippet_synchronization_acceptance_fixture = diagnostics_fixture("supplied_yaml_snippet_synchronization_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2532,6 +2533,25 @@ RSpec.describe Ast::Merge do
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :deleted_ranges)).to eq(2)
       end
       if entry[:label] == "missing-delete-selectors-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_yaml_snippet_synchronization_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "apply-supplied-sections-and-scalar-pins"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include("concurrency:")
+        expect(final_content).to include("permissions:")
+        expect(final_content).to include("actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd")
+        expect(final_content).to include("ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92")
+        expect(final_content).not_to include("actions/checkout@v3")
+        expect(final_content).not_to include("ruby/setup-ruby@v1")
+        expect(final_content).to include("gemfiles/current.gemfile")
+        expect(final_content).to include('ruby-version: ${{ matrix.ruby }}')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :updated_sections)).to eq(2)
+        expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :updated_scalars)).to eq(2)
+      end
+      if entry[:label] == "missing-yaml-updates-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
