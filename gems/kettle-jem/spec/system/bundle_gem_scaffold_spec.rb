@@ -79,6 +79,28 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     File.write(path, content)
   end
 
+  def seed_destination_readme!
+    File.write(File.join(gem_root, "README.md"), <<~MARKDOWN)
+      # 1️⃣ Dummy::Gem
+
+      ## Synopsis
+
+      Destination synopsis from the scaffolded project.
+
+      ## Usage
+
+      Destination usage from the scaffolded project.
+
+      ## Note: Local
+
+      Destination note from the scaffolded project.
+
+      ## Installation
+
+      Old scaffold installation notes.
+    MARKDOWN
+  end
+
   it "bootstraps config and applies selected packaged templates to a fresh scaffold" do
     bootstrap = Kettle::Jem.apply_project(gem_root, env: env)
     bootstrap_report = bootstrap.fetch(:recipe_reports).find do |report|
@@ -95,6 +117,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     )
 
     enable_packaged_templates!
+    seed_destination_readme!
 
     apply = Kettle::Jem.apply_project(gem_root, env: env)
     expect(apply.fetch(:changed_files)).to include(
@@ -106,6 +129,9 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
 
     readme = File.read(File.join(gem_root, "README.md"))
     expect(readme).to include("# 💎 Dummy::Gem")
+    expect(readme).to include("## 🌻 Synopsis\n\nDestination synopsis from the scaffolded project.")
+    expect(readme).to include("## 🔧 Basic Usage\n\nDestination usage from the scaffolded project.")
+    expect(readme).not_to include("Old scaffold installation notes.")
     expect(readme).to include("Compatible with MRI Ruby 3.2.0+")
     expect(readme).to include("https://github.com/acme/dummy-gem")
 
