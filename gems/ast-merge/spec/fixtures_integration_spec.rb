@@ -1128,6 +1128,7 @@ RSpec.describe Ast::Merge do
     supplied_markdown_pruning_acceptance_fixture = diagnostics_fixture("supplied_markdown_pruning_acceptance")
     supplied_source_selector_deletion_acceptance_fixture = diagnostics_fixture("supplied_source_selector_deletion_acceptance")
     supplied_yaml_snippet_synchronization_acceptance_fixture = diagnostics_fixture("supplied_yaml_snippet_synchronization_acceptance")
+    supplied_managed_text_block_replacement_acceptance_fixture = diagnostics_fixture("supplied_managed_text_block_replacement_acceptance")
     structured_edit_callable_destination_request_fixture = diagnostics_fixture("structured_edit_callable_destination_request")
     structured_edit_parity_selection_semantics_fixture = diagnostics_fixture("structured_edit_parity_selection_semantics")
     structured_edit_parity_match_semantics_fixture = diagnostics_fixture("structured_edit_parity_match_semantics")
@@ -2552,6 +2553,27 @@ RSpec.describe Ast::Merge do
         expect(entry.dig(:report_envelope, :report, :step_reports, 1, :metadata, :updated_scalars)).to eq(2)
       end
       if entry[:label] == "missing-yaml-updates-fails-closed"
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
+      end
+    end
+
+    supplied_managed_text_block_replacement_acceptance_fixture[:cases].each do |entry|
+      if entry[:label] == "replace-existing-managed-text-block"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include('gem "debug", "~> 1.9"')
+        expect(final_content).to include('gem "irb", "~> 1.15"')
+        expect(final_content).not_to include("old-debug")
+        expect(final_content).to include('gem "rake"')
+        expect(final_content).to include('gem "rspec"')
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :replaced_blocks)).to eq(1)
+      end
+      if entry[:label] == "append-missing-managed-text-block"
+        final_content = entry.dig(:report_envelope, :report, :final_content)
+        expect(final_content).to include("# <<kettle-jem:generated>>")
+        expect(final_content).to include("# (no shunted dependencies)")
+        expect(entry.dig(:report_envelope, :report, :step_reports, 0, :metadata, :appended_blocks)).to eq(1)
+      end
+      if entry[:label] == "missing-managed-block-updates-fails-closed"
         expect(entry.dig(:report_envelope, :report, :step_reports, 0, :status)).to eq("failed")
       end
     end
