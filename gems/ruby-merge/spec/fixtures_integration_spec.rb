@@ -107,6 +107,52 @@ RSpec.describe "Ruby::Merge" do
       )
     ).to eq(json_ready(invalid_destination_fixture.dig(:expected, :diagnostics)))
 
+    gemfile_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        source "https://gem.coop"
+        gemspec
+        eval_gemfile "gemfiles/modular/style.gemfile"
+        gem "rake"
+      RUBY
+      <<~RUBY,
+        source "https://rubygems.org"
+        gem "rspec"
+        eval_gemfile "gemfiles/modular/style.gemfile"
+      RUBY
+      "ruby"
+    )
+    expect(gemfile_merge[:ok]).to be(true)
+    expect(gemfile_merge[:output]).to include('source "https://gem.coop"')
+    expect(gemfile_merge[:output]).to include("gemspec")
+    expect(gemfile_merge[:output].scan('eval_gemfile "gemfiles/modular/style.gemfile"').size).to eq(1)
+    expect(gemfile_merge[:output]).to include('gem "rspec"')
+    expect(gemfile_merge[:output]).to include('gem "rake"')
+
+    rakefile_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        desc "Default task"
+        task :default do
+          puts "template"
+        end
+
+        desc "CI"
+        task :ci do
+          sh "bundle exec rspec"
+        end
+      RUBY
+      <<~RUBY,
+        desc "Default task"
+        task :default do
+          puts "destination"
+        end
+      RUBY
+      "ruby"
+    )
+    expect(rakefile_merge[:ok]).to be(true)
+    expect(rakefile_merge[:output].scan(/task\s+:default/).size).to eq(1)
+    expect(rakefile_merge[:output]).to include('puts "destination"')
+    expect(rakefile_merge[:output]).to include("task :ci")
+
     surfaces_analysis = RUBY_MERGE.parse_ruby(surfaces_fixture[:source], "ruby")
     expect(surfaces_analysis[:ok]).to be(true)
     expect(json_ready(RUBY_MERGE.ruby_discovered_surfaces(surfaces_analysis[:analysis]))).to eq(

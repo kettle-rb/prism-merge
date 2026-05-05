@@ -865,7 +865,7 @@ RSpec.describe Kettle::Jem do
     end
   end
 
-  it "merges Ruby-family template applications with destination declarations" do
+  it "merges Ruby-family template applications with destination declarations and DSL calls" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
     Dir.mktmpdir("kettle-jem-ruby-merge-slice", tmp_root) do |root|
@@ -881,8 +881,21 @@ RSpec.describe Kettle::Jem do
             root: template
             apply: true
             entries:
+              - Gemfile
+              - Rakefile
               - lib/example.rb
         YAML
+        "Gemfile" => <<~RUBY,
+          source "https://rubygems.org"
+          gem "rspec"
+          eval_gemfile "gemfiles/modular/style.gemfile"
+        RUBY
+        "Rakefile" => <<~RUBY,
+          desc "Default"
+          task :default do
+            puts "destination"
+          end
+        RUBY
         "lib/example.rb" => <<~RUBY,
           require "set"
 
@@ -890,6 +903,23 @@ RSpec.describe Kettle::Jem do
             def keep
               :destination
             end
+          end
+        RUBY
+        "template/Gemfile.example" => <<~RUBY,
+          source "https://gem.coop"
+          gemspec
+          eval_gemfile "gemfiles/modular/style.gemfile"
+          gem "rake"
+        RUBY
+        "template/Rakefile.example" => <<~RUBY,
+          desc "Default"
+          task :default do
+            puts "template"
+          end
+
+          desc "CI"
+          task :ci do
+            sh "bundle exec rspec"
           end
         RUBY
         "template/lib/example.rb.example" => <<~RUBY,
@@ -913,6 +943,12 @@ RSpec.describe Kettle::Jem do
       ruby_report = apply.fetch(:recipe_reports).find do |report|
         report.fetch(:recipe_name) == "template_source_application_lib_example_rb"
       end
+      gemfile_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_Gemfile"
+      end
+      rakefile_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_Rakefile"
+      end
       final_content = ruby_report.fetch(:final_content)
 
       expect(final_content).to include('require "set"')
@@ -921,6 +957,18 @@ RSpec.describe Kettle::Jem do
       expect(final_content).to include("class Added")
       expect(final_content).to include(":template_only")
       expect(File.read(File.join(root, "lib/example.rb"))).to eq(final_content)
+
+      gemfile_content = gemfile_report.fetch(:final_content)
+      expect(gemfile_content).to include('source "https://gem.coop"')
+      expect(gemfile_content).to include("gemspec")
+      expect(gemfile_content.scan('eval_gemfile "gemfiles/modular/style.gemfile"').size).to eq(1)
+      expect(gemfile_content).to include('gem "rspec"')
+      expect(gemfile_content).to include('gem "rake"')
+
+      rakefile_content = rakefile_report.fetch(:final_content)
+      expect(rakefile_content.scan(/task\s+:default/).size).to eq(1)
+      expect(rakefile_content).to include('puts "destination"')
+      expect(rakefile_content).to include("task :ci")
     end
   end
 

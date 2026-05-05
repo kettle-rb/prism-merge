@@ -13,6 +13,7 @@ module Ruby
     DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/
     MAGIC_COMMENT_PREFIXES = %w[coding encoding frozen_string_literal shareable_constant_value typed warn_indent].freeze
     REQUIRE_PATTERN = /^\s*require(?:_relative)?\s+["']([^"']+)["']/.freeze
+    DSL_CALL_PATTERN = /^\s*(?<name>source|gemspec|git_source|gem|eval_gemfile|desc|task)\b/.freeze
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
     MODULE_PATTERN = /^\s*module\s+([A-Z]\w*(?:::\w+)*)/.freeze
     DEF_PATTERN = /^\s*def\s+(?:self\.)?([a-zA-Z_]\w*[!?=]?)/.freeze
@@ -101,12 +102,16 @@ module Ruby
         }
       end
 
-      require_block = collect_ruby_require_entries(destination.dig(:analysis, :source)).map { |entry| entry[:text] }.join("\n").strip
+      destination_requires = collect_ruby_require_entries(destination.dig(:analysis, :source))
       destination_declarations = collect_ruby_declaration_entries(destination.dig(:analysis, :source))
       template_declarations = collect_ruby_declaration_entries(template.dig(:analysis, :source))
       destination_paths = destination_declarations.to_h { |entry| [entry[:path], true] }
+      destination_dsl = collect_top_level_dsl_entries(destination.dig(:analysis, :source))
+      template_dsl = collect_top_level_dsl_entries(template.dig(:analysis, :source))
       sections = []
+      require_block = destination_requires.map { |entry| entry[:text] }.join("\n").strip
       sections << require_block unless require_block.empty?
+      sections.concat(merge_top_level_dsl_entries(destination_dsl, template_dsl).map { |entry| entry[:text] })
       sections.concat(destination_declarations.map { |entry| entry[:text] })
       sections.concat(
         template_declarations.reject { |entry| destination_paths[entry[:path]] }.map { |entry| entry[:text] }
@@ -354,10 +359,77 @@ module Ruby
 
     def collect_ruby_require_entries(source)
       normalize_source(source).split("\n").filter_map do |line|
-        next unless REQUIRE_PATTERN.match?(line)
+        match = REQUIRE_PATTERN.match(line)
+        next unless match
 
-        { text: line.rstrip }
+        { path: "/requires/#{match[1]}", text: line.rstrip }
       end
+    end
+
+    def collect_top_level_dsl_entries(source)
+      lines = normalize_source(source).split("\n")
+      entries = []
+      pending_comments = []
+      index = 0
+
+      while index < lines.length
+        line = lines[index]
+        stripped = line.strip
+        if comment_line?(line)
+          pending_comments << index
+          index += 1
+          next
+        end
+        if stripped.empty?
+          pending_comments = []
+          index += 1
+          next
+        end
+        if REQUIRE_PATTERN.match?(line) || declaration_for_line(line)
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        match = DSL_CALL_PATTERN.match(line)
+        unless match
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        name = match[:name]
+        if name == "desc" && next_code_line_is_task?(lines, index + 1)
+          pending_comments << index
+          index += 1
+          next
+        end
+
+        start_index = pending_comments.first || index
+        finish_index = dsl_entry_finish_index(lines, index)
+        text = lines[start_index..finish_index].join("\n").strip
+        signature = dsl_entry_signature(name, line)
+        entries << { path: "/dsl/#{signature}", name: name, signature: signature, text: text } if signature
+        pending_comments = []
+        index = finish_index + 1
+      end
+
+      entries
+    end
+
+    def merge_top_level_dsl_entries(destination_entries, template_entries)
+      destination_by_signature = destination_entries.to_h { |entry| [entry[:signature], entry] }
+      template_singletons = template_entries.select { |entry| dsl_singleton_entry?(entry) }
+      template_singleton_signatures = template_singletons.map { |entry| entry[:signature] }.to_h { |signature| [signature, true] }
+      result = []
+      result.concat(template_singletons)
+      result.concat(destination_entries.reject { |entry| template_singleton_signatures[entry[:signature]] })
+      result.concat(
+        template_entries.reject do |entry|
+          dsl_singleton_entry?(entry) || destination_by_signature[entry[:signature]]
+        end
+      )
+      result
     end
 
     def collect_ruby_declaration_entries(source)
@@ -444,6 +516,56 @@ module Ruby
       elsif (match = DEF_PATTERN.match(line))
         { kind: "def", name: match[1] }
       end
+    end
+
+    def next_code_line_is_task?(lines, start_index)
+      lines[start_index..].to_a.each do |line|
+        next if line.strip.empty? || comment_line?(line)
+
+        match = DSL_CALL_PATTERN.match(line)
+        return match && match[:name] == "task"
+      end
+      false
+    end
+
+    def dsl_entry_finish_index(lines, start_index)
+      return start_index unless lines[start_index].match?(/\bdo\b/)
+
+      depth = 0
+      cursor = start_index
+      while cursor < lines.length
+        stripped = lines[cursor].strip
+        depth += stripped.scan(/\bdo\b/).length
+        depth += 1 if declaration_for_line(stripped) || stripped.match?(/\A(begin|if|unless|case|while|until|for)\b/)
+        depth -= 1 if stripped == "end"
+        return cursor if depth <= 0 && cursor > start_index
+
+        cursor += 1
+      end
+      lines.length - 1
+    end
+
+    def dsl_entry_signature(name, line)
+      case name
+      when "source", "gemspec"
+        name
+      when "git_source", "gem", "eval_gemfile", "task"
+        first_argument = line[/\b#{Regexp.escape(name)}\s*(?:\(|\s)\s*["']([^"']+)["']/, 1] ||
+          line[/\b#{Regexp.escape(name)}\s*(?:\(|\s)\s*:([a-zA-Z_]\w*[!?=]?)/, 1]
+        first_argument ? "#{name}:#{normalize_dsl_argument(name, first_argument)}" : "#{name}:#{line.strip}"
+      when "desc"
+        "desc:#{line.strip}"
+      end
+    end
+
+    def normalize_dsl_argument(name, argument)
+      return argument.gsub(%r{/r\d+/}, "/") if name == "eval_gemfile"
+
+      argument
+    end
+
+    def dsl_singleton_entry?(entry)
+      %w[source gemspec].include?(entry[:name])
     end
 
     def surfaces_for_owner(owner_name:, comment_entries:)
