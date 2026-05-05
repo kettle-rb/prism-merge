@@ -642,6 +642,63 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "honors social template token config and environment overrides" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-social-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          tokens:
+            social:
+              mastodon: config-mastodon
+              bluesky: config-bluesky
+              linktree: "{KJ|SOCIAL:LINKTREE}"
+              devto: config-devto
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Mastodon: {KJ|SOCIAL:MASTODON}
+          Bluesky: {KJ|SOCIAL:BLUESKY}
+          Linktree: {KJ|SOCIAL:LINKTREE}
+          Dev.to: {KJ|SOCIAL:DEVTO}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(
+        root,
+        env: {
+          "KJ_SOCIAL_MASTODON" => "env-mastodon",
+          "KJ_SOCIAL_LINKTREE" => "env-linktree",
+        }
+      )
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(template_report.fetch(:final_content)).to eq(<<~MARKDOWN)
+        Mastodon: env-mastodon
+        Bluesky: config-bluesky
+        Linktree: env-linktree
+        Dev.to: config-devto
+      MARKDOWN
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|SOCIAL:BLUESKY" => "config-bluesky",
+        "KJ|SOCIAL:DEVTO" => "config-devto",
+        "KJ|SOCIAL:LINKTREE" => "env-linktree",
+        "KJ|SOCIAL:MASTODON" => "env-mastodon"
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

@@ -31,6 +31,12 @@ module Kettle
       liberapay: "KJ_FUNDING_LIBERAPAY",
       issuehunt: "KJ_FUNDING_ISSUEHUNT",
     }.freeze
+    SOCIAL_TOKEN_ENV_KEYS = {
+      mastodon: "KJ_SOCIAL_MASTODON",
+      bluesky: "KJ_SOCIAL_BLUESKY",
+      linktree: "KJ_SOCIAL_LINKTREE",
+      devto: "KJ_SOCIAL_DEVTO",
+    }.freeze
 
     module_function
 
@@ -65,6 +71,8 @@ module Kettle
       facts[:author] = author unless author.empty?
       forge = forge_facts(kettle_config, env)
       facts[:forge] = forge unless forge.empty?
+      social = social_facts(kettle_config, env)
+      facts[:social] = social unless social.empty?
       opencollective_policy = opencollective_policy(kettle_config, env)
       opencollective_disabled = opencollective_policy.fetch(:disabled)
       open_collective_org = opencollective_org(project_root, env, opencollective_disabled: opencollective_disabled)
@@ -753,6 +761,8 @@ module Kettle
         forge_template_tokens(facts.fetch(:forge, {}))
       ).merge(
         funding_template_tokens(funding)
+      ).merge(
+        social_template_tokens(facts.fetch(:social, {}))
       )
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
@@ -873,6 +883,30 @@ module Kettle
         "KJ|FUNDING:POLAR" => platform_tokens[:polar].to_s,
         "KJ|FUNDING:LIBERAPAY" => platform_tokens[:liberapay].to_s,
         "KJ|FUNDING:ISSUEHUNT" => platform_tokens[:issuehunt].to_s,
+      }
+    end
+
+    def social_facts(config, env)
+      token_config = token_config_values(config)
+      social_config = token_config["social"].is_a?(Hash) ? token_config["social"] : {}
+      compact_hash(
+        mastodon: social_token_value(social_config, env, :mastodon).to_s,
+        bluesky: social_token_value(social_config, env, :bluesky).to_s,
+        linktree: social_token_value(social_config, env, :linktree).to_s,
+        devto: social_token_value(social_config, env, :devto).to_s
+      )
+    end
+
+    def social_token_value(social_config, env, key)
+      preferred_template_token_value(nil, social_config[key.to_s], env, SOCIAL_TOKEN_ENV_KEYS.fetch(key))
+    end
+
+    def social_template_tokens(social)
+      {
+        "KJ|SOCIAL:MASTODON" => social[:mastodon].to_s,
+        "KJ|SOCIAL:BLUESKY" => social[:bluesky].to_s,
+        "KJ|SOCIAL:LINKTREE" => social[:linktree].to_s,
+        "KJ|SOCIAL:DEVTO" => social[:devto].to_s,
       }
     end
 
