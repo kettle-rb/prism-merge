@@ -94,6 +94,15 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
       'spec.metadata["source_code_uri"] = "TODO: Put your gem\'s public repo URL here."',
       'spec.metadata["source_code_uri"] = "https://github.com/acme/dummy-gem"'
     )
+    content = content.sub(
+      /^end$/,
+      <<~RUBY.chomp
+          # Destination runtime dependency
+          spec.add_dependency("json", "~> 2.7") # preserve custom runtime dependency
+          spec.add_development_dependency("rake", "~> 13.1") # preserve destination rake policy
+      end
+      RUBY
+    )
     File.write(path, content)
   end
 
@@ -206,6 +215,9 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(gemspec).to include('spec.homepage = "https://github.com/acme/dummy-gem"')
     expect(gemspec).to include('spec.required_ruby_version = ">= 3.2.0"')
     expect(gemspec).to include('spec.metadata["source_code_uri"] = "#{spec.homepage}/tree/v#{spec.version}"')
+    expect(gemspec).to include('spec.add_dependency("json", "~> 2.7") # preserve custom runtime dependency')
+    expect(gemspec).to include('spec.add_development_dependency("rake", "~> 13.1") # preserve destination rake policy')
+    expect(gemspec.scan(/spec\.add_development_dependency\("rake"/).size).to eq(1)
 
     rakefile = File.read(File.join(gem_root, "Rakefile"))
     expect(rakefile).to include('require "bundler/gem_tasks"')

@@ -647,12 +647,11 @@ module Kettle
 
     def merge_gemspec_template_source(template_content, destination_content)
       replacements = gemspec_preserved_assignments(destination_content)
-      return template_content if replacements.empty?
-
-      replacements.reduce(template_content.dup) do |content, (field, source_line)|
+      merged = replacements.reduce(template_content.dup) do |content, (field, source_line)|
         pattern = /^(\s*spec\.#{Regexp.escape(field)}\s*=\s*).*$/
         content.match?(pattern) ? content.sub(pattern, source_line.rstrip) : content
       end
+      preserve_gemspec_dependency_lines(merged, destination_content)
     end
 
     def gemspec_preserved_assignments(source)
@@ -673,6 +672,41 @@ module Kettle
 
         assignments[field] = line
       end
+    end
+
+    def preserve_gemspec_dependency_lines(template_content, destination_content)
+      destination_dependencies = gemspec_dependency_line_index(destination_content)
+      return template_content if destination_dependencies.empty?
+
+      merged = replace_matching_gemspec_dependency_lines(template_content, destination_dependencies)
+      append_missing_gemspec_dependency_lines(merged, destination_dependencies)
+    end
+
+    def replace_matching_gemspec_dependency_lines(content, destination_dependencies)
+      content.to_s.lines.map do |line|
+        key = gemspec_dependency_line_key(line)
+        key && destination_dependencies[key] ? destination_dependencies[key] : line
+      end.join
+    end
+
+    def append_missing_gemspec_dependency_lines(content, destination_dependencies)
+      existing_keys = gemspec_dependency_line_index(content).keys
+      missing_lines = destination_dependencies.reject { |key, _line| existing_keys.include?(key) }.values
+      return content if missing_lines.empty?
+
+      content.sub(/^end\s*\z/, "#{missing_lines.join}end")
+    end
+
+    def gemspec_dependency_line_index(source)
+      source.to_s.lines.each_with_object({}) do |line, dependencies|
+        key = gemspec_dependency_line_key(line)
+        dependencies[key] ||= line if key
+      end
+    end
+
+    def gemspec_dependency_line_key(line)
+      match = line.to_s.match(/^\s*spec\.(add_(?:development_|runtime_)?dependency)\s*\(?\s*["']([^"']+)["']/)
+      match && [match[1], match[2]]
     end
 
     def template_file_type(recipe)
