@@ -40,6 +40,7 @@ module Kettle
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
         ),
       }
+      kettle_config = kettle_jem_config(project_root)
       funding = compact_hash(urls: funding_urls(project_root, gemspec))
       facts[:funding] = funding unless funding.empty?
       facts[:ci] = {
@@ -47,35 +48,48 @@ module Kettle
         default_branch: "main",
         ruby_versions: github_actions_ruby_versions(facts.fetch(:rubygems).fetch(:min_ruby, nil)),
       }
+      framework_matrix = github_actions_framework_matrix(kettle_config)
+      facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
       facts
     end
 
     def recipe_pack(facts)
+      recipes = [
+        recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
+        recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
+        recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+        recipe_entry(
+          "github_actions_ci",
+          ".github/workflows/ci.yml",
+          "yaml",
+          "supplied_github_actions_workflow_synchronization",
+          facts: %w[package rubygems ci]
+        ),
+      ]
+      if facts.dig(:ci, :framework_matrix)
+        recipes << recipe_entry(
+          "github_actions_framework_ci",
+          ".github/workflows/framework-ci.yml",
+          "yaml",
+          "supplied_github_actions_framework_workflow_synchronization",
+          facts: %w[package rubygems ci]
+        )
+      end
+      recipes << recipe_entry(
+        "rakefile_scaffold_cleanup",
+        "Rakefile",
+        "generic_ast",
+        "supplied_source_selector_deletion",
+        provider_backend: "generic_structural_owners",
+        facts: %w[rubygems rakefile],
+        selectors: %w[rakefile_scaffold]
+      )
+
       {
         name: "kettle-jem-core",
         version: 1,
         ecosystem: "rubygems",
-        recipes: [
-          recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
-          recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
-          recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
-          recipe_entry(
-            "github_actions_ci",
-            ".github/workflows/ci.yml",
-            "yaml",
-            "supplied_github_actions_workflow_synchronization",
-            facts: %w[package rubygems ci]
-          ),
-          recipe_entry(
-            "rakefile_scaffold_cleanup",
-            "Rakefile",
-            "generic_ast",
-            "supplied_source_selector_deletion",
-            provider_backend: "generic_structural_owners",
-            facts: %w[rubygems rakefile],
-            selectors: %w[rakefile_scaffold]
-          ),
-        ],
+        recipes: recipes,
       }
     end
 
@@ -213,6 +227,8 @@ module Kettle
         synchronize_managed_block(original, facts)
       when "github_actions_ci"
         synchronize_github_actions_ci(original, facts)
+      when "github_actions_framework_ci"
+        synchronize_github_actions_framework_ci(original, facts)
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
@@ -420,6 +436,53 @@ module Kettle
       selected.empty? ? [floor] : selected
     end
 
+    def kettle_jem_config(project_root)
+      path = File.join(project_root, ".kettle-jem.yml")
+      return {} unless File.exist?(path)
+
+      config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
+      config.is_a?(Hash) ? config : {}
+    end
+
+    def github_actions_framework_matrix(config)
+      workflows = config["workflows"]
+      return {} unless workflows.is_a?(Hash) && workflows["preset"].to_s.strip.downcase == "framework"
+
+      raw = workflows["framework_matrix"]
+      return {} unless raw.is_a?(Hash)
+
+      dimension = raw["dimension"].to_s.strip
+      versions = raw["versions"]
+      pattern = raw["gemfile_pattern"].to_s.strip
+      return {} unless !dimension.empty? && versions.is_a?(Array) && !versions.empty? && !pattern.empty?
+
+      normalized_versions = versions.map { |version| version.to_s.strip }.reject(&:empty?)
+      return {} if normalized_versions.empty?
+
+      {
+        dimension: dimension,
+        versions: normalized_versions,
+        gemfile_pattern: pattern,
+        include: normalized_versions.map do |version|
+          gemfile = expand_framework_gemfile_pattern(pattern, version)
+          { framework_version: version, gemfile: framework_gemfile_path(gemfile) }
+        end,
+      }
+    end
+
+    def expand_framework_gemfile_pattern(pattern, version)
+      replacement = if pattern.include?("_{version}") || pattern.include?("{version}_")
+        version.tr(".", "_")
+      else
+        version
+      end
+      pattern.gsub("{version}", replacement)
+    end
+
+    def framework_gemfile_path(gemfile)
+      gemfile.include?("/") ? gemfile : "gemfiles/#{gemfile}"
+    end
+
     def classify_namespace(name)
       name.to_s.split(/[-_]/).map { |part| part[0].to_s.upcase + part[1..].to_s }.join("::")
     end
@@ -599,6 +662,78 @@ module Kettle
 
               - name: Tests
                 run: bundle exec rake
+      YAML
+    end
+
+    def synchronize_github_actions_framework_ci(_content, facts)
+      ci = facts.fetch(:ci)
+      framework_matrix = ci.fetch(:framework_matrix)
+      ruby_matrix = ci.fetch(:ruby_versions).map { |version| "          - \"#{version}\"" }.join("\n")
+      include_matrix = framework_matrix.fetch(:include).map do |entry|
+        [
+          "          - framework_version: \"#{entry.fetch(:framework_version)}\"",
+          "            gemfile: \"#{entry.fetch(:gemfile)}\"",
+        ].join("\n")
+      end.join("\n")
+      dimension = framework_matrix.fetch(:dimension)
+      label = dimension.split(/[-_]/).map { |part| part[0].to_s.upcase + part[1..].to_s }.join(" ")
+
+      <<~YAML
+        name: #{label} CI
+
+        permissions:
+          contents: read
+
+        on:
+          push:
+            branches:
+              - "#{ci.fetch(:default_branch)}"
+              - "*-stable"
+            tags:
+              - "!*" # Do not execute on tags
+          pull_request:
+            branches:
+              - "*"
+          workflow_dispatch:
+
+        concurrency:
+          group: "${{ github.workflow }}-${{ github.ref }}"
+          cancel-in-progress: true
+
+        jobs:
+          test:
+            if: "!contains(github.event.commits[0].message, '[ci skip]') && !contains(github.event.commits[0].message, '[skip ci]')"
+            name: Specs ${{ matrix.ruby }}@${{ matrix.framework_version }}
+            runs-on: ubuntu-latest
+            continue-on-error: ${{ endsWith(matrix.ruby, 'head') }}
+            env:
+              BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}
+            strategy:
+              fail-fast: false
+              matrix:
+                ruby:
+        #{ruby_matrix}
+                rubygems:
+                  - default
+                bundler:
+                  - default
+                include:
+        #{include_matrix}
+
+            steps:
+              - name: Checkout
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+              - name: Setup Ruby & RubyGems
+                uses: ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0
+                with:
+                  ruby-version: "${{ matrix.ruby }}"
+                  rubygems: "${{ matrix.rubygems }}"
+                  bundler: "${{ matrix.bundler }}"
+                  bundler-cache: true
+
+              - name: Tests for ${{ matrix.ruby }}@${{ matrix.framework_version }}
+                run: bundle exec rake test
       YAML
     end
 
