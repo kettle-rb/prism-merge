@@ -127,6 +127,22 @@ RSpec.describe TreeHaver do
     expect(json_ready(analysis.root.to_h)).to eq(json_ready(node_fixture))
   end
 
+  it "conforms to the slice-722 portable byte location contract fixture" do
+    fixture = diagnostics_fixture("portable_byte_location_contract")
+    byte_range = described_class::ByteRange.new(**fixture[:byte_range])
+    point = described_class::SourcePoint.new(**fixture[:source_point])
+    overlapping_range = described_class::ByteRange.new(**fixture.dig(:comparison_ranges, :overlapping))
+    disjoint_range = described_class::ByteRange.new(**fixture.dig(:comparison_ranges, :disjoint))
+
+    expect(byte_range.length).to eq(fixture.dig(:expected, :length))
+    expect(described_class.slice_byte_range(fixture[:source], byte_range)).to eq(fixture.dig(:expected, :slice))
+    expect(byte_range.contains_byte?(byte_range.start_byte)).to eq(fixture.dig(:expected, :contains_start))
+    expect(byte_range.contains_byte?(byte_range.end_byte)).to eq(fixture.dig(:expected, :contains_end))
+    expect(byte_range.overlaps?(overlapping_range)).to eq(fixture.dig(:expected, :overlaps))
+    expect(byte_range.overlaps?(disjoint_range)).to eq(fixture.dig(:expected, :disjoint))
+    expect(described_class.byte_offset_for_point(fixture[:source], point)).to eq(fixture.dig(:expected, :line_column_offset))
+  end
+
   it "conforms to the slice-100 process baseline fixture" do
     fixture = diagnostics_fixture("process_baseline")
     result = described_class.process_with_language_pack(

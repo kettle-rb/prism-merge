@@ -89,6 +89,83 @@ module TreeHaver
     end
   end
 
+  ByteRange = Struct.new(:start_byte, :end_byte, keyword_init: true) do
+    def valid?
+      start_byte.to_i >= 0 && end_byte.to_i >= start_byte.to_i
+    end
+
+    def length
+      valid? ? end_byte.to_i - start_byte.to_i : 0
+    end
+
+    def contains_byte?(offset)
+      valid? && offset.to_i >= start_byte.to_i && offset.to_i < end_byte.to_i
+    end
+
+    def contains_range?(other)
+      valid? && other.valid? && other.start_byte.to_i >= start_byte.to_i && other.end_byte.to_i <= end_byte.to_i
+    end
+
+    def overlaps?(other)
+      valid? && other.valid? && start_byte.to_i < other.end_byte.to_i && other.start_byte.to_i < end_byte.to_i
+    end
+
+    def to_h
+      {
+        start_byte: start_byte,
+        end_byte: end_byte
+      }
+    end
+  end
+
+  SourcePoint = Struct.new(:row, :column, keyword_init: true) do
+    def to_h
+      {
+        row: row,
+        column: column
+      }
+    end
+  end
+
+  SourceSpan = Struct.new(:range, :start_point, :end_point, keyword_init: true) do
+    def to_h
+      {
+        range: range.to_h,
+        start_point: start_point.to_h,
+        end_point: end_point.to_h
+      }
+    end
+  end
+
+  def self.slice_byte_range(source, byte_range)
+    source_bytesize = source.to_s.bytesize
+    unless byte_range.valid? && byte_range.end_byte.to_i <= source_bytesize
+      raise RangeError, "invalid byte range [#{byte_range.start_byte}, #{byte_range.end_byte}) for source length #{source_bytesize}"
+    end
+
+    source.to_s.byteslice(byte_range.start_byte.to_i...byte_range.end_byte.to_i)
+  end
+
+  def self.byte_offset_for_point(source, point)
+    raise RangeError, "invalid source point (#{point.row}, #{point.column})" if point.row.to_i.negative? || point.column.to_i.negative?
+
+    row = 0
+    column = 0
+    source.to_s.bytes.each_with_index do |byte, offset|
+      return offset if row == point.row.to_i && column == point.column.to_i
+
+      if byte == 10
+        row += 1
+        column = 0
+      else
+        column += 1
+      end
+    end
+    return source.to_s.bytesize if row == point.row.to_i && column == point.column.to_i
+
+    raise RangeError, "source point (#{point.row}, #{point.column}) is outside source"
+  end
+
   ProcessStructureItem = Struct.new(:kind, :name, :span, keyword_init: true) do
     def to_h
       {
