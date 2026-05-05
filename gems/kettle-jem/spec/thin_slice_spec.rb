@@ -205,12 +205,14 @@ RSpec.describe Kettle::Jem do
             configured_source: "README.md",
             selected_source: "template/README.md.no-osc.example",
             selection_reason: "opencollective_disabled_no_osc_variant",
+            apply: false,
           },
           {
             target_path: "FUNDING.md",
             configured_source: "FUNDING.md.example",
             selected_source: "template/FUNDING.md.example",
             selection_reason: "default_example_variant",
+            apply: false,
           },
         ]
       )
@@ -358,6 +360,76 @@ RSpec.describe Kettle::Jem do
       expect(plan.dig(:facts, :funding, :open_collective_org)).to eq("yaml-org")
       expect(plan.dig(:facts, :funding, :open_collective_org_source)).to eq(".opencollective.yml")
       expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/yaml-org")
+    end
+  end
+
+  it "applies selected template content with projected tokens when configured" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-template-application-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "README.md" => "# old\n",
+        ".opencollective.yml" => <<~YAML,
+          collective: yaml-org
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          # {KJ|OPENCOLLECTIVE_ORG}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(template_report.fetch(:changed)).to be(true)
+      expect(template_report.dig(:request_envelope, :request, :template_content)).to eq("# {KJ|OPENCOLLECTIVE_ORG}\n")
+      expect(template_report.fetch(:final_content)).to eq("# yaml-org\n")
+      expect(template_report.dig(:metadata, :template_tokens)).to eq("KJ|OPENCOLLECTIVE_ORG" => "yaml-org")
+
+      described_class.apply_project(root, env: {})
+      expect(File.read(File.join(root, "README.md"))).to eq("# yaml-org\n")
+    end
+  end
+
+  it "fails fast when template application leaves unresolved tokens" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-template-unresolved-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          # {KJ|UNKNOWN}
+        MARKDOWN
+      })
+
+      expect do
+        described_class.plan_project(root, env: {})
+      end.to raise_error(ArgumentError, /unresolved kettle-jem template tokens: \{KJ\|UNKNOWN\}/)
     end
   end
 end

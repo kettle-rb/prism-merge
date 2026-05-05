@@ -151,11 +151,12 @@ module Kettle
         )
       end
       facts.dig(:templates, :source_preferences).to_a.each do |preference|
+        apply_template = preference.fetch(:apply, false)
         recipe = recipe_entry(
-          "template_source_preference_#{workflow_recipe_slug(preference.fetch(:target_path))}",
+          "#{apply_template ? "template_source_application" : "template_source_preference"}_#{workflow_recipe_slug(preference.fetch(:target_path))}",
           preference.fetch(:target_path),
           "file",
-          "supplied_template_source_preference",
+          apply_template ? "supplied_template_source_application" : "supplied_template_source_preference",
           facts: %w[templates funding]
         )
         recipe[:template_preference] = preference
@@ -332,19 +333,22 @@ module Kettle
         synchronize_github_actions_workflow_snippets(original)
       when /\Atemplate_source_preference_/
         original
+      when /\Atemplate_source_application_/
+        apply_template_source(project_root, recipe)
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
         original
       end
 
+      template_content = recipe_template_content(project_root, recipe)
       request = content_recipe_execution_request(
         recipe_name: recipe.fetch(:primitive),
         recipe_version: "1",
         relative_path: relative_path,
         provider_family: recipe.fetch(:provider_family),
         provider_backend: recipe[:provider_backend],
-        template_content: "",
+        template_content: template_content,
         destination_content: original,
         steps: [content_recipe_step(recipe)],
         runtime_context: recipe_runtime_context(recipe, facts, deletion),
@@ -434,6 +438,17 @@ module Kettle
       end
     end
 
+    def recipe_template_content(project_root, recipe)
+      return "" unless %w[supplied_template_source_preference supplied_template_source_application].include?(recipe.fetch(:primitive))
+
+      path = File.join(project_root, recipe.fetch(:template_preference).fetch(:selected_source))
+      File.read(path)
+    end
+
+    def apply_template_source(project_root, recipe)
+      resolve_template_tokens(recipe_template_content(project_root, recipe), recipe.fetch(:template_tokens, {}))
+    end
+
     def recipe_report_metadata(recipe)
       metadata = { packaging_recipe: recipe.fetch(:name) }
       metadata[:delete_file] = true if delete_file_recipe?(recipe)
@@ -484,6 +499,14 @@ module Kettle
         metadata.merge!(
           policy_kind: "select_template_source",
           operation: "select",
+          template_source_preference: deep_dup(recipe.fetch(:template_preference)),
+        )
+        metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      end
+      if recipe.fetch(:primitive) == "supplied_template_source_application"
+        metadata.merge!(
+          policy_kind: "apply_template_source",
+          operation: "replace",
           template_source_preference: deep_dup(recipe.fetch(:template_preference)),
         )
         metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
@@ -698,6 +721,16 @@ module Kettle
       { "KJ|OPENCOLLECTIVE_ORG" => org }
     end
 
+    def resolve_template_tokens(content, tokens)
+      resolved = tokens.reduce(content.to_s) do |memo, (token, value)|
+        memo.gsub("{#{token}}", value.to_s)
+      end
+      unresolved = resolved.scan(/\{KJ\|[^}]+\}/).uniq.sort
+      return resolved if unresolved.empty?
+
+      raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.join(", ")}"
+    end
+
     def falsey_config?(value)
       %w[false no 0].include?(value.to_s.strip.downcase)
     end
@@ -710,12 +743,13 @@ module Kettle
       entries = templates["entries"]
       return [] unless entries.is_a?(Array)
 
+      apply_templates = templates["apply"] == true
       entries.filter_map do |entry|
-        template_source_preference(project_root, root, entry, opencollective_disabled: opencollective_disabled)
+        template_source_preference(project_root, root, entry, opencollective_disabled: opencollective_disabled, apply_templates: apply_templates)
       end
     end
 
-    def template_source_preference(project_root, template_root, entry, opencollective_disabled: false)
+    def template_source_preference(project_root, template_root, entry, opencollective_disabled: false, apply_templates: false)
       source_path, target_path = template_entry_paths(entry)
       return nil if source_path.to_s.empty? || target_path.to_s.empty?
 
@@ -727,6 +761,7 @@ module Kettle
         configured_source: source_path,
         selected_source: selected_source,
         selection_reason: template_source_selection_reason(source_path, selected_source),
+        apply: template_entry_apply?(entry, apply_templates),
       }
     end
 
@@ -739,6 +774,12 @@ module Kettle
         source_path = entry.to_s
         [source_path, source_path.sub(/\.example\z/, "")]
       end
+    end
+
+    def template_entry_apply?(entry, apply_templates)
+      return entry["apply"] == true if entry.is_a?(Hash) && entry.key?("apply")
+
+      apply_templates
     end
 
     def preferred_template_source(project_root, configured_source, opencollective_disabled: false)
