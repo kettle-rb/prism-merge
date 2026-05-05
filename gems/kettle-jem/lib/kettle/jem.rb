@@ -22,6 +22,14 @@ module Kettle
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
     README_TOP_LOGO_MODES = %w[org project org_and_project].freeze
+    README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
+    README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
+    README_SECTION_ALIASES = {
+      "summary" => "synopsis",
+      "usage" => "basic usage",
+      "configuration options" => "configuration",
+      "setup" => "basic usage",
+    }.freeze
     README_STATIC_TOP_LOGO_ROW = "[![Galtzo FLOSS Logo by Aboling0, CC BY-SA 4.0][🖼️galtzo-i]][🖼️galtzo-discord] [![ruby-lang Logo, Yukihiro Matsumoto, Ruby Visual Identity Team, CC BY-SA 2.5][🖼️ruby-lang-i]][🖼️ruby-lang]"
     README_STATIC_TOP_LOGO_REFS = [
       "[🖼️galtzo-i]: https://logos.galtzo.com/assets/images/galtzo-floss/avatar-192px.svg",
@@ -582,7 +590,16 @@ module Kettle
       content = recipe_template_content(project_root, recipe)
       return content if strategy == "raw_copy"
 
-      resolve_template_tokens(content, recipe.fetch(:template_tokens, {}))
+      resolved = resolve_template_tokens(content, recipe.fetch(:template_tokens, {}))
+      if recipe.fetch(:target_path) == "README.md" && (strategy.empty? || strategy == "merge")
+        return merge_readme_template(
+          template_content: resolved,
+          destination_content: original,
+          preserve_config: recipe.dig(:template_preference, :readme_preserve_config) || {}
+        )
+      end
+
+      resolved
     end
 
     def apply_kettle_config_bootstrap(project_root, recipe)
@@ -1419,6 +1436,136 @@ module Kettle
       %w[false no 0].include?(value.to_s.strip.downcase)
     end
 
+    def merge_readme_template(template_content:, destination_content:, preserve_config: {})
+      return template_content if destination_content.to_s.strip.empty?
+
+      preserved = preserve_readme_sections(template_content, destination_content, preserve_config)
+      preserve_readme_h1(preserved, destination_content)
+    end
+
+    def preserve_readme_sections(template_content, destination_content, preserve_config)
+      template_sections = markdown_sections(template_content)
+      destination_sections = markdown_sections(destination_content)
+      destination_lookup = destination_sections.to_h { |section| [section.fetch(:base), section] }
+      preserve_targets = readme_preserve_targets(template_sections, destination_lookup, preserve_config)
+      return template_content if preserve_targets.empty?
+
+      lines = template_content.split("\n", -1)
+      template_sections.reverse_each do |section|
+        next unless preserve_targets.include?(section.fetch(:base))
+
+        destination_section = destination_lookup[section.fetch(:base)] ||
+          aliased_readme_destination_section(section.fetch(:base), destination_lookup, preserve_config)
+        next unless destination_section
+
+        replacement = "#{section.fetch(:heading)}\n#{destination_section.fetch(:body)}".split("\n", -1)
+        lines[section.fetch(:start)..section.fetch(:end)] = replacement
+      end
+      lines.join("\n")
+    end
+
+    def preserve_readme_h1(merged_content, destination_content)
+      merged_h1 = markdown_sections(merged_content).find { |section| section.fetch(:level) == 1 }
+      destination_h1 = markdown_sections(destination_content).find { |section| section.fetch(:level) == 1 }
+      return merged_content unless merged_h1 && destination_h1
+      return merged_content if semantic_readme_heading(destination_h1.fetch(:heading_text)) == semantic_readme_heading(merged_h1.fetch(:heading_text))
+
+      lines = merged_content.split("\n", -1)
+      lines[merged_h1.fetch(:start)] = destination_h1.fetch(:heading)
+      lines.join("\n")
+    end
+
+    def markdown_sections(content)
+      lines = content.to_s.split("\n", -1)
+      headings = []
+      in_fence = false
+      fence_marker = nil
+      lines.each_with_index do |line, index|
+        stripped = line.lstrip
+        if in_fence
+          if stripped.match?(/\A#{Regexp.escape(fence_marker)}\s*\z/)
+            in_fence = false
+            fence_marker = nil
+          end
+          next
+        end
+        if (fence = stripped.match(/\A(`{3,}|~{3,})/))
+          in_fence = true
+          fence_marker = fence[1]
+          next
+        end
+        next unless (heading = line.match(/\A(\#{1,6})\s+(.+?)\s*#*\s*\z/))
+
+        headings << {
+          start: index,
+          level: heading[1].length,
+          heading: line,
+          heading_text: heading[2],
+          base: normalize_readme_heading(heading[2]),
+        }
+      end
+
+      headings.each_with_index.map do |heading, index|
+        following = headings[(index + 1)..].to_a.find { |candidate| candidate.fetch(:level) <= heading.fetch(:level) }
+        branch_end = following ? following.fetch(:start) - 1 : lines.length - 1
+        body = (lines[(heading.fetch(:start) + 1)..branch_end] || []).join("\n")
+        heading.merge(end: branch_end, body: body)
+      end
+    end
+
+    def readme_preserve_targets(template_sections, destination_lookup, preserve_config)
+      sections = Array(preserve_config[:sections]).map { |section| normalize_readme_heading(section) }
+      sections = README_DEFAULT_PRESERVE_SECTIONS.dup if sections.empty?
+      patterns = Array(preserve_config[:patterns]).map { |pattern| pattern.to_s.strip.downcase }
+      patterns = README_DEFAULT_PRESERVE_PATTERNS.dup if patterns.empty?
+      aliases = preserve_config[:aliases] || README_SECTION_ALIASES
+      targets = sections.dup
+      template_sections.each do |section|
+        base = section.fetch(:base)
+        targets << base if patterns.any? { |pattern| File.fnmatch?(pattern, base, File::FNM_PATHNAME) }
+      end
+      aliases.each do |from, to|
+        targets << to if destination_lookup.key?(from) && targets.include?(to)
+      end
+      targets.uniq
+    end
+
+    def aliased_readme_destination_section(template_base, destination_lookup, preserve_config)
+      aliases = preserve_config[:aliases] || README_SECTION_ALIASES
+      aliases.each do |from, to|
+        return destination_lookup[from] if to == template_base && destination_lookup.key?(from)
+      end
+      nil
+    end
+
+    def readme_preserve_config(config)
+      readme = config["readme"]
+      return {} unless readme.is_a?(Hash)
+
+      result = {}
+      result[:sections] = Array(readme["preserve_sections"]) if readme.key?("preserve_sections")
+      result[:patterns] = Array(readme["preserve_patterns"]) if readme.key?("preserve_patterns")
+      if readme["section_aliases"].is_a?(Hash)
+        result[:aliases] = README_SECTION_ALIASES.merge(
+          readme["section_aliases"].transform_keys { |key| normalize_readme_heading(key) }
+                                   .transform_values { |value| normalize_readme_heading(value) }
+        )
+      end
+      result
+    end
+
+    def normalize_readme_heading(text)
+      strip_readme_heading_adornment(text).strip.downcase
+    end
+
+    def semantic_readme_heading(text)
+      strip_readme_heading_adornment(text).downcase.gsub(/[^\p{Alnum}\s]/u, "").squeeze(" ").strip
+    end
+
+    def strip_readme_heading_adornment(text)
+      text.to_s.sub(/\A(?:\d\uFE0F?\u20E3|[^[:alnum:][:space:]])+[ \t]*/u, "")
+    end
+
     def template_source_preferences(project_root, config, opencollective_disabled: false)
       templates = config["templates"]
       return [] unless templates.is_a?(Hash)
@@ -1532,6 +1679,8 @@ module Kettle
         apply: template_entry_apply?(entry, apply_templates),
       }
       preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
+      preserve_config = readme_preserve_config(config)
+      preference[:readme_preserve_config] = preserve_config if target_path == "README.md" && !preserve_config.empty?
       if template_root.fetch(:kind) == "packaged"
         preference[:source_relative_path] = selected_source
         preference[:source_root] = template_root.fetch(:kind)

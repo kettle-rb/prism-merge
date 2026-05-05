@@ -385,6 +385,9 @@ RSpec.describe Kettle::Jem do
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
+          files:
+            README.md:
+              strategy: accept_template
           templates:
             root: template
             apply: true
@@ -632,6 +635,100 @@ RSpec.describe Kettle::Jem do
       expect(envrc).to include(selected_source: ".envrc.no-osc.example")
       expect(env_local).to include(configured_source: ".env.local", selected_source: ".env.local.example")
       expect(gemspec).to include(configured_source: "gem.gemspec", selected_source: "gem.gemspec.example")
+    end
+  end
+
+  it "preserves configured README sections during merge template application" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-merge-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          readme:
+            preserve_sections:
+              - synopsis
+              - basic usage
+              - custom section
+            preserve_patterns:
+              - "note:*"
+            section_aliases:
+              usage: basic usage
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "README.md" => <<~MARKDOWN,
+          # 1️⃣ Example
+
+          ## Synopsis
+
+          Destination synopsis.
+
+          ## Usage
+
+          Destination usage.
+
+          ## Custom Section
+
+          Destination custom.
+
+          ## Note: Local
+
+          Destination note.
+
+          ## Installation
+
+          Old install.
+        MARKDOWN
+        "template/README.md.example" => <<~MARKDOWN,
+          # 💎 Example
+
+          ## 🌻 Synopsis
+
+          Template synopsis.
+
+          ## 🔧 Basic Usage
+
+          Template usage.
+
+          ## Custom Section
+
+          Template custom.
+
+          ## Note: Local
+
+          Template note.
+
+          ## Installation
+
+          Template install.
+        MARKDOWN
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      readme_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      final_content = readme_report.fetch(:final_content)
+      expect(final_content).to include("# 💎 Example")
+      expect(final_content).to include("## 🌻 Synopsis\n\nDestination synopsis.")
+      expect(final_content).to include("## 🔧 Basic Usage\n\nDestination usage.")
+      expect(final_content).to include("## Custom Section\n\nDestination custom.")
+      expect(final_content).to include("## Note: Local\n\nDestination note.")
+      expect(final_content).to include("## Installation\n\nTemplate install.")
+      expect(final_content).not_to include("Template synopsis.")
+      expect(final_content).not_to include("Template usage.")
+      expect(final_content).not_to include("Template custom.")
+      expect(final_content).not_to include("Template note.")
+      expect(File.read(File.join(root, "README.md"))).to eq(final_content)
     end
   end
 
