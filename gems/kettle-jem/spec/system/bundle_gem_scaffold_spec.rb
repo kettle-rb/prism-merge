@@ -184,5 +184,11 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(rakefile.index('desc "Default tasks aggregator"')).to be < rakefile.index("task :default do")
     expect(rakefile.scan('task("kettle:jem:selftest")').size).to eq(1)
     expect(rakefile.scan('task("build:generate_checksums")').size).to eq(1)
+
+    second_apply = Kettle::Jem.apply_project(gem_root, env: env)
+    expect(second_apply.fetch(:changed_files)).not_to include(
+      ".github/dependabot.yml",
+      "Gemfile"
+    )
   end
 end
