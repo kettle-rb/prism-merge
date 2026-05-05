@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "token/resolver"
 require "yaml"
 require "ast/merge"
 require_relative "jem/version"
@@ -14,6 +15,7 @@ module Kettle
     OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
+    TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
 
     module_function
 
@@ -736,13 +738,17 @@ module Kettle
     end
 
     def resolve_template_tokens(content, tokens)
-      resolved = tokens.reduce(content.to_s) do |memo, (token, value)|
-        memo.gsub("{#{token}}", value.to_s)
-      end
-      unresolved = resolved.scan(/\{KJ\|[^}]+\}/).uniq.sort
+      resolver = Token::Resolver::Resolve.new(on_missing: :keep)
+      document = Token::Resolver::Document.new(content.to_s, config: TEMPLATE_TOKEN_CONFIG)
+      resolved = resolver.resolve(document, stringify_template_tokens(tokens))
+      unresolved = Token::Resolver::Document.new(resolved, config: TEMPLATE_TOKEN_CONFIG).token_keys.grep(/\AKJ\|/).sort
       return resolved if unresolved.empty?
 
-      raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.join(", ")}"
+      raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.map { |token| "{#{token}}" }.join(", ")}"
+    end
+
+    def stringify_template_tokens(tokens)
+      tokens.to_h.transform_keys(&:to_s).transform_values(&:to_s)
     end
 
     def falsey_config?(value)
