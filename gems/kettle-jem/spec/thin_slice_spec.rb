@@ -732,6 +732,111 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "merges YAML and TOML template applications with destination values" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-merge-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          files:
+            config:
+              explicit.yml:
+                strategy: merge
+                file_type: yaml
+          templates:
+            root: template
+            apply: true
+            entries:
+              - config/settings.yml
+              - config/tool.toml
+              - config/explicit.yml
+        YAML
+        "config/settings.yml" => <<~YAML,
+          engines:
+            - ruby
+          nested:
+            value: destination
+          version: 1
+        YAML
+        "config/tool.toml" => <<~TOML,
+          title = "destination"
+
+          [settings]
+          retries = 1
+        TOML
+        "config/explicit.yml" => <<~YAML,
+          destination_only: keep
+          nested:
+            value: destination
+        YAML
+        "template/config/settings.yml.example" => <<~YAML,
+          engines:
+            - ruby
+            - jruby
+          nested:
+            template_only: true
+            value: template
+          version: 2
+        YAML
+        "template/config/tool.toml.example" => <<~TOML,
+          title = "template"
+
+          [settings]
+          retries = 3
+          timeout = 30
+        TOML
+        "template/config/explicit.yml.example" => <<~YAML,
+          nested:
+            value: template
+            template_only: true
+          template_only: added
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      yaml_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_config_settings_yml"
+      end
+      toml_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_config_tool_toml"
+      end
+      explicit_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_config_explicit_yml"
+      end
+
+      expect(YAML.safe_load(yaml_report.fetch(:final_content))).to eq(
+        "engines" => ["ruby"],
+        "nested" => {
+          "template_only" => true,
+          "value" => "destination",
+        },
+        "version" => 1
+      )
+      expect(toml_report.fetch(:final_content)).to eq(<<~TOML)
+        title = "destination"
+
+        [settings]
+        retries = 1
+        timeout = 30
+      TOML
+      expect(YAML.safe_load(explicit_report.fetch(:final_content))).to eq(
+        "destination_only" => "keep",
+        "nested" => {
+          "template_only" => true,
+          "value" => "destination",
+        },
+        "template_only" => "added"
+      )
+      expect(explicit_report.dig(:metadata, :template_source_preference)).to include(file_type: "yaml")
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

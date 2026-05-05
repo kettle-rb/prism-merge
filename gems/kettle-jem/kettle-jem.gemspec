@@ -25,4 +25,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "ast-merge", "= #{Kettle::Jem::VERSION}"
   spec.add_dependency "token-resolver", "~> 1.0", ">= 1.0.2"
+  spec.add_dependency "toml-merge", "= #{Kettle::Jem::VERSION}"
+  spec.add_dependency "yaml-merge", "= #{Kettle::Jem::VERSION}"
 end

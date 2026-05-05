@@ -3,7 +3,9 @@
 require "fileutils"
 require "find"
 require "token/resolver"
+require "toml-merge"
 require "yaml"
+require "yaml/merge"
 require "ast/merge"
 require_relative "jem/version"
 
@@ -18,6 +20,7 @@ module Kettle
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[yaml toml markdown text].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
@@ -598,8 +601,41 @@ module Kettle
           preserve_config: recipe.dig(:template_preference, :readme_preserve_config) || {}
         )
       end
+      return merge_config_template_source(recipe, resolved, original) if strategy.empty? || strategy == "merge"
 
       resolved
+    end
+
+    def merge_config_template_source(recipe, template_content, destination_content)
+      file_type = template_file_type(recipe)
+      return template_content if destination_content.to_s.strip.empty?
+
+      case file_type
+      when :yaml
+        merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
+      when :toml
+        merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
+      else
+        return template_content
+      end
+      return merge_result.fetch(:output) if merge_result[:ok]
+
+      diagnostics = merge_result.fetch(:diagnostics, [])
+      message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
+      raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def template_file_type(recipe)
+      configured = recipe.dig(:template_preference, :file_type).to_s
+      return configured.to_sym unless configured.empty?
+
+      relative_path = recipe.fetch(:target_path).to_s
+      extension = File.extname(relative_path).downcase
+      return :yaml if extension.match?(/\A\.ya?ml\z/) || File.basename(relative_path).casecmp("citation.cff").zero?
+      return :toml if extension == ".toml"
+      return :markdown if extension.match?(/\A\.md(?:own)?\z/)
+
+      :text
     end
 
     def apply_kettle_config_bootstrap(project_root, recipe)
@@ -1679,6 +1715,7 @@ module Kettle
         apply: template_entry_apply?(entry, apply_templates),
       }
       preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
+      preference[:file_type] = strategy_config.fetch(:file_type).to_s if strategy_config&.key?(:file_type)
       preserve_config = readme_preserve_config(config)
       preference[:readme_preserve_config] = preserve_config if target_path == "README.md" && !preserve_config.empty?
       if template_root.fetch(:kind) == "packaged"
@@ -1727,6 +1764,12 @@ module Kettle
 
       result = { strategy: strategy }
       result[:path] = path if path
+      if entry.key?("file_type")
+        file_type = entry["file_type"].to_s.strip.downcase.tr("-", "_").to_sym
+        raise ArgumentError, "unknown kettle-jem template file_type: #{entry["file_type"]}" unless SUPPORTED_TEMPLATE_FILE_TYPES.include?(file_type)
+
+        result[:file_type] = file_type
+      end
       if strategy == :merge
         defaults = config["defaults"].is_a?(Hash) ? config["defaults"] : {}
         result[:preference] = (entry.key?("preference") ? entry["preference"] : defaults["preference"]).to_s if entry.key?("preference") || defaults.key?("preference")
