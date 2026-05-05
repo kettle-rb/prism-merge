@@ -76,6 +76,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
           - README.md
           - .github/dependabot.yml
           - Gemfile
+          - Rakefile
           - gemfiles/modular/style.gemfile
     YAML
     File.write(path, content)
@@ -137,6 +138,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(apply.fetch(:changed_files)).to include(
       ".github/dependabot.yml",
       "Gemfile",
+      "Rakefile",
       "README.md",
       "gemfiles/modular/style.gemfile"
     )
@@ -174,6 +176,13 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(gemfile.scan('eval_gemfile "gemfiles/modular/style.gemfile"').size).to eq(1)
     expect(gemfile).to include('gem "irb"')
 
-    expect(File.read(File.join(gem_root, "Rakefile"))).not_to include("bundler/gem_tasks")
+    rakefile = File.read(File.join(gem_root, "Rakefile"))
+    expect(rakefile).to include('require "bundler/gem_tasks"')
+    expect(rakefile).to include('require "kettle/dev"')
+    expect(rakefile.scan(/^task\s+:default\b/).size).to eq(1)
+    expect(rakefile).to include('desc "Default tasks aggregator"')
+    expect(rakefile.index('desc "Default tasks aggregator"')).to be < rakefile.index("task :default do")
+    expect(rakefile.scan('task("kettle:jem:selftest")').size).to eq(1)
+    expect(rakefile.scan('task("build:generate_checksums")').size).to eq(1)
   end
 end

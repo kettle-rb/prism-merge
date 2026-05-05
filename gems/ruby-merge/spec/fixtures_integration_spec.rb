@@ -153,6 +153,88 @@ RSpec.describe "Ruby::Merge" do
     expect(rakefile_merge[:output]).to include('puts "destination"')
     expect(rakefile_merge[:output]).to include("task :ci")
 
+    relocated_rakefile_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        # Define a base default task early so other files can enhance it.
+        desc "Default tasks aggregator"
+        task :default do
+          puts "Default task complete."
+        end
+
+        # External gems that define tasks - add here!
+        require "kettle/dev"
+      RUBY
+      <<~RUBY,
+        # Define a base default task early so other files can enhance it.
+        desc "Default tasks aggregator"
+        # External gems that define tasks - add here!
+        require "kettle/dev"
+
+        task :default do
+          # :nocov:
+          puts "Default task complete."
+          # :nocov:
+        end
+      RUBY
+      "ruby"
+    )
+    expect(relocated_rakefile_merge[:ok]).to be(true)
+    expect(relocated_rakefile_merge[:output].scan(/task\s+:default/).size).to eq(1)
+    expect(relocated_rakefile_merge[:output].scan("# :nocov:").size).to eq(2)
+    expect(relocated_rakefile_merge[:output]).to include('desc "Default tasks aggregator"')
+    expect(relocated_rakefile_merge[:output]).to include(<<~RUBY)
+      task :default do
+        # :nocov:
+        puts "Default task complete."
+        # :nocov:
+      end
+    RUBY
+    expect(relocated_rakefile_merge[:output].index('desc "Default tasks aggregator"')).to be <
+      relocated_rakefile_merge[:output].index("task :default do")
+
+    rescue_task_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        begin
+          require "kettle/jem"
+        rescue LoadError
+          desc("(stub) kettle:jem:selftest is unavailable")
+          task("kettle:jem:selftest") do
+            warn("NOTE: not installed")
+          end
+        end
+      RUBY
+      <<~RUBY,
+        begin
+          require "kettle/jem"
+        rescue LoadError
+          # :nocov:
+          desc("(stub) kettle:jem:selftest is unavailable")
+          task("kettle:jem:selftest") do
+            warn("NOTE: not installed")
+          end
+          # :nocov:
+        end
+      RUBY
+      "ruby"
+    )
+    expect(rescue_task_merge[:ok]).to be(true)
+    expect(rescue_task_merge[:output].scan('task("kettle:jem:selftest")').size).to eq(1)
+    expect(rescue_task_merge[:output].scan("# :nocov:").size).to eq(2)
+
+    rakefile_require_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        require "kettle/dev"
+      RUBY
+      <<~RUBY,
+        require "bundler/setup"
+      RUBY
+      "ruby",
+      merge_template_requires: true
+    )
+    expect(rakefile_require_merge[:ok]).to be(true)
+    expect(rakefile_require_merge[:output]).to include('require "bundler/setup"')
+    expect(rakefile_require_merge[:output]).to include('require "kettle/dev"')
+
     surfaces_analysis = RUBY_MERGE.parse_ruby(surfaces_fixture[:source], "ruby")
     expect(surfaces_analysis[:ok]).to be(true)
     expect(json_ready(RUBY_MERGE.ruby_discovered_surfaces(surfaces_analysis[:analysis]))).to eq(

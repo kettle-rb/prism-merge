@@ -616,7 +616,12 @@ module Kettle
 
       case file_type
       when :ruby, :gemfile, :appraisals, :gemspec, :rakefile
-        merge_result = Ruby::Merge.merge_ruby(template_content, destination_content, "ruby")
+        merge_result = Ruby::Merge.merge_ruby(
+          template_content,
+          destination_content,
+          "ruby",
+          merge_template_requires: file_type == :rakefile
+        )
       when :yaml
         merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
       when :toml
