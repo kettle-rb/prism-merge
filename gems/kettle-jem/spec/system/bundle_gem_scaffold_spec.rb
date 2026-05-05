@@ -246,6 +246,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
       ".qlty/qlty.toml",
       "Gemfile",
       "certs/pboling.pem",
+      "dummy-gem.gemspec",
       "gemfiles/modular/style.gemfile",
     ]
     before_second_apply = selected_template_paths.to_h do |relative_path|
