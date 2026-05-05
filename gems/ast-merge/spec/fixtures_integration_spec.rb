@@ -85,6 +85,10 @@ RSpec.describe Ast::Merge do
     end
   end
 
+  def ruleset_fixture_paths
+    fixtures_root.join("rulesets").find.select { |path| path.file? && path.extname == ".smrules" }
+  end
+
   def repo_temp_dir
     root = Pathname(__dir__).join("..", "..", "tmp").expand_path
     root.mkpath
@@ -118,6 +122,32 @@ RSpec.describe Ast::Merge do
       configuration_error
       replay_rejected
     ]).to eq(fixture[:categories])
+  end
+
+  it "parses shared compact ruleset fixtures" do
+    paths = ruleset_fixture_paths
+    expect(paths).not_to be_empty
+
+    paths.each do |path|
+      result = described_class.parse_compact_ruleset(path.read)
+      expect(result[:ok]).to be(true), "#{path}: #{result[:diagnostics].inspect}"
+      expect(result.dig(:analysis, :directives)).not_to be_empty
+    end
+  end
+
+  it "rejects malformed compact ruleset edges" do
+    cases = {
+      "missing-required" => "format json\nowners line_bound_statements\nmatch stable_path\nread native_read_portable_write\n",
+      "repeated-format" => "format json\nformat yaml\nowners line_bound_statements\nmatch stable_path\nread native_read_portable_write\nattach layout_only\n",
+      "unknown-read" => "format json\nowners line_bound_statements\nmatch stable_path\nread imaginary\nattach layout_only\n",
+      "unknown-directive" => "format json\nowners line_bound_statements\nmatch stable_path\nread native_read_portable_write\nattach layout_only\nmystery value\n"
+    }
+
+    cases.each do |name, source|
+      result = described_class.parse_compact_ruleset(source)
+      expect(result[:ok]).to be(false), name
+      expect(result[:diagnostics]).not_to be_empty
+    end
   end
 
   it "conforms to the shared policy vocabulary and reporting fixtures" do
