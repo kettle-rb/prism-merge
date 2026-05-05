@@ -143,6 +143,7 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "example"
             spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
@@ -253,6 +254,7 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "example"
             spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
           end
         RUBY
         ".github/FUNDING.yml" => <<~YAML,
@@ -377,6 +379,7 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "example"
             spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
@@ -395,6 +398,7 @@ RSpec.describe Kettle::Jem do
 
           Namespace: {KJ|NAMESPACE}
           Path: {KJ|GEM_NAME_PATH}
+          Ruby: {KJ|MIN_RUBY}
           Funding: {KJ|OPENCOLLECTIVE_ORG}
         MARKDOWN
       })
@@ -410,11 +414,13 @@ RSpec.describe Kettle::Jem do
 
         Namespace: Example
         Path: example
+        Ruby: 3.2
         Funding: yaml-org
       MARKDOWN
       expect(template_report.dig(:metadata, :template_tokens)).to include(
         "KJ|GEM_NAME" => "example",
         "KJ|GEM_NAME_PATH" => "example",
+        "KJ|MIN_RUBY" => "3.2",
         "KJ|NAMESPACE" => "Example",
         "KJ|OPENCOLLECTIVE_ORG" => "yaml-org"
       )

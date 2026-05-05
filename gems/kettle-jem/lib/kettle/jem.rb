@@ -723,11 +723,16 @@ module Kettle
         "KJ|GEM_NAME" => package.fetch(:name).to_s,
         "KJ|GEM_NAME_PATH" => package.fetch(:name).to_s.tr("-", "/"),
         "KJ|NAMESPACE" => rubygems.fetch(:namespace).to_s,
+        "KJ|MIN_RUBY" => minimum_ruby_token(rubygems[:min_ruby]),
       }
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
 
       tokens.reject { |_, value| value.empty? }
+    end
+
+    def minimum_ruby_token(requirement)
+      requirement.to_s[/\d+(?:\.\d+){1,2}/].to_s
     end
 
     def resolve_template_tokens(content, tokens)
