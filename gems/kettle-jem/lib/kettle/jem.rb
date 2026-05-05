@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "find"
 require "token/resolver"
 require "yaml"
 require "ast/merge"
@@ -1423,8 +1424,8 @@ module Kettle
       return [] unless templates.is_a?(Hash)
 
       root = template_root(project_root, templates)
-      entries = templates["entries"]
-      return [] unless entries.is_a?(Array)
+      entries = template_entries(project_root, root, templates)
+      return [] if entries.empty?
 
       apply_templates = templates["apply"] == true
       entries.filter_map do |entry|
@@ -1437,6 +1438,46 @@ module Kettle
           apply_templates: apply_templates
         )
       end
+    end
+
+    def template_entries(project_root, root, templates)
+      return templates["entries"] if templates["entries"].is_a?(Array)
+      return [] if templates.key?("entries")
+
+      template_inventory_entries(project_root, root.fetch(:path))
+    end
+
+    def template_inventory_entries(project_root, template_root_path)
+      logical_paths = []
+      Find.find(template_root_path) do |path|
+        next if File.directory?(path)
+
+        relative_path = path.delete_prefix("#{template_root_path}/")
+        logical_path = relative_path
+          .sub(/\.no-osc\.example\z/, "")
+          .sub(/\.example\z/, "")
+        logical_paths << logical_path unless logical_path.empty?
+      end
+
+      logical_paths.uniq.sort.map do |logical_path|
+        target_path = template_inventory_target_path(project_root, logical_path)
+        if target_path == logical_path
+          logical_path
+        else
+          { "source" => logical_path, "target" => target_path }
+        end
+      end
+    end
+
+    def template_inventory_target_path(project_root, logical_path)
+      return ".env.local.example" if logical_path == ".env.local"
+
+      if logical_path.end_with?(".gemspec")
+        existing_gemspec = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
+        return File.basename(existing_gemspec) if existing_gemspec
+      end
+
+      logical_path
     end
 
     def kettle_config_bootstrap_facts(project_root, env)

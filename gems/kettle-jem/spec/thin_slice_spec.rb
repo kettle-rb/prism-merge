@@ -592,6 +592,49 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "plans packaged template inventory when entries are omitted" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-template-inventory-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          funding:
+            open_collective: false
+          patterns:
+            - path: "certs/**"
+              strategy: raw_copy
+          files:
+            AGENTS.md:
+              strategy: accept_template
+          templates:
+            root: packaged
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      preferences = plan.dig(:facts, :templates, :source_preferences)
+      expect(preferences.size).to be > 100
+
+      agents = preferences.find { |preference| preference.fetch(:target_path) == "AGENTS.md" }
+      cert = preferences.find { |preference| preference.fetch(:target_path) == "certs/pboling.pem" }
+      envrc = preferences.find { |preference| preference.fetch(:target_path) == ".envrc" }
+      env_local = preferences.find { |preference| preference.fetch(:target_path) == ".env.local.example" }
+      gemspec = preferences.find { |preference| preference.fetch(:target_path) == "example.gemspec" }
+
+      expect(agents).to include(selected_source: "AGENTS.md.example", strategy: "accept_template")
+      expect(cert).to include(selected_source: "certs/pboling.pem.example", strategy: "raw_copy")
+      expect(envrc).to include(selected_source: ".envrc.no-osc.example")
+      expect(env_local).to include(configured_source: ".env.local", selected_source: ".env.local.example")
+      expect(gemspec).to include(configured_source: "gem.gemspec", selected_source: "gem.gemspec.example")
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
