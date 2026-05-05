@@ -24,8 +24,19 @@ RSpec.describe Kettle::Jem do
 
   let(:fixture_path) { Pathname(__dir__).join("fixtures/thin_slice.json") }
   let(:fixture) { JSON.parse(fixture_path.read, symbolize_names: true) }
+  let(:contract_path) do
+    Pathname(__dir__).join("../../../../fixtures/packaging/thin-slice-contract.json").expand_path
+  end
+  let(:contract) { JSON.parse(contract_path.read, symbolize_names: true) }
 
   it "plans and applies the RubyGems thin vertical slice" do
+    expected_recipe_names = contract.fetch(:canonical_recipes).map { |recipe| recipe.fetch(:name).to_s }
+    expect(contract.fetch(:validated_ecosystems)).to include(fixture.fetch(:ecosystem))
+    expect(fixture.fetch(:expected).fetch(:facts).keys).to include(
+      *contract.fetch(:required_fact_groups).map(&:to_sym),
+      contract.fetch(:ecosystem_fact_groups).fetch(:rubygems).to_sym
+    )
+
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
     Dir.mktmpdir("kettle-jem-thin-slice", tmp_root) do |root|
@@ -33,14 +44,14 @@ RSpec.describe Kettle::Jem do
 
       plan = described_class.plan_project(root)
       expect(json_ready(plan[:facts])).to eq(json_ready(fixture.fetch(:expected).fetch(:facts)))
-      expect(plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }).to eq(%w[
-        readme_metadata
-        changelog_unreleased
-        generated_block_sync
-      ])
+      expect(plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }).to eq(expected_recipe_names)
       expect(plan[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
-      expect(plan[:recipe_reports].map { |report| report[:request_envelope][:kind] }.uniq).to eq(["content_recipe_execution_request"])
-      expect(plan[:recipe_reports].map { |report| report[:report_envelope][:kind] }.uniq).to eq(["content_recipe_execution_report"])
+      expect(plan[:recipe_reports].map { |report| report[:request_envelope][:kind] }.uniq).to eq(
+        [contract.fetch(:report_contract).fetch(:request_envelope_kind)]
+      )
+      expect(plan[:recipe_reports].map { |report| report[:report_envelope][:kind] }.uniq).to eq(
+        [contract.fetch(:report_contract).fetch(:report_envelope_kind)]
+      )
 
       apply = described_class.apply_project(root)
       expect(apply[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
