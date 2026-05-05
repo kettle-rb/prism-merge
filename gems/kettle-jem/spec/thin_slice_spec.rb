@@ -42,7 +42,7 @@ RSpec.describe Kettle::Jem do
     Dir.mktmpdir("kettle-jem-thin-slice", tmp_root) do |root|
       write_tree(root, fixture.fetch(:inputs).fetch(:files))
 
-      plan = described_class.plan_project(root)
+      plan = described_class.plan_project(root, env: {})
       expect(json_ready(plan[:facts])).to eq(json_ready(fixture.fetch(:expected).fetch(:facts)))
       recipe_names = plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }
       expect(recipe_names.take(expected_recipe_names.length)).to eq(expected_recipe_names)
@@ -95,7 +95,7 @@ RSpec.describe Kettle::Jem do
         ".github/workflows/ancient.yml"
       )
 
-      apply = described_class.apply_project(root)
+      apply = described_class.apply_project(root, env: {})
       expect(apply[:changed_files]).to eq(fixture.fetch(:expected).fetch(:changed_files))
       expect(project_files(root, fixture.fetch(:expected).fetch(:files).keys.map(&:to_s))).to eq(fixture.fetch(:expected).fetch(:files))
     end
@@ -122,7 +122,7 @@ RSpec.describe Kettle::Jem do
         YAML
       })
 
-      plan = described_class.plan_project(root)
+      plan = described_class.plan_project(root, env: {})
       coverage_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_coverage_ci" }
       expect(coverage_report.dig(:request_envelope, :request, :provider_family)).to eq("yaml")
       expect(coverage_report.fetch(:relative_path)).to eq(".github/workflows/coverage.yml")
@@ -187,8 +187,9 @@ RSpec.describe Kettle::Jem do
         MARKDOWN
       })
 
-      plan = described_class.plan_project(root)
+      plan = described_class.plan_project(root, env: {})
       expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be(true)
+      expect(plan.dig(:facts, :funding, :open_collective_disabled_source)).to eq("config.funding.open_collective")
       expect(plan.dig(:facts, :funding, :open_collective_files)).to eq(
         [".opencollective.yml", ".github/workflows/opencollective.yml"]
       )
@@ -234,10 +235,65 @@ RSpec.describe Kettle::Jem do
       )
       expect(open_collective_reports).to all(satisfy { |report| report.fetch(:metadata).fetch(:delete_file) == true })
 
-      apply = described_class.apply_project(root)
+      apply = described_class.apply_project(root, env: {})
       expect(apply[:changed_files]).to include(".opencollective.yml", ".github/workflows/opencollective.yml")
       expect(File).not_to exist(File.join(root, ".opencollective.yml"))
       expect(File).not_to exist(File.join(root, ".github/workflows/opencollective.yml"))
+    end
+  end
+
+  it "honors falsey Open Collective environment variables when config is absent" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-opencollective-env-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".github/FUNDING.yml" => <<~YAML,
+          github: [example]
+          open_collective: example
+        YAML
+        ".opencollective.yml" => <<~YAML,
+          collective: example
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: { "OPENCOLLECTIVE_HANDLE" => "NO" })
+      expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be(true)
+      expect(plan.dig(:facts, :funding, :open_collective_disabled_source)).to eq("env.OPENCOLLECTIVE_HANDLE")
+      expect(plan.dig(:facts, :funding, :urls)).not_to include("https://opencollective.com/example")
+      expect(plan[:changed_files]).to include(".opencollective.yml")
+    end
+  end
+
+  it "lets explicit Open Collective config override falsey environment variables" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-opencollective-config-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          funding:
+            open_collective: true
+        YAML
+        ".github/FUNDING.yml" => <<~YAML,
+          github: [example]
+          open_collective: example
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: { "FUNDING_ORG" => "0" })
+      expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be_nil
+      expect(plan.dig(:facts, :funding, :urls)).to include("https://opencollective.com/example")
     end
   end
 end

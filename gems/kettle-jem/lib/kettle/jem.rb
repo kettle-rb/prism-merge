@@ -17,7 +17,7 @@ module Kettle
 
     module_function
 
-    def discover_facts(project_root)
+    def discover_facts(project_root, env: ENV)
       gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
       raise ArgumentError, "no gemspec found in #{project_root}" unless gemspec_path
 
@@ -44,9 +44,11 @@ module Kettle
         ),
       }
       kettle_config = kettle_jem_config(project_root)
-      opencollective_disabled = opencollective_disabled?(kettle_config)
+      opencollective_policy = opencollective_policy(kettle_config, env)
+      opencollective_disabled = opencollective_policy.fetch(:disabled)
       funding = compact_hash(urls: funding_urls(project_root, gemspec, name, opencollective_disabled: opencollective_disabled))
       funding[:open_collective_disabled] = true if opencollective_disabled
+      funding[:open_collective_disabled_source] = opencollective_policy[:source] if opencollective_disabled
       open_collective_files = opencollective_disabled ? opencollective_disabled_files(project_root) : []
       funding[:open_collective_files] = open_collective_files unless open_collective_files.empty?
       facts[:funding] = funding unless funding.empty?
@@ -160,8 +162,8 @@ module Kettle
       }
     end
 
-    def plan_project(project_root)
-      facts = discover_facts(project_root)
+    def plan_project(project_root, env: ENV)
+      facts = discover_facts(project_root, env: env)
       pack = recipe_pack(facts)
       files = read_project_files(project_root, pack)
       recipe_reports = pack.fetch(:recipes).map do |recipe|
@@ -180,8 +182,8 @@ module Kettle
       }
     end
 
-    def apply_project(project_root)
-      report = plan_project(project_root).merge(mode: "apply")
+    def apply_project(project_root, env: ENV)
+      report = plan_project(project_root, env: env).merge(mode: "apply")
       report.fetch(:recipe_reports).each do |recipe_report|
         next unless recipe_report[:changed]
 
@@ -606,10 +608,33 @@ module Kettle
       config.is_a?(Hash) ? config : {}
     end
 
-    def opencollective_disabled?(config)
+    def opencollective_disabled?(config, env: ENV)
+      opencollective_policy(config, env).fetch(:disabled)
+    end
+
+    def opencollective_policy(config, env)
       funding = config["funding"]
-      config_value = funding["open_collective"] if funding.is_a?(Hash)
-      falsey_config?(config_value)
+      if funding.is_a?(Hash) && funding.key?("open_collective")
+        config_value = funding["open_collective"]
+        return {
+          disabled: falsey_config?(config_value),
+          source: "config.funding.open_collective",
+          value: config_value.to_s,
+        }
+      end
+
+      env_falsey = opencollective_falsey_env(env)
+      return { disabled: true, source: "env.#{env_falsey.fetch(:key)}", value: env_falsey.fetch(:value).to_s } if env_falsey
+
+      { disabled: false }
+    end
+
+    def opencollective_falsey_env(env)
+      %w[OPENCOLLECTIVE_HANDLE FUNDING_ORG].each do |key|
+        value = env[key]
+        return { key: key, value: value } if falsey_config?(value)
+      end
+      nil
     end
 
     def falsey_config?(value)
