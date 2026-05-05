@@ -74,6 +74,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
         apply: true
         entries:
           - README.md
+          - .github/dependabot.yml
           - gemfiles/modular/style.gemfile
     YAML
     File.write(path, content)
@@ -101,6 +102,17 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     MARKDOWN
   end
 
+  def seed_destination_dependabot!
+    FileUtils.mkdir_p(File.join(gem_root, ".github"))
+    File.write(File.join(gem_root, ".github/dependabot.yml"), <<~YAML)
+      updates:
+        - package-ecosystem: bundler
+          directory: "/"
+          schedule:
+            interval: daily
+    YAML
+  end
+
   it "bootstraps config and applies selected packaged templates to a fresh scaffold" do
     bootstrap = Kettle::Jem.apply_project(gem_root, env: env)
     bootstrap_report = bootstrap.fetch(:recipe_reports).find do |report|
@@ -118,9 +130,11 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
 
     enable_packaged_templates!
     seed_destination_readme!
+    seed_destination_dependabot!
 
     apply = Kettle::Jem.apply_project(gem_root, env: env)
     expect(apply.fetch(:changed_files)).to include(
+      ".github/dependabot.yml",
       "README.md",
       "gemfiles/modular/style.gemfile"
     )
@@ -134,6 +148,18 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(readme).not_to include("Old scaffold installation notes.")
     expect(readme).to include("Compatible with MRI Ruby 3.2.0+")
     expect(readme).to include("https://github.com/acme/dummy-gem")
+
+    dependabot = YAML.safe_load(File.read(File.join(gem_root, ".github/dependabot.yml")))
+    expect(dependabot).to eq(
+      "updates" => [
+        {
+          "directory" => "/",
+          "package-ecosystem" => "bundler",
+          "schedule" => { "interval" => "daily" },
+        },
+      ],
+      "version" => 2
+    )
 
     style_gemfile = File.read(File.join(gem_root, "gemfiles/modular/style.gemfile"))
     expect(style_gemfile).to include('gem "rubocop-lts", "~> 24.0"')
