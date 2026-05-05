@@ -133,4 +133,34 @@ RSpec.describe Kettle::Jem do
       expect(plan[:changed_files]).to include(".github/workflows/coverage.yml")
     end
   end
+
+  it "removes Open Collective funding when disabled" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-opencollective-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          funding:
+            open_collective: false
+        YAML
+        ".github/FUNDING.yml" => <<~YAML,
+          github: [example]
+          open_collective: example
+        YAML
+      })
+
+      plan = described_class.plan_project(root)
+      expect(plan.dig(:facts, :funding, :open_collective_disabled)).to be(true)
+      expect(plan.dig(:facts, :funding, :urls)).not_to include("https://opencollective.com/example")
+      funding_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_funding_yml" }
+      expect(funding_report.fetch(:final_content)).not_to include("open_collective")
+      expect(funding_report.fetch(:final_content)).to include("tidelift: rubygems/example")
+    end
+  end
 end

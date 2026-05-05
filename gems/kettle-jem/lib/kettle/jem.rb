@@ -42,7 +42,9 @@ module Kettle
         ),
       }
       kettle_config = kettle_jem_config(project_root)
-      funding = compact_hash(urls: funding_urls(project_root, gemspec, name))
+      opencollective_disabled = opencollective_disabled?(kettle_config)
+      funding = compact_hash(urls: funding_urls(project_root, gemspec, name, opencollective_disabled: opencollective_disabled))
+      funding[:open_collective_disabled] = true if opencollective_disabled
       facts[:funding] = funding unless funding.empty?
       facts[:ci] = {
         provider: "github_actions",
@@ -445,20 +447,22 @@ module Kettle
       match && match[1]
     end
 
-    def funding_urls(project_root, gemspec_source, package_name)
+    def funding_urls(project_root, gemspec_source, package_name, opencollective_disabled: false)
       urls = [extract_metadata_value(gemspec_source, "funding_uri")]
       path = File.join(project_root, ".github", "FUNDING.yml")
-      urls.concat(github_funding_urls(path)) if File.exist?(path)
+      urls.concat(github_funding_urls(path, opencollective_disabled: opencollective_disabled)) if File.exist?(path)
       urls << github_funding_platform_urls("tidelift", ["rubygems/#{package_name}"]).first
 
       urls.compact.uniq.sort
     end
 
-    def github_funding_urls(path)
+    def github_funding_urls(path, opencollective_disabled: false)
       funding = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
       return [] unless funding.is_a?(Hash)
 
       funding.flat_map do |platform, value|
+        next [] if opencollective_disabled && platform.to_s == "open_collective"
+
         github_funding_platform_urls(platform.to_s, Array(value).compact)
       end
     end
@@ -539,6 +543,16 @@ module Kettle
 
       config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
       config.is_a?(Hash) ? config : {}
+    end
+
+    def opencollective_disabled?(config)
+      funding = config["funding"]
+      config_value = funding["open_collective"] if funding.is_a?(Hash)
+      falsey_config?(config_value)
+    end
+
+    def falsey_config?(value)
+      %w[false no 0].include?(value.to_s.strip.downcase)
     end
 
     def github_actions_framework_matrix(config)
@@ -629,6 +643,7 @@ module Kettle
 
         memo[key.to_s] = value
       end
+      funding.delete("open_collective") if facts.fetch(:funding, {})[:open_collective_disabled]
       funding["tidelift"] ||= "rubygems/#{facts.fetch(:package).fetch(:name)}"
       YAML.dump(funding).sub(/\A---\n?/, "")
     end
