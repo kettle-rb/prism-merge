@@ -753,9 +753,16 @@ RSpec.describe Kettle::Jem do
             root: template
             apply: true
             entries:
+              - .github/dependabot.yml
               - config/settings.yml
               - config/tool.toml
               - config/explicit.yml
+        YAML
+        ".github/dependabot.yml" => <<~YAML,
+          updates:
+            - package-ecosystem: bundler
+              directory: /
+          version: 1
         YAML
         "config/settings.yml" => <<~YAML,
           engines:
@@ -774,6 +781,14 @@ RSpec.describe Kettle::Jem do
           destination_only: keep
           nested:
             value: destination
+        YAML
+        "template/.github/dependabot.yml.example" => <<~YAML,
+          schedule:
+            interval: weekly
+          updates:
+            - package-ecosystem: github-actions
+              directory: /
+          version: 2
         YAML
         "template/config/settings.yml.example" => <<~YAML,
           engines:
@@ -800,6 +815,9 @@ RSpec.describe Kettle::Jem do
       })
 
       apply = described_class.apply_project(root, env: {})
+      dependabot_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_github_dependabot_yml"
+      end
       yaml_report = apply.fetch(:recipe_reports).find do |report|
         report.fetch(:recipe_name) == "template_source_application_config_settings_yml"
       end
@@ -810,6 +828,16 @@ RSpec.describe Kettle::Jem do
         report.fetch(:recipe_name) == "template_source_application_config_explicit_yml"
       end
 
+      expect(YAML.safe_load(dependabot_report.fetch(:final_content))).to eq(
+        "schedule" => { "interval" => "weekly" },
+        "updates" => [
+          {
+            "directory" => "/",
+            "package-ecosystem" => "bundler",
+          },
+        ],
+        "version" => 1
+      )
       expect(YAML.safe_load(yaml_report.fetch(:final_content))).to eq(
         "engines" => ["ruby"],
         "nested" => {

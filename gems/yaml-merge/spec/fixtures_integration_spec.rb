@@ -97,6 +97,37 @@ RSpec.describe Yaml::Merge do
     )
   end
 
+  it "merges mapping sequences with destination arrays winning conflicts" do
+    template = <<~YAML
+      updates:
+        - package-ecosystem: github-actions
+          directory: /
+          schedule:
+            interval: weekly
+      permissions:
+        contents: read
+    YAML
+    destination = <<~YAML
+      updates:
+        - package-ecosystem: bundler
+          directory: /
+      version: 2
+    YAML
+
+    result = described_class.merge_yaml(template, destination, "yaml", backend: "kreuzberg-language-pack")
+    expect(result[:ok]).to be(true)
+    expect(YAML.safe_load(result.fetch(:output))).to eq(
+      "permissions" => { "contents" => "read" },
+      "updates" => [
+        {
+          "directory" => "/",
+          "package-ecosystem" => "bundler",
+        },
+      ],
+      "version" => 2
+    )
+  end
+
   it "conforms to the slice-183 YAML polyglot backend feature profile fixtures" do
     fixture = read_json(
       fixtures_root.join(
