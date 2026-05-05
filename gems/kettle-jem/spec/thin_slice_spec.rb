@@ -511,6 +511,40 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "bootstraps kettle config from packaged reference template when missing" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-bootstrap-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+      })
+
+      plan = described_class.plan_project(root, env: { "KJ_MIN_DIVERGENCE_THRESHOLD" => "7" })
+      bootstrap_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "kettle_config_bootstrap"
+      end
+      expect(bootstrap_report.fetch(:changed)).to be(true)
+      expect(bootstrap_report.fetch(:relative_path)).to eq(".kettle-jem.yml")
+      expect(bootstrap_report.dig(:metadata, :bootstrap_file)).to be(true)
+      expect(bootstrap_report.dig(:metadata, :template_source_preference)).to include(
+        selected_source: ".kettle-jem.yml.example",
+        source_relative_path: ".kettle-jem.yml.example",
+        source_root: "packaged"
+      )
+      expect(bootstrap_report.fetch(:final_content)).to include("# kettle-jem configuration file")
+      expect(bootstrap_report.fetch(:final_content)).to include("min_divergence_threshold: 7")
+      expect(bootstrap_report.fetch(:final_content)).to include("#   tokens    - values for {KJ|...} placeholders used across template files")
+
+      described_class.apply_project(root, env: { "KJ_MIN_DIVERGENCE_THRESHOLD" => "7" })
+      expect(File.read(File.join(root, ".kettle-jem.yml"))).to eq(bootstrap_report.fetch(:final_content))
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

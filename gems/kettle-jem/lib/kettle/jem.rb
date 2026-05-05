@@ -144,6 +144,8 @@ module Kettle
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
         ),
       }
+      bootstrap = kettle_config_bootstrap_facts(project_root, env)
+      facts[:kettle_config_bootstrap] = bootstrap if bootstrap
       facts[:author] = author unless author.empty?
       forge = forge_facts(kettle_config, env)
       facts[:forge] = forge unless forge.empty?
@@ -218,6 +220,9 @@ module Kettle
           facts: %w[package rubygems ci]
         ),
       ]
+      if facts[:kettle_config_bootstrap]
+        recipes.unshift(kettle_config_bootstrap_recipe(facts.fetch(:kettle_config_bootstrap)))
+      end
       if facts.dig(:ci, :framework_matrix)
         recipes << recipe_entry(
           "github_actions_framework_ci",
@@ -444,6 +449,8 @@ module Kettle
         ""
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
+      when "kettle_config_bootstrap"
+        apply_kettle_config_bootstrap(project_root, recipe)
       when /\Atemplate_source_preference_/
         original
       when /\Atemplate_source_application_/
@@ -552,7 +559,11 @@ module Kettle
     end
 
     def recipe_template_content(project_root, recipe)
-      return "" unless %w[supplied_template_source_preference supplied_template_source_application].include?(recipe.fetch(:primitive))
+      return "" unless %w[
+        supplied_kettle_config_bootstrap
+        supplied_template_source_preference
+        supplied_template_source_application
+      ].include?(recipe.fetch(:primitive))
 
       preference = recipe.fetch(:template_preference)
       path = File.join(
@@ -566,11 +577,18 @@ module Kettle
       resolve_template_tokens(recipe_template_content(project_root, recipe), recipe.fetch(:template_tokens, {}))
     end
 
+    def apply_kettle_config_bootstrap(project_root, recipe)
+      content = recipe_template_content(project_root, recipe)
+      tokens = stringify_template_tokens(recipe.fetch(:template_tokens, {}))
+      content.gsub("{KJ|MIN_DIVERGENCE_THRESHOLD}", tokens.fetch("KJ|MIN_DIVERGENCE_THRESHOLD", ""))
+    end
+
     def recipe_report_metadata(recipe)
       metadata = { packaging_recipe: recipe.fetch(:name) }
       metadata[:delete_file] = true if delete_file_recipe?(recipe)
       metadata[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
       metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      metadata[:bootstrap_file] = true if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
       metadata
     end
 
@@ -624,6 +642,14 @@ module Kettle
         metadata.merge!(
           policy_kind: "apply_template_source",
           operation: "replace",
+          template_source_preference: deep_dup(recipe.fetch(:template_preference)),
+        )
+        metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      end
+      if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
+        metadata.merge!(
+          policy_kind: "bootstrap_kettle_config",
+          operation: "create",
           template_source_preference: deep_dup(recipe.fetch(:template_preference)),
         )
         metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
@@ -1397,6 +1423,42 @@ module Kettle
       entries.filter_map do |entry|
         template_source_preference(project_root, root, entry, opencollective_disabled: opencollective_disabled, apply_templates: apply_templates)
       end
+    end
+
+    def kettle_config_bootstrap_facts(project_root, env)
+      return if File.exist?(File.join(project_root, ".kettle-jem.yml"))
+
+      selected_source = preferred_template_source(PACKAGED_TEMPLATE_ROOT, ".kettle-jem.yml")
+      return unless selected_source
+
+      {
+        template_preference: {
+          target_path: ".kettle-jem.yml",
+          configured_source: ".kettle-jem.yml",
+          selected_source: selected_source,
+          source_relative_path: selected_source,
+          source_root: "packaged",
+          source_root_path: PACKAGED_TEMPLATE_ROOT,
+          selection_reason: template_source_selection_reason(".kettle-jem.yml", selected_source),
+          apply: true,
+        },
+        min_divergence_threshold: preferred_template_token_value(nil, nil, env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
+      }
+    end
+
+    def kettle_config_bootstrap_recipe(bootstrap)
+      recipe = recipe_entry(
+        "kettle_config_bootstrap",
+        ".kettle-jem.yml",
+        "yaml",
+        "supplied_kettle_config_bootstrap",
+        facts: %w[kettle_config_bootstrap]
+      )
+      recipe[:template_preference] = bootstrap.fetch(:template_preference)
+      recipe[:template_tokens] = {
+        "KJ|MIN_DIVERGENCE_THRESHOLD" => bootstrap.fetch(:min_divergence_threshold).to_s,
+      }
+      recipe
     end
 
     def template_source_preference(project_root, template_root, entry, opencollective_disabled: false, apply_templates: false)
