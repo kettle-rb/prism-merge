@@ -42,7 +42,7 @@ module Kettle
         ),
       }
       kettle_config = kettle_jem_config(project_root)
-      funding = compact_hash(urls: funding_urls(project_root, gemspec))
+      funding = compact_hash(urls: funding_urls(project_root, gemspec, name))
       facts[:funding] = funding unless funding.empty?
       facts[:ci] = {
         provider: "github_actions",
@@ -63,6 +63,13 @@ module Kettle
         recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
         recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
         recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+        recipe_entry(
+          "github_funding_yml",
+          ".github/FUNDING.yml",
+          "yaml",
+          "supplied_github_funding_yaml_synchronization",
+          facts: %w[package funding]
+        ),
         recipe_entry(
           "github_actions_ci",
           ".github/workflows/ci.yml",
@@ -261,6 +268,8 @@ module Kettle
         normalize_changelog(original, facts)
       when "generated_block_sync"
         synchronize_managed_block(original, facts)
+      when "github_funding_yml"
+        synchronize_github_funding_yml(original, facts)
       when "github_actions_ci"
         synchronize_github_actions_ci(original, facts)
       when "github_actions_framework_ci"
@@ -436,10 +445,11 @@ module Kettle
       match && match[1]
     end
 
-    def funding_urls(project_root, gemspec_source)
+    def funding_urls(project_root, gemspec_source, package_name)
       urls = [extract_metadata_value(gemspec_source, "funding_uri")]
       path = File.join(project_root, ".github", "FUNDING.yml")
       urls.concat(github_funding_urls(path)) if File.exist?(path)
+      urls << github_funding_platform_urls("tidelift", ["rubygems/#{package_name}"]).first
 
       urls.compact.uniq.sort
     end
@@ -609,6 +619,18 @@ module Kettle
         *rows.map { |field, value| "| #{field} | #{value} |" },
         "<!-- kettle-jem:metadata:end -->",
       ].join("\n")
+    end
+
+    def synchronize_github_funding_yml(content, facts)
+      funding = YAML.safe_load(content.to_s, permitted_classes: [], aliases: false) || {}
+      funding = {} unless funding.is_a?(Hash)
+      funding = funding.each_with_object({}) do |(key, value), memo|
+        next if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+
+        memo[key.to_s] = value
+      end
+      funding["tidelift"] ||= "rubygems/#{facts.fetch(:package).fetch(:name)}"
+      YAML.dump(funding).sub(/\A---\n?/, "")
     end
 
     def delete_rakefile_scaffold(content)

@@ -46,6 +46,7 @@ RSpec.describe Kettle::Jem do
       expect(json_ready(plan[:facts])).to eq(json_ready(fixture.fetch(:expected).fetch(:facts)))
       recipe_names = plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }
       expect(recipe_names.take(expected_recipe_names.length)).to eq(expected_recipe_names)
+      expect(recipe_names).to include("github_funding_yml")
       expect(recipe_names).to include("github_actions_ci")
       expect(recipe_names).to include("github_actions_framework_ci")
       expect(recipe_names).to include(a_string_starting_with("github_actions_obsolete_workflow_cleanup_"))
@@ -68,6 +69,9 @@ RSpec.describe Kettle::Jem do
       expect(ci_report.dig(:request_envelope, :request, :provider_family)).to eq("yaml")
       expect(ci_report.fetch(:final_content)).to include("ruby/setup-ruby@")
       expect(ci_report.fetch(:final_content)).to include("- \"3.2\"")
+      funding_yml_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_funding_yml" }
+      expect(funding_yml_report.fetch(:final_content)).to include("tidelift: rubygems/example")
+      expect(funding_yml_report.fetch(:final_content)).to include("open_collective: example")
       framework_ci_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_framework_ci" }
       expect(framework_ci_report.fetch(:final_content)).to include("name: Rails CI")
       expect(framework_ci_report.fetch(:final_content)).to include("gemfiles/rails_7_0")
