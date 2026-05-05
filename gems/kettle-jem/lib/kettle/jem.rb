@@ -45,6 +45,8 @@ module Kettle
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
         ),
       }
+      author = author_facts(gemspec)
+      facts[:author] = author unless author.empty?
       kettle_config = kettle_jem_config(project_root)
       opencollective_policy = opencollective_policy(kettle_config, env)
       opencollective_disabled = opencollective_policy.fetch(:disabled)
@@ -726,7 +728,7 @@ module Kettle
         "KJ|GEM_NAME_PATH" => package.fetch(:name).to_s.tr("-", "/"),
         "KJ|NAMESPACE" => rubygems.fetch(:namespace).to_s,
         "KJ|MIN_RUBY" => minimum_ruby_token(rubygems[:min_ruby]),
-      }
+      }.merge(author_template_tokens(facts.fetch(:author, {})))
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
 
@@ -735,6 +737,42 @@ module Kettle
 
     def minimum_ruby_token(requirement)
       requirement.to_s[/\d+(?:\.\d+){1,2}/].to_s
+    end
+
+    def author_facts(gemspec_source)
+      name = extract_gemspec_array(gemspec_source, "spec.authors").first.to_s.strip
+      email = extract_gemspec_array(gemspec_source, "spec.email").first.to_s.strip
+      compact_hash(
+        name: name,
+        given_names: author_given_names(name),
+        family_names: author_family_names(name),
+        email: email,
+        domain: email.split("@", 2)[1].to_s
+      )
+    end
+
+    def author_template_tokens(author)
+      {
+        "KJ|AUTHOR:NAME" => author[:name].to_s,
+        "KJ|AUTHOR:GIVEN_NAMES" => author[:given_names].to_s,
+        "KJ|AUTHOR:FAMILY_NAMES" => author[:family_names].to_s,
+        "KJ|AUTHOR:EMAIL" => author[:email].to_s,
+        "KJ|AUTHOR:DOMAIN" => author[:domain].to_s,
+      }
+    end
+
+    def author_given_names(name)
+      parts = name.to_s.strip.split(/\s+/)
+      return "" if parts.size < 2
+
+      parts[0...-1].join(" ")
+    end
+
+    def author_family_names(name)
+      parts = name.to_s.strip.split(/\s+/)
+      return "" if parts.size < 2
+
+      parts[-1]
     end
 
     def resolve_template_tokens(content, tokens)

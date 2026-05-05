@@ -379,6 +379,8 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "example"
             spec.summary = "Example gem"
+            spec.authors = ["Jane Q Public"]
+            spec.email = ["jane@example.test"]
             spec.required_ruby_version = ">= 3.2"
           end
         RUBY
@@ -399,6 +401,11 @@ RSpec.describe Kettle::Jem do
           Namespace: {KJ|NAMESPACE}
           Path: {KJ|GEM_NAME_PATH}
           Ruby: {KJ|MIN_RUBY}
+          Author: {KJ|AUTHOR:NAME}
+          Given: {KJ|AUTHOR:GIVEN_NAMES}
+          Family: {KJ|AUTHOR:FAMILY_NAMES}
+          Email: {KJ|AUTHOR:EMAIL}
+          Domain: {KJ|AUTHOR:DOMAIN}
           Funding: {KJ|OPENCOLLECTIVE_ORG}
         MARKDOWN
       })
@@ -415,9 +422,19 @@ RSpec.describe Kettle::Jem do
         Namespace: Example
         Path: example
         Ruby: 3.2
+        Author: Jane Q Public
+        Given: Jane Q
+        Family: Public
+        Email: jane@example.test
+        Domain: example.test
         Funding: yaml-org
       MARKDOWN
       expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|AUTHOR:DOMAIN" => "example.test",
+        "KJ|AUTHOR:EMAIL" => "jane@example.test",
+        "KJ|AUTHOR:FAMILY_NAMES" => "Public",
+        "KJ|AUTHOR:GIVEN_NAMES" => "Jane Q",
+        "KJ|AUTHOR:NAME" => "Jane Q Public",
         "KJ|GEM_NAME" => "example",
         "KJ|GEM_NAME_PATH" => "example",
         "KJ|MIN_RUBY" => "3.2",
