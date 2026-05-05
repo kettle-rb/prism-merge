@@ -846,6 +846,51 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects README top logo template tokens" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-logo-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example-gem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.summary = "Example gem"
+            spec.metadata["source_code_uri"] = "https://github.com/acme/example-gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Row:
+          {KJ|README:TOP_LOGO_ROW}
+          Refs:
+          {KJ|README:TOP_LOGO_REFS}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      final_content = template_report.fetch(:final_content)
+      expect(final_content).to include("Galtzo FLOSS Logo")
+      expect(final_content).to include("ruby-lang Logo")
+      expect(final_content).to include("[![acme Logo by Aboling0, CC BY-SA 4.0][🖼️acme-i]][🖼️acme]")
+      expect(final_content).to include("[![example-gem Logo by Aboling0, CC BY-SA 4.0][🖼️example-gem-i]][🖼️example-gem]")
+      expect(final_content).to include("[🖼️acme-i]: https://logos.galtzo.com/assets/images/acme/avatar-192px.svg")
+      expect(final_content).to include("[🖼️example-gem]: https://github.com/acme/example-gem")
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|README:TOP_LOGO_REFS" => a_string_including("https://github.com/acme/example-gem"),
+        "KJ|README:TOP_LOGO_ROW" => a_string_including("example-gem Logo by Aboling0")
+      )
+    end
+  end
+
   it "fails fast when template application leaves unresolved tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

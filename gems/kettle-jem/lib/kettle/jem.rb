@@ -17,6 +17,15 @@ module Kettle
     FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
+    README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
+    README_TOP_LOGO_MODES = %w[org project org_and_project].freeze
+    README_STATIC_TOP_LOGO_ROW = "[![Galtzo FLOSS Logo by Aboling0, CC BY-SA 4.0][🖼️galtzo-i]][🖼️galtzo-discord] [![ruby-lang Logo, Yukihiro Matsumoto, Ruby Visual Identity Team, CC BY-SA 2.5][🖼️ruby-lang-i]][🖼️ruby-lang]"
+    README_STATIC_TOP_LOGO_REFS = [
+      "[🖼️galtzo-i]: https://logos.galtzo.com/assets/images/galtzo-floss/avatar-192px.svg",
+      "[🖼️galtzo-discord]: https://discord.gg/3qme4XHNKN",
+      "[🖼️ruby-lang-i]: https://logos.galtzo.com/assets/images/ruby-lang/avatar-192px.svg",
+      "[🖼️ruby-lang]: https://www.ruby-lang.org/",
+    ].join("\n").freeze
     FORGE_USER_ENV_KEYS = {
       gh_user: "KJ_GH_USER",
       gl_user: "KJ_GL_USER",
@@ -162,6 +171,8 @@ module Kettle
       unless template_preferences.empty?
         facts[:license] = license unless license.empty?
         facts[:project_runtime] = project_runtime unless project_runtime.empty?
+        readme_logo = readme_logo_facts(kettle_config, package_name: name, github_org: project_runtime[:github_org])
+        facts[:readme_logo] = readme_logo unless readme_logo.empty?
         template_tokens = template_tokens(facts, funding)
         template_facts[:tokens] = template_tokens unless template_tokens.empty?
       end
@@ -823,6 +834,8 @@ module Kettle
         license_template_tokens(facts.fetch(:license, {}))
       ).merge(
         project_runtime_template_tokens(facts.fetch(:project_runtime, {}))
+      ).merge(
+        readme_logo_template_tokens(facts.fetch(:readme_logo, {}))
       )
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
@@ -1022,6 +1035,72 @@ module Kettle
     def github_org_from_url(url)
       match = url.to_s.match(%r{\Ahttps?://github\.com/([^/]+)/})
       match && match[1]
+    end
+
+    def readme_logo_facts(config, package_name:, github_org:)
+      entries = readme_top_logo_entries(readme_top_logo_mode(config), org: github_org.to_s, gem_name: package_name.to_s)
+      compact_hash(
+        top_logo_mode: readme_top_logo_mode(config),
+        top_logo_row: [README_STATIC_TOP_LOGO_ROW, readme_top_logo_row(entries)].reject(&:empty?).join(" "),
+        top_logo_refs: [README_STATIC_TOP_LOGO_REFS, readme_top_logo_refs(entries)].reject(&:empty?).join("\n")
+      )
+    end
+
+    def readme_top_logo_mode(config)
+      raw_config = config.is_a?(Hash) ? config["readme"] : nil
+      readme_config = raw_config.is_a?(Hash) ? raw_config : {}
+      normalized = readme_config["top_logo_mode"].to_s.strip.downcase.tr("-", "_")
+      return README_TOP_LOGO_MODE_DEFAULT if normalized.empty?
+      return normalized if README_TOP_LOGO_MODES.include?(normalized)
+
+      README_TOP_LOGO_MODE_DEFAULT
+    end
+
+    def readme_top_logo_entries(mode, org:, gem_name:)
+      return [] if org.empty?
+
+      entries = []
+      if mode == "org" || mode == "org_and_project"
+        entries << {
+          label: org,
+          image_ref: "#{org}-i",
+          link_ref: org,
+          image_url: "https://logos.galtzo.com/assets/images/#{org}/avatar-192px.svg",
+          href: "https://github.com/#{org}",
+        }
+      end
+      if mode == "project" || mode == "org_and_project"
+        entries << {
+          label: gem_name,
+          image_ref: "#{gem_name}-i",
+          link_ref: gem_name,
+          image_url: "https://logos.galtzo.com/assets/images/#{org}/#{gem_name}/avatar-192px.svg",
+          href: "https://github.com/#{org}/#{gem_name}",
+        }
+      end
+      entries.uniq { |entry| [entry[:image_ref], entry[:link_ref], entry[:image_url], entry[:href]] }
+    end
+
+    def readme_top_logo_row(entries)
+      entries.map do |entry|
+        "[![#{entry[:label]} Logo by Aboling0, CC BY-SA 4.0][🖼️#{entry[:image_ref]}]][🖼️#{entry[:link_ref]}]"
+      end.join(" ")
+    end
+
+    def readme_top_logo_refs(entries)
+      entries.flat_map do |entry|
+        [
+          "[🖼️#{entry[:image_ref]}]: #{entry[:image_url]}",
+          "[🖼️#{entry[:link_ref]}]: #{entry[:href]}",
+        ]
+      end.join("\n")
+    end
+
+    def readme_logo_template_tokens(readme_logo)
+      {
+        "KJ|README:TOP_LOGO_ROW" => readme_logo[:top_logo_row].to_s,
+        "KJ|README:TOP_LOGO_REFS" => readme_logo[:top_logo_refs].to_s,
+      }
     end
 
     def license_facts(config, gemspec_licenses, author_email: nil)
