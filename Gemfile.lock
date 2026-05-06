@@ -1,132 +1,132 @@
 PATH
   remote: gems/ast-merge
   specs:
-    ast-merge (0.1.0)
-      tree_haver (= 0.1.0)
+    ast-merge (7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/ast-template
   specs:
-    ast-template (0.1.0)
-      ast-merge (= 0.1.0)
+    ast-template (7.0.0)
+      ast-merge (= 7.0.0)
 
 PATH
   remote: gems/binary-merge
   specs:
-    binary-merge (0.1.0)
-      tree_haver (= 0.1.0)
+    binary-merge (7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/citrus-toml-merge
   specs:
-    citrus-toml-merge (0.1.0)
-      toml-merge (= 0.1.0)
+    citrus-toml-merge (7.0.0)
+      toml-merge (= 7.0.0)
       toml-rb (~> 4.1)
 
 PATH
   remote: gems/commonmarker-merge
   specs:
-    commonmarker-merge (0.1.0)
+    commonmarker-merge (7.0.0)
       commonmarker (~> 2.2)
-      markdown-merge (= 0.1.0)
+      markdown-merge (= 7.0.0)
 
 PATH
   remote: gems/go-merge
   specs:
-    go-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    go-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/json-merge
   specs:
-    json-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    json-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/kettle-jem
   specs:
-    kettle-jem (0.1.0)
-      ast-merge (= 0.1.0)
-      ruby-merge (= 0.1.0)
+    kettle-jem (7.0.0)
+      ast-merge (= 7.0.0)
+      ruby-merge (= 7.0.0)
       token-resolver (~> 1.0, >= 1.0.2)
-      toml-merge (= 0.1.0)
-      yaml-merge (= 0.1.0)
+      toml-merge (= 7.0.0)
+      yaml-merge (= 7.0.0)
 
 PATH
   remote: gems/kramdown-merge
   specs:
-    kramdown-merge (0.1.0)
+    kramdown-merge (7.0.0)
       kramdown (~> 2.5)
-      markdown-merge (= 0.1.0)
+      markdown-merge (= 7.0.0)
 
 PATH
   remote: gems/markdown-merge
   specs:
-    markdown-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    markdown-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/markly-merge
   specs:
-    markly-merge (0.1.0)
-      markdown-merge (= 0.1.0)
+    markly-merge (7.0.0)
+      markdown-merge (= 7.0.0)
       markly (~> 0.9)
 
 PATH
   remote: gems/parslet-toml-merge
   specs:
-    parslet-toml-merge (0.1.0)
+    parslet-toml-merge (7.0.0)
       toml (~> 0.3)
-      toml-merge (= 0.1.0)
+      toml-merge (= 7.0.0)
 
 PATH
   remote: gems/prism-merge
   specs:
-    prism-merge (0.1.0)
+    prism-merge (7.0.0)
       prism (~> 1.6)
-      ruby-merge (= 0.1.0)
+      ruby-merge (= 7.0.0)
 
 PATH
   remote: gems/psych-merge
   specs:
-    psych-merge (0.1.0)
-      yaml-merge (= 0.1.0)
+    psych-merge (7.0.0)
+      yaml-merge (= 7.0.0)
 
 PATH
   remote: gems/ruby-merge
   specs:
-    ruby-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    ruby-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/rust-merge
   specs:
-    rust-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    rust-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/text-merge
   specs:
-    text-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    text-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/toml-merge
   specs:
-    toml-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    toml-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/tree_haver
   specs:
-    tree_haver (0.1.0)
+    tree_haver (7.0.0)
       citrus (~> 3.0)
       parslet (~> 2.0)
       tree_sitter_language_pack (~> 1.6)
@@ -134,22 +134,22 @@ PATH
 PATH
   remote: gems/typescript-merge
   specs:
-    typescript-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    typescript-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/yaml-merge
   specs:
-    yaml-merge (0.1.0)
-      ast-merge (= 0.1.0)
-      tree_haver (= 0.1.0)
+    yaml-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
 
 PATH
   remote: gems/zip-merge
   specs:
-    zip-merge (0.1.0)
-      tree_haver (= 0.1.0)
+    zip-merge (7.0.0)
+      tree_haver (= 7.0.0)
 
 GEM
   remote: https://rubygems.org/
@@ -220,27 +220,27 @@ DEPENDENCIES
   zip-merge!
 
 CHECKSUMS
-  ast-merge (0.1.0)
-  ast-template (0.1.0)
-  binary-merge (0.1.0)
+  ast-merge (7.0.0)
+  ast-template (7.0.0)
+  binary-merge (7.0.0)
   citrus (3.0.2) sha256=4ec2412fc389ad186735f4baee1460f7900a8e130ffe3f216b30d4f9c684f650
-  citrus-toml-merge (0.1.0)
+  citrus-toml-merge (7.0.0)
   commonmarker (2.8.1-x86_64-linux) sha256=c8f2e903c6ee4e2c7e280aa8b49ef37c53202d388e3a2ee06dfdccc8c6fb634f
-  commonmarker-merge (0.1.0)
+  commonmarker-merge (7.0.0)
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
-  go-merge (0.1.0)
-  json-merge (0.1.0)
-  kettle-jem (0.1.0)
+  go-merge (7.0.0)
+  json-merge (7.0.0)
+  kettle-jem (7.0.0)
   kramdown (2.5.2) sha256=1ba542204c66b6f9111ff00dcc26075b95b220b07f2905d8261740c82f7f02fa
-  kramdown-merge (0.1.0)
-  markdown-merge (0.1.0)
+  kramdown-merge (7.0.0)
+  markdown-merge (7.0.0)
   markly (0.16.0) sha256=6f70d79e385b1efc9e171f74c81628826259039fe6c778e03c3924c71dac5511
-  markly-merge (0.1.0)
+  markly-merge (7.0.0)
   parslet (2.0.0) sha256=d45130695d39b43d7e6a91f4d2ec66b388a8d822bae38de9b4de9a5fbde1f606
-  parslet-toml-merge (0.1.0)
+  parslet-toml-merge (7.0.0)
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
-  prism-merge (0.1.0)
-  psych-merge (0.1.0)
+  prism-merge (7.0.0)
+  psych-merge (7.0.0)
   racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
   rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
   rexml (3.4.4) sha256=19e0a2c3425dfbf2d4fc1189747bdb2f849b6c5e74180401b15734bc97b5d142
@@ -249,19 +249,19 @@ CHECKSUMS
   rspec-expectations (3.13.5) sha256=33a4d3a1d95060aea4c94e9f237030a8f9eae5615e9bd85718fe3a09e4b58836
   rspec-mocks (3.13.8) sha256=086ad3d3d17533f4237643de0b5c42f04b66348c28bf6b9c2d3f4a3b01af1d47
   rspec-support (3.13.7) sha256=0640e5570872aafefd79867901deeeeb40b0c9875a36b983d85f54fb7381c47c
-  ruby-merge (0.1.0)
-  rust-merge (0.1.0)
-  text-merge (0.1.0)
+  ruby-merge (7.0.0)
+  rust-merge (7.0.0)
+  text-merge (7.0.0)
   token-resolver (1.0.2) sha256=bb7d1623f7552487f0880d3f64c2fc5c3de5bf838d78434c05ee0d6f2a37f721
   toml (0.3.0) sha256=0a91d0f76a9036e84e44f95693b12f58d358c1df3ac8e3b5271f2056ecc6e4b9
-  toml-merge (0.1.0)
+  toml-merge (7.0.0)
   toml-rb (4.1.0) sha256=14456ec4549e4703881bf04b83a56f3264ef99884880092d83c98a2058d95846
-  tree_haver (0.1.0)
+  tree_haver (7.0.0)
   tree_sitter_language_pack (1.6.2-x86_64-linux) sha256=eeeebb26902af7930838fb9817ca79182b3d80ecadf4b197b65bb290de9b95cc
-  typescript-merge (0.1.0)
+  typescript-merge (7.0.0)
   version_gem (1.1.9) sha256=0c1a0962ae543c84a00889bb018d9f14d8f8af6029d26b295d98774e3d2eb9a4
-  yaml-merge (0.1.0)
-  zip-merge (0.1.0)
+  yaml-merge (7.0.0)
+  zip-merge (7.0.0)
 
 BUNDLED WITH
   4.0.10

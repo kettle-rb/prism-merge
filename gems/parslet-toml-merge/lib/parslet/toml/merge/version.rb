@@ -4,7 +4,7 @@ module Parslet
   module Toml
     module Merge
       module Version
-        VERSION = "0.1.0"
+        VERSION = "7.0.0"
       end
 
       VERSION = Version::VERSION
