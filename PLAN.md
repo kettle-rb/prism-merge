@@ -43,7 +43,7 @@ Initial gem candidates:
 
 - `tree-haver`
 - `ast-merge`
-- `text-merge`
+- `plain-merge`
 - `json-merge`
 - `toml-merge`
 - `yaml-merge`
@@ -88,7 +88,7 @@ cross-language contracts over legacy implementation detail.
 
 ### 3. Family gems
 
-- `text-merge`
+- `plain-merge`
 - `json-merge`
 - `toml-merge`
 - `yaml-merge`

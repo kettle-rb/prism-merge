@@ -34,7 +34,7 @@ Package directories:
 - [`psych-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/psych-merge)
 - [`ruby-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ruby-merge)
 - [`rust-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/rust-merge)
-- [`text-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/text-merge)
+- [`plain-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/plain-merge)
 - [`toml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/toml-merge)
 - [`tree_haver`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver)
 - [`typescript-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/typescript-merge)

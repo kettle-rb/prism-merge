@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe Text::Merge do
+RSpec.describe Plain::Merge do
   def fixtures_root
     Pathname(__dir__).join("..", "..", "..", "..", "fixtures").expand_path
   end

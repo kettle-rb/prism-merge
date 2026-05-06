@@ -3,7 +3,7 @@
 require_relative "../gems/ast-merge/spec/spec_helper"
 require_relative "../gems/kettle-jem/spec/spec_helper"
 require_relative "../gems/tree_haver/spec/spec_helper"
-require_relative "../gems/text-merge/spec/spec_helper"
+require_relative "../gems/plain-merge/spec/spec_helper"
 require_relative "../gems/binary-merge/spec/spec_helper"
 require_relative "../gems/zip-merge/spec/spec_helper"
 require_relative "../gems/json-merge/spec/spec_helper"

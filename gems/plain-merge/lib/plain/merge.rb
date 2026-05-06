@@ -2,9 +2,9 @@
 
 require "tree_haver"
 
-module Text
+module Plain
   module Merge
-    PACKAGE_NAME = "text-merge"
+    PACKAGE_NAME = "plain-merge"
     DEFAULT_TEXT_REFINEMENT_THRESHOLD = 0.7
     DEFAULT_TEXT_REFINEMENT_WEIGHTS = {
       content: 0.7,

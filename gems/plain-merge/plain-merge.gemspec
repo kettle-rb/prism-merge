@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require_relative "lib/text/merge/version"
+require_relative "lib/plain/merge/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "text-merge"
-  spec.version = Text::Merge::VERSION
+  spec.name = "plain-merge"
+  spec.version = Plain::Merge::VERSION
   spec.authors = ["Peter H. Boling"]
   spec.email = ["info@structuredmerge.org"]
 
-  spec.summary = "Structured Merge text analysis and merge for Ruby"
+  spec.summary = "Structured Merge plain text analysis and merge for Ruby"
   spec.description = "Portable text normalization, similarity, matching, and merge behavior for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"
   spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
@@ -43,6 +43,6 @@ Gem::Specification.new do |spec|
   spec.metadata["discord_uri"] = "https://discord.gg/3qme4XHNKN"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.add_dependency "ast-merge", "= #{Text::Merge::VERSION}"
-  spec.add_dependency "tree_haver", "= #{Text::Merge::VERSION}"
+  spec.add_dependency "ast-merge", "= #{Plain::Merge::VERSION}"
+  spec.add_dependency "tree_haver", "= #{Plain::Merge::VERSION}"
 end

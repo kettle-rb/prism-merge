@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Text
+module Plain
   module Merge
     module Version
       VERSION = "7.0.0"

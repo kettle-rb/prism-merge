@@ -2,7 +2,7 @@
 
 require "json"
 require "pathname"
-require "text/merge"
+require "plain/merge"
 require "ast/merge"
 require "tree_haver"
 
