@@ -148,8 +148,8 @@ PATH
 PATH
   remote: gems/zip-merge
   specs:
-    zip-merge (0.0.0)
-      tree_haver
+    zip-merge (0.1.0)
+      tree_haver (= 0.1.0)
 
 GEM
   remote: https://rubygems.org/
@@ -261,7 +261,7 @@ CHECKSUMS
   typescript-merge (0.1.0)
   version_gem (1.1.9) sha256=0c1a0962ae543c84a00889bb018d9f14d8f8af6029d26b295d98774e3d2eb9a4
   yaml-merge (0.1.0)
-  zip-merge (0.0.0)
+  zip-merge (0.1.0)
 
 BUNDLED WITH
   4.0.10

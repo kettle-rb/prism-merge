@@ -20,6 +20,7 @@ Package directories:
 
 - [`ast-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge)
 - [`ast-template`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-template)
+- [`binary-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/binary-merge)
 - [`citrus-toml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/citrus-toml-merge)
 - [`commonmarker-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/commonmarker-merge)
 - [`go-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/go-merge)
@@ -38,6 +39,7 @@ Package directories:
 - [`tree_haver`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver)
 - [`typescript-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/typescript-merge)
 - [`yaml-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/yaml-merge)
+- [`zip-merge`](https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/zip-merge)
 
 ## Conformance
 
