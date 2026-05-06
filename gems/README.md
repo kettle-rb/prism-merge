@@ -11,5 +11,7 @@ The initial implementation order should follow the shared slice path:
 4. `json-merge`
 5. `toml-merge`
 6. `yaml-merge`
+7. `binary-merge`
+8. `zip-merge`
 
 Only add package scaffolding when a slice is ready to implement.

@@ -11,6 +11,12 @@ PATH
       ast-merge (= 0.1.0)
 
 PATH
+  remote: gems/binary-merge
+  specs:
+    binary-merge (0.1.0)
+      tree_haver (= 0.1.0)
+
+PATH
   remote: gems/citrus-toml-merge
   specs:
     citrus-toml-merge (0.1.0)
@@ -139,6 +145,12 @@ PATH
       ast-merge (= 0.1.0)
       tree_haver (= 0.1.0)
 
+PATH
+  remote: gems/zip-merge
+  specs:
+    zip-merge (0.0.0)
+      tree_haver
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -183,6 +195,7 @@ PLATFORMS
 DEPENDENCIES
   ast-merge!
   ast-template!
+  binary-merge!
   citrus-toml-merge!
   commonmarker-merge!
   go-merge!
@@ -204,10 +217,12 @@ DEPENDENCIES
   tree_haver!
   typescript-merge!
   yaml-merge!
+  zip-merge!
 
 CHECKSUMS
   ast-merge (0.1.0)
   ast-template (0.1.0)
+  binary-merge (0.1.0)
   citrus (3.0.2) sha256=4ec2412fc389ad186735f4baee1460f7900a8e130ffe3f216b30d4f9c684f650
   citrus-toml-merge (0.1.0)
   commonmarker (2.8.1-x86_64-linux) sha256=c8f2e903c6ee4e2c7e280aa8b49ef37c53202d388e3a2ee06dfdccc8c6fb634f
@@ -246,6 +261,7 @@ CHECKSUMS
   typescript-merge (0.1.0)
   version_gem (1.1.9) sha256=0c1a0962ae543c84a00889bb018d9f14d8f8af6029d26b295d98774e3d2eb9a4
   yaml-merge (0.1.0)
+  zip-merge (0.0.0)
 
 BUNDLED WITH
   4.0.10

@@ -101,6 +101,7 @@ RSpec.describe TreeHaver do
     expect(json_ready(described_class.kaitai_feature_profile.to_h)).to eq(json_ready(fixture[:feature_profile]))
 
     node_fixture = fixture[:tree_node]
+    analysis_fixture = fixture[:analysis]
     child_fixture = node_fixture[:children].first
     node = described_class::KaitaiTreeNode.new(
       kind: node_fixture[:kind],
@@ -118,12 +119,24 @@ RSpec.describe TreeHaver do
       ]
     )
     analysis = described_class::KaitaiTreeAnalysis.new(
-      schema: "png.ksy",
+      schema: analysis_fixture[:schema],
       root: node,
-      backend_ref: described_class::KAITAI_STRUCT_BACKEND
+      backend_ref: described_class::KAITAI_STRUCT_BACKEND,
+      source_byte_length: analysis_fixture[:source_byte_length],
+      diagnostics: analysis_fixture[:diagnostics].map do |diagnostic|
+        described_class::BinaryDiagnostic.new(
+          severity: diagnostic[:severity],
+          category: diagnostic[:category],
+          message: diagnostic[:message],
+          schema_path: diagnostic[:schema_path],
+          byte_range: described_class::ByteRange.new(**diagnostic[:byte_range])
+        )
+      end
     )
 
     expect(analysis.kind).to eq("kaitai-tree")
+    expect(analysis.source_byte_length).to eq(analysis_fixture[:source_byte_length])
+    expect(analysis.diagnostics.first.schema_path).to eq(analysis_fixture.dig(:diagnostics, 0, :schema_path))
     expect(json_ready(analysis.root.to_h)).to eq(json_ready(node_fixture))
   end
 
@@ -131,6 +144,15 @@ RSpec.describe TreeHaver do
     fixture = diagnostics_fixture("portable_byte_location_contract")
     byte_range = described_class::ByteRange.new(**fixture[:byte_range])
     point = described_class::SourcePoint.new(**fixture[:source_point])
+    edit_fixture = fixture[:edit_span]
+    edit_span = described_class::ByteEditSpan.new(
+      start_byte: edit_fixture[:start_byte],
+      old_end_byte: edit_fixture[:old_end_byte],
+      new_end_byte: edit_fixture[:new_end_byte],
+      start_point: described_class::SourcePoint.new(**edit_fixture[:start_point]),
+      old_end_point: described_class::SourcePoint.new(**edit_fixture[:old_end_point]),
+      new_end_point: described_class::SourcePoint.new(**edit_fixture[:new_end_point])
+    )
     overlapping_range = described_class::ByteRange.new(**fixture.dig(:comparison_ranges, :overlapping))
     disjoint_range = described_class::ByteRange.new(**fixture.dig(:comparison_ranges, :disjoint))
 
@@ -141,10 +163,28 @@ RSpec.describe TreeHaver do
     expect(byte_range.overlaps?(overlapping_range)).to eq(fixture.dig(:expected, :overlaps))
     expect(byte_range.overlaps?(disjoint_range)).to eq(fixture.dig(:expected, :disjoint))
     expect(described_class.byte_offset_for_point(fixture[:source], point)).to eq(fixture.dig(:expected, :line_column_offset))
+    expect(edit_span.old_range.length).to eq(fixture.dig(:expected, :old_edit_length))
+    expect(edit_span.new_range.length).to eq(fixture.dig(:expected, :new_edit_length))
+    expect(edit_span.byte_delta).to eq(fixture.dig(:expected, :edit_delta))
+    expect(described_class.slice_byte_range(fixture[:source], edit_span.old_range)).to eq(fixture.dig(:expected, :old_edit_slice))
   end
 
   it "conforms to the slice-723 binary core contract fixture" do
     fixture = diagnostics_fixture("binary_core_contract")
+    payload_fixture = fixture[:raw_payload]
+    payload = described_class::BinaryRawPayload.new(
+      encoding: payload_fixture[:encoding],
+      value: payload_fixture[:value],
+      byte_length: payload_fixture[:byte_length],
+      regions: payload_fixture[:regions].map do |region|
+        described_class::BinaryPayloadRegion.new(
+          kind: region[:kind],
+          schema_path: region[:schema_path],
+          byte_range: described_class::ByteRange.new(**region[:byte_range]),
+          expected_hex: region[:expected_hex]
+        )
+      end
+    )
     scalar_values = fixture[:scalar_values].map do |item|
       described_class::BinaryScalarValue.new(**item)
     end
@@ -177,6 +217,12 @@ RSpec.describe TreeHaver do
       end
     )
 
+    payload_bytes = [payload.value].pack("H*")
+    expect(payload.encoding).to eq("hex")
+    expect(payload_bytes.bytesize).to eq(payload.byte_length)
+    expect(payload.regions.map(&:kind)).to eq(%w[header length body checksum])
+    expect(payload.regions.first.byte_range.length).to eq(8)
+    expect(payload_bytes.byteslice(payload.regions.last.byte_range.start_byte...payload.regions.last.byte_range.end_byte).unpack1("H*")).to eq(payload.regions.last.expected_hex)
     expect(scalar_values.length).to eq(9)
     expect(scalar_values.first.kind).to eq("string")
     expect(scalar_values.last.kind).to eq("null")
@@ -187,6 +233,50 @@ RSpec.describe TreeHaver do
     expect(report.preserved_ranges.first.length).to eq(25)
     expect(report.nested_dispatches.first.family).to eq("text")
     expect(report.diagnostics.first.category).to eq("unsupported_checksum_rewrite")
+  end
+
+  it "conforms to the slice-724 and slice-729 ZIP family fixtures" do
+    fixture = diagnostics_fixture("zip_family_contract")
+    report_fixture = fixture[:merge_report]
+    report = described_class::ZipFamilyReport.new(
+      archive: described_class::ZipArchiveInfo.new(
+        format: fixture.dig(:archive, :format),
+        schema: fixture.dig(:archive, :schema),
+        entry_count: fixture.dig(:archive, :entry_count),
+        central_directory_range: described_class::ByteRange.new(**fixture.dig(:archive, :central_directory_range))
+      ),
+      entries: fixture[:entries].map do |entry|
+        described_class::ZipArchiveEntry.new(
+          path: entry[:path],
+          normalized_path: entry[:normalized_path],
+          directory: entry[:directory],
+          compression: entry[:compression],
+          compressed_size: entry[:compressed_size],
+          uncompressed_size: entry[:uncompressed_size],
+          crc32: entry[:crc32],
+          local_header_range: described_class::ByteRange.new(**entry[:local_header_range]),
+          data_range: described_class::ByteRange.new(**entry[:data_range]),
+          central_directory_range: described_class::ByteRange.new(**entry[:central_directory_range])
+        )
+      end,
+      member_decisions: fixture[:member_decisions].map { |decision| described_class::ZipMemberDecision.new(**decision) },
+      unsafe_entries: fixture[:unsafe_entries].map { |entry| described_class::ZipUnsafeEntry.new(**entry) },
+      merge_report: described_class::BinaryMergeReport.new(
+        format: report_fixture[:format],
+        schema: report_fixture[:schema],
+        matched_schema_paths: report_fixture[:matched_schema_paths],
+        preserved_ranges: report_fixture[:preserved_ranges].map { |range| described_class::ByteRange.new(**range) },
+        rewritten_nodes: report_fixture[:rewritten_nodes],
+        checksum_updates: report_fixture[:checksum_updates],
+        nested_dispatches: report_fixture[:nested_dispatches].map { |dispatch| described_class::BinaryNestedDispatch.new(**dispatch) },
+        diagnostics: report_fixture[:diagnostics].map { |diagnostic| described_class::BinaryDiagnostic.new(**diagnostic) }
+      )
+    )
+
+    expect(report.archive.entry_count).to eq(report.entries.length)
+    expect(report.member_decisions[1].nested_family).to eq("xml")
+    expect(report.unsafe_entries.map(&:category)).to include("path_traversal", "duplicate_normalized_path", "encrypted_member")
+    expect(report.merge_report.preserved_ranges.first.length).to eq(76)
   end
 
   it "conforms to the slice-100 process baseline fixture" do
