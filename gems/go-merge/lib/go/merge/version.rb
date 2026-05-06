@@ -2,6 +2,10 @@
 
 module Go
   module Merge
-    VERSION = "0.1.0"
+    module Version
+      VERSION = "0.1.0"
+    end
+
+    VERSION = Version::VERSION
   end
 end
