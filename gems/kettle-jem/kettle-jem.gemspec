@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "kettle-jem"
   spec.version = Kettle::Jem::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "RubyGems package templating wrapper for Structured Merge"
   spec.description = "RubyGems-focused recipe-pack wrapper that shapes package facts into ast-merge transport."

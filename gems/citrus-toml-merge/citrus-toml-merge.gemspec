@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "citrus-toml-merge"
   spec.version = Citrus::Toml::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Citrus-backed TOML analysis for Ruby"
   spec.description = "Citrus-backed TOML provider gem for the Structured Merge TOML family."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

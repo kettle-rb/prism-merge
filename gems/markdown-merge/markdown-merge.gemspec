@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "markdown-merge"
   spec.version = Markdown::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Markdown analysis and matching for Ruby"
   spec.description = "Portable Markdown owner analysis and matching behavior for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

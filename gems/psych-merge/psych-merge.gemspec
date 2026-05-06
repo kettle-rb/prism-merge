@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "psych-merge"
   spec.version = Psych::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Psych-backed YAML analysis for Ruby"
   spec.description = "Psych-backed YAML provider gem for the Structured Merge YAML family."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

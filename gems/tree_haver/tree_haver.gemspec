@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "tree_haver"
   spec.version = TreeHaver::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge parser abstraction and process analysis for Ruby"
   spec.description = "Backend registry, parser request/result contracts, and tree-sitter language-pack integration for Structured Merge."

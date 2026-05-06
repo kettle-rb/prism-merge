@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "prism-merge"
   spec.version = Prism::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Prism-backed Ruby analysis for Ruby"
   spec.description = "Prism-backed Ruby provider gem for the Structured Merge Ruby family."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "ast-merge"
   spec.version = Ast::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge AST/core contracts for the Ruby monorepo"
   spec.description = "Core diagnostics, conformance, planning, reporting, and review-state contracts for Structured Merge."

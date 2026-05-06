@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "json-merge"
   spec.version = Json::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge JSON analysis and merge for Ruby"
   spec.description = "Portable JSON and JSONC analysis, owner matching, fallback, and merge behavior for Structured Merge."

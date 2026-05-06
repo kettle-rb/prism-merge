@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "ruby-merge"
   spec.version = Ruby::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Ruby substrate analysis for Ruby"
   spec.description = "Tree-sitter-backed Ruby family substrate for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

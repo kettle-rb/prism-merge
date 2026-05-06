@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "rust-merge"
   spec.version = Rust::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Rust module analysis and merge for Ruby"
   spec.description = "Portable Rust module owner analysis and merge behavior for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

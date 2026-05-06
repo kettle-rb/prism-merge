@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "binary-merge"
   spec.version = Binary::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge binary merge contracts for Ruby"
   spec.description = "Portable binary preservation planning and diagnostics for Structured Merge."

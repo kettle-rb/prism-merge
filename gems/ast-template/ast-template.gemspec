@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "ast-template"
   spec.version = Ast::Template::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge template orchestration contracts for the Ruby monorepo"
   spec.description = "Product-level directory session reporting above ast-merge for Structured Merge."

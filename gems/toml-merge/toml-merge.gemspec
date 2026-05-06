@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "toml-merge"
   spec.version = Toml::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge TOML substrate analysis and merge for Ruby"
   spec.description = "Tree-sitter-backed TOML substrate behavior for the Structured Merge TOML family."

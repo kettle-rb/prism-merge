@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "go-merge"
   spec.version = Go::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge Go module analysis and merge for Ruby"
   spec.description = "Portable Go module owner analysis and merge behavior for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

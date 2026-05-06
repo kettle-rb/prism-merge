@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "zip-merge"
   spec.version = Zip::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
   spec.summary = "Structured Merge ZIP merge planning and rendering helpers for Ruby"
   spec.description = "Portable ZIP inventory, planning, nested dispatch, and raw-preservation rendering helpers for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"

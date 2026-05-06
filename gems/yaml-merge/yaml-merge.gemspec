@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "yaml-merge"
   spec.version = Yaml::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge YAML analysis and merge for Ruby"
   spec.description = "Portable YAML analysis, owner matching, and merge behavior for Structured Merge."

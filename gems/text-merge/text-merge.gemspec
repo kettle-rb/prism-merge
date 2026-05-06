@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "text-merge"
   spec.version = Text::Merge::VERSION
   spec.authors = ["Structured Merge Contributors"]
-  spec.email = ["opensource@structuredmerge.dev"]
+  spec.email = ["info@structuredmerge.org"]
 
   spec.summary = "Structured Merge text analysis and merge for Ruby"
   spec.description = "Portable text normalization, similarity, matching, and merge behavior for Structured Merge."
