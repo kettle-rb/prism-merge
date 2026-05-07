@@ -223,6 +223,7 @@ CHECKSUMS
   ast-merge (7.0.0)
   ast-template (7.0.0)
   binary-merge (7.0.0)
+  bundler (4.0.11) sha256=5bcec0fb78302e48d02ee46f10ee6e6942be647ba5b44a6d1ddfda9a240ce785
   citrus (3.0.2) sha256=4ec2412fc389ad186735f4baee1460f7900a8e130ffe3f216b30d4f9c684f650
   citrus-toml-merge (7.0.0)
   commonmarker (2.8.1-x86_64-linux) sha256=c8f2e903c6ee4e2c7e280aa8b49ef37c53202d388e3a2ee06dfdccc8c6fb634f
@@ -264,4 +265,4 @@ CHECKSUMS
   zip-merge (7.0.0)
 
 BUNDLED WITH
-  4.0.10
+  4.0.11
