@@ -79,6 +79,30 @@ RSpec.describe Ast::Template do
       expect(actual[:content]).to eq(test_case[:expected_content])
       expect(actual[:changed]).to eq(test_case[:changed])
     end
+
+    package_directory_case = fixture[:package_directory_case]
+    temp_dir = repo_temp_dir("readme-family-packages")
+    begin
+      package_directory_case[:packages].each do |package_case|
+        next if package_case[:initial_content].nil?
+
+        readme_path = temp_dir.join(*package_case[:readme_path].split("/"))
+        FileUtils.mkdir_p(readme_path.dirname)
+        readme_path.write(package_case[:initial_content])
+      end
+      report = described_class.apply_readme_family_sections_to_package_directories(
+        temp_dir,
+        fixture[:template_partial],
+        package_directory_case[:packages]
+      )
+      expect(json_ready(report)).to eq(json_ready(package_directory_case[:expected_report]))
+      package_directory_case[:packages].each do |package_case|
+        readme_path = temp_dir.join(*package_case[:readme_path].split("/"))
+        expect(readme_path.read).to eq(package_case[:expected_content])
+      end
+    ensure
+      FileUtils.rm_rf(temp_dir)
+    end
   end
 
   it "conforms to the template directory session report fixture" do

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "ast/merge"
 require_relative "template/version"
 
@@ -91,6 +92,42 @@ module Ast
           content: content,
           changed: content != base_content
         }
+      end
+
+      def apply_readme_family_sections_to_package_directories(root, template_partial, packages, config = nil)
+        report = {
+          package_count: packages.length,
+          changed_count: 0,
+          created_count: 0,
+          entries: []
+        }
+        packages.each do |package_entry|
+          normalized_entry = Ast::Merge.normalize_value(package_entry)
+          readme_path = normalized_entry.fetch(:readme_path).to_s
+          full_path = File.join(root.to_s, readme_path.split("/"))
+          created = !File.exist?(full_path)
+          destination_content = created ? nil : File.read(full_path)
+          application = apply_readme_family_section(
+            template_partial,
+            normalized_entry.fetch(:package, {}),
+            normalized_entry.fetch(:family, {}),
+            destination_content,
+            config
+          )
+          if application[:changed]
+            FileUtils.mkdir_p(File.dirname(full_path))
+            File.write(full_path, application[:content])
+            report[:changed_count] += 1
+            report[:created_count] += 1 if created
+          end
+          report[:entries] << {
+            id: normalized_entry.fetch(:id).to_s,
+            readme_path: readme_path,
+            changed: application[:changed],
+            created: created && application[:changed]
+          }
+        end
+        report
       end
 
       def merge_prepared_content_from_registry(registry, entry)
