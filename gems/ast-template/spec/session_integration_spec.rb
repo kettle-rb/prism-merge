@@ -17,6 +17,17 @@ RSpec.describe Ast::Template do
     Pathname(Dir.mktmpdir(name, root.to_s))
   end
 
+  def diagnostics_fixture(role)
+    manifest = JSON.parse(
+      repo_root.join("fixtures/conformance/slice-24-manifest/family-feature-profiles.json").read,
+      symbolize_names: true
+    )
+    entry = Ast::Merge.conformance_fixture_path(manifest, "diagnostics", role)
+    raise "missing diagnostics fixture for #{role}" unless entry
+
+    JSON.parse(repo_root.join("fixtures", *entry).read, symbolize_names: true)
+  end
+
   def merge_callback(entry)
     family = entry.dig(:classification, :family)
     case family
@@ -34,6 +45,29 @@ RSpec.describe Ast::Template do
         policies: []
       }
     end
+  end
+
+  it "conforms to the README family section template contract fixture" do
+    fixture = diagnostics_fixture("readme_family_section_template_contract")
+
+    fixture[:alias_derivation_cases].each do |test_case|
+      aliases = described_class.readme_family_language_aliases(
+        test_case[:self],
+        fixture[:canonical_language_order]
+      )
+      expected_aliases = JSON.parse(JSON.generate(test_case[:expected_aliases]))
+      expect(aliases.slice(*expected_aliases.keys)).to eq(expected_aliases)
+      expect((1..3).map { |index| aliases.fetch("IMP_LANG#{index}_ID") }).to eq(test_case[:expected_alternative_ids])
+    end
+
+    metadata_case = fixture[:metadata_case]
+    expected_token_values = JSON.parse(JSON.generate(metadata_case[:expected_token_values]))
+    expect(
+      described_class.readme_family_token_values(metadata_case[:family]).slice(*expected_token_values.keys)
+    ).to eq(expected_token_values)
+    expect(
+      described_class.render_readme_family_section(fixture[:template_partial], metadata_case[:family])
+    ).to eq(fixture[:expected_rendered_partial])
   end
 
   it "conforms to the template directory session report fixture" do

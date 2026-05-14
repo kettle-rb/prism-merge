@@ -17,8 +17,61 @@ module Ast
     SESSION_COMMAND_TRANSPORT_VERSION = 1
     SESSION_COMMAND_PAYLOAD_TRANSPORT_VERSION = 1
     SESSION_INVOCATION_TRANSPORT_VERSION = 1
+    README_FAMILY_LANGUAGE_ORDER = %w[go ruby rust typescript].freeze
+    README_FAMILY_LANGUAGE_LABELS = {
+      "go" => "Go",
+      "ruby" => "Ruby",
+      "rust" => "Rust",
+      "typescript" => "TypeScript"
+    }.freeze
 
     class << self
+      def readme_family_language_aliases(self_language, language_order = README_FAMILY_LANGUAGE_ORDER)
+        self_id = self_language.to_s
+        alternatives = language_order.map(&:to_s).reject { |language| language == self_id }
+        aliases = {
+          "SELF_LANG" => README_FAMILY_LANGUAGE_LABELS.fetch(self_id, self_id),
+          "SELF_LANG_ID" => self_id
+        }
+        alternatives.each_with_index do |language, index|
+          alias_prefix = "IMP_LANG#{index + 1}"
+          aliases[alias_prefix] = README_FAMILY_LANGUAGE_LABELS.fetch(language, language)
+          aliases["#{alias_prefix}_ID"] = language
+        end
+        aliases
+      end
+
+      def readme_family_token_values(family_metadata)
+        family = Ast::Merge.normalize_value(family_metadata || {})
+        self_entry = family.fetch(:self, {})
+        self_id = self_entry.fetch(:id).to_s
+        implementations = Array(family[:implementations]).each_with_object({}) do |entry, memo|
+          normalized_entry = Ast::Merge.normalize_value(entry)
+          memo[normalized_entry[:id].to_s] = normalized_entry
+        end
+        aliases = readme_family_language_aliases(self_id)
+        tokens = {
+          "FAMILY_SECTION_HEADING" => family[:section_heading].to_s,
+          "FAMILY_DESCRIPTION" => family[:description].to_s,
+          "SELF_PACKAGE_ROOT" => self_entry[:package_root].to_s,
+          "SELF_PACKAGE_MANAGER" => self_entry[:package_manager].to_s
+        }.merge(aliases)
+
+        README_FAMILY_LANGUAGE_ORDER.reject { |language| language == self_id }.each_with_index do |language, index|
+          implementation = implementations.fetch(language, {})
+          alias_prefix = "IMP_LANG#{index + 1}"
+          tokens["#{alias_prefix}_PACKAGE_ROOT"] = implementation[:package_root].to_s
+          tokens["#{alias_prefix}_PACKAGE_MANAGER"] = implementation[:package_manager].to_s
+        end
+
+        tokens
+      end
+
+      def render_readme_family_section(template_partial, family_metadata, config = nil)
+        replacements = readme_family_token_values(family_metadata).transform_keys { |key| "SM|#{key}" }
+        Ast::Merge.resolve_template_tokens(template_partial.to_s, replacements, config)
+      end
+
       def merge_prepared_content_from_registry(registry, entry)
         family = entry.dig(:classification, :family) || entry.dig("classification", "family")
         adapter = registry[family.to_s]
