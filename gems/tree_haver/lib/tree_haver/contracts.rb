@@ -196,6 +196,28 @@ module TreeHaver
     end
   end
 
+  OrderedSiblingEdge = Struct.new(:parent_id, :node_id, :previous_sibling_id, :next_sibling_id, keyword_init: true) do
+    def to_h
+      {
+        parent_id: parent_id,
+        node_id: node_id,
+        previous_sibling_id: previous_sibling_id,
+        next_sibling_id: next_sibling_id
+      }
+    end
+  end
+
+  OrderedTreePrimitives = Struct.new(:root_id, :child_order, :sibling_edges, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        root_id: root_id,
+        child_order: child_order || {},
+        sibling_edges: (sibling_edges || []).map(&:to_h),
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
   ParserDiagnostics = Struct.new(:backend, :backend_ref, :diagnostics, keyword_init: true) do
     def to_h
       {

@@ -255,6 +255,36 @@ RSpec.describe TreeHaver do
     expect(profile.fixture_slices.first).to eq("slice-782-normalized-tree-node")
   end
 
+  it "conforms to the slice-789 ordered tree primitives fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-789-ordered-tree-primitives", "ordered-tree-primitives.json"))
+    ordered_fixture = fixture[:ordered_tree]
+    ordered = described_class::OrderedTreePrimitives.new(
+      root_id: ordered_fixture[:root_id],
+      child_order: ordered_fixture[:child_order],
+      sibling_edges: ordered_fixture[:sibling_edges].map do |edge|
+        described_class::OrderedSiblingEdge.new(
+          parent_id: edge[:parent_id],
+          node_id: edge[:node_id],
+          previous_sibling_id: edge[:previous_sibling_id],
+          next_sibling_id: edge[:next_sibling_id]
+        )
+      end,
+      diagnostics: ordered_fixture[:diagnostics]
+    )
+
+    ordered.diagnostics.each do |diagnostic|
+      fixture[:forbidden_merge_terms].each do |term|
+        expect(diagnostic.downcase).not_to include(term.downcase)
+      end
+    end
+
+    expect(ordered.root_id).to eq(fixture[:root_id])
+    expect(ordered.child_order[:file].fetch(0)).to eq("imports")
+    expect(ordered.child_order[:imports].fetch(1)).to eq("import-strings")
+    expect(ordered.sibling_edges.fetch(2).previous_sibling_id).to be_nil
+    expect(ordered.sibling_edges.fetch(2).next_sibling_id).to eq("import-strings")
+  end
+
   it "conforms to the slice-783 backend capability report fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-783-backend-capability-report", "backend-capability-report.json"))
     capability_fixture = fixture[:capability]
