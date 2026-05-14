@@ -96,6 +96,16 @@ RSpec.describe Ast::Template do
         package_directory_case[:packages]
       )
       expect(json_ready(report)).to eq(json_ready(package_directory_case[:expected_report]))
+      command_report = described_class.run_readme_family_section_command(
+        profile_name: "update-readme-family-section",
+        mode: "plan",
+        root: temp_dir,
+        template_partial: fixture[:template_partial],
+        packages: package_directory_case[:packages]
+      )
+      expect(command_report[:profile_name]).to eq("update-readme-family-section")
+      expect(command_report[:mode]).to eq("plan")
+      expect(command_report.dig(:runner, :changed_count)).to eq(0)
       package_directory_case[:packages].each do |package_case|
         readme_path = temp_dir.join(*package_case[:readme_path].split("/"))
         expect(readme_path.read).to eq(package_case[:expected_content])

@@ -95,6 +95,31 @@ module Ast
       end
 
       def apply_readme_family_sections_to_package_directories(root, template_partial, packages, config = nil)
+        run_readme_family_sections_for_package_directories(root, template_partial, packages, true, config)
+      end
+
+      def plan_readme_family_sections_for_package_directories(root, template_partial, packages, config = nil)
+        run_readme_family_sections_for_package_directories(root, template_partial, packages, false, config)
+      end
+
+      def run_readme_family_section_command(command, config = nil)
+        normalized = Ast::Merge.normalize_value(command || {})
+        mode = normalized.fetch(:mode, "plan").to_s
+        write_changes = %w[apply reapply].include?(mode)
+        {
+          profile_name: normalized.fetch(:profile_name, "").to_s,
+          mode: mode,
+          runner: run_readme_family_sections_for_package_directories(
+            normalized.fetch(:root, "").to_s,
+            normalized.fetch(:template_partial, "").to_s,
+            Array(normalized[:packages]),
+            write_changes,
+            config
+          )
+        }
+      end
+
+      def run_readme_family_sections_for_package_directories(root, template_partial, packages, write_changes, config = nil)
         report = {
           package_count: packages.length,
           changed_count: 0,
@@ -115,8 +140,10 @@ module Ast
             config
           )
           if application[:changed]
-            FileUtils.mkdir_p(File.dirname(full_path))
-            File.write(full_path, application[:content])
+            if write_changes
+              FileUtils.mkdir_p(File.dirname(full_path))
+              File.write(full_path, application[:content])
+            end
             report[:changed_count] += 1
             report[:created_count] += 1 if created
           end
