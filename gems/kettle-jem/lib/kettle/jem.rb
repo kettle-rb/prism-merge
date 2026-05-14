@@ -3,6 +3,10 @@
 require "fileutils"
 require "find"
 require "English"
+require "digest"
+require "open3"
+require "set"
+require "time"
 require "ruby/merge"
 require "token/resolver"
 require "toml-merge"
@@ -68,6 +72,8 @@ module Kettle
       "[🖼️ruby-lang-i]: https://logos.galtzo.com/assets/images/ruby-lang/avatar-192px.svg",
       "[🖼️ruby-lang]: https://www.ruby-lang.org/",
     ].join("\n").freeze
+    VAR_HOME_PREFIX = %r{\A/var/home(?=/|\z)}
+    VAR_HOME_TEXT = %r{/var/home(?=/|\z)}
     RUBOCOP_VERSION_MAP = [
       [Gem::Version.new("1.8"), "~> 0.1"],
       [Gem::Version.new("1.9"), "~> 2.0"],
@@ -145,7 +151,504 @@ module Kettle
       },
     }.freeze
 
+    module TemplateChecksums
+      YAML_KEY = "kettle-jem"
+      CHECKSUMS_SUBKEY = "checksums"
+      VERSION_SUBKEY = "version"
+
+      module_function
+
+      def compute(template_root:)
+        root = template_root.to_s.chomp("/")
+        checksums = {}
+        Find.find(root) do |path|
+          next unless File.file?(path)
+
+          relative_path = path.delete_prefix("#{root}/")
+          checksums[relative_path] = Digest::SHA256.file(path).hexdigest
+        end
+        checksums.sort.to_h
+      end
+
+      def load_stored(config_path:)
+        return {} unless File.exist?(config_path.to_s)
+
+        data = YAML.safe_load_file(config_path.to_s, permitted_classes: [], aliases: false)
+        entry = data.is_a?(Hash) ? data[YAML_KEY] : nil
+        stored = entry.is_a?(Hash) ? entry[CHECKSUMS_SUBKEY] : nil
+        stored.is_a?(Hash) ? stored : {}
+      rescue StandardError
+        {}
+      end
+
+      def diff(current:, stored:)
+        current_keys = current.keys.to_set
+        stored_keys = stored.keys.to_set
+
+        {
+          added: (current_keys - stored_keys).sort,
+          changed: (current_keys & stored_keys).select { |path| current[path] != stored[path] }.sort,
+          removed: (stored_keys - current_keys).sort,
+        }
+      end
+
+      def diff_count(diff)
+        diff.fetch(:added, []).size + diff.fetch(:changed, []).size + diff.fetch(:removed, []).size
+      end
+
+      def summary(diff)
+        count = diff_count(diff)
+        return "no template files changed since last run" if count.zero?
+
+        parts = []
+        parts << "#{diff.fetch(:added, []).size} added" if diff.fetch(:added, []).any?
+        parts << "#{diff.fetch(:changed, []).size} changed" if diff.fetch(:changed, []).any?
+        parts << "#{diff.fetch(:removed, []).size} removed" if diff.fetch(:removed, []).any?
+        "#{count} template file(s) since last run: #{parts.join(", ")}"
+      end
+
+      def detail_lines(diff)
+        [
+          *diff.fetch(:added, []).map { |path| "  + #{path}" },
+          *diff.fetch(:changed, []).map { |path| "  ~ #{path}" },
+          *diff.fetch(:removed, []).map { |path| "  - #{path}" },
+        ]
+      end
+
+      def build_yaml_block(checksums:, version: nil)
+        lines = [YAML_KEY]
+        lines[0] = "#{lines[0]}:"
+        lines << "  #{VERSION_SUBKEY}: #{version.to_s.dump}" if version
+        lines << "  #{CHECKSUMS_SUBKEY}:"
+        checksums.sort.each do |path, sha|
+          lines << "    #{path.dump}: #{sha.dump}"
+        end
+        lines.join("\n")
+      end
+
+      def write_to_config(config_path:, checksums:, version: nil)
+        return unless File.exist?(config_path.to_s)
+
+        content = File.read(config_path.to_s)
+        new_block = build_yaml_block(checksums: checksums, version: version)
+        updated =
+          if content.match?(/^#{Regexp.escape(YAML_KEY)}:\s*(?:#[^\n]*)?\n/)
+            content.gsub(/^#{Regexp.escape(YAML_KEY)}:[^\n]*\n(?:[ \t][^\n]*\n)*/, "#{new_block}\n")
+          else
+            "#{content.rstrip}\n\n#{new_block}\n"
+          end
+        File.write(config_path.to_s, updated)
+      end
+    end
+
+    module TemplatingReport
+      REPORT_DIR = File.join("tmp", "kettle-jem").freeze
+      REPORT_PREFIX = "templating-report"
+      MERGE_GEM_NAMES = %w[
+        ast-merge
+        bash-merge
+        dotenv-merge
+        json-merge
+        markdown-merge
+        markly-merge
+        prism-merge
+        psych-merge
+        rbs-merge
+        toml-merge
+      ].freeze
+
+      module_function
+
+      def snapshot(loaded_specs: Gem.loaded_specs, workspace_root: default_workspace_root)
+        {
+          kettle_jem: build_entry("kettle-jem", loaded_specs["kettle-jem"], workspace_root: workspace_root),
+          workspace_root: workspace_root,
+          merge_gems: MERGE_GEM_NAMES.map { |name| build_entry(name, loaded_specs[name], workspace_root: workspace_root) },
+        }
+      end
+
+      def build_entry(name, spec, workspace_root:)
+        path = spec&.full_gem_path.to_s
+        {
+          name: name,
+          version: spec&.version&.to_s,
+          path: path.empty? ? nil : path,
+          local_path: !path.empty? && local_path?(path, workspace_root: workspace_root),
+          loaded: !spec.nil?,
+        }
+      end
+
+      def default_workspace_root
+        env_root = ENV["KETTLE_RB_DEV"].to_s.strip
+        return if env_root.casecmp("false").zero?
+
+        repo_root = File.expand_path("../../..", __dir__)
+        sibling_root = File.expand_path("..", repo_root)
+        if env_root.empty? || env_root.casecmp("true").zero?
+          return canonical_path(sibling_root) if File.directory?(File.join(sibling_root, "nomono"))
+
+          return
+        end
+        canonical_path(env_root)
+      end
+
+      def local_path?(path, workspace_root: default_workspace_root)
+        return false if workspace_root.to_s.strip.empty?
+
+        expanded_path = canonical_path(path)
+        expanded_root = canonical_path(workspace_root)
+        expanded_path == expanded_root || expanded_path.start_with?("#{expanded_root}/")
+      end
+
+      def canonical_path(path)
+        File.realpath(path)
+      rescue StandardError
+        File.expand_path(path)
+      end
+
+      def console_lines(snapshot: nil, project_root: nil)
+        snapshot ||= self.snapshot
+        merge_gems = snapshot.fetch(:merge_gems, [])
+        return [] if merge_gems.empty?
+
+        lines = []
+        kettle_jem = snapshot[:kettle_jem]
+        header = "[kettle-jem] Templating merge environment"
+        header += " (kettle-jem #{kettle_jem[:version]})" if kettle_jem&.dig(:version)
+        lines << header
+        workspace_root = snapshot[:workspace_root]
+        lines << "  workspace root: #{Kettle::Jem.display_path(workspace_root)}" if workspace_root
+        merge_gems.each do |entry|
+          version = entry[:version] || "not loaded"
+          path = entry[:path] ? " - #{Kettle::Jem.display_path(entry[:path])}" : ""
+          lines << "  - #{entry[:name]} #{version} (#{source_label(entry)})#{path}"
+        end
+        local_workspace_warning_lines(snapshot: snapshot, project_root: project_root).each { |line| lines << "  #{line}" }
+        lines
+      end
+
+      def markdown_section(snapshot: nil)
+        snapshot ||= self.snapshot
+        merge_gems = snapshot.fetch(:merge_gems, [])
+        return "" if merge_gems.empty?
+
+        lines = ["## Merge Gem Environment", ""]
+        workspace_root = snapshot[:workspace_root]
+        if workspace_root
+          lines << "**Workspace root**: `#{Kettle::Jem.display_path(workspace_root)}`"
+          lines << ""
+        end
+        lines << "| Gem | Version | Source | Path |"
+        lines << "|-----|---------|--------|------|"
+        merge_gems.each do |entry|
+          version = entry[:version] || "_not loaded_"
+          path = entry[:path] ? "`#{Kettle::Jem.display_path(entry[:path])}`" : ""
+          lines << "| #{entry[:name]} | #{version} | #{source_label(entry)} | #{path} |"
+        end
+        lines << ""
+        lines.join("\n")
+      end
+
+      def render_markdown(project_root:, output_dir: nil, snapshot: nil, run_started_at: Time.now, finished_at: nil,
+        status: nil, warnings: [], error: nil, template_diff: nil, template_commit_sha: nil)
+        snapshot ||= self.snapshot
+        lines = ["# kettle-jem Templating Run Report", ""]
+        lines << "**Started**: #{run_started_at.iso8601}"
+        lines << "**Finished**: #{finished_at.iso8601}" if finished_at
+        lines << "**Status**: `#{status}`" if status
+        lines << "**Project root**: `#{Kettle::Jem.display_path(project_root)}`"
+        lines << "**Output dir**: `#{Kettle::Jem.display_path(output_dir)}`" if output_dir
+        if (kettle_jem = snapshot[:kettle_jem])
+          path = kettle_jem[:path] ? " `#{Kettle::Jem.display_path(kettle_jem[:path])}`" : ""
+          lines << "**kettle-jem**: #{kettle_jem[:version] || "unknown"} (#{source_label(kettle_jem)})#{path}"
+        end
+        if (warning = local_workspace_warning(snapshot: snapshot, project_root: project_root))
+          lines << ""
+          lines << local_warning_section(warning)
+        end
+        lines << "**Template commit**: `#{template_commit_sha}`" if template_commit_sha
+        lines << ""
+        lines << template_diff_section(template_diff) if template_diff
+        section = markdown_section(snapshot: snapshot)
+        lines << section unless section.empty?
+        unique_warnings = Array(warnings).map(&:to_s).reject { |warning| warning.strip.empty? }.uniq
+        if unique_warnings.any?
+          lines << "## Warnings"
+          lines << ""
+          unique_warnings.each { |warning| lines << "- #{warning}" }
+          lines << ""
+        end
+        if error
+          lines << "## Error"
+          lines << ""
+          lines << "```text"
+          lines << "#{error.class}: #{error.message}"
+          Array(error.backtrace).first(10).each { |line| lines << line }
+          lines << "```"
+          lines << ""
+        end
+        lines.join("\n")
+      end
+
+      def report_path(project_root:, output_dir: nil, run_started_at: Time.now, pid: Process.pid)
+        target_root = output_dir || project_root
+        timestamp = run_started_at.utc.strftime("%Y%m%d-%H%M%S-%6N")
+        File.join(target_root, REPORT_DIR, "#{REPORT_PREFIX}-#{timestamp}-#{pid}.md")
+      end
+
+      def write(project_root:, output_dir: nil, snapshot: nil, report_path: nil, run_started_at: Time.now,
+        finished_at: nil, status: nil, warnings: [], error: nil, template_diff: nil, template_commit_sha: nil)
+        snapshot ||= self.snapshot
+        report_path ||= self.report_path(project_root: project_root, output_dir: output_dir, run_started_at: run_started_at)
+        FileUtils.mkdir_p(File.dirname(report_path))
+        File.write(
+          report_path,
+          render_markdown(
+            project_root: project_root,
+            output_dir: output_dir,
+            snapshot: snapshot,
+            run_started_at: run_started_at,
+            finished_at: finished_at,
+            status: status,
+            warnings: warnings,
+            error: error,
+            template_diff: template_diff,
+            template_commit_sha: template_commit_sha
+          )
+        )
+        report_path
+      end
+
+      def source_label(entry)
+        return "not loaded" unless entry[:loaded]
+        return "local path" if entry[:local_path]
+
+        "installed gem"
+      end
+
+      def local_workspace_warning_lines(snapshot:, project_root:)
+        warning = local_workspace_warning(snapshot: snapshot, project_root: project_root)
+        return [] unless warning
+
+        [
+          "WARNING: #{warning}",
+          "Hint: set KETTLE_RB_DEV=true (or configure it in .env.local) to use sibling workspace gems.",
+        ]
+      end
+
+      def local_warning_section(warning)
+        <<~MARKDOWN.chomp
+          ## Local Workspace Warning
+
+          #{warning}
+
+          Set `KETTLE_RB_DEV=true` (or configure it in `.env.local`) to use sibling workspace gems instead of the installed release.
+        MARKDOWN
+      end
+
+      def local_workspace_warning(snapshot:, project_root:)
+        return if project_root.to_s.strip.empty?
+
+        kettle_jem = snapshot[:kettle_jem]
+        return unless kettle_jem&.fetch(:loaded, false)
+        return if kettle_jem[:local_path]
+
+        workspace_root = sibling_workspace_root(project_root)
+        return unless workspace_root
+
+        local_checkout = File.join(workspace_root, "kettle-jem")
+        return unless File.directory?(local_checkout)
+
+        loaded_path = canonical_path(kettle_jem[:path].to_s)
+        checkout_path = canonical_path(local_checkout)
+        return if loaded_path == checkout_path
+
+        env_value = ENV.fetch("KETTLE_RB_DEV", "<unset>")
+        "Detected sibling workspace checkout at `#{Kettle::Jem.display_path(local_checkout)}`, but this run is using installed `kettle-jem` " \
+          "(KETTLE_RB_DEV=#{env_value.inspect})."
+      end
+
+      def sibling_workspace_root(project_root)
+        candidate = canonical_path(File.expand_path("..", project_root))
+        return unless File.directory?(File.join(candidate, "nomono"))
+
+        candidate
+      end
+
+      def template_diff_section(diff)
+        lines = ["## Template File Changes", ""]
+        if Kettle::Jem::TemplateChecksums.diff_count(diff).zero?
+          lines << "_No template files changed since last run._"
+          lines << ""
+          return lines.join("\n")
+        end
+        lines << Kettle::Jem::TemplateChecksums.summary(diff)
+        lines << ""
+        {added: "Added", changed: "Changed", removed: "Removed"}.each do |key, label|
+          next unless diff.fetch(key, []).any?
+
+          lines << "### #{label} (#{diff.fetch(key).size})"
+          lines << ""
+          diff.fetch(key).each { |path| lines << "- `#{path}`" }
+          lines << ""
+        end
+        lines.join("\n")
+      end
+    end
+
+    module SelfTest
+      module Manifest
+        module_function
+
+        def generate(dir)
+          result = {}
+          dir = dir.to_s
+          return result unless Dir.exist?(dir)
+
+          Find.find(dir) do |path|
+            next if File.directory?(path)
+
+            content = File.binread(path)
+            relative_path = path.sub(%r{^#{Regexp.escape(dir)}/?}, "")
+            result[relative_path] = Digest::SHA256.hexdigest(content) unless relative_path.empty?
+          rescue StandardError
+            next
+          end
+          result.sort.to_h
+        end
+
+        def compare(before, after)
+          all_keys = (before.keys | after.keys).sort
+          result = {matched: [], changed: [], added: [], removed: []}
+          all_keys.each do |key|
+            before_sha = before[key]
+            after_sha = after[key]
+            if before_sha.nil?
+              result[:added] << key
+            elsif after_sha.nil?
+              result[:removed] << key
+            elsif before_sha == after_sha
+              result[:matched] << key
+            else
+              result[:changed] << key
+            end
+          end
+          result
+        end
+      end
+
+      module Reporter
+        module_function
+
+        def diff(file_a, file_b)
+          a = File.exist?(file_a.to_s) ? file_a.to_s : "/dev/null"
+          b = File.exist?(file_b.to_s) ? file_b.to_s : "/dev/null"
+          out, = Open3.capture2("diff", "-u", a, b)
+          out
+        rescue Errno::ENOENT
+          a_lines = File.exist?(file_a.to_s) ? File.readlines(file_a) : []
+          b_lines = File.exist?(file_b.to_s) ? File.readlines(file_b) : []
+          return "" if a_lines == b_lines
+
+          ["--- #{file_a}", "+++ #{file_b}", *a_lines.map { |line| "-#{line.chomp}" }, *b_lines.map { |line| "+#{line.chomp}" }].join("\n") + "\n"
+        end
+
+        def summary(comparison, output_dir:, templating_environment: nil, diff_count: nil, now: Time.now)
+          matched = comparison.fetch(:matched, [])
+          changed = comparison.fetch(:changed, [])
+          added = comparison.fetch(:added, [])
+          removed = comparison.fetch(:removed, [])
+          skipped = comparison.fetch(:skipped, [])
+          diff_count = changed.size if diff_count.nil?
+          total = matched.size + changed.size + added.size + removed.size
+          score = total.zero? ? 0.0 : (matched.size.to_f / total * 100).round(1)
+          divergence = (100.0 - score).round(1)
+
+          lines = ["# Template Self-Test Report", ""]
+          lines << "**Date**: #{now.iso8601}"
+          lines << "**Output**: `#{output_dir}`"
+          lines << "**Score**: #{score}% (#{matched.size}/#{total} files unchanged)"
+          lines << "**Divergence**: #{divergence}% (#{changed.size + added.size + removed.size}/#{total} files changed, added, or missing)"
+          lines << ""
+          environment_section = Kettle::Jem::TemplatingReport.markdown_section(snapshot: templating_environment) if templating_environment
+          lines << environment_section if environment_section && !environment_section.empty?
+          append_self_test_table(lines, "Changed Files", changed, "modified")
+          append_self_test_table(lines, "New Files", added)
+          if removed.any?
+            lines << "## Not Templated - Unexpected (#{removed.size})"
+            lines << ""
+            lines << "These files exist in the source gem and appear to be within the template's"
+            lines << "scope, but were not produced by the template task."
+            lines << ""
+            lines << "| File |"
+            lines << "|------|"
+            removed.each { |path| lines << "| #{path} |" }
+            lines << ""
+          end
+          if changed.empty? && added.empty? && removed.empty?
+            lines << "## All files match! :tada:"
+          else
+            lines << "## Detailed Diffs"
+            lines << ""
+            lines << if diff_count.to_i.positive?
+              "See `report/diffs/` directory (#{diff_count} file#{"s" unless diff_count == 1})."
+            else
+              "No per-file diffs were generated for this run; `report/diffs/` is empty."
+            end
+          end
+          append_skipped_files(lines, skipped)
+          lines << ""
+          lines.join("\n")
+        end
+
+        def append_self_test_table(lines, title, paths, status = nil)
+          return if paths.empty?
+
+          lines << "## #{title} (#{paths.size})"
+          lines << ""
+          if status
+            lines << "| File | Status |"
+            lines << "|------|--------|"
+            paths.each { |path| lines << "| #{path} | #{status} |" }
+          else
+            lines << "| File |"
+            lines << "|------|"
+            paths.each { |path| lines << "| #{path} |" }
+          end
+          lines << ""
+        end
+
+        def append_skipped_files(lines, skipped)
+          return if skipped.empty?
+
+          lines << ""
+          lines << "<details>"
+          lines << "<summary>Not Templated (#{skipped.size} files) - source-only files not produced by the template task</summary>"
+          lines << ""
+          lines << "These files are part of the gem source and are not expected to appear in the template output."
+          lines << ""
+          lines << "| File |"
+          lines << "|------|"
+          skipped.each { |path| lines << "| #{path} |" }
+          lines << ""
+          lines << "</details>"
+        end
+      end
+    end
+
     module_function
+
+    def display_path(path)
+      return path if path.nil?
+
+      path.to_s.sub(VAR_HOME_PREFIX, "/home")
+    end
+
+    def display_text(text)
+      return text if text.nil?
+
+      text.to_s.gsub(VAR_HOME_TEXT, "/home")
+    end
 
     def discover_facts(project_root, env: ENV)
       gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first

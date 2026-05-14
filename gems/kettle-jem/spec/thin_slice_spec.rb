@@ -1836,4 +1836,146 @@ RSpec.describe Kettle::Jem do
       end.to raise_error(ArgumentError, /unresolved kettle-jem template tokens: \{KJ\|UNKNOWN\}/)
     end
   end
+
+  it "reports template checksum drift" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-checksum-drift-slice", tmp_root) do |root|
+      write_tree(root, {
+        "templates/README.md.example" => "# Example\n",
+        "templates/.github/FUNDING.yml.example" => "github: [example]\n",
+        ".kettle-jem.yml" => <<~YAML,
+          project: example
+
+          kettle-jem:
+            version: "0.1.0"
+            checksums:
+              "README.md.example": "old"
+              "removed.md.example": "gone"
+        YAML
+      })
+
+      current = described_class::TemplateChecksums.compute(template_root: File.join(root, "templates"))
+      stored = described_class::TemplateChecksums.load_stored(config_path: File.join(root, ".kettle-jem.yml"))
+      drift = described_class::TemplateChecksums.diff(current: current, stored: stored)
+
+      expect(current.keys).to eq([".github/FUNDING.yml.example", "README.md.example"])
+      expect(drift).to eq(
+        added: [".github/FUNDING.yml.example"],
+        changed: ["README.md.example"],
+        removed: ["removed.md.example"]
+      )
+      expect(described_class::TemplateChecksums.diff_count(drift)).to eq(3)
+      expect(described_class::TemplateChecksums.summary(drift)).to eq(
+        "3 template file(s) since last run: 1 added, 1 changed, 1 removed"
+      )
+      expect(described_class::TemplateChecksums.detail_lines(drift)).to eq([
+        "  + .github/FUNDING.yml.example",
+        "  ~ README.md.example",
+        "  - removed.md.example",
+      ])
+
+      described_class::TemplateChecksums.write_to_config(
+        config_path: File.join(root, ".kettle-jem.yml"),
+        checksums: current,
+        version: "1.2.3"
+      )
+      rewritten = YAML.safe_load_file(File.join(root, ".kettle-jem.yml"))
+      expect(rewritten.fetch("kettle-jem").fetch("version")).to eq("1.2.3")
+      expect(rewritten.fetch("kettle-jem").fetch("checksums")).to eq(current)
+    end
+  end
+
+  it "renders self-test and templating diagnostics reports" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-self-test-report-slice", tmp_root) do |root|
+      before = File.join(root, "before")
+      after = File.join(root, "after")
+      write_tree(before, {
+        "same.txt" => "same\n",
+        "changed.txt" => "before\n",
+        "removed.txt" => "removed\n",
+      })
+      write_tree(after, {
+        "same.txt" => "same\n",
+        "changed.txt" => "after\n",
+        "added.txt" => "added\n",
+      })
+
+      comparison = described_class::SelfTest::Manifest.compare(
+        described_class::SelfTest::Manifest.generate(before),
+        described_class::SelfTest::Manifest.generate(after)
+      ).merge(skipped: ["lib/internal.rb"])
+      expect(comparison).to include(
+        matched: ["same.txt"],
+        changed: ["changed.txt"],
+        added: ["added.txt"],
+        removed: ["removed.txt"],
+        skipped: ["lib/internal.rb"]
+      )
+
+      snapshot = {
+        workspace_root: root,
+        kettle_jem: {
+          name: "kettle-jem",
+          version: "1.2.3",
+          path: File.join(root, "installed", "kettle-jem"),
+          local_path: false,
+          loaded: true,
+        },
+        merge_gems: [
+          {
+            name: "ast-merge",
+            version: "2.0.0",
+            path: File.join(root, "ast-merge"),
+            local_path: true,
+            loaded: true,
+          },
+          {
+            name: "json-merge",
+            version: nil,
+            path: nil,
+            local_path: false,
+            loaded: false,
+          },
+        ],
+      }
+
+      self_test_report = described_class::SelfTest::Reporter.summary(
+        comparison,
+        output_dir: File.join(root, "output"),
+        templating_environment: snapshot,
+        diff_count: 1,
+        now: Time.utc(2026, 5, 14, 12, 0, 0)
+      )
+      expect(self_test_report).to include("**Score**: 25.0% (1/4 files unchanged)")
+      expect(self_test_report).to include("**Divergence**: 75.0% (3/4 files changed, added, or missing)")
+      expect(self_test_report).to include("## Changed Files (1)")
+      expect(self_test_report).to include("## New Files (1)")
+      expect(self_test_report).to include("## Not Templated - Unexpected (1)")
+      expect(self_test_report).to include("<summary>Not Templated (1 files) - source-only files not produced by the template task</summary>")
+      expect(self_test_report).to include("| ast-merge | 2.0.0 | local path |")
+      expect(self_test_report).to include("| json-merge | _not loaded_ | not loaded |")
+
+      run_report = described_class::TemplatingReport.render_markdown(
+        project_root: root,
+        snapshot: snapshot,
+        run_started_at: Time.utc(2026, 5, 14, 12, 0, 0),
+        finished_at: Time.utc(2026, 5, 14, 12, 1, 0),
+        status: "failed",
+        warnings: ["missing service", "missing service"],
+        error: RuntimeError.new("boom"),
+        template_diff: {added: ["new.md"], changed: ["README.md"], removed: ["old.md"]},
+        template_commit_sha: "abc123"
+      )
+      expect(run_report).to include("# kettle-jem Templating Run Report")
+      expect(run_report).to include("**Status**: `failed`")
+      expect(run_report).to include("**Template commit**: `abc123`")
+      expect(run_report.scan("- missing service").length).to eq(1)
+      expect(run_report).to include("## Template File Changes")
+      expect(run_report).to include("3 template file(s) since last run: 1 added, 1 changed, 1 removed")
+      expect(run_report).to include("RuntimeError: boom")
+    end
+  end
 end
