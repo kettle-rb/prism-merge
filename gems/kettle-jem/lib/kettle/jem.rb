@@ -27,8 +27,10 @@ module Kettle
     RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
+    LOGOS_GALTZO_BASE_URL = "https://logos.galtzo.com/assets/images"
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
     README_TOP_LOGO_MODES = %w[org project org_and_project].freeze
+    README_TOP_LOGO_TYPES = %w[language org project affiliated_project].freeze
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
     README_SECTION_ALIASES = {
@@ -1245,7 +1247,7 @@ module Kettle
     end
 
     def readme_logo_facts(config, package_name:, github_org:)
-      entries = readme_top_logo_entries(readme_top_logo_mode(config), org: github_org.to_s, gem_name: package_name.to_s)
+      entries = readme_top_logo_entries(config, org: github_org.to_s, gem_name: package_name.to_s)
       compact_hash(
         top_logo_mode: readme_top_logo_mode(config),
         top_logo_row: [README_STATIC_TOP_LOGO_ROW, readme_top_logo_row(entries)].reject(&:empty?).join(" "),
@@ -1263,7 +1265,92 @@ module Kettle
       README_TOP_LOGO_MODE_DEFAULT
     end
 
-    def readme_top_logo_entries(mode, org:, gem_name:)
+    def readme_top_logo_entries(config, org:, gem_name:)
+      configured = configured_readme_top_logo_entries(config, org: org, gem_name: gem_name)
+      return configured if configured
+
+      readme_top_logo_mode_entries(readme_top_logo_mode(config), org: org, gem_name: gem_name)
+    end
+
+    def configured_readme_top_logo_entries(config, org:, gem_name:)
+      readme_config = config.is_a?(Hash) && config["readme"].is_a?(Hash) ? config["readme"] : {}
+      logo_row = readme_config["logo_row"]
+      return nil unless logo_row.is_a?(Hash)
+      return [] if falsey_config?(logo_row["enabled"])
+
+      logos = Array(logo_row["logos"]).first(3)
+      return [] if logos.empty?
+
+      logos.filter_map do |logo|
+        readme_top_logo_entry_from_config(logo, org: org, gem_name: gem_name)
+      end.uniq { |entry| [entry[:image_ref], entry[:link_ref], entry[:image_url], entry[:href]] }
+    end
+
+    def readme_top_logo_entry_from_config(logo, org:, gem_name:)
+      return nil unless logo.is_a?(Hash)
+
+      type = logo["type"].to_s.strip.downcase.tr("-", "_")
+      return nil unless README_TOP_LOGO_TYPES.include?(type)
+
+      slug = logo["slug"].to_s.strip
+      slug = default_readme_top_logo_slug(type, org: org, gem_name: gem_name) if slug.empty?
+      return nil if slug.empty?
+
+      alt = logo["alt"].to_s.strip
+      alt = readme_top_logo_default_alt(type, slug) if alt.empty?
+      href = logo["href"].to_s.strip
+      href = default_readme_top_logo_href(type, slug: slug, org: org, gem_name: gem_name) if href.empty?
+      ref_slug = slug.tr("/", "-")
+      {
+        label: alt.sub(/\s+logo\z/i, ""),
+        image_ref: "#{ref_slug}-i",
+        link_ref: ref_slug,
+        image_url: "#{LOGOS_GALTZO_BASE_URL}/#{slug}/avatar-192px.svg",
+        href: href,
+      }
+    end
+
+    def default_readme_top_logo_slug(type, org:, gem_name:)
+      case type
+      when "language"
+        "ruby-lang"
+      when "org"
+        org.to_s
+      when "project"
+        [org, gem_name].reject(&:empty?).join("/")
+      else
+        ""
+      end
+    end
+
+    def readme_top_logo_default_alt(type, slug)
+      label = slug.split("/").last.to_s
+      case type
+      when "language"
+        "#{label} language"
+      when "org"
+        "#{label} organization"
+      when "project"
+        "#{label} project"
+      else
+        "#{label} affiliated project"
+      end
+    end
+
+    def default_readme_top_logo_href(type, slug:, org:, gem_name:)
+      case type
+      when "language"
+        slug == "ruby-lang" ? "https://www.ruby-lang.org/" : "#{LOGOS_GALTZO_BASE_URL}/#{slug}/"
+      when "org"
+        org.to_s.empty? ? "#{LOGOS_GALTZO_BASE_URL}/#{slug}/" : "https://github.com/#{org}"
+      when "project"
+        org.to_s.empty? || gem_name.to_s.empty? ? "#{LOGOS_GALTZO_BASE_URL}/#{slug}/" : "https://github.com/#{org}/#{gem_name}"
+      else
+        "#{LOGOS_GALTZO_BASE_URL}/#{slug}/"
+      end
+    end
+
+    def readme_top_logo_mode_entries(mode, org:, gem_name:)
       return [] if org.empty?
 
       entries = []
@@ -1272,7 +1359,7 @@ module Kettle
           label: org,
           image_ref: "#{org}-i",
           link_ref: org,
-          image_url: "https://logos.galtzo.com/assets/images/#{org}/avatar-192px.svg",
+          image_url: "#{LOGOS_GALTZO_BASE_URL}/#{org}/avatar-192px.svg",
           href: "https://github.com/#{org}",
         }
       end
@@ -1281,7 +1368,7 @@ module Kettle
           label: gem_name,
           image_ref: "#{gem_name}-i",
           link_ref: gem_name,
-          image_url: "https://logos.galtzo.com/assets/images/#{org}/#{gem_name}/avatar-192px.svg",
+          image_url: "#{LOGOS_GALTZO_BASE_URL}/#{org}/#{gem_name}/avatar-192px.svg",
           href: "https://github.com/#{org}/#{gem_name}",
         }
       end

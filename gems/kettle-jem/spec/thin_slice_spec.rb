@@ -1390,6 +1390,69 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects configured README logo row entries by normalized logo type" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-typed-logo-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example-gem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.summary = "Example gem"
+            spec.metadata["source_code_uri"] = "https://github.com/acme/example-gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          readme:
+            logo_row:
+              enabled: true
+              logos:
+                - type: language
+                  slug: ruby-lang
+                  alt: Ruby language logo
+                - type: org
+                  slug: acme
+                  alt: Acme org logo
+                - type: affiliated_project
+                  slug: tree-sitter/tree-sitter
+                  alt: Tree-sitter project logo
+                - type: project
+                  slug: acme/ignored
+                  alt: Ignored fourth logo
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Row:
+          {KJ|README:TOP_LOGO_ROW}
+          Refs:
+          {KJ|README:TOP_LOGO_REFS}
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      final_content = template_report.fetch(:final_content)
+      expect(final_content).to include("[![Ruby language Logo by Aboling0, CC BY-SA 4.0][🖼️ruby-lang-i]][🖼️ruby-lang]")
+      expect(final_content).to include("[![Acme org Logo by Aboling0, CC BY-SA 4.0][🖼️acme-i]][🖼️acme]")
+      expect(final_content).to include("[![Tree-sitter project Logo by Aboling0, CC BY-SA 4.0][🖼️tree-sitter-tree-sitter-i]][🖼️tree-sitter-tree-sitter]")
+      expect(final_content).to include("[🖼️tree-sitter-tree-sitter-i]: https://logos.galtzo.com/assets/images/tree-sitter/tree-sitter/avatar-192px.svg")
+      expect(final_content).not_to include("Ignored fourth logo")
+    end
+  end
+
+  it "omits the deprecated secure installation section from packaged README templates" do
+    template_root = described_class::PACKAGED_TEMPLATE_ROOT
+
+    expect(File.read(File.join(template_root, "README.md.example"))).not_to include("### 🔒 Secure Installation")
+    expect(File.read(File.join(template_root, "README.md.no-osc.example"))).not_to include("### 🔒 Secure Installation")
+  end
+
   it "projects RuboCop LTS template tokens from minimum Ruby" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
