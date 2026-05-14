@@ -33,6 +33,23 @@ module Kettle
     README_TOP_LOGO_TYPES = %w[language org project affiliated_project].freeze
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
+    README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze
+    README_INTEGRATION_BADGE_PATTERNS = {
+      "codecov" => [
+        /\s*\[!\[CodeCov Test Coverage\]\[[^\]]+\]\]\[[^\]]+\]/,
+        /\n\[!\[Coverage Graph\]\[[^\]]+\]\]\[[^\]]+\]\n/,
+      ],
+      "coveralls" => [
+        /\s*\[!\[Coveralls Test Coverage\]\[[^\]]+\]\]\[[^\]]+\]/,
+      ],
+      "qlty" => [
+        /\s*\[!\[QLTY Test Coverage\]\[[^\]]+\]\]\[[^\]]+\]/,
+        /\s*\[!\[QLTY Maintainability\]\[[^\]]+\]\]\[[^\]]+\]/,
+      ],
+      "codeql" => [
+        /\s*\[!\[CodeQL\]\[[^\]]+\]\]\[[^\]]+\]/,
+      ],
+    }.freeze
     README_SECTION_ALIASES = {
       "summary" => "synopsis",
       "usage" => "basic usage",
@@ -213,6 +230,8 @@ module Kettle
         facts[:project_runtime] = project_runtime unless project_runtime.empty?
         readme_logo = readme_logo_facts(kettle_config, package_name: name, github_org: project_runtime[:github_org])
         facts[:readme_logo] = readme_logo unless readme_logo.empty?
+        readme_style = readme_style_facts(project_root, kettle_config, license)
+        facts[:readme_style] = readme_style unless readme_style.empty?
         template_tokens = template_tokens(facts, funding)
         template_facts[:tokens] = template_tokens unless template_tokens.empty?
       end
@@ -299,6 +318,7 @@ module Kettle
         )
         recipe[:template_preference] = preference
         recipe[:template_tokens] = facts.dig(:templates, :tokens) if facts.dig(:templates, :tokens)
+        recipe[:readme_style] = facts[:readme_style] if preference.fetch(:target_path) == "README.md" && facts[:readme_style]
         recipes << recipe
       end
       recipes << recipe_entry(
@@ -606,6 +626,7 @@ module Kettle
     rescue ArgumentError => e
       raise ArgumentError, "#{recipe.fetch(:target_path)}: #{e.message}"
     else
+      resolved = prepare_readme_template(resolved, recipe[:readme_style]) if recipe.fetch(:target_path) == "README.md"
       if recipe.fetch(:target_path) == "README.md" && (strategy.empty? || strategy == "merge")
         return merge_readme_template(
           template_content: resolved,
@@ -616,6 +637,38 @@ module Kettle
       return merge_config_template_source(recipe, resolved, original) if strategy.empty? || strategy == "merge"
 
       resolved
+    end
+
+    def prepare_readme_template(content, readme_style)
+      style = readme_style || {}
+      prepared = prune_readme_integration_badges(content, style)
+      omitted_sections = Array(style[:omitted_sections]).map(&:to_s)
+      omitted_sections << "security" if style.key?(:security_enabled) && !style[:security_enabled]
+      omitted_sections << "floss_funding" if style.key?(:floss_funding_enabled) && !style[:floss_funding_enabled]
+      remove_readme_sections(prepared, omitted_sections.map { |section| section.tr("_", " ") })
+    end
+
+    def prune_readme_integration_badges(content, readme_style)
+      integrations = Array(readme_style[:missing_integrations]) + Array(readme_style[:disabled_integrations])
+      integrations.uniq.reduce(content.to_s) do |result, integration|
+        README_INTEGRATION_BADGE_PATTERNS.fetch(integration.to_s, []).reduce(result) do |memo, pattern|
+          memo.gsub(pattern, "")
+        end
+      end.gsub(/[ \t]{2,}/, " ")
+    end
+
+    def remove_readme_sections(content, section_bases)
+      bases = section_bases.map { |section| normalize_readme_heading(section) }.uniq
+      return content if bases.empty?
+
+      sections = markdown_sections(content).select { |section| bases.include?(section.fetch(:base)) }
+      return content if sections.empty?
+
+      lines = content.to_s.split("\n", -1)
+      sections.reverse_each do |section|
+        lines[section.fetch(:start)..section.fetch(:end)] = []
+      end
+      ensure_trailing_newline(lines.join("\n").gsub(/\n{3,}/, "\n\n").strip)
     end
 
     def merge_config_template_source(recipe, template_content, destination_content)
@@ -743,6 +796,7 @@ module Kettle
       metadata[:delete_file] = true if delete_file_recipe?(recipe)
       metadata[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
       metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      metadata[:readme_style] = deep_dup(recipe[:readme_style]) if recipe[:readme_style]
       metadata[:bootstrap_file] = true if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
       metadata
     end
@@ -766,6 +820,7 @@ module Kettle
       end
       context[:template_source_preference] = deep_dup(recipe[:template_preference]) if recipe[:template_preference]
       context[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+      context[:readme_style] = deep_dup(recipe[:readme_style]) if recipe[:readme_style]
       context
     end
 
@@ -792,6 +847,7 @@ module Kettle
           template_source_preference: deep_dup(recipe.fetch(:template_preference)),
         )
         metadata[:template_tokens] = deep_dup(recipe[:template_tokens]) if recipe[:template_tokens]
+        metadata[:readme_style] = deep_dup(recipe[:readme_style]) if recipe[:readme_style]
       end
       if recipe.fetch(:primitive) == "supplied_template_source_application"
         metadata.merge!(
@@ -1647,6 +1703,76 @@ module Kettle
       return resolved if unresolved.empty?
 
       raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.map { |token| "{#{token}}" }.join(", ")}"
+    end
+
+    def readme_style_facts(project_root, config, license)
+      readme = config["readme"].is_a?(Hash) ? config["readme"] : {}
+      conditional = readme["conditional_sections"].is_a?(Hash) ? readme["conditional_sections"] : {}
+      disabled_integrations = readme_disabled_integrations(readme)
+      missing_integrations = README_INTEGRATIONS.reject do |integration|
+        disabled_integrations.include?(integration) || readme_integration_configured?(project_root, integration)
+      end
+      omitted_sections = []
+      security_enabled = File.exist?(File.join(project_root, "SECURITY.md"))
+      floss_funding_enabled = readme_floss_funding_enabled?(license, conditional["floss_funding"])
+      omitted_sections << "security" unless security_enabled
+      omitted_sections << "floss_funding" unless floss_funding_enabled
+      compact_hash(
+        profile: "slice-740-kettle-readme-style-profile",
+        security_enabled: security_enabled,
+        floss_funding_enabled: floss_funding_enabled,
+        omitted_sections: omitted_sections,
+        disabled_integrations: disabled_integrations,
+        missing_integrations: missing_integrations,
+      )
+    end
+
+    def readme_floss_funding_enabled?(license, config_value)
+      return false if falsey_config?(config_value)
+      return true if %w[true yes 1 always enabled].include?(config_value.to_s.strip.downcase)
+
+      Array(license[:spdx]).map(&:to_s).include?("MIT")
+    end
+
+    def readme_disabled_integrations(readme)
+      disabled = []
+      integrations = readme["integrations"].is_a?(Hash) ? readme["integrations"] : {}
+      badges = readme["badges"].is_a?(Hash) ? readme["badges"] : {}
+      integrations.each do |name, value|
+        disabled << name.to_s if falsey_config?(value)
+      end
+      disabled.concat(Array(badges["disabled"]).map(&:to_s))
+      disabled.map { |name| name.tr("_", "-").downcase }.map { |name| name == "code-ql" ? "codeql" : name }.uniq & README_INTEGRATIONS
+    end
+
+    def readme_integration_configured?(project_root, integration)
+      case integration
+      when "codecov"
+        File.exist?(File.join(project_root, ".codecov.yml")) ||
+          File.exist?(File.join(project_root, "codecov.yml")) ||
+          github_workflows_include?(project_root, "codecov/codecov-action")
+      when "coveralls"
+        File.exist?(File.join(project_root, ".coveralls.yml")) ||
+          github_workflows_include?(project_root, "coverallsapp/github-action")
+      when "qlty"
+        File.exist?(File.join(project_root, ".qlty/qlty.toml")) ||
+          File.exist?(File.join(project_root, ".qlty.yml")) ||
+          github_workflows_include?(project_root, "qltysh/qlty-action")
+      when "codeql"
+        File.exist?(File.join(project_root, ".github/workflows/codeql.yml")) ||
+          File.exist?(File.join(project_root, ".github/workflows/codeql-analysis.yml")) ||
+          github_workflows_include?(project_root, "github/codeql-action")
+      else
+        false
+      end
+    end
+
+    def github_workflows_include?(project_root, needle)
+      Dir.glob(File.join(project_root, ".github/workflows/*.{yml,yaml}")).any? do |path|
+        File.read(path).include?(needle)
+      rescue Errno::ENOENT
+        false
+      end
     end
 
     def unresolved_template_scan?(recipe)

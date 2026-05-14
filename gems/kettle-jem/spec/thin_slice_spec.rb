@@ -134,6 +134,89 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "applies README style conditionals and reports missing integrations" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-style-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.licenses = ["PolyForm-Noncommercial-1.0.0"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: templates
+            apply: true
+            entries:
+              - README.md
+          readme:
+            integrations:
+              coveralls: false
+        YAML
+        "templates/README.md.example" => <<~MARKDOWN,
+          # 💎 Example
+
+          [![CodeCov Test Coverage][🏀codecovi]][🏀codecov] [![Coveralls Test Coverage][🏀coveralls-img]][🏀coveralls] [![QLTY Test Coverage][🏀qlty-covi]][🏀qlty-cov] [![QLTY Maintainability][🏀qlty-mnti]][🏀qlty-mnt] [![CodeQL][🖐codeQL-img]][🖐codeQL]
+
+          ## 🌻 Synopsis
+
+          Template synopsis.
+
+          ## 🦷 FLOSS Funding
+
+          Funding template text.
+
+          ## 🔐 Security
+
+          Security template text.
+
+          ## ⚙️ Configuration
+
+          Template configuration.
+
+          ## 🔧 Basic Usage
+
+          Template usage.
+        MARKDOWN
+        "README.md" => <<~MARKDOWN,
+          # 💎 Example
+
+          ## 🌻 Synopsis
+
+          Project synopsis.
+
+          ## ⚙️ Configuration
+
+          Project configuration.
+
+          ## 🔧 Basic Usage
+
+          Project usage.
+        MARKDOWN
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan[:recipe_reports].find { |candidate| candidate.fetch(:recipe_name) == "template_source_application_README_md" }
+      expect(report.fetch(:final_content)).to include("Project synopsis.")
+      expect(report.fetch(:final_content)).to include("Project configuration.")
+      expect(report.fetch(:final_content)).to include("Project usage.")
+      expect(report.fetch(:final_content)).not_to include("## 🦷 FLOSS Funding")
+      expect(report.fetch(:final_content)).not_to include("## 🔐 Security")
+      expect(report.fetch(:final_content)).not_to include("CodeCov Test Coverage")
+      expect(report.fetch(:final_content)).not_to include("Coveralls Test Coverage")
+      expect(report.fetch(:final_content)).not_to include("QLTY Test Coverage")
+      expect(report.fetch(:final_content)).not_to include("CodeQL")
+      expect(report.dig(:metadata, :readme_style, :floss_funding_enabled)).to be(false)
+      expect(report.dig(:metadata, :readme_style, :security_enabled)).to be(false)
+      expect(report.dig(:metadata, :readme_style, :disabled_integrations)).to eq(["coveralls"])
+      expect(report.dig(:metadata, :readme_style, :missing_integrations)).to contain_exactly("codecov", "qlty", "codeql")
+    end
+  end
+
   it "removes Open Collective funding when disabled" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
