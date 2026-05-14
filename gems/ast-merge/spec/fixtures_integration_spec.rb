@@ -71,6 +71,23 @@ RSpec.describe Ast::Merge do
     expect(matchings.fetch(2).matches.fetch(1).diagnostics.fetch(0)).to eq("sibling position changed")
   end
 
+  it "conforms to the slice-792 class mapping fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-792-class-mapping", "class-mapping.json"))
+    raw = fixture[:class_mapping]
+    report = described_class::ClassMappingReport.new(
+      mapping_id: raw[:mapping_id],
+      source_matching_ids: raw[:source_matching_ids],
+      node_classes: raw[:node_classes].map { |entry| described_class::ClassMappingNodeClass.new(**entry) },
+      diagnostics: raw[:diagnostics].map { |entry| described_class::ClassMappingDiagnostic.new(**entry) }
+    )
+
+    expect(report.node_classes.length).to eq(fixture.dig(:expected, :class_count))
+    expect(report.diagnostics.map(&:category)).to eq(fixture.dig(:expected, :diagnostic_categories))
+    expect(report.diagnostics.map(&:class_id)).to eq(fixture.dig(:expected, :conflicted_class_ids))
+    expect(report.node_classes.fetch(2).node_ids).not_to have_key(:right)
+    expect(report.diagnostics.fetch(1).category).to eq("delete_edit_disagreement")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

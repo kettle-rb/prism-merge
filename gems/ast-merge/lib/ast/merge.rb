@@ -115,6 +115,41 @@ module Ast
       end
     end
 
+    ClassMappingNodeClass = Struct.new(:class_id, :signature, :node_ids, :matching_ids, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          class_id: class_id,
+          signature: signature,
+          node_ids: node_ids || {},
+          matching_ids: matching_ids || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    ClassMappingDiagnostic = Struct.new(:severity, :category, :class_id, :message, :matching_ids, keyword_init: true) do
+      def to_h
+        {
+          severity: severity,
+          category: category,
+          class_id: class_id,
+          message: message,
+          matching_ids: matching_ids || []
+        }
+      end
+    end
+
+    ClassMappingReport = Struct.new(:mapping_id, :source_matching_ids, :node_classes, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          mapping_id: mapping_id,
+          source_matching_ids: source_matching_ids || [],
+          node_classes: (node_classes || []).map(&:to_h),
+          diagnostics: (diagnostics || []).map(&:to_h)
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
