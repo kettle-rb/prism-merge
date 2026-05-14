@@ -165,6 +165,37 @@ module TreeHaver
     end
   end
 
+  TreeHaverProfile = Struct.new(
+    :profile_id,
+    :language,
+    :backend_ref,
+    :provider_id,
+    :node_roles,
+    :normalized_node_fields,
+    :optional_node_features,
+    :unsupported_defaults,
+    :capability,
+    :fixture_slices,
+    :diagnostics,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        profile_id: profile_id,
+        language: language,
+        backend_ref: backend_ref.to_h,
+        provider_id: provider_id,
+        node_roles: node_roles || [],
+        normalized_node_fields: normalized_node_fields || [],
+        optional_node_features: optional_node_features || [],
+        unsupported_defaults: unsupported_defaults || {},
+        capability: capability.to_h,
+        fixture_slices: fixture_slices || [],
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
   ParserDiagnostics = Struct.new(:backend, :backend_ref, :diagnostics, keyword_init: true) do
     def to_h
       {

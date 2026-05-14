@@ -229,6 +229,32 @@ RSpec.describe TreeHaver do
     expect(result.source_fragments_available).to be(true)
   end
 
+  it "conforms to the slice-788 tree-haver profile fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-788-tree-haver-profile", "tree-haver-profile.json"))
+    profile_fixture = fixture[:profile]
+    profile = described_class::TreeHaverProfile.new(
+      profile_id: profile_fixture[:profile_id],
+      language: profile_fixture[:language],
+      backend_ref: described_class::BackendReference.new(**profile_fixture[:backend_ref]),
+      provider_id: profile_fixture[:provider_id],
+      node_roles: profile_fixture[:node_roles],
+      normalized_node_fields: profile_fixture[:normalized_node_fields],
+      optional_node_features: profile_fixture[:optional_node_features],
+      unsupported_defaults: profile_fixture[:unsupported_defaults],
+      capability: backend_capability(profile_fixture[:capability]),
+      fixture_slices: profile_fixture[:fixture_slices],
+      diagnostics: profile_fixture[:diagnostics]
+    )
+
+    expect(profile.profile_id).to eq("go-dst-normalized-tree-v1")
+    expect(profile.backend_ref.id).to eq("go-dst")
+    expect(profile.node_roles.first).to eq("structural")
+    expect(profile.normalized_node_fields.last).to eq("metadata")
+    expect(profile.unsupported_defaults[:field_name]).to eq("null")
+    expect(profile.capability.parser_identity.name).to eq("github.com/dave/dst")
+    expect(profile.fixture_slices.first).to eq("slice-782-normalized-tree-node")
+  end
+
   it "conforms to the slice-783 backend capability report fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-783-backend-capability-report", "backend-capability-report.json"))
     capability_fixture = fixture[:capability]
