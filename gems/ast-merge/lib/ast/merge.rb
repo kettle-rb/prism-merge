@@ -11,8 +11,12 @@ module Ast
     STRUCTURED_EDIT_TRANSPORT_VERSION = 1
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     COMPACT_RULESET_REQUIRED_DIRECTIVES = %w[format owners match read attach].freeze
-    COMPACT_RULESET_SINGLETON_DIRECTIVES = %w[format owners match read attach comment_style render].freeze
-    COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES = %w[capability logical_owner repair surface delegate].freeze
+    COMPACT_RULESET_SINGLETON_DIRECTIVES = %w[
+      format owners match read attach comment_style render render_strategy
+    ].freeze
+    COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES = %w[
+      backend node_role atomic child_group capability logical_owner repair surface delegate
+    ].freeze
     COMPACT_RULESET_READ_VALUES = %w[source_augmented_portable_write native_read_portable_write native_mutation].freeze
     COMPACT_RULESET_ATTACH_VALUES = %w[
       layout_only
@@ -82,7 +86,7 @@ module Ast
           )
         end
         if COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES.include?(name)
-          key = [name, arguments.fetch(0)]
+          key = compact_ruleset_repeatable_key(name, arguments)
           diagnostics << compact_ruleset_diagnostic("repeated #{name.inspect} key #{arguments.fetch(0).inspect}", path) if seen_repeatable_keys[key]
           seen_repeatable_keys[key] = true
         end
@@ -105,6 +109,12 @@ module Ast
       return path.delete_suffix(".example") if path.end_with?(".example")
 
       path
+    end
+
+    def compact_ruleset_repeatable_key(name, arguments)
+      return [name, arguments.fetch(0), arguments.fetch(1)] if name == "child_group" && arguments.length > 1
+
+      [name, arguments.fetch(0)]
     end
 
     def classify_template_target_path(path)
