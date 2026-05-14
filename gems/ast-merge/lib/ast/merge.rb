@@ -25,6 +25,70 @@ module Ast
       normalize_tracked_layout_merge
     ].freeze
 
+    MergeIRNodeClass = Struct.new(:class_id, :signature, :node_ids, :roles, keyword_init: true) do
+      def to_h
+        {
+          class_id: class_id,
+          signature: signature,
+          node_ids: node_ids || {},
+          roles: roles || []
+        }
+      end
+    end
+
+    MergeIROrderedNode = Struct.new(:node_id, :parent_id, :child_ids, :previous_sibling_id, :next_sibling_id, keyword_init: true) do
+      def to_h
+        {
+          node_id: node_id,
+          parent_id: parent_id,
+          child_ids: child_ids || [],
+          previous_sibling_id: previous_sibling_id,
+          next_sibling_id: next_sibling_id
+        }
+      end
+    end
+
+    MergeIRChange = Struct.new(
+      :change_id,
+      :side,
+      :kind,
+      :node_id,
+      :class_id,
+      :parent_id,
+      :previous_sibling_id,
+      :next_sibling_id,
+      :content_hash,
+      keyword_init: true
+    ) do
+      def to_h
+        {
+          change_id: change_id,
+          side: side,
+          kind: kind,
+          node_id: node_id,
+          class_id: class_id,
+          parent_id: parent_id,
+          previous_sibling_id: previous_sibling_id,
+          next_sibling_id: next_sibling_id,
+          content_hash: content_hash
+        }
+      end
+    end
+
+    MergeIR = Struct.new(:version, :tree_id, :source, :node_classes, :ordered_nodes, :changes, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          version: version,
+          tree_id: tree_id,
+          source: source,
+          node_classes: (node_classes || []).map(&:to_h),
+          ordered_nodes: (ordered_nodes || []).map(&:to_h),
+          changes: (changes || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)

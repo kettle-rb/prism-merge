@@ -30,6 +30,27 @@ RSpec.describe Ast::Merge do
     Marshal.load(Marshal.dump(value))
   end
 
+  it "conforms to the slice-790 generic merge IR fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
+    raw = fixture[:merge_ir]
+    merge_ir = described_class::MergeIR.new(
+      version: raw[:version],
+      tree_id: raw[:tree_id],
+      source: raw[:source],
+      node_classes: raw[:node_classes].map { |entry| described_class::MergeIRNodeClass.new(**entry) },
+      ordered_nodes: raw[:ordered_nodes].map { |entry| described_class::MergeIROrderedNode.new(**entry) },
+      changes: raw[:changes].map { |entry| described_class::MergeIRChange.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(merge_ir.version).to eq(fixture.dig(:expected, :version))
+    expect(merge_ir.node_classes.length).to eq(fixture.dig(:expected, :node_class_count))
+    expect(merge_ir.ordered_nodes.length).to eq(fixture.dig(:expected, :ordered_node_count))
+    expect(merge_ir.changes.map(&:kind)).to eq(fixture.dig(:expected, :change_kinds))
+    expect(merge_ir.node_classes.first.node_ids.fetch(:left)).to eq("left-import-fmt")
+    expect(merge_ir.changes.fetch(1).class_id).to eq("class-import-strings")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
