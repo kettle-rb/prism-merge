@@ -236,6 +236,11 @@ module TreeHaver
     :anonymous,
     :has_source_text,
     :source_fragment,
+    :backend_kind,
+    :semantic_roles,
+    :backend_roles,
+    :unsupported_features,
+    :metadata,
     keyword_init: true
   ) do
     def to_h
@@ -250,7 +255,12 @@ module TreeHaver
         named: named,
         anonymous: anonymous,
         has_source_text: has_source_text,
-        source_fragment: source_fragment
+        source_fragment: source_fragment,
+        backend_kind: backend_kind,
+        semantic_roles: semantic_roles || [],
+        backend_roles: backend_roles || [],
+        unsupported_features: unsupported_features || [],
+        metadata: metadata || {}
       }
     end
   end

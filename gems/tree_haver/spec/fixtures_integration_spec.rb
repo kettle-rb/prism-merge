@@ -183,6 +183,19 @@ RSpec.describe TreeHaver do
     expect(child.has_source_text).to be(true)
   end
 
+  it "conforms to the slice-786 progressive node metadata fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-786-progressive-node-metadata", "progressive-node-metadata.json"))
+    enhanced = normalized_tree_node(fixture[:enhanced_node])
+    limited = normalized_tree_node(fixture[:limited_node])
+
+    expect(enhanced.backend_kind).to eq("FuncDecl")
+    expect(enhanced.semantic_roles.first).to eq("declaration")
+    expect(enhanced.metadata.dig(:go_dst, :node_path)).to eq("decls[0]")
+    expect(limited.has_source_text).to be(false)
+    expect(limited.unsupported_features.fetch(1)).to eq("source_fragment")
+    expect(limited.metadata.dig(:psych, :location_support)).to eq("line_column_only")
+  end
+
   it "conforms to the slice-783 backend capability report fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-783-backend-capability-report", "backend-capability-report.json"))
     capability_fixture = fixture[:capability]
@@ -329,7 +342,12 @@ RSpec.describe TreeHaver do
       named: fixture[:named],
       anonymous: fixture[:anonymous],
       has_source_text: fixture[:has_source_text],
-      source_fragment: fixture[:source_fragment]
+      source_fragment: fixture[:source_fragment],
+      backend_kind: fixture[:backend_kind],
+      semantic_roles: fixture[:semantic_roles] || [],
+      backend_roles: fixture[:backend_roles] || [],
+      unsupported_features: fixture[:unsupported_features] || [],
+      metadata: fixture[:metadata] || {}
     )
   end
 
