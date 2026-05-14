@@ -2328,6 +2328,8 @@ module Kettle
         logical_path = relative_path
           .sub(/\.no-osc\.example\z/, "")
           .sub(/\.example\z/, "")
+        next if logical_path.start_with?("readme/partials/")
+
         logical_paths << logical_path unless logical_path.empty?
       end
 

@@ -8,3 +8,16 @@ bundle exec rake kettle:jem:selftest
 support, and runs the template workflow. `kettle:jem:install` reapplies
 template updates. `kettle:jem:selftest` checks template drift in a temporary
 workspace.
+
+Useful runtime controls:
+
+| Setting | Use |
+|---|---|
+| `KETTLE_JEM_VERBOSE=true` | Show detailed template output. |
+| `PARSE_ERROR_MODE=fail` | Fail when an AST/parser-backed merge cannot run. |
+| `PARSE_ERROR_MODE=skip` | Preserve the destination when parsing is unavailable. |
+| `FAILURE_MODE=error` | Raise on merge failure. |
+| `FAILURE_MODE=rescue` | Warn and keep unmerged content on merge failure. |
+| `only=glob,glob` | Limit the template run to matching paths. |
+| `include=glob,glob` | Add matching paths to the run. |
+| `hook_templates=l|g|n` | Install local hooks, global hooks, or no hooks. |

@@ -37,3 +37,53 @@ plugins:
 ```
 
 </details>
+
+<details markdown="1">
+<summary>Strategies, tokens, and freeze blocks</summary>
+
+Template strategies:
+
+| Strategy | Behavior |
+|---|---|
+| `merge` | Resolve tokens, then merge template and destination using the selected recipe. |
+| `accept_template` | Resolve tokens and write the template result. |
+| `keep_destination` | Leave the destination file untouched. |
+| `raw_copy` | Copy bytes exactly, with no token resolution or merge. |
+
+Merge entries may set `preference`, `add_template_only_nodes`, `freeze_token`,
+`file_type`, and `recipe`. `files` entries match exact paths. `patterns`
+entries are glob-based and the first match wins.
+
+Tokens use `{KJ\|TOKEN}` syntax. Environment values win over `.kettle-jem.yml`,
+and config values win over safe gemspec-derived defaults.
+
+Freeze blocks use the configured token, defaulting to `kettle-jem`:
+
+```ruby
+# kettle-jem:freeze
+gem "local-only", path: "../local-only"
+# kettle-jem:unfreeze
+```
+
+Content inside a freeze block is preserved from the destination.
+
+</details>
+
+<details markdown="1">
+<summary>Merge engines and workflows</summary>
+
+`kettle-jem` routes files through recipes selected by target path and
+`file_type`. Current Ruby recipes cover README metadata/style, changelog
+normalization, managed text blocks, GitHub funding, GitHub Actions workflows,
+obsolete workflow cleanup, Open Collective cleanup, selected template source
+application, and Rakefile scaffold cleanup.
+
+`workflows.preset: framework` generates a Ruby x framework-version CI matrix.
+`workflows.coverage` enables coverage workflow generation. Existing custom
+workflows can receive pinned-action snippets without replacing the whole file.
+
+`plugins` lists extension gems. A plugin is required by gem name, resolved to a
+constant, and called through `register_kettle_jem_plugin(registrar)`. The
+registrar supports `before_phase`, `after_phase`, and `on_phase` hooks.
+
+</details>
