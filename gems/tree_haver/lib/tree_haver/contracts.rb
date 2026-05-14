@@ -51,6 +51,58 @@ module TreeHaver
     end
   end
 
+  ParserIdentity = Struct.new(:name, :version, :implementation, keyword_init: true) do
+    def to_h
+      {
+        name: name,
+        version: version,
+        implementation: implementation
+      }
+    end
+  end
+
+  LanguageVersion = Struct.new(:version, :dialect, keyword_init: true) do
+    def to_h
+      {
+        version: version,
+        dialect: dialect
+      }
+    end
+  end
+
+  BackendCapability = Struct.new(
+    :backend_ref,
+    :language,
+    :parser_identity,
+    :language_version,
+    :parse_error_behavior,
+    :source_span_support,
+    :source_fragment_support,
+    :render_strategies,
+    :semantic_role_support,
+    :normalized_tree_support,
+    :native_node_access,
+    :diagnostics,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        backend_ref: backend_ref.to_h,
+        language: language,
+        parser_identity: parser_identity.to_h,
+        language_version: language_version.to_h,
+        parse_error_behavior: parse_error_behavior,
+        source_span_support: source_span_support,
+        source_fragment_support: source_fragment_support,
+        render_strategies: render_strategies,
+        semantic_role_support: semantic_role_support,
+        normalized_tree_support: normalized_tree_support,
+        native_node_access: native_node_access,
+        diagnostics: diagnostics
+      }
+    end
+  end
+
   ParserDiagnostics = Struct.new(:backend, :backend_ref, :diagnostics, keyword_init: true) do
     def to_h
       {

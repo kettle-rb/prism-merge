@@ -183,6 +183,34 @@ RSpec.describe TreeHaver do
     expect(child.has_source_text).to be(true)
   end
 
+  it "conforms to the slice-783 backend capability report fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-783-backend-capability-report", "backend-capability-report.json"))
+    capability_fixture = fixture[:capability]
+    capability = described_class::BackendCapability.new(
+      backend_ref: described_class::BackendReference.new(**capability_fixture[:backend_ref]),
+      language: capability_fixture[:language],
+      parser_identity: described_class::ParserIdentity.new(**capability_fixture[:parser_identity]),
+      language_version: described_class::LanguageVersion.new(**capability_fixture[:language_version]),
+      parse_error_behavior: capability_fixture[:parse_error_behavior],
+      source_span_support: capability_fixture[:source_span_support],
+      source_fragment_support: capability_fixture[:source_fragment_support],
+      render_strategies: capability_fixture[:render_strategies],
+      semantic_role_support: capability_fixture[:semantic_role_support],
+      normalized_tree_support: capability_fixture[:normalized_tree_support],
+      native_node_access: capability_fixture[:native_node_access],
+      diagnostics: capability_fixture[:diagnostics]
+    )
+
+    expect(capability.backend_ref.id).to eq("go-dst")
+    expect(capability.backend_ref.family).to eq("native")
+    expect(capability.language).to eq("go")
+    expect(capability.parser_identity.name).to eq("github.com/dave/dst")
+    expect(capability.parse_error_behavior).to eq("diagnostic_and_partial_tree")
+    expect(capability.render_strategies.first).to eq("source_fragment_reuse")
+    expect(capability.normalized_tree_support).to be(true)
+    expect(capability.native_node_access).to be(true)
+  end
+
   it "conforms to the slice-723 binary core contract fixture" do
     fixture = diagnostics_fixture("binary_core_contract")
     payload_fixture = fixture[:raw_payload]
