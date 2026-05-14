@@ -114,6 +114,26 @@ RSpec.describe Ast::Merge do
     expect(change_sets.fetch(1).changes.fetch(1).kind).to eq("delete")
   end
 
+  it "conforms to the slice-794 raw merge change-set union fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-794-raw-merge-change-set-union", "raw-merge-change-set-union.json"))
+    raw = fixture[:raw_merge]
+    raw_merge = described_class::RawMerge.new(
+      raw_merge_id: raw[:raw_merge_id],
+      input_change_set_ids: raw[:input_change_set_ids],
+      changes: raw[:changes].map { |entry| described_class::RawMergeChange.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+    sides = raw_merge.changes.each_with_object([]) do |change, memo|
+      memo << change.side unless memo.include?(change.side)
+    end
+
+    expect(raw_merge.changes.length).to eq(fixture.dig(:expected, :raw_change_count))
+    expect(raw_merge.input_change_set_ids.length).to eq(fixture.dig(:expected, :input_change_set_count))
+    expect(sides).to eq(fixture.dig(:expected, :sides))
+    expect(raw_merge.changes.count { |change| change.class_id == "class-decl-greet" }).to eq(2)
+    expect(raw_merge.diagnostics.first).to eq("raw merge intentionally preserves both sides before inconsistency detection")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

@@ -199,6 +199,33 @@ module Ast
       end
     end
 
+    RawMergeChange = Struct.new(:change_id, :source_change_set_id, :side, :kind, :class_id, :parent_class_id, :predecessor_class_id, :successor_class_id, :content_hash, keyword_init: true) do
+      def to_h
+        {
+          change_id: change_id,
+          source_change_set_id: source_change_set_id,
+          side: side,
+          kind: kind,
+          class_id: class_id,
+          parent_class_id: parent_class_id,
+          predecessor_class_id: predecessor_class_id,
+          successor_class_id: successor_class_id,
+          content_hash: content_hash
+        }
+      end
+    end
+
+    RawMerge = Struct.new(:raw_merge_id, :input_change_set_ids, :changes, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          raw_merge_id: raw_merge_id,
+          input_change_set_ids: input_change_set_ids || [],
+          changes: (changes || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
