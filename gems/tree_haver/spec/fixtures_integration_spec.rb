@@ -196,6 +196,39 @@ RSpec.describe TreeHaver do
     expect(limited.metadata.dig(:psych, :location_support)).to eq("line_column_only")
   end
 
+  it "conforms to the slice-787 native parser adapter contract fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-787-native-parser-adapter-contract", "native-parser-adapter-contract.json"))
+    provider_fixture = fixture[:provider]
+    provider = described_class::NativeParserProvider.new(
+      id: provider_fixture[:id],
+      family: provider_fixture[:family],
+      language: provider_fixture[:language],
+      operations: provider_fixture[:operations],
+      retains_native_tree: provider_fixture[:retains_native_tree],
+      native_tree_visibility: provider_fixture[:native_tree_visibility],
+      metadata_policy: provider_fixture[:metadata_policy]
+    )
+    result_fixture = fixture[:parse_result]
+    result = described_class::NormalizedParseResult.new(
+      ok: result_fixture[:ok],
+      backend_capability: backend_capability(result_fixture[:backend_capability]),
+      root_id: result_fixture[:root_id],
+      nodes: result_fixture[:nodes].map { |node| normalized_tree_node(node) },
+      parse_error_tolerance: parse_error_tolerance(result_fixture[:parse_error_tolerance]),
+      source_fragments_available: result_fixture[:source_fragments_available],
+      diagnostics: result_fixture[:diagnostics],
+      metadata: result_fixture[:metadata]
+    )
+
+    expect(provider.id).to eq("go-dst")
+    expect(provider.retains_native_tree).to be(true)
+    expect(provider.native_tree_visibility).to eq("provider_internal")
+    expect(result.root_id).to eq(result.nodes.first.id)
+    expect(result.nodes.fetch(1).semantic_roles.fetch(1)).to eq("function")
+    expect(result.metadata.dig(:go_dst, :native_tree_visibility)).to eq("provider_internal")
+    expect(result.source_fragments_available).to be(true)
+  end
+
   it "conforms to the slice-783 backend capability report fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-783-backend-capability-report", "backend-capability-report.json"))
     capability_fixture = fixture[:capability]
@@ -348,6 +381,40 @@ RSpec.describe TreeHaver do
       backend_roles: fixture[:backend_roles] || [],
       unsupported_features: fixture[:unsupported_features] || [],
       metadata: fixture[:metadata] || {}
+    )
+  end
+
+  def backend_capability(fixture)
+    described_class::BackendCapability.new(
+      backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
+      language: fixture[:language],
+      parser_identity: described_class::ParserIdentity.new(**fixture[:parser_identity]),
+      language_version: described_class::LanguageVersion.new(**fixture[:language_version]),
+      parse_error_behavior: fixture[:parse_error_behavior],
+      source_span_support: fixture[:source_span_support],
+      source_fragment_support: fixture[:source_fragment_support],
+      render_strategies: fixture[:render_strategies],
+      semantic_role_support: fixture[:semantic_role_support],
+      normalized_tree_support: fixture[:normalized_tree_support],
+      native_node_access: fixture[:native_node_access],
+      diagnostics: fixture[:diagnostics]
+    )
+  end
+
+  def parse_error_tolerance(fixture)
+    described_class::ParseErrorTolerance.new(
+      backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
+      language: fixture[:language],
+      behavior: fixture[:behavior],
+      tolerates_errors: fixture[:tolerates_errors],
+      error_nodes: fixture[:error_nodes].map do |node|
+        described_class::ParseErrorNode.new(
+          kind: node[:kind],
+          span: source_span(node[:span]),
+          message: node[:message]
+        )
+      end,
+      diagnostics: fixture[:diagnostics]
     )
   end
 

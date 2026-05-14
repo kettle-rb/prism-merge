@@ -126,6 +126,45 @@ module TreeHaver
     end
   end
 
+  NativeParserProvider = Struct.new(:id, :family, :language, :operations, :retains_native_tree, :native_tree_visibility, :metadata_policy, keyword_init: true) do
+    def to_h
+      {
+        id: id,
+        family: family,
+        language: language,
+        operations: operations || [],
+        retains_native_tree: retains_native_tree,
+        native_tree_visibility: native_tree_visibility,
+        metadata_policy: metadata_policy
+      }
+    end
+  end
+
+  NormalizedParseResult = Struct.new(
+    :ok,
+    :backend_capability,
+    :root_id,
+    :nodes,
+    :parse_error_tolerance,
+    :source_fragments_available,
+    :diagnostics,
+    :metadata,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        ok: ok,
+        backend_capability: backend_capability.to_h,
+        root_id: root_id,
+        nodes: (nodes || []).map(&:to_h),
+        parse_error_tolerance: parse_error_tolerance.to_h,
+        source_fragments_available: source_fragments_available,
+        diagnostics: diagnostics || [],
+        metadata: metadata || {}
+      }
+    end
+  end
+
   ParserDiagnostics = Struct.new(:backend, :backend_ref, :diagnostics, keyword_init: true) do
     def to_h
       {
