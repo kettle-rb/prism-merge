@@ -169,6 +169,20 @@ RSpec.describe TreeHaver do
     expect(described_class.slice_byte_range(fixture[:source], edit_span.old_range)).to eq(fixture.dig(:expected, :old_edit_slice))
   end
 
+  it "conforms to the slice-782 normalized tree node fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-782-normalized-tree-node", "normalized-tree-node.json"))
+
+    expect(described_class.node_roles).to eq(fixture[:node_roles])
+    node = normalized_tree_node(fixture[:node])
+    child = normalized_tree_node(fixture[:child])
+
+    expect(node.role).to eq("structural")
+    expect(node.child_ids.fetch(1)).to eq(child.id)
+    expect(child.parent_id).to eq(node.id)
+    expect(child.field_name).to eq("declaration")
+    expect(child.has_source_text).to be(true)
+  end
+
   it "conforms to the slice-723 binary core contract fixture" do
     fixture = diagnostics_fixture("binary_core_contract")
     payload_fixture = fixture[:raw_payload]
@@ -233,6 +247,26 @@ RSpec.describe TreeHaver do
     expect(report.preserved_ranges.first.length).to eq(25)
     expect(report.nested_dispatches.first.family).to eq("text")
     expect(report.diagnostics.first.category).to eq("unsupported_checksum_rewrite")
+  end
+
+  def normalized_tree_node(fixture)
+    described_class::NormalizedTreeNode.new(
+      id: fixture[:id],
+      kind: fixture[:kind],
+      role: fixture[:role],
+      parent_id: fixture[:parent_id],
+      child_ids: fixture[:child_ids],
+      span: described_class::SourceSpan.new(
+        range: described_class::ByteRange.new(**fixture.dig(:span, :range)),
+        start_point: described_class::SourcePoint.new(**fixture.dig(:span, :start_point)),
+        end_point: described_class::SourcePoint.new(**fixture.dig(:span, :end_point))
+      ),
+      field_name: fixture[:field_name],
+      named: fixture[:named],
+      anonymous: fixture[:anonymous],
+      has_source_text: fixture[:has_source_text],
+      source_fragment: fixture[:source_fragment]
+    )
   end
 
   it "conforms to the slice-724 and slice-729 ZIP family fixtures" do

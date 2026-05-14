@@ -137,6 +137,54 @@ module TreeHaver
     end
   end
 
+  NODE_ROLES = %w[
+    structural
+    token
+    trivia
+    comment
+    delimiter
+    separator
+    virtual
+    error
+    opaque
+  ].freeze
+
+  NormalizedTreeNode = Struct.new(
+    :id,
+    :kind,
+    :role,
+    :parent_id,
+    :child_ids,
+    :span,
+    :field_name,
+    :named,
+    :anonymous,
+    :has_source_text,
+    :source_fragment,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        id: id,
+        kind: kind,
+        role: role,
+        parent_id: parent_id,
+        child_ids: child_ids,
+        span: span.to_h,
+        field_name: field_name,
+        named: named,
+        anonymous: anonymous,
+        has_source_text: has_source_text,
+        source_fragment: source_fragment
+      }
+    end
+  end
+
+  def node_roles
+    NODE_ROLES.dup
+  end
+  module_function :node_roles
+
   ByteEditSpan = Struct.new(:start_byte, :old_end_byte, :new_end_byte, :start_point, :old_end_point, :new_end_point, keyword_init: true) do
     def old_range
       ByteRange.new(start_byte: start_byte, end_byte: old_end_byte)
