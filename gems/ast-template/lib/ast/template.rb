@@ -72,6 +72,27 @@ module Ast
         Ast::Merge.resolve_template_tokens(template_partial.to_s, replacements, config)
       end
 
+      def apply_readme_family_section(template_partial, package_metadata, family_metadata, destination_content, config = nil)
+        package_entry = Ast::Merge.normalize_value(package_metadata || {})
+        family = Ast::Merge.normalize_value(family_metadata || {})
+        rendered_section = render_readme_family_section(template_partial, family, config).rstrip
+        base_content = if destination_content.nil?
+          "# #{package_entry[:name]}\n\n#{package_entry[:summary]}\n"
+        else
+          destination_content.to_s
+        end
+        content = replace_or_insert_markdown_heading_section(
+          base_content,
+          family[:section_heading].to_s,
+          2,
+          rendered_section
+        )
+        {
+          content: content,
+          changed: content != base_content
+        }
+      end
+
       def merge_prepared_content_from_registry(registry, entry)
         family = entry.dig(:classification, :family) || entry.dig("classification", "family")
         adapter = registry[family.to_s]
@@ -1243,6 +1264,58 @@ module Ast
       end
 
       private
+
+      def replace_or_insert_markdown_heading_section(content, heading_text, heading_level, replacement)
+        normalized = content.to_s.rstrip
+        return "#{replacement}\n" if normalized.empty?
+
+        lines = normalized.split("\n")
+        heading = "#{"#" * heading_level} #{heading_text}"
+        heading_index = lines.index { |line| line.strip == heading }
+        if heading_index
+          section_end = lines.length
+          ((heading_index + 1)...lines.length).each do |index|
+            level = markdown_heading_level(lines[index])
+            if level.positive? && level <= heading_level
+              section_end = index
+              break
+            end
+          end
+          output_lines = lines[0...heading_index] + replacement.split("\n")
+          output_lines << "" if section_end < lines.length && lines[section_end] != ""
+          output_lines += lines[section_end..]
+          return "#{output_lines.join("\n")}\n"
+        end
+
+        insert_at = readme_family_section_insert_index(lines)
+        output_lines = lines[0...insert_at]
+        output_lines << "" if output_lines.any? && output_lines.last != ""
+        output_lines += replacement.split("\n")
+        output_lines << "" if insert_at < lines.length && lines[insert_at] != ""
+        output_lines += lines[insert_at..]
+        "#{output_lines.join("\n")}\n"
+      end
+
+      def markdown_heading_level(line)
+        match = line.to_s.strip.match(/\A(#+)\s/)
+        match && match[1].length <= 6 ? match[1].length : 0
+      end
+
+      def readme_family_section_insert_index(lines)
+        index = 0
+        if markdown_heading_level(lines[0]) == 1
+          index = 1
+          index += 1 while index < lines.length && lines[index] == ""
+        end
+        while index < lines.length
+          if lines[index] == ""
+            index += 1 while index < lines.length && lines[index] == ""
+            return index
+          end
+          index += 1
+        end
+        lines.length
+      end
 
       def deep_dup(value)
         Ast::Merge.deep_dup(value)

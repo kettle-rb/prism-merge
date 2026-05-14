@@ -68,6 +68,17 @@ RSpec.describe Ast::Template do
     expect(
       described_class.render_readme_family_section(fixture[:template_partial], metadata_case[:family])
     ).to eq(fixture[:expected_rendered_partial])
+
+    fixture[:readme_application_cases].each do |test_case|
+      actual = described_class.apply_readme_family_section(
+        fixture[:template_partial],
+        metadata_case[:package],
+        metadata_case[:family],
+        test_case[:destination_content]
+      )
+      expect(actual[:content]).to eq(test_case[:expected_content])
+      expect(actual[:changed]).to eq(test_case[:changed])
+    end
   end
 
   it "conforms to the template directory session report fixture" do
