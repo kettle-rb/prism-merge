@@ -226,6 +226,31 @@ RSpec.describe TreeHaver do
     expect(fragment.diagnostics.length).to eq(fixture.dig(:fragment, :diagnostics).length)
   end
 
+  it "conforms to the slice-785 parse error tolerance fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-785-parse-error-tolerance", "parse-error-tolerance.json"))
+    tolerance_fixture = fixture[:parse_error_tolerance]
+    tolerance = described_class::ParseErrorTolerance.new(
+      backend_ref: described_class::BackendReference.new(**tolerance_fixture[:backend_ref]),
+      language: tolerance_fixture[:language],
+      behavior: tolerance_fixture[:behavior],
+      tolerates_errors: tolerance_fixture[:tolerates_errors],
+      error_nodes: tolerance_fixture[:error_nodes].map do |node|
+        described_class::ParseErrorNode.new(
+          kind: node[:kind],
+          span: source_span(node[:span]),
+          message: node[:message]
+        )
+      end,
+      diagnostics: tolerance_fixture[:diagnostics]
+    )
+
+    expect(tolerance.backend_ref.id).to eq("tree-sitter-go")
+    expect(tolerance.behavior).to eq("diagnostic_and_partial_tree")
+    expect(tolerance.tolerates_errors).to be(true)
+    expect(tolerance.error_nodes.first.span.range.start_byte).to eq(27)
+    expect(tolerance.diagnostics.first).to eq("partial tree contains parser error nodes")
+  end
+
   it "conforms to the slice-723 binary core contract fixture" do
     fixture = diagnostics_fixture("binary_core_contract")
     payload_fixture = fixture[:raw_payload]

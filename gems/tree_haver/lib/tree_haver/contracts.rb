@@ -103,6 +103,29 @@ module TreeHaver
     end
   end
 
+  ParseErrorNode = Struct.new(:kind, :span, :message, keyword_init: true) do
+    def to_h
+      {
+        kind: kind,
+        span: span.to_h,
+        message: message
+      }
+    end
+  end
+
+  ParseErrorTolerance = Struct.new(:backend_ref, :language, :behavior, :tolerates_errors, :error_nodes, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        backend_ref: backend_ref.to_h,
+        language: language,
+        behavior: behavior,
+        tolerates_errors: tolerates_errors,
+        error_nodes: (error_nodes || []).map(&:to_h),
+        diagnostics: diagnostics
+      }
+    end
+  end
+
   ParserDiagnostics = Struct.new(:backend, :backend_ref, :diagnostics, keyword_init: true) do
     def to_h
       {
