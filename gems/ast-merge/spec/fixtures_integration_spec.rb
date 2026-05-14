@@ -51,6 +51,26 @@ RSpec.describe Ast::Merge do
     expect(merge_ir.changes.fetch(1).class_id).to eq("class-import-strings")
   end
 
+  it "conforms to the slice-791 pairwise matchings fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-791-pairwise-matchings", "pairwise-matchings.json"))
+    matchings = fixture[:pairwise_matchings].map do |raw|
+      described_class::PairwiseMatching.new(
+        matching_id: raw[:matching_id],
+        from_revision: raw[:from_revision],
+        to_revision: raw[:to_revision],
+        matches: raw[:matches].map { |entry| described_class::PairwiseNodeMatch.new(**entry) },
+        unmatched_from: raw[:unmatched_from],
+        unmatched_to: raw[:unmatched_to]
+      )
+    end
+
+    expect(matchings.map(&:matching_id)).to eq(fixture.dig(:expected, :matching_ids))
+    expect(matchings.sum { |matching| matching.matches.length }).to eq(fixture.dig(:expected, :total_match_count))
+    expect(matchings.fetch(0).unmatched_to.fetch(0)).to eq("left-import-os")
+    expect(matchings.fetch(1).unmatched_from.fetch(0)).to eq("base-decl-greet")
+    expect(matchings.fetch(2).matches.fetch(1).diagnostics.fetch(0)).to eq("sibling position changed")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

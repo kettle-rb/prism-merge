@@ -89,6 +89,32 @@ module Ast
       end
     end
 
+    PairwiseNodeMatch = Struct.new(:from_node_id, :to_node_id, :class_id, :strategy, :confidence, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          class_id: class_id,
+          strategy: strategy,
+          confidence: confidence,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    PairwiseMatching = Struct.new(:matching_id, :from_revision, :to_revision, :matches, :unmatched_from, :unmatched_to, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          from_revision: from_revision,
+          to_revision: to_revision,
+          matches: (matches || []).map(&:to_h),
+          unmatched_from: unmatched_from || [],
+          unmatched_to: unmatched_to || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
