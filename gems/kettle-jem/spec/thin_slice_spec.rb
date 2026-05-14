@@ -1352,6 +1352,108 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects copyright holders from git blame into license templates" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-copyright-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.authors = ["Fallback Author"]
+            spec.email = ["fallback@example.test"]
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        "lib/example.rb" => <<~RUBY,
+          module Example
+            VERSION = "0.1.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: templates
+            apply: true
+            entries:
+              - LICENSE.md
+              - README.md
+        YAML
+        "templates/LICENSE.md.example" => <<~MARKDOWN,
+          {KJ|LICENSE_MD_CONTENT}
+
+          {KJ|LICENSE_COPYRIGHT_NOTICE}
+        MARKDOWN
+        "templates/README.md.example" => <<~MARKDOWN,
+          # 💎 Example
+
+          ## 🌻 Synopsis
+
+          Template synopsis.
+
+          ## 📄 License
+
+          {KJ|README:LICENSE_INTRO}
+
+          ### © Copyright
+
+          {KJ|README:COPYRIGHT_NOTICE}
+
+          ## ⚙️ Configuration
+
+          Template configuration.
+
+          ## 🔧 Basic Usage
+
+          Template usage.
+        MARKDOWN
+        "README.md" => <<~MARKDOWN,
+          # 💎 Example
+
+          ## 🌻 Synopsis
+
+          Project synopsis.
+
+          ## ⚙️ Configuration
+
+          Project configuration.
+
+          ## 🔧 Basic Usage
+
+          Project usage.
+        MARKDOWN
+      })
+      expect(system("git", "-C", root, "init", "-q")).to be(true)
+      expect(system("git", "-C", root, "config", "user.name", "Jane Contributor")).to be(true)
+      expect(system("git", "-C", root, "config", "user.email", "jane@example.test")).to be(true)
+      expect(system("git", "-C", root, "add", ".")).to be(true)
+      commit_env = {
+        "GIT_AUTHOR_NAME" => "Jane Contributor",
+        "GIT_AUTHOR_EMAIL" => "jane@example.test",
+        "GIT_AUTHOR_DATE" => "#{Time.now.utc.year}-01-02T00:00:00Z",
+        "GIT_COMMITTER_NAME" => "Jane Contributor",
+        "GIT_COMMITTER_EMAIL" => "jane@example.test",
+        "GIT_COMMITTER_DATE" => "#{Time.now.utc.year}-01-02T00:00:00Z",
+      }
+      tree = IO.popen(["git", "-C", root, "write-tree"], &:read).strip
+      commit = IO.popen(commit_env, ["git", "-C", root, "commit-tree", tree, "-m", "initial"], &:read).strip
+      expect(commit).to match(/\A[0-9a-f]{40}\z/)
+      expect(system("git", "-C", root, "update-ref", "refs/heads/main", commit)).to be(true)
+
+      plan = described_class.plan_project(root, env: {})
+      license_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "template_source_application_LICENSE_md" }
+      readme_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "template_source_application_README_md" }
+      expected_line = "Copyright (c) #{Time.now.utc.year} Jane Contributor"
+      expect(plan.dig(:facts, :copyright, :lines)).to eq([expected_line])
+      expect(license_report.fetch(:final_content)).to include("## Copyright Notice")
+      expect(license_report.fetch(:final_content)).to include(expected_line)
+      expect(readme_report.fetch(:final_content)).to include("Copyright holders")
+      expect(readme_report.fetch(:final_content)).to include("- #{expected_line}")
+      expect(license_report.dig(:metadata, :template_tokens, "KJ|LICENSE_COPYRIGHT_NOTICE")).to include(expected_line)
+    end
+  end
+
   it "projects project runtime template tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

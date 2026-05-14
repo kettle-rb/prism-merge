@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "find"
+require "English"
 require "ruby/merge"
 require "token/resolver"
 require "toml-merge"
@@ -27,6 +28,10 @@ module Kettle
     RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
+    COPYRIGHT_NAME_RE = /\ACopyright \(c\) [\d,\s\-]+ (.+)\z/
+    BOT_EMAIL_PATTERN = /\A\d+\+[^@]+\[bot\]@/i
+    BOT_NAME_SUFFIX = /\[bot\]\z/i
+    NOT_COMMITTED_EMAIL = "not.committed.yet"
     LOGOS_GALTZO_BASE_URL = "https://logos.galtzo.com/assets/images"
     README_TOP_LOGO_MODE_DEFAULT = "org_and_project"
     README_TOP_LOGO_MODES = %w[org project org_and_project].freeze
@@ -154,7 +159,14 @@ module Kettle
 
       kettle_config = kettle_jem_config(project_root)
       author = author_facts(gemspec, kettle_config, env)
-      license = license_facts(kettle_config, extract_gemspec_array(gemspec, "spec.licenses"), author_email: author[:email])
+      copyright = copyright_facts(project_root, kettle_config)
+      license = license_facts(
+        kettle_config,
+        extract_gemspec_array(gemspec, "spec.licenses"),
+        author: author,
+        author_email: author[:email],
+        copyright: copyright
+      )
       project_runtime = project_runtime_facts(
         kettle_config,
         env,
@@ -184,6 +196,7 @@ module Kettle
       bootstrap = kettle_config_bootstrap_facts(project_root, env)
       facts[:kettle_config_bootstrap] = bootstrap if bootstrap
       facts[:author] = author unless author.empty?
+      facts[:copyright] = copyright unless copyright.empty?
       forge = forge_facts(kettle_config, env)
       facts[:forge] = forge unless forge.empty?
       social = social_facts(kettle_config, env)
@@ -1180,6 +1193,121 @@ module Kettle
       }
     end
 
+    def copyright_facts(project_root, config)
+      lines = git_copyright_lines(project_root, copyright_machine_users(config))
+      compact_hash(lines: lines)
+    end
+
+    def copyright_machine_users(config)
+      copyright = config["copyright"].is_a?(Hash) ? config["copyright"] : {}
+      Array(copyright["machine_users"]).map { |user| user.to_s.downcase.strip }.reject(&:empty?)
+    end
+
+    def git_copyright_lines(project_root, machine_users)
+      files = git_capture(project_root, "ls-files", "-z")
+      return [] if files.to_s.empty?
+
+      author_map = Hash.new { |hash, email| hash[email] = { name: nil, years: [], email: email } }
+      files.split("\0").reject(&:empty?).each do |relative_path|
+        next unless File.exist?(File.join(project_root, relative_path))
+
+        parse_blame_porcelain(git_capture(project_root, "blame", "--porcelain", "--", relative_path), author_map)
+      rescue ArgumentError
+        next
+      end
+      resolve_uncommitted_author!(project_root, author_map)
+      author_map.values
+        .reject { |entry| copyright_bot_entry?(entry) }
+        .reject { |entry| copyright_machine_user_entry?(entry, machine_users) }
+        .reject { |entry| entry[:name].to_s.strip.empty? || entry[:years].empty? }
+        .sort_by { |entry| [entry[:years].map(&:to_i).min, entry[:name].to_s.downcase] }
+        .map { |entry| "Copyright (c) #{format_copyright_years(entry[:years])} #{entry[:name]}" }
+    rescue ArgumentError
+      []
+    end
+
+    def git_capture(project_root, *args)
+      output = IO.popen(["git", "-C", project_root.to_s, *args], err: File::NULL, &:read)
+      raise ArgumentError, "git #{args.join(" ")} failed" unless $CHILD_STATUS&.success?
+
+      output.to_s
+    end
+
+    def parse_blame_porcelain(output, author_map)
+      commit_meta = {}
+      current_sha = nil
+      current_name = nil
+      current_email = nil
+      current_time = nil
+      output.to_s.each_line do |raw_line|
+        line = raw_line.chomp
+        if line.match?(/\A[0-9a-f]{40}\s/)
+          current_sha = line[0, 40]
+          meta = commit_meta[current_sha]
+          current_name = meta && meta[:name]
+          current_email = meta && meta[:email]
+          current_time = meta && meta[:time]
+        elsif line.start_with?("author ") && !commit_meta.key?(current_sha.to_s)
+          current_name = line[7..].strip
+        elsif line.start_with?("author-mail ") && !commit_meta.key?(current_sha.to_s)
+          current_email = line[12..].strip.gsub(/[<>]/, "")
+        elsif line.start_with?("author-time ") && !commit_meta.key?(current_sha.to_s)
+          current_time = line[12..].strip.to_i
+        elsif line.start_with?("filename ")
+          next unless current_sha && current_email
+
+          commit_meta[current_sha] ||= { name: current_name, email: current_email, time: current_time }
+          year = current_time && current_time.positive? ? Time.at(current_time).utc.year.to_s : Time.now.utc.year.to_s
+          author_map[current_email][:name] ||= current_name
+          author_map[current_email][:years] << year
+        end
+      end
+    end
+
+    def resolve_uncommitted_author!(project_root, author_map)
+      uncommitted = author_map.delete(NOT_COMMITTED_EMAIL)
+      return unless uncommitted && !uncommitted[:years].empty?
+
+      name = git_capture(project_root, "config", "user.name").strip
+      email = git_capture(project_root, "config", "user.email").strip
+      return if email.empty?
+
+      author_map[email][:name] ||= name
+      author_map[email][:years].concat(uncommitted[:years])
+    rescue ArgumentError
+      nil
+    end
+
+    def copyright_bot_entry?(entry)
+      entry[:name].to_s.match?(BOT_NAME_SUFFIX) || entry[:email].to_s.match?(BOT_EMAIL_PATTERN)
+    end
+
+    def copyright_machine_user_entry?(entry, machine_users)
+      return false if machine_users.empty?
+
+      machine_users.include?(entry[:name].to_s.downcase.strip) ||
+        machine_users.include?(entry[:email].to_s.downcase.strip)
+    end
+
+    def format_copyright_years(years)
+      sorted = Array(years).map(&:to_i).reject(&:zero?).sort.uniq
+      return Time.now.utc.year.to_s if sorted.empty?
+      return sorted.first.to_s if sorted.one?
+
+      runs = []
+      run = [sorted.first]
+      sorted[1..].to_a.each do |year|
+        if year == run.last + 1
+          run << year
+        else
+          runs << run
+          run = [year]
+        end
+      end
+      runs << run
+      runs.map { |span| span.one? ? span.first.to_s : "#{span.first}-#{span.last}" }.join(", ")
+    end
+
     def forge_facts(config, env)
       token_config = token_config_values(config)
       forge_config = token_config["forge"].is_a?(Hash) ? token_config["forge"] : {}
@@ -1483,10 +1611,12 @@ module Kettle
       nil
     end
 
-    def license_facts(config, gemspec_licenses, author_email: nil)
+    def license_facts(config, gemspec_licenses, author: {}, author_email: nil, copyright: {})
       licenses = resolved_licenses(config, gemspec_licenses)
       primary = licenses.first
       compat_category = license_compat_category(licenses)
+      copyright_prefix = polyform_licenses?(licenses) ? "Required Notice: " : ""
+      copyright_lines = Array(copyright[:lines])
       compact_hash(
         spdx: licenses,
         expression: licenses.join(" OR "),
@@ -1496,7 +1626,9 @@ module Kettle
         readme_license_badge: license_badge(primary),
         readme_license_compat_badge: license_compat_badge(compat_category),
         readme_license_refs: readme_license_refs(primary, compat_category),
-        copyright_prefix: polyform_licenses?(licenses) ? "Required Notice: " : ""
+        license_copyright_notice: license_copyright_notice(copyright_lines, copyright_prefix, author),
+        readme_copyright_notice: readme_copyright_notice(copyright_lines, copyright_prefix),
+        copyright_prefix: copyright_prefix
       )
     end
 
@@ -1517,8 +1649,33 @@ module Kettle
         "KJ|README:LICENSE_BADGE" => license[:readme_license_badge].to_s,
         "KJ|README:LICENSE_COMPAT_BADGE" => license[:readme_license_compat_badge].to_s,
         "KJ|README:LICENSE_REFS" => license[:readme_license_refs].to_s,
+        "KJ|LICENSE_COPYRIGHT_NOTICE" => license[:license_copyright_notice].to_s,
+        "KJ|README:COPYRIGHT_NOTICE" => license[:readme_copyright_notice].to_s,
         "KJ|COPYRIGHT_PREFIX" => license[:copyright_prefix].to_s,
       }
+    end
+
+    def license_copyright_notice(copyright_lines, copyright_prefix, author)
+      lines = Array(copyright_lines).map { |line| "#{copyright_prefix}#{line}" }
+      return "## Copyright Notice\n\n#{lines.join("\n")}" unless lines.empty?
+
+      "#{copyright_prefix}Copyright (c) #{Time.now.utc.year} #{[author[:given_names], author[:family_names]].compact.join(" ").strip}"
+    end
+
+    def readme_copyright_notice(copyright_lines, copyright_prefix)
+      lines = Array(copyright_lines).map { |line| "- #{copyright_prefix}#{line}" }
+      return "See [LICENSE.md][#{paperclip_ref(:license)}] for the official copyright notice." if lines.empty?
+
+      <<~MARKDOWN.chomp
+        See [LICENSE.md][#{paperclip_ref(:license)}] for the official copyright notice.
+
+        <details markdown="1">
+        <summary>Copyright holders</summary>
+
+        #{lines.join("\n")}
+
+        </details>
+      MARKDOWN
     end
 
     def license_md_content(licenses, author_email: nil)
