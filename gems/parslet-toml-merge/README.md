@@ -26,6 +26,8 @@ StructuredMerge packages provide fixture-backed merge behavior for document, con
 | zip-merge | family | zip, archive | active | documents ZIP member planning and raw-preservation behavior |
 | binary-merge | family | binary | active | documents binary preservation and diagnostics behavior |
 
+JSONC migration note: JSONC is handled by `json-merge` as the `jsonc` dialect. The old `jsonc-merge` package name is superseded in the cross-language toolset; only Ruby may grow a legacy `require "jsonc/merge"` wrapper if packaging compatibility requires it. Current fixture-backed JSONC claims are parse support and comment-neutral owner structure; comment-preserving merge output, freeze blocks, and JSONC emitter behavior need dedicated fixtures before they appear in package examples.
+
 | Backend | Languages | Families | Note |
 |---|---|---|---|
 | tree-sitter-language-pack | Go, Ruby, Rust, TypeScript | markdown, toml, yaml, source | Preferred cross-language parser substrate where a family has language-pack support. |
