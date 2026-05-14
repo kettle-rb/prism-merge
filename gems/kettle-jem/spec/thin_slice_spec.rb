@@ -1385,6 +1385,9 @@ RSpec.describe Kettle::Jem do
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
         "bash-merge, dotenv-merge, rbs-merge"
       )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
+        "Freeze tokens"
+      )
     end
   end
 

@@ -1247,6 +1247,15 @@ module Kettle
         "| Native parser/adaptor backends | Implementation-specific providers documented through family fixtures | slices 122 and 183 |",
         "| bash-merge, dotenv-merge, rbs-merge | Excluded from generated support tables until explicit scope decisions exist | slice-741 unresolved package list |",
         "",
+        "| Reusable example | README role | Source fixture |",
+        "|---|---|---|",
+        "| Freeze tokens | Show how destination-owned regions are preserved without filling project-specific usage sections | slice-743 reusable README configuration examples |",
+        "| Match preference | Summarize template-wins and destination-wins conflict choices through current policy vocabulary | slice-743 reusable README configuration examples |",
+        "| Template-only behavior | Explain accept/skip handling for unmatched template entries | slice-743 reusable README configuration examples |",
+        "| Debug report inspection | Point users to structured reports and diagnostics instead of ad hoc debug prose | slice-743 reusable README configuration examples |",
+        "| Backend selection | Describe portable backend selection without old Ruby runtime support tables | slice-743 reusable README configuration examples |",
+        "| Package-directory README command | Document plan/apply/convergence workflow for shared README updates | slice-743 reusable README configuration examples |",
+        "",
         "</details>",
       ].join("\n")
     end
