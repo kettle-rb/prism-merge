@@ -88,6 +88,32 @@ RSpec.describe Ast::Merge do
     expect(report.diagnostics.fetch(1).category).to eq("delete_edit_disagreement")
   end
 
+  it "conforms to the slice-793 PCS change-set generation fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-793-pcs-change-set-generation", "pcs-change-set-generation.json"))
+    raw_pcs = fixture[:pcs]
+    pcs = described_class::PCS.new(
+      pcs_id: raw_pcs[:pcs_id],
+      tree_id: raw_pcs[:tree_id],
+      base_revision: raw_pcs[:base_revision],
+      constraints: raw_pcs[:constraints].map { |entry| described_class::PCSConstraint.new(**entry) }
+    )
+    change_sets = fixture[:change_sets].map do |raw|
+      described_class::ChangeSet.new(
+        change_set_id: raw[:change_set_id],
+        side: raw[:side],
+        changes: raw[:changes].map { |entry| described_class::ChangeSetChange.new(**entry) },
+        diagnostics: raw[:diagnostics]
+      )
+    end
+
+    expect(pcs.constraints.length).to eq(fixture.dig(:expected, :pcs_constraint_count))
+    expect(change_sets.length).to eq(fixture.dig(:expected, :change_set_count))
+    expect(change_sets.flat_map { |change_set| change_set.changes.map(&:kind) }).to eq(fixture.dig(:expected, :change_kinds))
+    expect(change_sets.sum { |change_set| change_set.diagnostics.length }).to eq(fixture.dig(:expected, :diagnostic_count))
+    expect(pcs.constraints.fetch(2).predecessor_class_id).to eq("class-import-strings")
+    expect(change_sets.fetch(1).changes.fetch(1).kind).to eq("delete")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

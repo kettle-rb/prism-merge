@@ -150,6 +150,55 @@ module Ast
       end
     end
 
+    PCSConstraint = Struct.new(:constraint_id, :revision, :parent_class_id, :predecessor_class_id, :successor_class_id, :relation, keyword_init: true) do
+      def to_h
+        {
+          constraint_id: constraint_id,
+          revision: revision,
+          parent_class_id: parent_class_id,
+          predecessor_class_id: predecessor_class_id,
+          successor_class_id: successor_class_id,
+          relation: relation
+        }
+      end
+    end
+
+    PCS = Struct.new(:pcs_id, :tree_id, :base_revision, :constraints, keyword_init: true) do
+      def to_h
+        {
+          pcs_id: pcs_id,
+          tree_id: tree_id,
+          base_revision: base_revision,
+          constraints: (constraints || []).map(&:to_h)
+        }
+      end
+    end
+
+    ChangeSetChange = Struct.new(:change_id, :kind, :class_id, :parent_class_id, :predecessor_class_id, :successor_class_id, :content_hash, keyword_init: true) do
+      def to_h
+        {
+          change_id: change_id,
+          kind: kind,
+          class_id: class_id,
+          parent_class_id: parent_class_id,
+          predecessor_class_id: predecessor_class_id,
+          successor_class_id: successor_class_id,
+          content_hash: content_hash
+        }
+      end
+    end
+
+    ChangeSet = Struct.new(:change_set_id, :side, :changes, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          change_set_id: change_set_id,
+          side: side,
+          changes: (changes || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
