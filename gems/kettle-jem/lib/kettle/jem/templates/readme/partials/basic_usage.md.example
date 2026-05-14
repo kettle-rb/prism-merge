@@ -1,0 +1,10 @@
+```console
+kettle-jem
+bundle exec rake kettle:jem:install
+bundle exec rake kettle:jem:selftest
+```
+
+`kettle-jem` setup creates or updates `.kettle-jem.yml`, installs template
+support, and runs the template workflow. `kettle:jem:install` reapplies
+template updates. `kettle:jem:selftest` checks template drift in a temporary
+workspace.

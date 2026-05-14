@@ -247,6 +247,95 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "fills configured README section partials while preserving unconfigured manual sections" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-partials-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.homepage = "https://github.com/structuredmerge/example"
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: templates
+          readme:
+            section_partials:
+              synopsis: readme/partials/synopsis.md
+              configuration: readme/partials/configuration.md
+              basic_usage: readme/partials/basic_usage.md
+        YAML
+        "templates/readme/partials/synopsis.md.example" => "Generated synopsis for {KJ|GEM_NAME}.\\n",
+        "templates/readme/partials/configuration.md.example" => "Generated configuration.\\n",
+        "templates/readme/partials/basic_usage.md.example" => "Generated usage.\\n",
+        "README.md" => <<~MARKDOWN,
+          # 💎 Example
+
+          ## 🌻 Synopsis
+
+          Old synopsis.
+
+          ## ⚙️ Configuration
+
+          Old configuration.
+
+          ## 🔧 Basic Usage
+
+          Old usage.
+        MARKDOWN
+      })
+
+      plan = described_class.plan_readme_style(root, env: {})
+      expect(plan.fetch(:final_content)).to include("Generated synopsis for example.")
+      expect(plan.fetch(:final_content)).to include("Generated configuration.")
+      expect(plan.fetch(:final_content)).to include("Generated usage.")
+      expect(plan.fetch(:final_content)).not_to include("Old synopsis.")
+      expect(plan.fetch(:final_content)).not_to include("Old configuration.")
+      expect(plan.fetch(:final_content)).not_to include("Old usage.")
+      expect(plan.dig(:readme_style, :section_partials, "synopsis", :selected_source)).to eq(
+        "templates/readme/partials/synopsis.md.example"
+      )
+    end
+  end
+
+  it "loads packaged README section partials" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-packaged-readme-partials-slice", tmp_root) do |root|
+      write_tree(root, {
+        "kettle-jem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "kettle-jem"
+            spec.summary = "Kettle Jem"
+            spec.homepage = "https://github.com/structuredmerge/kettle-jem"
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+          readme:
+            section_partials:
+              synopsis: readme/partials/synopsis.md
+              configuration: readme/partials/configuration.md
+              basic_usage: readme/partials/basic_usage.md
+        YAML
+      })
+
+      plan = described_class.plan_readme_style(root, env: {})
+      expect(plan.fetch(:final_content)).to include("Kettle template tool")
+      expect(plan.fetch(:final_content)).to include("Configuration shape")
+      expect(plan.fetch(:final_content)).to include("bundle exec rake kettle:jem:install")
+      expect(plan.dig(:readme_style, :section_partials, "configuration", :source_root)).to eq("packaged")
+    end
+  end
+
   it "removes Open Collective funding when disabled" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

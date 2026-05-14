@@ -1,0 +1,39 @@
+`kettle-jem` reads `.kettle-jem.yml` from the project root. The config controls
+template sources, README section partials, token values, merge defaults,
+per-file strategies, workflow generation, and plugin loading.
+
+<details markdown="1">
+<summary>Configuration shape</summary>
+
+```yaml
+project_emoji: "💎"
+engines:
+  - ruby
+licenses:
+  - MIT
+templates:
+  root: packaged
+  apply: true
+  entries:
+    - README.md
+readme:
+  section_partials:
+    synopsis: readme/partials/synopsis.md
+    configuration: readme/partials/configuration.md
+    basic_usage: readme/partials/basic_usage.md
+defaults:
+  preference: template
+  add_template_only_nodes: true
+  freeze_token: kettle-jem
+patterns:
+  - path: "certs/**"
+    strategy: raw_copy
+files:
+  Rakefile:
+    strategy: merge
+    preference: destination
+plugins:
+  - kettle-drift
+```
+
+</details>

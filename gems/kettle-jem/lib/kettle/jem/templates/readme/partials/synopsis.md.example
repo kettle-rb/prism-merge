@@ -1,0 +1,3 @@
+`{KJ|NAMESPACE}` is the Ruby implementation of the Kettle template tool. It
+keeps Ruby gems aligned with a shared template while preserving package-owned
+README sections and project-specific files.

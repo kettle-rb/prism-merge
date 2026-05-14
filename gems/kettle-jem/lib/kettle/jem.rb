@@ -429,14 +429,15 @@ module Kettle
       ].compact.join(" ")
       funding_enabled = readme_style.fetch(:floss_funding_enabled, false)
       security_enabled = readme_style.fetch(:security_enabled, false)
+      section_partials = readme_section_partials_for_render(readme_style, facts)
       rendered = [
         "# 💎 #{title}",
         badges,
-        "## 🌻 Synopsis\n\n",
+        "## 🌻 Synopsis\n\n#{section_partials.fetch("synopsis", "")}",
         "## 💡 Info you can shake a stick at\n\nCompatible with MRI Ruby #{min_ruby}+.\n\n#{readme_family_intro_and_backend_matrix}",
         "## ✨ Installation\n\n```console\ngem install #{package.fetch(:name)}\n```",
-        "## ⚙️ Configuration\n\n",
-        "## 🔧 Basic Usage\n\n",
+        "## ⚙️ Configuration\n\n#{section_partials.fetch("configuration", "")}",
+        "## 🔧 Basic Usage\n\n#{section_partials.fetch("basic usage", "")}",
       ]
       rendered << "## 🦷 FLOSS Funding\n\nThis free software project accepts funding support when configured by the package maintainer." if funding_enabled
       rendered << "## 🔐 Security\n\nSee [SECURITY.md](SECURITY.md)." if security_enabled
@@ -451,8 +452,35 @@ module Kettle
       merge_readme_template(
         template_content: template_content,
         destination_content: original,
-        preserve_config: preserve_config
+        preserve_config: readme_preserve_config_without_partial_sections(preserve_config, section_partials.keys)
       )
+    end
+
+    def readme_section_partials_for_render(readme_style, facts)
+      partials = readme_style[:section_partials]
+      return {} unless partials.is_a?(Hash)
+
+      tokens = readme_template_tokens(facts)
+      partials.each_with_object({}) do |(section, partial), result|
+        content = partial.is_a?(Hash) ? partial[:content].to_s : partial.to_s
+        next if content.strip.empty?
+
+        result[normalize_readme_section_key(section)] = resolve_template_tokens(content, tokens)
+      end
+    end
+
+    def readme_preserve_config_without_partial_sections(preserve_config, partial_sections)
+      normalized_partials = partial_sections.map { |section| normalize_readme_section_key(section) }
+      return preserve_config if normalized_partials.empty?
+
+      config = (preserve_config || {}).dup
+      sections = if config.key?(:sections)
+        Array(config[:sections]).map { |section| normalize_readme_section_key(section) }
+      else
+        README_DEFAULT_PRESERVE_SECTIONS.dup
+      end
+      config[:sections] = sections.reject { |section| normalized_partials.include?(section) }
+      config
     end
 
     def readme_template_tokens(facts)
@@ -2023,6 +2051,7 @@ module Kettle
       floss_funding_enabled = readme_floss_funding_enabled?(license, conditional["floss_funding"])
       omitted_sections << "security" unless security_enabled
       omitted_sections << "floss_funding" unless floss_funding_enabled
+      section_partials = readme_section_partials(project_root, config, readme)
       compact_hash(
         profile: "slice-740-kettle-readme-style-profile",
         security_enabled: security_enabled,
@@ -2030,7 +2059,37 @@ module Kettle
         omitted_sections: omitted_sections,
         disabled_integrations: disabled_integrations,
         missing_integrations: missing_integrations,
+        section_partials: section_partials,
       )
+    end
+
+    def readme_section_partials(project_root, config, readme)
+      configured = readme["section_partials"]
+      return {} unless configured.is_a?(Hash)
+
+      root = template_root(project_root, config["templates"].is_a?(Hash) ? config["templates"] : {})
+      configured.each_with_object({}) do |(section, source), result|
+        normalized = normalize_readme_section_key(section)
+        next if normalized.empty?
+
+        source_path = source.to_s
+        next if source_path.empty?
+
+        selected = preferred_template_source(root.fetch(:path), source_path)
+        next unless selected
+
+        result[normalized] = {
+          configured_source: source_path,
+          selected_source: template_source_display_path(root, selected),
+          source_relative_path: selected,
+          source_root: root.fetch(:kind),
+          content: File.read(File.join(root.fetch(:path), selected)),
+        }
+      end
+    end
+
+    def normalize_readme_section_key(section)
+      normalize_readme_heading(section.to_s.tr("_-", " "))
     end
 
     def readme_floss_funding_enabled?(license, config_value)
@@ -2174,10 +2233,16 @@ module Kettle
     end
 
     def readme_preserve_targets(template_sections, destination_lookup, preserve_config)
-      sections = Array(preserve_config[:sections]).map { |section| normalize_readme_heading(section) }
-      sections = README_DEFAULT_PRESERVE_SECTIONS.dup if sections.empty?
-      patterns = Array(preserve_config[:patterns]).map { |pattern| pattern.to_s.strip.downcase }
-      patterns = README_DEFAULT_PRESERVE_PATTERNS.dup if patterns.empty?
+      sections = if preserve_config.key?(:sections)
+        Array(preserve_config[:sections]).map { |section| normalize_readme_heading(section) }
+      else
+        README_DEFAULT_PRESERVE_SECTIONS.dup
+      end
+      patterns = if preserve_config.key?(:patterns)
+        Array(preserve_config[:patterns]).map { |pattern| pattern.to_s.strip.downcase }
+      else
+        README_DEFAULT_PRESERVE_PATTERNS.dup
+      end
       aliases = preserve_config[:aliases] || README_SECTION_ALIASES
       targets = sections.dup
       template_sections.each do |section|
