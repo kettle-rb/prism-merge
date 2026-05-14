@@ -150,6 +150,24 @@ RSpec.describe Ast::Merge do
     expect(report.inconsistencies.fetch(1).change_ids.fetch(1)).to eq("right-delete-greet")
   end
 
+  it "conforms to the slice-796 merge IR comparison fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-796-merge-ir-comparison", "merge-ir-comparison.json"))
+    raw = fixture[:comparison]
+    report = described_class::MergeIRComparisonReport.new(
+      comparison_id: raw[:comparison_id],
+      baseline: raw[:baseline],
+      prototype: raw[:prototype],
+      cases: raw[:cases].map { |entry| described_class::MergeIRComparisonCase.new(**entry) },
+      summary: described_class::MergeIRComparisonSummary.new(**raw[:summary])
+    )
+
+    expect(report.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(report.cases.map(&:family)).to eq(fixture.dig(:expected, :families))
+    expect(report.summary.merge_ir_wins).to eq(fixture.dig(:expected, :merge_ir_wins))
+    expect(report.summary.recommendation).to eq(fixture.dig(:expected, :recommendation))
+    expect(report.cases.fetch(4).merge_ir_advantage).to eq("defer")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

@@ -250,6 +250,44 @@ module Ast
       end
     end
 
+    MergeIRComparisonCase = Struct.new(:case_id, :family, :scenario, :owner_path_outcome, :merge_ir_outcome, :merge_ir_advantage, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          case_id: case_id,
+          family: family,
+          scenario: scenario,
+          owner_path_outcome: owner_path_outcome,
+          merge_ir_outcome: merge_ir_outcome,
+          merge_ir_advantage: merge_ir_advantage,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    MergeIRComparisonSummary = Struct.new(:owner_path_wins, :merge_ir_wins, :neutral, :defer, :recommendation, keyword_init: true) do
+      def to_h
+        {
+          owner_path_wins: owner_path_wins,
+          merge_ir_wins: merge_ir_wins,
+          neutral: neutral,
+          defer: defer,
+          recommendation: recommendation
+        }
+      end
+    end
+
+    MergeIRComparisonReport = Struct.new(:comparison_id, :baseline, :prototype, :cases, :summary, keyword_init: true) do
+      def to_h
+        {
+          comparison_id: comparison_id,
+          baseline: baseline,
+          prototype: prototype,
+          cases: (cases || []).map(&:to_h),
+          summary: summary.to_h
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
