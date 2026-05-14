@@ -134,6 +134,22 @@ RSpec.describe Ast::Merge do
     expect(raw_merge.diagnostics.first).to eq("raw merge intentionally preserves both sides before inconsistency detection")
   end
 
+  it "conforms to the slice-795 inconsistency detection fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-795-inconsistency-detection", "inconsistency-detection.json"))
+    raw = fixture[:inconsistency_report]
+    report = described_class::InconsistencyReport.new(
+      report_id: raw[:report_id],
+      raw_merge_id: raw[:raw_merge_id],
+      inconsistencies: raw[:inconsistencies].map { |entry| described_class::MergeInconsistency.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.inconsistencies.length).to eq(fixture.dig(:expected, :inconsistency_count))
+    expect(report.inconsistencies.map(&:category)).to eq(fixture.dig(:expected, :categories))
+    expect(report.inconsistencies.count { |item| item.severity == "error" }).to eq(fixture.dig(:expected, :blocking_count))
+    expect(report.inconsistencies.fetch(1).change_ids.fetch(1)).to eq("right-delete-greet")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

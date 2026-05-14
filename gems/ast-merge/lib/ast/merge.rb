@@ -226,6 +226,30 @@ module Ast
       end
     end
 
+    MergeInconsistency = Struct.new(:inconsistency_id, :category, :severity, :class_ids, :change_ids, :message, keyword_init: true) do
+      def to_h
+        {
+          inconsistency_id: inconsistency_id,
+          category: category,
+          severity: severity,
+          class_ids: class_ids || [],
+          change_ids: change_ids || [],
+          message: message
+        }
+      end
+    end
+
+    InconsistencyReport = Struct.new(:report_id, :raw_merge_id, :inconsistencies, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          report_id: report_id,
+          raw_merge_id: raw_merge_id,
+          inconsistencies: (inconsistencies || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
