@@ -1240,6 +1240,13 @@ module Kettle
         "| native ecosystem parser | Ruby | ruby, yaml, markdown, toml | Backend-specific Ruby packages are provider prior art or adapters, not the source schema. |",
         "| plain structured text | Go, Ruby, Rust, TypeScript | plain, binary, zip | Families without parser requirements document preservation, byte ranges, archive members, and diagnostics. |",
         "",
+        "| Compatibility claim | Current disposition | Fixture source |",
+        "|---|---|---|",
+        "| Old Ruby runtime backend tables | Prior art only; not a cross-language support promise | slice-741 backend/platform reconciliation |",
+        "| tree-sitter-language-pack | Current portable parser substrate for Go, Ruby, Rust, and TypeScript | slices 122, 135, 171, 195, 215 |",
+        "| Native parser/adaptor backends | Implementation-specific providers documented through family fixtures | slices 122 and 183 |",
+        "| bash-merge, dotenv-merge, rbs-merge | Excluded from generated support tables until explicit scope decisions exist | slice-741 unresolved package list |",
+        "",
         "</details>",
       ].join("\n")
     end
