@@ -150,6 +150,14 @@ RSpec.describe Ast::Merge do
     end
   end
 
+  it "derives the shared compact ruleset feature profile fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-781-compact-ruleset-profile", "module-profile.json"))
+    ruleset = described_class.parse_compact_ruleset(fixtures_root.join(*fixture[:ruleset_path]).read)
+
+    expect(ruleset[:ok]).to be(true), ruleset[:diagnostics].inspect
+    expect(described_class.compact_ruleset_feature_profile(ruleset.fetch(:analysis))).to eq(fixture.fetch(:profile))
+  end
+
   it "conforms to the shared policy vocabulary and reporting fixtures" do
     policy_fixture = diagnostics_fixture("policy_vocabulary")
     reporting_fixture = diagnostics_fixture("policy_reporting")

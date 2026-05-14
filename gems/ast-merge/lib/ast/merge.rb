@@ -104,6 +104,75 @@ module Ast
       diagnostics.empty? ? { ok: true, diagnostics: [], analysis: ruleset, policies: [] } : { ok: false, diagnostics: diagnostics, policies: [] }
     end
 
+    def compact_ruleset_feature_profile(ruleset)
+      profile = {
+        format: "",
+        owners: "",
+        match: "",
+        read: "",
+        attach: "",
+        backends: [],
+        node_roles: [],
+        atomic_nodes: [],
+        child_groups: [],
+        capabilities: [],
+        logical_owners: [],
+        repairs: [],
+        surfaces: [],
+        delegates: []
+      }
+
+      ruleset.fetch(:directives, []).each do |directive|
+        arguments = directive.fetch(:arguments, [])
+        next if arguments.empty?
+
+        case directive.fetch(:name)
+        when "format"
+          profile[:format] = arguments.fetch(0)
+        when "owners"
+          profile[:owners] = arguments.fetch(0)
+        when "match"
+          profile[:match] = arguments.fetch(0)
+        when "read"
+          profile[:read] = arguments.fetch(0)
+        when "attach"
+          profile[:attach] = arguments.fetch(0)
+        when "comment_style"
+          profile[:comment_style] = arguments.fetch(0)
+        when "render"
+          profile[:render] = arguments.fetch(0)
+        when "render_strategy"
+          profile[:render_strategy] = arguments.fetch(0)
+        when "backend"
+          profile[:backends] << { backend: arguments.fetch(0), support: arguments.fetch(1) } if arguments.length > 1
+        when "node_role"
+          profile[:node_roles] << { selector: arguments.fetch(0), role: arguments.fetch(1) } if arguments.length > 1
+        when "atomic"
+          profile[:atomic_nodes] << { selector: arguments.fetch(0), atomic: arguments.fetch(1) == "true" } if arguments.length > 1
+        when "child_group"
+          if arguments.length > 2
+            profile[:child_groups] << {
+              parent_selector: arguments.fetch(0),
+              name: arguments.fetch(1),
+              policy: arguments.fetch(2)
+            }
+          end
+        when "capability"
+          profile[:capabilities] << { name: arguments.fetch(0), value: arguments.fetch(1) } if arguments.length > 1
+        when "logical_owner"
+          profile[:logical_owners] << { name: arguments.fetch(0), value: arguments.fetch(1) } if arguments.length > 1
+        when "repair"
+          profile[:repairs] << { name: arguments.fetch(0), value: arguments.fetch(1) } if arguments.length > 1
+        when "surface"
+          profile[:surfaces] << { name: arguments.fetch(0), selector: arguments.fetch(1) } if arguments.length > 1
+        when "delegate"
+          profile[:delegates] << { surface: arguments.fetch(0), policy: arguments.fetch(1) } if arguments.length > 1
+        end
+      end
+
+      profile
+    end
+
     def normalize_template_source_path(path)
       return path.delete_suffix(".no-osc.example") if path.end_with?(".no-osc.example")
       return path.delete_suffix(".example") if path.end_with?(".example")
