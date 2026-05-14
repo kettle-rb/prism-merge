@@ -217,6 +217,36 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "creates a package README through the packaged README style API" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-style-api-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.homepage = "https://github.com/structuredmerge/example"
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+      })
+
+      plan = described_class.plan_readme_style(root, env: {})
+      expect(plan.fetch(:changed)).to be(true)
+      expect(plan.fetch(:final_content)).to include("# 💎 Example")
+      expect(plan.fetch(:final_content)).to include("## 🌻 Synopsis")
+      expect(plan.fetch(:final_content)).to include("StructuredMerge packages provide fixture-backed merge behavior")
+      expect(plan.fetch(:final_content)).not_to include("Tokens to Remember")
+
+      apply = described_class.apply_readme_style(root, env: {})
+      expect(apply.fetch(:changed)).to be(true)
+      expect(File.read(File.join(root, "README.md"))).to eq(apply.fetch(:final_content))
+      expect(described_class.plan_readme_style(root, env: {}).fetch(:changed)).to be(false)
+    end
+  end
+
   it "removes Open Collective funding when disabled" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

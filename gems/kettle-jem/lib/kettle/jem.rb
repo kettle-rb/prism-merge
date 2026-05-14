@@ -388,6 +388,102 @@ module Kettle
       report
     end
 
+    def plan_readme_style(project_root, env: ENV)
+      facts = discover_facts(project_root, env: env)
+      config = kettle_jem_config(project_root)
+      readme_style = facts[:readme_style] ||
+        readme_style_facts(project_root, config, facts.fetch(:license, {}))
+      original_path = File.join(project_root, "README.md")
+      original = File.exist?(original_path) ? File.read(original_path) : ""
+      final_content = render_thin_readme(facts, readme_style, original, readme_preserve_config(config))
+
+      {
+        mode: "plan",
+        readme_path: "README.md",
+        changed: final_content != original,
+        readme_style: readme_style,
+        final_content: final_content,
+        diagnostics: [],
+      }
+    end
+
+    def apply_readme_style(project_root, env: ENV)
+      report = plan_readme_style(project_root, env: env).merge(mode: "apply")
+      return report unless report.fetch(:changed)
+
+      path = File.join(project_root, report.fetch(:readme_path))
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, report.fetch(:final_content))
+      report
+    end
+
+    def render_thin_readme(facts, readme_style, original, preserve_config)
+      package = facts.fetch(:package)
+      rubygems = facts.fetch(:rubygems)
+      license_expression = package[:license_expression].to_s
+      min_ruby = minimum_ruby_token(rubygems[:min_ruby])
+      title = classify_namespace(package.fetch(:name))
+      badges = [
+        package[:source_url] && "[![Source](https://img.shields.io/badge/source-github-238636.svg)](#{package[:source_url]})",
+        license_expression.empty? ? nil : "![License](https://img.shields.io/badge/license-#{shield_token(license_expression)}-259D6C.svg)",
+      ].compact.join(" ")
+      funding_enabled = readme_style.fetch(:floss_funding_enabled, false)
+      security_enabled = readme_style.fetch(:security_enabled, false)
+      rendered = [
+        "# 💎 #{title}",
+        badges,
+        "## 🌻 Synopsis\n\n",
+        "## 💡 Info you can shake a stick at\n\nCompatible with MRI Ruby #{min_ruby}+.\n\n#{readme_family_intro_and_backend_matrix}",
+        "## ✨ Installation\n\n```console\ngem install #{package.fetch(:name)}\n```",
+        "## ⚙️ Configuration\n\n",
+        "## 🔧 Basic Usage\n\n",
+      ]
+      rendered << "## 🦷 FLOSS Funding\n\nThis free software project accepts funding support when configured by the package maintainer." if funding_enabled
+      rendered << "## 🔐 Security\n\nSee [SECURITY.md](SECURITY.md)." if security_enabled
+      rendered.concat([
+        "## 🤝 Contributing\n\nContributions are welcome. Missing optional service integrations are reported by the generator instead of rendered as broken badges.",
+        "## 📌 Versioning\n\nThis project follows semantic versioning for its public API where practical.",
+        "## 📄 License\n\nThis project is made available under the following license expression: #{license_expression.empty? ? "unspecified" : license_expression}.",
+        "## 🤑 A request for help\n\nPlease support the project by using it, reporting issues, and contributing improvements.",
+      ])
+      template_content = rendered.reject(&:empty?).join("\n\n") + "\n"
+
+      merge_readme_template(
+        template_content: template_content,
+        destination_content: original,
+        preserve_config: preserve_config
+      )
+    end
+
+    def readme_template_tokens(facts)
+      {
+        "KJ|CB:USER" => "",
+        "KJ|FUNDING:BUYMEACOFFEE" => "",
+        "KJ|FUNDING:KOFI" => "",
+        "KJ|FUNDING:LIBERAPAY" => "",
+        "KJ|FUNDING:PATREON" => "",
+        "KJ|FUNDING:PAYPAL" => "",
+        "KJ|FUNDING:POLAR" => "",
+        "KJ|GH:USER" => "",
+        "KJ|GH_ORG" => github_org_from_url(facts.dig(:package, :source_url)).to_s,
+        "KJ|GL:USER" => "",
+        "KJ|PROJECT_EMOJI" => "💎",
+        "KJ|README:COPYRIGHT_NOTICE" => "",
+        "KJ|README:LICENSE_BADGE" => "",
+        "KJ|README:LICENSE_COMPAT_BADGE" => "",
+        "KJ|README:LICENSE_INTRO" => "",
+        "KJ|README:LICENSE_REFS" => "",
+        "KJ|README:TOP_LOGO_REFS" => "",
+        "KJ|README:TOP_LOGO_ROW" => "",
+        "KJ|SH:USER" => "",
+        "KJ|SOCIAL:BLUESKY" => "",
+        "KJ|SOCIAL:DEVTO" => "",
+        "KJ|SOCIAL:LINKTREE" => "",
+        "KJ|SOCIAL:MASTODON" => "",
+        "KJ|YARD_HOST" => "rubydoc.info",
+      }.merge(template_tokens(facts, facts.fetch(:funding, {})))
+    end
+
     def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
       template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
       compact_hash(
