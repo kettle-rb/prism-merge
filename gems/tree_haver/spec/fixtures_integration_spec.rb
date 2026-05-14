@@ -211,6 +211,21 @@ RSpec.describe TreeHaver do
     expect(capability.native_node_access).to be(true)
   end
 
+  it "conforms to the slice-784 source fragment extraction fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-784-source-fragment-extraction", "source-fragment-extraction.json"))
+    fragment = described_class.extract_source_fragment(
+      fixture[:source],
+      source_span(fixture[:span]),
+      fixture[:strategy]
+    )
+
+    expect(fragment.text).to eq(fixture.dig(:fragment, :text))
+    expect(fragment.available).to eq(fixture.dig(:fragment, :available))
+    expect(fragment.strategy).to eq(fixture.dig(:fragment, :strategy))
+    expect(fragment.byte_length).to eq(fixture.dig(:fragment, :byte_length))
+    expect(fragment.diagnostics.length).to eq(fixture.dig(:fragment, :diagnostics).length)
+  end
+
   it "conforms to the slice-723 binary core contract fixture" do
     fixture = diagnostics_fixture("binary_core_contract")
     payload_fixture = fixture[:raw_payload]
@@ -284,16 +299,20 @@ RSpec.describe TreeHaver do
       role: fixture[:role],
       parent_id: fixture[:parent_id],
       child_ids: fixture[:child_ids],
-      span: described_class::SourceSpan.new(
-        range: described_class::ByteRange.new(**fixture.dig(:span, :range)),
-        start_point: described_class::SourcePoint.new(**fixture.dig(:span, :start_point)),
-        end_point: described_class::SourcePoint.new(**fixture.dig(:span, :end_point))
-      ),
+      span: source_span(fixture[:span]),
       field_name: fixture[:field_name],
       named: fixture[:named],
       anonymous: fixture[:anonymous],
       has_source_text: fixture[:has_source_text],
       source_fragment: fixture[:source_fragment]
+    )
+  end
+
+  def source_span(fixture)
+    described_class::SourceSpan.new(
+      range: described_class::ByteRange.new(**fixture[:range]),
+      start_point: described_class::SourcePoint.new(**fixture[:start_point]),
+      end_point: described_class::SourcePoint.new(**fixture[:end_point])
     )
   end
 

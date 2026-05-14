@@ -232,6 +232,19 @@ module TreeHaver
     end
   end
 
+  SourceFragment = Struct.new(:text, :span, :available, :strategy, :byte_length, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        text: text,
+        span: span.to_h,
+        available: available,
+        strategy: strategy,
+        byte_length: byte_length,
+        diagnostics: diagnostics
+      }
+    end
+  end
+
   def node_roles
     NODE_ROLES.dup
   end
@@ -423,6 +436,27 @@ module TreeHaver
     end
 
     source.to_s.byteslice(byte_range.start_byte.to_i...byte_range.end_byte.to_i)
+  end
+
+  def self.extract_source_fragment(source, span, strategy)
+    text = slice_byte_range(source, span.range)
+    SourceFragment.new(
+      text: text,
+      span: span,
+      available: true,
+      strategy: strategy,
+      byte_length: text.bytesize,
+      diagnostics: []
+    )
+  rescue RangeError => error
+    SourceFragment.new(
+      text: "",
+      span: span,
+      available: false,
+      strategy: strategy,
+      byte_length: 0,
+      diagnostics: [error.message]
+    )
   end
 
   def self.byte_offset_for_point(source, point)
