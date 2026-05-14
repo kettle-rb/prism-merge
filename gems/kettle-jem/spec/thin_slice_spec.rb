@@ -1349,6 +1349,9 @@ RSpec.describe Kettle::Jem do
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:LICENSE_REFS")).to include(
         "AGPL-3.0-only.md"
       )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
+        "tree-sitter-language-pack"
+      )
     end
   end
 
