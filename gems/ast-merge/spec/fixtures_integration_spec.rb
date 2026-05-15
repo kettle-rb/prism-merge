@@ -1226,6 +1226,37 @@ RSpec.describe Ast::Merge do
     expect(sorted_validation_messages(partial.warnings)).to eq(expected[:partial_backend_warnings].sort)
   end
 
+  it "conforms to the slice-910 active profile reporting fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-910-active-profile-reporting", "active-profile-reporting.json"))
+    expected = fixture[:expected]
+    active_profile = fixture[:active_profile]
+
+    contract = described_class::ActiveProfileView.new(
+      **active_profile.merge(
+        rule_counts: described_class::ActiveProfileRuleCounts.new(**active_profile[:rule_counts]),
+        validation: described_class::ActiveProfileValidationSummary.new(**active_profile[:validation])
+      )
+    )
+    report = described_class::ProfileConformanceReport.new(
+      **fixture[:conformance_report].merge(active_profile: contract)
+    )
+    debug_output = described_class::ProfileDebugOutput.new(
+      mode: fixture.dig(:debug_output, :mode),
+      active_profile: contract,
+      diagnostics: fixture.dig(:debug_output, :diagnostics)
+    )
+
+    expect(contract.profile_id).to eq(expected[:profile_id])
+    expect(contract.family).to eq(expected[:family])
+    expect(contract.backend).to eq(expected[:backend])
+    expect(contract.parser).to eq(expected[:parser])
+    expect(contract.rule_counts.signatures).to eq(expected[:signature_count])
+    expect(contract.validation.ok).to eq(expected[:validation_ok])
+    expect(report.active_profile.profile_id).to eq(expected[:profile_id])
+    expect(debug_output.mode).to eq(expected[:debug_mode])
+    expect(debug_output.active_profile.profile_id).to eq(expected[:profile_id])
+  end
+
   it "conforms to the template source path mapping fixture" do
     fixture = diagnostics_fixture("template_source_path_mapping")
 

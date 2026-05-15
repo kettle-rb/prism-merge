@@ -699,7 +699,11 @@ module Ast
     PerformanceTimeoutDiagnostic = Struct.new(:severity, :category, :code, :fallback, keyword_init: true)
     PerformanceGuardrails = Struct.new(:guardrail_id, :version, :max_bytes, :max_nodes, :max_match_candidates, :timeout_ms, :timeout_diagnostic, :diagnostics, keyword_init: true)
     ProfileSkippedRule = Struct.new(:rule, :reason, keyword_init: true)
-    ProfileConformanceReport = Struct.new(:report_id, :version, :profile, :enabled_rules, :skipped_rules, :fallback_count, :unresolved_conflict_count, :diagnostics, keyword_init: true)
+    ActiveProfileRuleCounts = Struct.new(:node_roles, :atomic_nodes, :signatures, :commutative_parents, :child_groups, :comment_attachment, keyword_init: true)
+    ActiveProfileValidationSummary = Struct.new(:ok, :error_count, :warning_count, keyword_init: true)
+    ActiveProfileView = Struct.new(:profile_id, :family, :backend, :backend_family, :parser, :parser_version, :language_version, :dialect, :supported_dialects, :rule_counts, :validation, keyword_init: true)
+    ProfileConformanceReport = Struct.new(:report_id, :version, :profile, :active_profile, :enabled_rules, :skipped_rules, :fallback_count, :unresolved_conflict_count, :diagnostics, keyword_init: true)
+    ProfileDebugOutput = Struct.new(:mode, :active_profile, :diagnostics, keyword_init: true)
     ProfileValidationDiagnostic = Struct.new(:severity, :message, keyword_init: true)
     ProfileValidationResult = Struct.new(:ok, :errors, :warnings, :diagnostics, keyword_init: true)
 
