@@ -702,6 +702,23 @@ RSpec.describe Ast::Merge do
     expect(report.diagnostics.length).to eq(fixture.dig(:expected, :diagnostic_count))
   end
 
+  it "conforms to the slice-822 native provider metadata fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-822-native-provider-metadata", "native-provider-metadata.json"))
+    report = described_class::NativeProviderMetadataReport.new(**fixture[:provider_metadata])
+
+    expect(report.provider_id).to eq(fixture.dig(:expected, :provider_id))
+    expect(report.family).to eq(fixture.dig(:expected, :family))
+    expect(report.host_language).to eq(fixture.dig(:expected, :host_language))
+    expect(report.target_language).to eq(fixture.dig(:expected, :target_language))
+    expect(report.parser_name).to eq(fixture.dig(:expected, :parser_name))
+    expect(report.parse_error_behavior).to eq(fixture.dig(:expected, :parse_error_behavior))
+    expect(report.source_span_support).to eq(fixture.dig(:expected, :source_span_support))
+    expect(report.render_support).to eq(fixture.dig(:expected, :render_support))
+    expect(report.semantic_role_support).to eq(fixture.dig(:expected, :semantic_role_support))
+    expect(report.retains_native_tree).to eq(fixture.dig(:expected, :retains_native_tree))
+    expect(report.metadata_policy).to eq(fixture.dig(:expected, :metadata_policy))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

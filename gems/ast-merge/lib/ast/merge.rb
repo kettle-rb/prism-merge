@@ -641,6 +641,7 @@ module Ast
     FormattingEdgeFixtureCase = Struct.new(:case_id, :category, :requires_conflict_markers, keyword_init: true)
     FormattingEdgeFixtureSuite = Struct.new(:suite_id, :version, :cases, :diagnostics, keyword_init: true)
     RenderSafetyReport = Struct.new(:report_id, :version, :provider_id, :safe_to_render, :outcome, :fallback_strategy, :diagnostics, keyword_init: true)
+    NativeProviderMetadataReport = Struct.new(:provider_id, :family, :host_language, :target_language, :parser_name, :parser_version, :language_version, :dialect, :parse_error_behavior, :source_span_support, :render_support, :semantic_role_support, :retains_native_tree, :native_tree_visibility, :metadata_policy, :diagnostics, keyword_init: true)
 
     module_function
 

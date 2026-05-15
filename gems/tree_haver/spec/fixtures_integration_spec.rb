@@ -229,6 +229,23 @@ RSpec.describe TreeHaver do
     expect(result.source_fragments_available).to be(true)
   end
 
+  it "conforms to the slice-822 native provider metadata fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-822-native-provider-metadata", "native-provider-metadata.json"))
+    metadata = described_class::NativeProviderMetadata.new(**fixture[:provider_metadata])
+
+    expect(metadata.provider_id).to eq(fixture.dig(:expected, :provider_id))
+    expect(metadata.family).to eq(fixture.dig(:expected, :family))
+    expect(metadata.host_language).to eq(fixture.dig(:expected, :host_language))
+    expect(metadata.target_language).to eq(fixture.dig(:expected, :target_language))
+    expect(metadata.parser_name).to eq(fixture.dig(:expected, :parser_name))
+    expect(metadata.parse_error_behavior).to eq(fixture.dig(:expected, :parse_error_behavior))
+    expect(metadata.source_span_support).to eq(fixture.dig(:expected, :source_span_support))
+    expect(metadata.render_support).to eq(fixture.dig(:expected, :render_support))
+    expect(metadata.semantic_role_support).to eq(fixture.dig(:expected, :semantic_role_support))
+    expect(metadata.retains_native_tree).to eq(fixture.dig(:expected, :retains_native_tree))
+    expect(metadata.metadata_policy).to eq(fixture.dig(:expected, :metadata_policy))
+  end
+
   it "conforms to the slice-788 tree-haver profile fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-788-tree-haver-profile", "tree-haver-profile.json"))
     profile_fixture = fixture[:profile]
