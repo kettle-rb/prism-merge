@@ -691,6 +691,17 @@ RSpec.describe Ast::Merge do
     expect(conflict_marker_case_count).to eq(fixture.dig(:expected, :conflict_marker_case_count))
   end
 
+  it "conforms to the slice-821 unsafe render fallback or failure fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-821-unsafe-render-fallback-or-failure", "unsafe-render-fallback-or-failure.json"))
+    report = described_class::RenderSafetyReport.new(**fixture[:render_safety])
+
+    expect(report.safe_to_render).to eq(fixture.dig(:expected, :safe_to_render))
+    expect(fixture.dig(:expected, :allowed_outcomes)).to include(report.outcome)
+    expect(report.outcome).to eq(fixture.dig(:expected, :outcome))
+    expect(report.fallback_strategy).to eq(fixture.dig(:expected, :fallback_strategy))
+    expect(report.diagnostics.length).to eq(fixture.dig(:expected, :diagnostic_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

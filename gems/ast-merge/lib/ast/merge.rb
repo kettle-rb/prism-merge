@@ -640,6 +640,7 @@ module Ast
     TokenSpanPreservationMetricsReport = Struct.new(:report_id, :version, :source_spans_available, :token_preservation, :span_preservation, :weighted, :diagnostics, keyword_init: true)
     FormattingEdgeFixtureCase = Struct.new(:case_id, :category, :requires_conflict_markers, keyword_init: true)
     FormattingEdgeFixtureSuite = Struct.new(:suite_id, :version, :cases, :diagnostics, keyword_init: true)
+    RenderSafetyReport = Struct.new(:report_id, :version, :provider_id, :safe_to_render, :outcome, :fallback_strategy, :diagnostics, keyword_init: true)
 
     module_function
 
