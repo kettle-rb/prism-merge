@@ -533,6 +533,33 @@ RSpec.describe Ast::Merge do
     expect(duplicate_member_handler).to eq(fixture.dig(:expected, :duplicate_member_handler))
   end
 
+  it "conforms to the slice-812 fallback usage machine output fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-812-fallback-usage-machine-output", "fallback-usage-machine-output.json"))
+    raw = fixture[:fallback_usage]
+    machine_output = described_class::FallbackUsageMachineOutput.new(
+      fallbacks: raw.dig(:machine_output, :fallbacks).map { |entry| described_class::FallbackUsageEntry.new(**entry) },
+      summary: described_class::FallbackUsageSummary.new(**raw.dig(:machine_output, :summary))
+    )
+    report = described_class::FallbackUsageReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      mode: raw[:mode],
+      quiet_by_default: raw[:quiet_by_default],
+      machine_output: machine_output,
+      git_driver_output: described_class::GitDriverOutput.new(**raw[:git_driver_output]),
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.mode).to eq(fixture.dig(:expected, :mode))
+    expect(report.quiet_by_default).to eq(fixture.dig(:expected, :quiet_by_default))
+    expect(report.machine_output.summary.fallback_count).to eq(fixture.dig(:expected, :fallback_count))
+    expect(report.machine_output.summary.conflict_count).to eq(fixture.dig(:expected, :conflict_count))
+    expect(report.git_driver_output.stdout).to eq(fixture.dig(:expected, :stdout))
+    expect(report.git_driver_output.stderr).to eq(fixture.dig(:expected, :stderr))
+    expect(report.git_driver_output.exit_code).to eq(fixture.dig(:expected, :exit_code))
+    expect(report.machine_output.fallbacks.fetch(0).scope).to eq(fixture.dig(:expected, :first_fallback_scope))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

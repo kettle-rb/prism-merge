@@ -620,6 +620,12 @@ module Ast
     LanguageProfileHandlerRegistration = Struct.new(:role, :handler_id, :conflict_categories, :enabled, keyword_init: true)
     LanguageProfileHandlerRegistry = Struct.new(:profile_id, :language, :version, :registrations, :diagnostics, keyword_init: true)
 
+    FallbackUsageEntry = Struct.new(:fallback_id, :strategy, :scope, :path, :conflict_category, keyword_init: true)
+    FallbackUsageSummary = Struct.new(:fallback_count, :conflict_count, :resolved_count, keyword_init: true)
+    FallbackUsageMachineOutput = Struct.new(:fallbacks, :summary, keyword_init: true)
+    GitDriverOutput = Struct.new(:stdout, :stderr, :exit_code, keyword_init: true)
+    FallbackUsageReport = Struct.new(:report_id, :version, :mode, :quiet_by_default, :machine_output, :git_driver_output, :diagnostics, keyword_init: true)
+
     module_function
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
