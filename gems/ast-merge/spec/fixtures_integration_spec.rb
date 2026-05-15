@@ -245,6 +245,34 @@ RSpec.describe Ast::Merge do
     expect(report.matches.fetch(0).confidence).to be >= fixture.dig(:expected, :minimum_confidence)
   end
 
+  it "conforms to the slice-800 move detection opt-in fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-800-move-detection-opt-in", "move-detection-opt-in.json"))
+    raw = fixture[:matching]
+    report = described_class::MoveDetectionMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      from_revision: raw[:from_revision],
+      to_revision: raw[:to_revision],
+      capability: described_class::MoveDetectionCapability.new(**raw[:capability]),
+      matches: raw[:matches].map { |entry| described_class::MoveDetectionMatch.new(**entry) },
+      unmatched_from: raw[:unmatched_from],
+      unmatched_to: raw[:unmatched_to],
+      diagnostics: raw[:diagnostics]
+    )
+    move_count = report.matches.count(&:moved)
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.capability.name).to eq(fixture.dig(:expected, :capability))
+    expect(report.capability.enabled).to eq(fixture.dig(:expected, :enabled))
+    expect(report.capability.default_enabled).to eq(fixture.dig(:expected, :default_enabled))
+    expect(report.capability.requires_stable_node_identity).to eq(fixture.dig(:expected, :requires_stable_node_identity))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(move_count).to eq(fixture.dig(:expected, :move_count))
+    expect(report.matches.fetch(0).signature).to eq(fixture.dig(:expected, :first_moved_signature))
+    expect(report.matches.fetch(0).from_index).to eq(fixture.dig(:expected, :first_moved_from_index))
+    expect(report.matches.fetch(0).to_index).to eq(fixture.dig(:expected, :first_moved_to_index))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

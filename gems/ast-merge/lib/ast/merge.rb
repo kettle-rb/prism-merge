@@ -393,6 +393,52 @@ module Ast
       end
     end
 
+    MoveDetectionCapability = Struct.new(:name, :enabled, :default_enabled, :requires_stable_node_identity, keyword_init: true) do
+      def to_h
+        {
+          name: name,
+          enabled: enabled,
+          default_enabled: default_enabled,
+          requires_stable_node_identity: requires_stable_node_identity
+        }
+      end
+    end
+
+    MoveDetectionMatch = Struct.new(:from_path, :to_path, :from_node_id, :to_node_id, :signature, :moved, :from_parent_path, :to_parent_path, :from_index, :to_index, :confidence, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          signature: signature,
+          moved: moved,
+          from_parent_path: from_parent_path,
+          to_parent_path: to_parent_path,
+          from_index: from_index,
+          to_index: to_index,
+          confidence: confidence,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    MoveDetectionMatchingReport = Struct.new(:matching_id, :strategy, :from_revision, :to_revision, :capability, :matches, :unmatched_from, :unmatched_to, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          from_revision: from_revision,
+          to_revision: to_revision,
+          capability: capability.to_h,
+          matches: (matches || []).map(&:to_h),
+          unmatched_from: unmatched_from || [],
+          unmatched_to: unmatched_to || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
