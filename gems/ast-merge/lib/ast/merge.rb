@@ -439,6 +439,52 @@ module Ast
       end
     end
 
+    RenameAwareCapability = Struct.new(:name, :status, :enabled, :requires_explicit_profile, :requires_diagnostics, keyword_init: true) do
+      def to_h
+        {
+          name: name,
+          status: status,
+          enabled: enabled,
+          requires_explicit_profile: requires_explicit_profile,
+          requires_diagnostics: requires_diagnostics
+        }
+      end
+    end
+
+    RenameAwareCandidate = Struct.new(:from_path, :to_path, :from_node_id, :to_node_id, :from_signature, :to_signature, :stable_body_hash, :rename_distance, :selected, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          from_signature: from_signature,
+          to_signature: to_signature,
+          stable_body_hash: stable_body_hash,
+          rename_distance: rename_distance,
+          selected: selected,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    RenameAwareMatchingReport = Struct.new(:matching_id, :strategy, :from_revision, :to_revision, :capability, :candidates, :matches, :unmatched_from, :unmatched_to, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          from_revision: from_revision,
+          to_revision: to_revision,
+          capability: capability.to_h,
+          candidates: (candidates || []).map(&:to_h),
+          matches: (matches || []).map(&:to_h),
+          unmatched_from: unmatched_from || [],
+          unmatched_to: unmatched_to || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)

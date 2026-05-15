@@ -273,6 +273,34 @@ RSpec.describe Ast::Merge do
     expect(report.matches.fetch(0).to_index).to eq(fixture.dig(:expected, :first_moved_to_index))
   end
 
+  it "conforms to the slice-801 rename-aware matching gated fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-801-rename-aware-matching-gated", "rename-aware-matching-gated.json"))
+    raw = fixture[:matching]
+    report = described_class::RenameAwareMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      from_revision: raw[:from_revision],
+      to_revision: raw[:to_revision],
+      capability: described_class::RenameAwareCapability.new(**raw[:capability]),
+      candidates: raw[:candidates].map { |entry| described_class::RenameAwareCandidate.new(**entry) },
+      matches: raw[:matches].map { |entry| described_class::SignatureNodeMatch.new(**entry) },
+      unmatched_from: raw[:unmatched_from],
+      unmatched_to: raw[:unmatched_to],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.capability.name).to eq(fixture.dig(:expected, :capability))
+    expect(report.capability.status).to eq(fixture.dig(:expected, :status))
+    expect(report.capability.enabled).to eq(fixture.dig(:expected, :enabled))
+    expect(report.capability.requires_explicit_profile).to eq(fixture.dig(:expected, :requires_explicit_profile))
+    expect(report.capability.requires_diagnostics).to eq(fixture.dig(:expected, :requires_diagnostics))
+    expect(report.candidates.length).to eq(fixture.dig(:expected, :candidate_count))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(report.candidates.fetch(0).selected).to eq(fixture.dig(:expected, :first_candidate_selected))
+    expect(report.candidates.fetch(0).stable_body_hash).to eq(fixture.dig(:expected, :first_candidate_body_hash))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
