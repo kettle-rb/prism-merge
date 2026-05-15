@@ -263,6 +263,18 @@ module Ast
       end
     end
 
+    MergeIREvaluationReport = Struct.new(:merge_engine, :raw_merge, :inconsistency_report, :outcome, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          merge_engine: merge_engine,
+          raw_merge: raw_merge.to_h,
+          inconsistency_report: inconsistency_report.to_h,
+          outcome: outcome,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     MergeIRComparisonCase = Struct.new(:case_id, :family, :scenario, :owner_path_outcome, :merge_ir_outcome, :merge_ir_advantage, :diagnostics, keyword_init: true) do
       def to_h
         {
@@ -682,6 +694,102 @@ module Ast
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
     GENERIC_KEYED_MEMBER_EDIT_HANDLER = "generic-keyed-member-edit"
+
+    def raw_merge_change_sets(raw_merge_id, change_sets)
+      RawMerge.new(
+        raw_merge_id: raw_merge_id,
+        input_change_set_ids: change_sets.map(&:change_set_id),
+        changes: change_sets.flat_map do |change_set|
+          change_set.changes.map do |change|
+            RawMergeChange.new(
+              change_id: change.change_id,
+              source_change_set_id: change_set.change_set_id,
+              side: change_set.side,
+              kind: change.kind,
+              class_id: change.class_id,
+              parent_class_id: change.parent_class_id,
+              predecessor_class_id: change.predecessor_class_id,
+              successor_class_id: change.successor_class_id,
+              content_hash: change.content_hash
+            )
+          end
+        end,
+        diagnostics: ["raw merge intentionally preserves both sides before inconsistency detection"]
+      )
+    end
+
+    def detect_raw_merge_inconsistencies(report_id, raw_merge)
+      changes_by_class = raw_merge.changes.group_by(&:class_id)
+      inconsistencies = raw_merge.changes.filter_map do |change|
+        next unless change.kind == "move"
+
+        MergeInconsistency.new(
+          inconsistency_id: "order-#{change.class_id}",
+          category: "order_conflict",
+          severity: "warning",
+          class_ids: [change.class_id],
+          change_ids: [change.change_id],
+          message: "branch changes predecessor/successor ordering relation"
+        )
+      end
+
+      changes_by_class.each do |class_id, changes|
+        changes_by_kind = changes.group_by(&:kind)
+        hash_count = ->(kind) { changes_by_kind.fetch(kind, []).map(&:content_hash).uniq.length }
+
+        if changes_by_kind.fetch("insert", []).length > 1 && hash_count.call("insert") > 1
+          inconsistencies << MergeInconsistency.new(
+            inconsistency_id: "duplicate-#{class_id}",
+            category: "duplicate_insertion_conflict",
+            severity: "error",
+            class_ids: [class_id],
+            change_ids: changes_by_kind.fetch("insert", []).map(&:change_id),
+            message: "branches insert the same class with incompatible content hashes"
+          )
+        end
+        if changes_by_kind.fetch("delete", []).any? && changes_by_kind.fetch("content_change", []).any?
+          inconsistencies << MergeInconsistency.new(
+            inconsistency_id: "delete-edit-#{class_id}",
+            category: "delete_edit_conflict",
+            severity: "error",
+            class_ids: [class_id],
+            change_ids: changes_by_kind.fetch("content_change", []).map(&:change_id) + changes_by_kind.fetch("delete", []).map(&:change_id),
+            message: "one branch edits a class that another branch deletes"
+          )
+        end
+        if changes_by_kind.fetch("content_change", []).length > 1 && hash_count.call("content_change") > 1
+          inconsistencies << MergeInconsistency.new(
+            inconsistency_id: "content-#{class_id}",
+            category: "content_conflict",
+            severity: "error",
+            class_ids: [class_id],
+            change_ids: changes_by_kind.fetch("content_change", []).map(&:change_id),
+            message: "branches change class content differently"
+          )
+        end
+      end
+
+      InconsistencyReport.new(
+        report_id: report_id,
+        raw_merge_id: raw_merge.raw_merge_id,
+        inconsistencies: inconsistencies,
+        diagnostics: ["inconsistency detection classifies raw merge candidates before any conflict rendering"]
+      )
+    end
+
+    def evaluate_merge_ir_change_sets(engine, raw_merge_id, report_id, change_sets)
+      merge_engine = normalize_merge_engine(engine)
+      raw_merge = raw_merge_change_sets(raw_merge_id, change_sets)
+      inconsistency_report = detect_raw_merge_inconsistencies(report_id, raw_merge)
+      blocking_count = inconsistency_report.inconsistencies.count { |inconsistency| inconsistency.severity == "error" }
+      MergeIREvaluationReport.new(
+        merge_engine: merge_engine,
+        raw_merge: raw_merge,
+        inconsistency_report: inconsistency_report,
+        outcome: blocking_count.positive? ? "blocked_by_inconsistency" : "clean",
+        diagnostics: ["merge_ir_experimental evaluates PCS-style change sets behind the opt-in engine flag"]
+      )
+    end
 
     def execute_generic_conflict_handler(handler_case)
       case handler_case.handler_id

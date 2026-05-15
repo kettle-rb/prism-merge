@@ -198,6 +198,35 @@ RSpec.describe Ast::Merge do
     expect(report.inconsistencies.fetch(1).change_ids.fetch(1)).to eq("right-delete-greet")
   end
 
+  it "conforms to the slice-907 merge IR experimental evaluation fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-907-merge-ir-experimental-evaluation", "merge-ir-experimental-evaluation.json"))
+    request = fixture[:request]
+    expected = fixture[:expected]
+    change_sets = request[:change_sets].map do |raw|
+      described_class::ChangeSet.new(
+        change_set_id: raw[:change_set_id],
+        side: raw[:side],
+        changes: raw[:changes].map { |entry| described_class::ChangeSetChange.new(**entry) },
+        diagnostics: raw[:diagnostics]
+      )
+    end
+    report = described_class.evaluate_merge_ir_change_sets(
+      request[:merge_engine],
+      request[:raw_merge_id],
+      request[:report_id],
+      change_sets
+    )
+    categories = report.inconsistency_report.inconsistencies.map(&:category)
+    blocking_count = report.inconsistency_report.inconsistencies.count { |inconsistency| inconsistency.severity == "error" }
+
+    expect(report.merge_engine).to eq(expected[:merge_engine])
+    expect(report.raw_merge.changes.length).to eq(expected[:raw_change_count])
+    expect(report.raw_merge.input_change_set_ids.length).to eq(expected[:input_change_set_count])
+    expect(categories).to eq(expected[:categories])
+    expect(blocking_count).to eq(expected[:blocking_count])
+    expect(report.outcome).to eq(expected[:outcome])
+  end
+
   it "conforms to the slice-796 merge IR comparison fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-796-merge-ir-comparison", "merge-ir-comparison.json"))
     raw = fixture[:comparison]
