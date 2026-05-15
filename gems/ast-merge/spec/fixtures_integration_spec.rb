@@ -582,6 +582,19 @@ RSpec.describe Ast::Merge do
     expect(report.strategies.fetch(-1).requires_reparse).to eq(fixture.dig(:expected, :full_file_requires_reparse))
   end
 
+  it "conforms to the slice-814 reparse after render verification fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-814-reparse-after-render-verification", "reparse-after-render-verification.json"))
+    report = described_class::RenderVerificationReport.new(**fixture[:render_verification])
+
+    expect(report.mode).to eq(fixture.dig(:expected, :mode))
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.attempted).to eq(fixture.dig(:expected, :attempted))
+    expect(report.passed).to eq(fixture.dig(:expected, :passed))
+    expect(report.hard_gate).to eq(fixture.dig(:expected, :hard_gate))
+    expect(report.parse_errors.length).to eq(fixture.dig(:expected, :parse_error_count))
+    expect(report.render_strategy).to eq(fixture.dig(:expected, :render_strategy))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

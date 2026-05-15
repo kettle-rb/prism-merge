@@ -629,6 +629,7 @@ module Ast
     RenderByteSpan = Struct.new(:start_byte, :end_byte, keyword_init: true)
     RenderStrategyMetadata = Struct.new(:strategy, :path, :span, :preserves_source_fragment, :requires_reparse, keyword_init: true)
     RenderPlanReport = Struct.new(:plan_id, :version, :language, :strategies, :diagnostics, keyword_init: true)
+    RenderVerificationReport = Struct.new(:verification_id, :version, :mode, :language, :render_strategy, :attempted, :passed, :hard_gate, :parse_errors, :diagnostics, keyword_init: true)
 
     module_function
 
