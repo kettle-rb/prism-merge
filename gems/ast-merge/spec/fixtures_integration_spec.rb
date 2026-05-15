@@ -353,6 +353,28 @@ RSpec.describe Ast::Merge do
     expect(report.matches.fetch(0).rejected_candidates.fetch(0).rejected_by).to eq(fixture.dig(:expected, :first_rejected_by))
   end
 
+  it "conforms to the slice-804 matching debug artifacts fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-804-matching-debug-artifacts", "matching-debug-artifacts.json"))
+    raw = fixture[:debug_artifacts]
+    artifacts = described_class::MatchingDebugArtifacts.new(
+      artifact_id: raw[:artifact_id],
+      matching_id: raw[:matching_id],
+      enabled: raw[:enabled],
+      owner_sets: raw[:owner_sets].map { |entry| described_class::MatchingDebugOwnerSet.new(**entry) },
+      candidates: raw[:candidates].map { |entry| described_class::MatchingDebugCandidate.new(**entry) },
+      selected_matches: raw[:selected_matches].map { |entry| described_class::MatchingDebugSelectedMatch.new(**entry) },
+      rejected_matches: raw[:rejected_matches].map { |entry| described_class::MatchingDebugRejectedMatch.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(artifacts.enabled).to eq(fixture.dig(:expected, :enabled))
+    expect(artifacts.owner_sets.length).to eq(fixture.dig(:expected, :owner_set_count))
+    expect(artifacts.candidates.length).to eq(fixture.dig(:expected, :candidate_count))
+    expect(artifacts.selected_matches.length).to eq(fixture.dig(:expected, :selected_count))
+    expect(artifacts.rejected_matches.length).to eq(fixture.dig(:expected, :rejected_count))
+    expect(artifacts.rejected_matches.fetch(0).reason).to eq(fixture.dig(:expected, :first_rejection_reason))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

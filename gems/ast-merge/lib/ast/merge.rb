@@ -553,6 +553,26 @@ module Ast
       end
     end
 
+    MatchingDebugOwnerSet = Struct.new(:owner_id, :scope_path, :node_paths, keyword_init: true)
+    MatchingDebugCandidate = Struct.new(:candidate_id, :signature, :from_path, :to_path, :confidence, :reason, keyword_init: true)
+    MatchingDebugSelectedMatch = Struct.new(:candidate_id, :selected_by, keyword_init: true)
+    MatchingDebugRejectedMatch = Struct.new(:candidate_id, :rejected_by, :reason, keyword_init: true)
+
+    MatchingDebugArtifacts = Struct.new(:artifact_id, :matching_id, :enabled, :owner_sets, :candidates, :selected_matches, :rejected_matches, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          artifact_id: artifact_id,
+          matching_id: matching_id,
+          enabled: enabled,
+          owner_sets: (owner_sets || []).map(&:to_h),
+          candidates: (candidates || []).map(&:to_h),
+          selected_matches: (selected_matches || []).map(&:to_h),
+          rejected_matches: (rejected_matches || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
