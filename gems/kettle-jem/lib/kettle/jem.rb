@@ -218,7 +218,6 @@ module Kettle
         URI.encode_www_form_component(value.to_s)
       end
     end
-    AppraisalRubyGemsResolver = RubyGemsResolver
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
     README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze

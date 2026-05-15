@@ -1626,7 +1626,6 @@ RSpec.describe Kettle::Jem do
       "https://example.test/api/v1/versions/active+record.json" => 1,
       "https://example.test/api/v2/rubygems/active+record/versions/7.1.3.json" => 1
     )
-    expect(described_class::AppraisalRubyGemsResolver).to equal(described_class::RubyGemsResolver)
   end
 
   it "ports appraisal CLI config orchestration helpers into Kettle/Jem" do
