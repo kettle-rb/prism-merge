@@ -257,6 +257,63 @@ module Ast
       end
     end
 
+    class OperationProfile
+      KNOWN_OPERATION_KINDS = {
+        "replace" => ["rewrite", "Replace selected content with explicit replacement text"],
+        "delete" => ["removal", "Delete selected content without inserting replacement text"],
+        "insert" => ["insertion", "Insert explicit text at a destination anchor or append fallback"],
+        "move" => ["relocation", "Relocate selected content or explicit replacement text to a destination anchor"]
+      }.freeze
+      KNOWN_REQUIREMENTS = %w[none optional required].freeze
+      KNOWN_REPLACEMENT_SOURCES = %w[none explicit_text captured_text_or_explicit].freeze
+
+      attr_reader :operation_kind,
+        :source_requirement,
+        :destination_requirement,
+        :replacement_source,
+        :captures_source_text,
+        :supports_if_missing
+
+      def initialize(
+        operation_kind: "replace",
+        source_requirement: "required",
+        destination_requirement: "none",
+        replacement_source: "explicit_text",
+        captures_source_text: false,
+        supports_if_missing: false
+      )
+        @operation_kind = operation_kind.to_s
+        @source_requirement = source_requirement.to_s
+        @destination_requirement = destination_requirement.to_s
+        @replacement_source = replacement_source.to_s
+        @captures_source_text = captures_source_text
+        @supports_if_missing = supports_if_missing
+      end
+
+      def report
+        operation_family = KNOWN_OPERATION_KINDS.fetch(operation_kind, ["unknown"]).first
+        {
+          operation_kind: operation_kind,
+          operation_family: operation_family,
+          known_operation_kind: KNOWN_OPERATION_KINDS.key?(operation_kind),
+          source_requirement: source_requirement,
+          known_source_requirement: KNOWN_REQUIREMENTS.include?(source_requirement),
+          destination_requirement: destination_requirement,
+          known_destination_requirement: KNOWN_REQUIREMENTS.include?(destination_requirement),
+          replacement_source: replacement_source,
+          known_replacement_source: KNOWN_REPLACEMENT_SOURCES.include?(replacement_source),
+          captures_source_text: captures_source_text,
+          supports_if_missing: supports_if_missing,
+          selects_source: source_requirement != "none",
+          requires_source: source_requirement == "required",
+          supports_destination: destination_requirement != "none",
+          requires_destination: destination_requirement == "required",
+          explicit_replacement: replacement_source == "explicit_text",
+          may_reuse_captured_text: replacement_source == "captured_text_or_explicit"
+        }
+      end
+    end
+
     class << self
       def ast_merge_contract_anchor
         "Ast::Merge.structured_edit"
@@ -319,10 +376,10 @@ module Ast
             "limit helpers",
             "match profile helpers",
             "selection profile helpers",
-            "destination profile helpers"
+            "destination profile helpers",
+            "operation profile helpers"
           ],
           future_exports: [
-            "operation profile helpers",
             "replace/delete/insert/move helpers",
             "batch operation helpers"
           ],
@@ -370,6 +427,24 @@ module Ast
           resolution_source: resolution_source,
           anchor_boundary: anchor_boundary,
           used_if_missing: used_if_missing
+        )
+      end
+
+      def operation_profile(
+        operation_kind: "replace",
+        source_requirement: "required",
+        destination_requirement: "none",
+        replacement_source: "explicit_text",
+        captures_source_text: false,
+        supports_if_missing: false
+      )
+        OperationProfile.new(
+          operation_kind: operation_kind,
+          source_requirement: source_requirement,
+          destination_requirement: destination_requirement,
+          replacement_source: replacement_source,
+          captures_source_text: captures_source_text,
+          supports_if_missing: supports_if_missing
         )
       end
     end

@@ -112,3 +112,24 @@ RSpec.describe Ast::Crispr::DestinationProfile do
     end
   end
 end
+
+RSpec.describe Ast::Crispr::OperationProfile do
+  it "conforms to the ast-crispr operation profile helper fixture" do
+    fixture_path = Pathname(__dir__).join(
+      "..",
+      "..",
+      "..",
+      "..",
+      "fixtures",
+      "diagnostics",
+      "slice-921-ast-crispr-operation-profile-helpers",
+      "ast-crispr-operation-profile-helpers.json"
+    )
+    fixture = JSON.parse(fixture_path.read, symbolize_names: true)
+
+    fixture.fetch(:cases).each do |test_case|
+      profile = described_class.new(**test_case.fetch(:profile))
+      expect(profile.report).to eq(test_case.fetch(:expected))
+    end
+  end
+end
