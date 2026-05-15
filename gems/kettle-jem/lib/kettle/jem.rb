@@ -1056,6 +1056,7 @@ module Kettle
       changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.sort
       diagnostics = recipe_reports.flat_map { |report| report[:diagnostics] }
       diagnostics << plugin_lifecycle_diagnostic(plugin_registry, callbacks_run: false) unless plugin_registry.configured_plugins.empty?
+      run_stats = recipe_run_stats(recipe_reports, diagnostics: diagnostics)
 
       {
         mode: "plan",
@@ -1065,6 +1066,7 @@ module Kettle
         recipe_reports: recipe_reports,
         changed_files: changed_files,
         diagnostics: diagnostics,
+        run_stats: run_stats,
       }
     end
 
@@ -1298,6 +1300,7 @@ module Kettle
 
     def execute_recipe(project_root:, recipe:, facts:, files:)
       relative_path = recipe.fetch(:target_path)
+      destination_existed = File.exist?(File.join(project_root, relative_path))
       original = files.fetch(relative_path, "")
       deletion = recipe.fetch(:name) == "rakefile_scaffold_cleanup" ? delete_rakefile_scaffold(original) : nil
       final = case recipe.fetch(:name)
@@ -1348,13 +1351,14 @@ module Kettle
       )
       changed = delete_file_recipe?(recipe) || final != original
       step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
+      metadata = recipe_report_metadata(recipe).merge(destination_existed: destination_existed)
       report = content_recipe_execution_report(
         request: request,
         final_content: final,
         changed: changed,
         step_reports: [step_report],
         diagnostics: [],
-        metadata: recipe_report_metadata(recipe),
+        metadata: metadata,
       )
 
       {
@@ -1364,7 +1368,7 @@ module Kettle
         request_envelope: content_recipe_execution_request_envelope(request),
         report_envelope: content_recipe_execution_report_envelope(report),
         final_content: final,
-        metadata: recipe_report_metadata(recipe),
+        metadata: metadata,
         diagnostics: [],
       }
     end
@@ -1912,6 +1916,53 @@ module Kettle
       end
       diagnostics << plugin_lifecycle_diagnostic(plugin_registry, callbacks_run: true)
       changed_files.sort!
+      report[:run_stats] = recipe_run_stats(report.fetch(:recipe_reports), diagnostics: diagnostics)
+    end
+
+    def recipe_run_stats(recipe_reports, diagnostics: [])
+      stats = {
+        recipes: recipe_reports.length,
+        created: 0,
+        pre_existing: 0,
+        identical: 0,
+        changed: 0,
+        deleted: 0,
+        plugin_file_changes: diagnostics.count { |diagnostic| diagnostic[:kind] == "plugin_file_change" },
+      }
+
+      recipe_reports.each do |report|
+        metadata = report.fetch(:metadata, {})
+        if metadata[:delete_file]
+          stats[:deleted] += 1 if report[:changed]
+          next
+        end
+
+        if metadata[:destination_existed]
+          stats[:pre_existing] += 1
+          if report[:changed]
+            stats[:changed] += 1
+          else
+            stats[:identical] += 1
+          end
+        elsif report[:changed]
+          stats[:created] += 1
+        end
+      end
+
+      stats[:summary] = recipe_run_stats_summary(stats)
+      stats
+    end
+
+    def recipe_run_stats_summary(stats)
+      [
+        "recipes #{stats.fetch(:recipes)}",
+        "created #{stats.fetch(:created)}",
+        "pre_existing #{stats.fetch(:pre_existing)}",
+        "identical #{stats.fetch(:identical)}",
+        "changed #{stats.fetch(:changed)}",
+        "deleted #{stats.fetch(:deleted)}",
+        "plugin_file_changes #{stats.fetch(:plugin_file_changes)}",
+      ].join(" ")
     end
 
     def opencollective_disabled?(config, env: ENV)

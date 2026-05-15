@@ -1979,6 +1979,31 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "derives run stats from recipe reports" do
+    stats = described_class.recipe_run_stats(
+      [
+        {changed: true, metadata: {destination_existed: false}},
+        {changed: true, metadata: {destination_existed: true}},
+        {changed: false, metadata: {destination_existed: true}},
+        {changed: true, metadata: {delete_file: true, destination_existed: true}},
+      ],
+      diagnostics: [
+        {kind: "plugin_file_change", path: "PLUGIN.md", action: "replace"},
+      ]
+    )
+
+    expect(stats).to eq(
+      recipes: 4,
+      created: 1,
+      pre_existing: 2,
+      identical: 1,
+      changed: 1,
+      deleted: 1,
+      plugin_file_changes: 1,
+      summary: "recipes 4 created 1 pre_existing 2 identical 1 changed 1 deleted 1 plugin_file_changes 1"
+    )
+  end
+
   it "loads configured plugins and runs apply-time remaining-files hooks" do
     plugin_module = Module.new do
       class << self
@@ -2019,10 +2044,12 @@ RSpec.describe Kettle::Jem do
         loaded_plugins: ["example-plugin"],
         callbacks_run: false
       )
+      expect(plan.fetch(:run_stats).fetch(:plugin_file_changes)).to eq(0)
 
       apply = described_class.apply_project(root, env: {})
       expect(File.read(File.join(root, "PLUGIN.md"))).to include("plugin=example-plugin; phase=remaining_files; recipes=")
       expect(apply.fetch(:changed_files)).to include("PLUGIN.md")
+      expect(apply.fetch(:run_stats).fetch(:plugin_file_changes)).to eq(1)
       expect(apply.fetch(:diagnostics)).to include(
         kind: "plugin_file_change",
         path: "PLUGIN.md",
