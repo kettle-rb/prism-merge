@@ -1213,6 +1213,12 @@ RSpec.describe Kettle::Jem do
       expect(gemfile_content).to include('gem "rake"')
       expect(gemfile_content).not_to include('gem "appraisal"')
       expect(gemfile_content).not_to include('gem "example"')
+      expect(gemfile_report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :ruby_template_policy)).to include(
+        file_type: "gemfile",
+        operations: include(
+          include(operation: "delete_dependency_declarations", deleted_gems: contain_exactly("appraisal", "example"))
+        )
+      )
 
       rakefile_content = rakefile_report.fetch(:final_content)
       expect(rakefile_content.scan(/task\s+:default/).size).to eq(1)
@@ -1282,6 +1288,14 @@ RSpec.describe Kettle::Jem do
       expect(appraisals_content).to include('appraise "coverage"')
       expect(appraisals_content).to include('gem "simplecov"')
       expect(appraisals_content).to include('appraise "style"')
+      expect(appraisals_report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :ruby_template_policy)).to include(
+        file_type: "appraisals",
+        operations: include(
+          include(operation: "merge_appraisal_blocks", inserted_appraisals: include("style")),
+          include(operation: "delete_self_dependency_declarations", deleted_dependency_count: 2),
+          include(operation: "prune_minimum_ruby_appraisals", deleted_appraisals: include("ruby-2-7"))
+        )
+      )
       expect(File.read(File.join(root, "Appraisals"))).to eq(appraisals_content)
     end
   end
@@ -1330,6 +1344,14 @@ RSpec.describe Kettle::Jem do
       expect(gemspec_content).to include('spec.add_development_dependency "rubocop", "~> 1.70"')
       expect(gemspec_content).not_to include("gem.summary")
       expect(gemspec_content).not_to include("gem.add_runtime_dependency")
+      expect(gemspec_report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :ruby_template_policy)).to include(
+        file_type: "gemspec",
+        operations: include(
+          include(operation: "preserve_project_fields", preserved_fields: include("required_ruby_version", "summary")),
+          include(operation: "preserve_dependency_declarations", preserved_dependencies: include("json", "rubocop")),
+          include(operation: "normalize_gemspec_receiver", from: "gem", to: "spec")
+        )
+      )
       expect(File.read(File.join(root, "example.gemspec"))).to eq(gemspec_content)
     end
   end

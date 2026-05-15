@@ -1443,8 +1443,128 @@ module Kettle
         output_content: final,
         application: application,
         diagnostics: [],
-        metadata: step_report_metadata(recipe, deletion),
+        metadata: step_report_metadata(recipe, deletion).merge(
+          ruby_template_policy_report(recipe: recipe, request: request, original: original, final: final)
+        ),
       }
+    end
+
+    def ruby_template_policy_report(recipe:, request:, original:, final:)
+      return {} unless recipe.fetch(:primitive) == "supplied_template_source_application"
+
+      file_type = template_file_type(recipe)
+      return {} unless %i[gemfile gemspec appraisals].include?(file_type)
+
+      template_content = request.fetch(:template_content, "")
+      report = {
+        policy_kind: "kettle_jem_ruby_template_policy",
+        file_type: file_type.to_s,
+      }
+      operations = case file_type
+      when :gemfile
+        gemfile_policy_operations(template_content, original, final, request)
+      when :gemspec
+        gemspec_policy_operations(template_content, original, final)
+      when :appraisals
+        appraisals_policy_operations(template_content, original, final, request)
+      end
+      report[:operations] = operations
+      { ruby_template_policy: report }
+    end
+
+    def gemfile_policy_operations(template_content, original, final, request)
+      package_name = runtime_context_value(request, :package, :name).to_s
+      deleted = gemfile_dependency_names("#{template_content}\n#{original}") - gemfile_dependency_names(final)
+      expected = ["appraisal"]
+      expected << package_name unless package_name.empty?
+      [
+        {
+          operation: "delete_dependency_declarations",
+          deleted_gems: (deleted & expected).sort,
+        },
+      ]
+    end
+
+    def appraisals_policy_operations(template_content, original, final, request)
+      package_name = runtime_context_value(request, :package, :name).to_s
+      min_ruby = minimum_ruby_token(runtime_context_value(request, :rubygems, :min_ruby))
+      source = "#{template_content}\n#{original}"
+      [
+        {
+          operation: "merge_appraisal_blocks",
+          inserted_appraisals: (appraisal_names(template_content) - appraisal_names(original)).sort,
+          preserved_destination_appraisals: (appraisal_names(original) - appraisal_names(template_content) & appraisal_names(final)).sort,
+        },
+        {
+          operation: "delete_self_dependency_declarations",
+          deleted_dependency_count: [gemfile_dependency_names(source).count(package_name) - gemfile_dependency_names(final).count(package_name), 0].max,
+        },
+        {
+          operation: "prune_minimum_ruby_appraisals",
+          min_ruby: min_ruby,
+          deleted_appraisals: (ruby_appraisal_names_below(original, min_ruby) - appraisal_names(final)).sort,
+        },
+      ]
+    end
+
+    def gemspec_policy_operations(template_content, original, final)
+      template_receiver = gemspec_block_param(template_content) || "spec"
+      destination_receiver = gemspec_block_param(original) || "spec"
+      operations = [
+        {
+          operation: "preserve_project_fields",
+          preserved_fields: gemspec_preserved_assignments(original, receiver: destination_receiver).keys.select do |field|
+            final.include?("#{template_receiver}.#{field} =")
+          end.sort,
+        },
+        {
+          operation: "preserve_dependency_declarations",
+          preserved_dependencies: gemspec_dependency_line_index(original, receiver: destination_receiver).keys.map(&:last).select do |gem_name|
+            final.include?(%("#{gem_name}"))
+          end.sort,
+        },
+      ]
+      if template_receiver != destination_receiver
+        operations << {
+          operation: "normalize_gemspec_receiver",
+          from: destination_receiver,
+          to: template_receiver,
+        }
+      end
+      operations
+    end
+
+    def runtime_context_value(request, *path)
+      context = request[:runtime_context] || request["runtime_context"] || {}
+      path.reduce(context) do |value, key|
+        break nil unless value.respond_to?(:[])
+
+        value[key] || value[key.to_s]
+      end
+    end
+
+    def gemfile_dependency_names(content)
+      content.to_s.lines.filter_map do |line|
+        line[/^\s*gem\s+["']([^"']+)["']/, 1]
+      end
+    end
+
+    def appraisal_names(content)
+      content.to_s.lines.filter_map do |line|
+        line[/^\s*appraise\s+["']([^"']+)["']\s+do\b/, 1]
+      end
+    end
+
+    def ruby_appraisal_names_below(content, min_ruby)
+      return [] if min_ruby.to_s.empty?
+
+      minimum = Gem::Version.new(min_ruby.to_s)
+      appraisal_names(content).select do |name|
+        match = name.match(/\Aruby-(\d+)-(\d+)\z/)
+        match && Gem::Version.new("#{match[1]}.#{match[2]}") < minimum
+      end
+    rescue ArgumentError
+      []
     end
 
     def read_project_files(project_root, pack)
