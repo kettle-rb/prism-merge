@@ -1317,7 +1317,7 @@ RSpec.describe Ast::Merge do
     default_eligible = policy.profiles.count { |entry| entry.eligible_statuses.include?("default") }
     source_subprofiles = policy.profiles.count { |entry| entry.scope == "source_subprofile" }
     json_policy = policy.profiles.find { |entry| entry.profile_id == "json.keyed-object" }
-    ruby_policy = policy.profiles.find { |entry| entry.profile_id == "ruby.gemspec-dependencies" }
+    ruby_policy = policy.profiles.find { |entry| entry.profile_id == "ruby.gemspec-dependency-declarations" }
 
     expect(policy.policy_id).to eq(expected[:policy_id])
     expect(policy.profiles.length).to eq(expected[:profile_count])
