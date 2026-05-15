@@ -375,6 +375,24 @@ RSpec.describe Ast::Merge do
     expect(artifacts.rejected_matches.fetch(0).reason).to eq(fixture.dig(:expected, :first_rejection_reason))
   end
 
+  it "conforms to the slice-805 fallback scopes fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-805-fallback-scopes", "fallback-scopes.json"))
+    raw = fixture[:fallback]
+    report = described_class::FallbackScopeReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      scopes: raw[:scopes].map { |entry| described_class::FallbackScopeDefinition.new(**entry) },
+      default_order: raw[:default_order],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.scopes.length).to eq(fixture.dig(:expected, :scope_count))
+    expect(report.default_order).to eq(fixture.dig(:expected, :default_order))
+    expect(report.scopes.fetch(0).scope).to eq(fixture.dig(:expected, :first_scope))
+    expect(report.scopes.fetch(-1).scope).to eq(fixture.dig(:expected, :last_scope))
+    expect(report.scopes.fetch(-1).requires_source_span).to eq(fixture.dig(:expected, :whole_file_requires_source_span))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

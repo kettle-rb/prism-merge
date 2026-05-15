@@ -573,6 +573,20 @@ module Ast
       end
     end
 
+    FallbackScopeDefinition = Struct.new(:scope, :path, :owner_path, :covers_children, :requires_source_span, :description, keyword_init: true)
+
+    FallbackScopeReport = Struct.new(:report_id, :version, :scopes, :default_order, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          report_id: report_id,
+          version: version,
+          scopes: (scopes || []).map(&:to_h),
+          default_order: default_order || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
