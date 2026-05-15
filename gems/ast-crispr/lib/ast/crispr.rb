@@ -209,6 +209,54 @@ module Ast
       end
     end
 
+    class DestinationProfile
+      KNOWN_RESOLUTION_KINDS = {
+        "append_fallback" => ["append", "Insertion fell back to appending at the end of the document"],
+        "anchor_after_statement" => ["anchored", "Insertion resolved a statement anchor and spliced after it"]
+      }.freeze
+      KNOWN_RESOLUTION_SOURCES = {
+        "none" => ["implicit", "No destination object was provided"],
+        "callable" => ["callable", "Destination was resolved from a callable"],
+        "selector" => ["selector", "Destination was resolved from an owner selector anchor"]
+      }.freeze
+      KNOWN_ANCHOR_BOUNDARIES = {
+        "none" => ["none", "No anchor boundary was used"],
+        "statement_end_plus_following_gap" => ["gap_preserving_statement", "Insertion anchored after a statement and preserved its following blank-line gap"]
+      }.freeze
+
+      attr_reader :resolution_kind, :resolution_source, :anchor_boundary, :used_if_missing
+
+      def initialize(
+        resolution_kind: "append_fallback",
+        resolution_source: "none",
+        anchor_boundary: "none",
+        used_if_missing: false
+      )
+        @resolution_kind = resolution_kind.to_s
+        @resolution_source = resolution_source.to_s
+        @anchor_boundary = anchor_boundary.to_s
+        @used_if_missing = used_if_missing
+      end
+
+      def report
+        resolution_family = KNOWN_RESOLUTION_KINDS.fetch(resolution_kind, ["unknown"]).first
+        {
+          resolution_kind: resolution_kind,
+          resolution_family: resolution_family,
+          known_resolution_kind: KNOWN_RESOLUTION_KINDS.key?(resolution_kind),
+          resolution_source: resolution_source,
+          resolution_source_family: KNOWN_RESOLUTION_SOURCES.fetch(resolution_source, ["unknown"]).first,
+          known_resolution_source: KNOWN_RESOLUTION_SOURCES.key?(resolution_source),
+          anchor_boundary: anchor_boundary,
+          anchor_boundary_family: KNOWN_ANCHOR_BOUNDARIES.fetch(anchor_boundary, ["unknown"]).first,
+          known_anchor_boundary: KNOWN_ANCHOR_BOUNDARIES.key?(anchor_boundary),
+          used_if_missing: used_if_missing,
+          append_fallback: resolution_kind == "append_fallback",
+          anchored: resolution_family == "anchored"
+        }
+      end
+    end
+
     class << self
       def ast_merge_contract_anchor
         "Ast::Merge.structured_edit"
@@ -270,10 +318,10 @@ module Ast
             "ast-merge structured-edit contract anchor",
             "limit helpers",
             "match profile helpers",
-            "selection profile helpers"
+            "selection profile helpers",
+            "destination profile helpers"
           ],
           future_exports: [
-            "destination profile helpers",
             "operation profile helpers",
             "replace/delete/insert/move helpers",
             "batch operation helpers"
@@ -308,6 +356,20 @@ module Ast
           selection_intent: selection_intent,
           comment_region: comment_region,
           include_trailing_gap: include_trailing_gap
+        )
+      end
+
+      def destination_profile(
+        resolution_kind: "append_fallback",
+        resolution_source: "none",
+        anchor_boundary: "none",
+        used_if_missing: false
+      )
+        DestinationProfile.new(
+          resolution_kind: resolution_kind,
+          resolution_source: resolution_source,
+          anchor_boundary: anchor_boundary,
+          used_if_missing: used_if_missing
         )
       end
     end
