@@ -656,6 +656,8 @@ module Ast
     BackendGapConformanceReport = Struct.new(:report_id, :version, :language, :provider_id, :compared_provider_id, :gaps, :summary, :diagnostics, keyword_init: true)
     FalseTextualConflictCase = Struct.new(:case_id, :language, :category, :base_path, :ours_path, :theirs_path, :expected_strategy, :expected_unresolved_conflict, keyword_init: true)
     FalseTextualConflictSuite = Struct.new(:suite_id, :version, :source, :cases, :diagnostics, keyword_init: true)
+    GitDriverSmokeCase = Struct.new(:case_id, :family, :ancestor_placeholder, :current_placeholder, :other_placeholder, :path_placeholder, :expected_exit_code, :expected_current_file_updated, keyword_init: true)
+    GitDriverSmokeSuite = Struct.new(:suite_id, :version, :driver_name, :cases, :diagnostics, keyword_init: true)
 
     module_function
 

@@ -855,6 +855,31 @@ RSpec.describe Ast::Merge do
     expect(unresolved_conflict_count).to eq(fixture.dig(:expected, :expected_unresolved_conflict_count))
   end
 
+  it "conforms to the slice-902 git driver smoke fixtures fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-902-git-driver-smoke-fixtures", "git-driver-smoke-fixtures.json"))
+    raw = fixture[:suite]
+    suite = described_class::GitDriverSmokeSuite.new(
+      suite_id: raw[:suite_id],
+      version: raw[:version],
+      driver_name: raw[:driver_name],
+      cases: raw[:cases].map { |smoke_case| described_class::GitDriverSmokeCase.new(**smoke_case) },
+      diagnostics: raw[:diagnostics]
+    )
+    first_case = suite.cases.fetch(0)
+    placeholder_set = [
+      first_case.ancestor_placeholder,
+      first_case.current_placeholder,
+      first_case.other_placeholder,
+      first_case.path_placeholder
+    ]
+    updated_current_file_count = suite.cases.count(&:expected_current_file_updated)
+
+    expect(suite.driver_name).to eq(fixture.dig(:expected, :driver_name))
+    expect(suite.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(placeholder_set).to eq(fixture.dig(:expected, :placeholder_set))
+    expect(updated_current_file_count).to eq(fixture.dig(:expected, :updated_current_file_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
