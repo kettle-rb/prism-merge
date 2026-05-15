@@ -617,6 +617,9 @@ module Ast
     GenericConflictHandlerCase = Struct.new(:case_id, :handler_id, :conflict_category, :parent_policy, :base_children, :left_insertions, :right_insertions, :base_members, :left_edits, :right_edits, :expected_result, keyword_init: true)
     GenericConflictHandlerExecution = Struct.new(:execution_id, :version, :cases, :diagnostics, keyword_init: true)
 
+    LanguageProfileHandlerRegistration = Struct.new(:role, :handler_id, :conflict_categories, :enabled, keyword_init: true)
+    LanguageProfileHandlerRegistry = Struct.new(:profile_id, :language, :version, :registrations, :diagnostics, keyword_init: true)
+
     module_function
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"

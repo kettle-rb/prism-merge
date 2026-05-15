@@ -512,6 +512,27 @@ RSpec.describe Ast::Merge do
     expect(results.fetch(1).merged_members.length).to eq(fixture.dig(:expected, :second_merged_member_count))
   end
 
+  it "conforms to the slice-811 language profile handler registration fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-811-language-profile-handler-registration", "language-profile-handler-registration.json"))
+    raw = fixture[:profile_handlers]
+    registry = described_class::LanguageProfileHandlerRegistry.new(
+      profile_id: raw[:profile_id],
+      language: raw[:language],
+      version: raw[:version],
+      registrations: raw[:registrations].map { |entry| described_class::LanguageProfileHandlerRegistration.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+    enabled_count = registry.registrations.count(&:enabled)
+    roles = registry.registrations.map(&:role)
+    duplicate_member_handler = registry.registrations.find { |registration| registration.role == "duplicate_members" }.handler_id
+
+    expect(registry.language).to eq(fixture.dig(:expected, :language))
+    expect(registry.registrations.length).to eq(fixture.dig(:expected, :registration_count))
+    expect(enabled_count).to eq(fixture.dig(:expected, :enabled_count))
+    expect(roles).to eq(fixture.dig(:expected, :roles))
+    expect(duplicate_member_handler).to eq(fixture.dig(:expected, :duplicate_member_handler))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
