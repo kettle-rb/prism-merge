@@ -393,6 +393,25 @@ RSpec.describe Ast::Merge do
     expect(report.scopes.fetch(-1).requires_source_span).to eq(fixture.dig(:expected, :whole_file_requires_source_span))
   end
 
+  it "conforms to the slice-806 conflict categories fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-806-conflict-categories", "conflict-categories.json"))
+    raw = fixture[:conflicts]
+    report = described_class::ConflictCategoryReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      categories: raw[:categories],
+      conflicts: raw[:conflicts].map { |entry| described_class::MergeConflict.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+    parse_limited = report.conflicts.find { |conflict| conflict.category == "parse_limited" }
+
+    expect(report.categories.length).to eq(fixture.dig(:expected, :category_count))
+    expect(report.conflicts.length).to eq(fixture.dig(:expected, :conflict_count))
+    expect(report.categories.fetch(0)).to eq(fixture.dig(:expected, :first_category))
+    expect(report.categories.fetch(-1)).to eq(fixture.dig(:expected, :last_category))
+    expect(parse_limited.fallback_scope).to eq(fixture.dig(:expected, :parse_limited_fallback_scope))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

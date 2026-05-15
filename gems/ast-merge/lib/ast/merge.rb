@@ -587,6 +587,20 @@ module Ast
       end
     end
 
+    MergeConflict = Struct.new(:conflict_id, :category, :path, :fallback_scope, :message, keyword_init: true)
+
+    ConflictCategoryReport = Struct.new(:report_id, :version, :categories, :conflicts, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          report_id: report_id,
+          version: version,
+          categories: categories || [],
+          conflicts: (conflicts || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
