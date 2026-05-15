@@ -725,6 +725,86 @@ module Ast
     PROMOTION_PROFILE_TYPESCRIPT_IMPORT_DECLARATIONS = "typescript.import-declarations"
     PROMOTION_PROFILE_RUBY_GEMSPEC_DEPENDENCY_DECLARATIONS = "ruby.gemspec-dependency-declarations"
 
+    def initial_profile_promotion_policy
+      source_subprofile = lambda do |profile_id, family|
+        ProfilePromotionPolicyEntry.new(
+          profile_id: profile_id,
+          family: family,
+          scope: "source_subprofile",
+          eligible_statuses: %w[available recommended],
+          recommendation_gate: ProfileRecommendationGate.new(
+            required_fixture_count: 16,
+            formatting_threshold: 0.95,
+            fallback_threshold: 2,
+            unresolved_conflict_threshold: 0,
+            requires_backend_parity: true,
+            requires_cross_implementation_parity: false
+          ),
+          default_gate: ProfileDefaultGate.new(
+            requires_recommended_status: true,
+            requires_explicit_package_rollout: true,
+            minimum_recommended_days: 30,
+            requires_narrow_scope: true
+          ),
+          required_suites: %w[slice-827-backend-parity-fixtures slice-815-formatting-preservation-metrics],
+          diagnostics: ["source-language profile is narrow and not language-wide"]
+        )
+      end
+      ruby_profile = source_subprofile.call(PROMOTION_PROFILE_RUBY_GEMSPEC_DEPENDENCY_DECLARATIONS, "ruby")
+      ruby_profile.recommendation_gate.required_fixture_count = 10
+      ruby_profile.recommendation_gate.fallback_threshold = 1
+      ruby_profile.recommendation_gate.requires_backend_parity = false
+      ruby_profile.required_suites = %w[
+        slice-702-ruby-gemspec-signature-merge-acceptance
+        slice-703-ruby-gemspec-field-policy-acceptance
+        slice-704-ruby-gemspec-dependency-section-policy-acceptance
+      ]
+      ruby_profile.diagnostics = ["Ruby source subprofile is limited to dependency declarations"]
+      ProfilePromotionPolicy.new(
+        policy_id: "initial-profile-promotion-policy",
+        version: "1",
+        global_hard_gates: %w[
+          parse_or_fail_closed
+          render_or_fail_closed
+          coherent_conflict_markers
+          performance_guardrails
+        ],
+        profiles: [
+          ProfilePromotionPolicyEntry.new(
+            profile_id: PROMOTION_PROFILE_JSON_KEYED_OBJECT,
+            family: "json",
+            scope: "data_format",
+            eligible_statuses: %w[available recommended default],
+            recommendation_gate: ProfileRecommendationGate.new(
+              required_fixture_count: 12,
+              formatting_threshold: 0.95,
+              fallback_threshold: 1,
+              unresolved_conflict_threshold: 0,
+              requires_backend_parity: true,
+              requires_cross_implementation_parity: true
+            ),
+            default_gate: ProfileDefaultGate.new(
+              requires_recommended_status: true,
+              requires_explicit_package_rollout: true,
+              minimum_recommended_days: 30,
+              requires_narrow_scope: true
+            ),
+            required_suites: %w[
+              slice-901-false-textual-conflicts
+              slice-902-git-driver-smoke-fixtures
+              slice-815-formatting-preservation-metrics
+            ],
+            diagnostics: ["data-format profile may become default after recommendation soak time"]
+          ),
+          source_subprofile.call(PROMOTION_PROFILE_GO_IMPORT_DECLARATIONS, "go"),
+          source_subprofile.call(PROMOTION_PROFILE_RUST_USE_DECLARATIONS, "rust"),
+          source_subprofile.call(PROMOTION_PROFILE_TYPESCRIPT_IMPORT_DECLARATIONS, "typescript"),
+          ruby_profile
+        ],
+        diagnostics: ["default status is allowed only after recommendation status and explicit package rollout"]
+      )
+    end
+
     def evaluate_profile_promotion(policy, report)
       entry = policy.profiles.find { |profile| profile.profile_id == report.profile_id }
       unless entry

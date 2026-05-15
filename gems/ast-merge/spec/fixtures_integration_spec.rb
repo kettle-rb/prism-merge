@@ -1328,6 +1328,7 @@ RSpec.describe Ast::Merge do
     expect(json_policy.recommendation_gate.requires_cross_implementation_parity).to eq(expected[:json_requires_cross_implementation_parity])
     expect(ruby_policy.recommendation_gate.requires_backend_parity).to eq(expected[:ruby_requires_backend_parity])
     expect(json_policy.recommendation_gate.formatting_threshold).to eq(expected[:formatting_threshold])
+    expect(json_ready(described_class.initial_profile_promotion_policy)).to eq(json_ready(policy))
   end
 
   it "conforms to the slice-913 profile promotion evaluation fixture" do
