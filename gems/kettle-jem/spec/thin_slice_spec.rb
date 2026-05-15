@@ -1978,4 +1978,73 @@ RSpec.describe Kettle::Jem do
       expect(run_report).to include("RuntimeError: boom")
     end
   end
+
+  it "loads configured plugins and runs apply-time remaining-files hooks" do
+    plugin_module = Module.new do
+      class << self
+        def register_kettle_jem_plugin(registrar)
+          registrar.after_phase(:remaining_files) do |context:, phase:, phase_stats:, plugin_name:, **|
+            path = File.join(context.project_root, "PLUGIN.md")
+            File.write(path, "plugin=#{plugin_name}; phase=#{phase}; recipes=#{phase_stats.fetch(:recipe_count)}\n")
+            context.helpers.record_template_result(path, :replace)
+            context.out.report_detail("plugin hook ran")
+          end
+        end
+      end
+    end
+    stub_const("Example::Plugin", plugin_module)
+    allow(described_class::PluginLoader).to receive(:require).with("example/plugin").and_return(true)
+
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-plugin-lifecycle", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          plugins:
+            - example-plugin
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      expect(File.exist?(File.join(root, "PLUGIN.md"))).to be(false)
+      plan_lifecycle = plan.fetch(:diagnostics).find { |diagnostic| diagnostic[:kind] == "plugin_lifecycle" }
+      expect(plan_lifecycle).to include(
+        loaded_plugins: ["example-plugin"],
+        callbacks_run: false
+      )
+
+      apply = described_class.apply_project(root, env: {})
+      expect(File.read(File.join(root, "PLUGIN.md"))).to include("plugin=example-plugin; phase=remaining_files; recipes=")
+      expect(apply.fetch(:changed_files)).to include("PLUGIN.md")
+      expect(apply.fetch(:diagnostics)).to include(
+        kind: "plugin_file_change",
+        path: "PLUGIN.md",
+        action: "replace"
+      )
+      expect(apply.fetch(:diagnostics)).to include(
+        kind: "plugin_detail",
+        message: "plugin hook ran"
+      )
+      apply_lifecycle = apply.fetch(:diagnostics).select { |diagnostic| diagnostic[:kind] == "plugin_lifecycle" }.last
+      expect(apply_lifecycle).to include(
+        loaded_plugins: ["example-plugin"],
+        callbacks_run: true,
+        active_runner_phase: "remaining_files"
+      )
+      expect(apply_lifecycle.fetch(:registered_hooks)).to contain_exactly(
+        {
+          plugin_name: "example-plugin",
+          phase: "remaining_files",
+          timing: "after"
+        }
+      )
+    end
+  end
 end

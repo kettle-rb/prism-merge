@@ -17,6 +17,8 @@ require_relative "jem/version"
 
 module Kettle
   module Jem
+    class Error < StandardError; end
+
     PACKAGE_NAME = "kettle-jem"
     CONTENT_RECIPE_TRANSPORT_VERSION = Ast::Merge::STRUCTURED_EDIT_TRANSPORT_VERSION
     MANAGED_BLOCK_OPEN = "# <<kettle-jem:generated>> do not edit below this line"
@@ -150,6 +152,194 @@ module Kettle
         ref: "https://www.apache.org/legal/resolved.html",
       },
     }.freeze
+
+    class PluginRegistry
+      Hook = Struct.new(:plugin_name, :phase, :timing, :callback, keyword_init: true)
+      VALID_TIMINGS = %i[before after].freeze
+
+      attr_reader :hooks, :configured_plugins, :loaded_plugins, :load_errors
+
+      def initialize(configured_plugins: [], loaded_plugins: [])
+        @hooks = []
+        @configured_plugins = configured_plugins
+        @loaded_plugins = loaded_plugins
+        @load_errors = []
+      end
+
+      def register(plugin_name:, phase:, timing:, &callback)
+        raise ArgumentError, "Plugin callbacks require a block" unless callback
+
+        @hooks << Hook.new(
+          plugin_name: plugin_name.to_s,
+          phase: normalize_phase(phase),
+          timing: normalize_timing(timing),
+          callback: callback
+        )
+      end
+
+      def run(timing:, phase:, context:, actor:, phase_stats:)
+        normalized_phase = normalize_phase(phase)
+        normalized_timing = normalize_timing(timing)
+        hooks_for(normalized_timing, normalized_phase).each do |hook|
+          hook.callback.call(
+            context: context,
+            actor: actor,
+            phase: normalized_phase,
+            phase_stats: phase_stats,
+            plugin_name: hook.plugin_name
+          )
+        end
+      end
+
+      def empty?
+        @hooks.empty?
+      end
+
+      private
+
+      def hooks_for(timing, phase)
+        @hooks.select { |hook| hook.timing == timing && hook.phase == phase }
+      end
+
+      def normalize_phase(phase)
+        value = phase.to_s.strip
+        raise ArgumentError, "Plugin phase cannot be blank" if value.empty?
+
+        value.downcase.to_sym
+      end
+
+      def normalize_timing(timing)
+        value = timing.to_s.strip.downcase.to_sym
+        return value if VALID_TIMINGS.include?(value)
+
+        raise ArgumentError, "Unsupported plugin timing #{timing.inspect}"
+      end
+    end
+
+    class PluginRegistrar
+      attr_reader :plugin_name
+
+      def initialize(plugin_name:, registry:)
+        @plugin_name = plugin_name.to_s
+        @registry = registry
+      end
+
+      def on_phase(phase, timing: :after, &block)
+        @registry.register(plugin_name: plugin_name, phase: phase, timing: timing, &block)
+      end
+
+      def before_phase(phase, &block)
+        on_phase(phase, timing: :before, &block)
+      end
+
+      def after_phase(phase, &block)
+        on_phase(phase, timing: :after, &block)
+      end
+    end
+
+    module PluginLoader
+      REGISTRATION_METHOD = :register_kettle_jem_plugin
+
+      module_function
+
+      def load!(plugin_names:)
+        names = normalize_plugin_names(plugin_names)
+        registry = PluginRegistry.new(configured_plugins: names, loaded_plugins: names)
+        names.each { |plugin_name| load_plugin!(plugin_name, registry: registry) }
+        registry
+      end
+
+      def load_plugin!(plugin_name, registry:)
+        require(plugin_require_path(plugin_name))
+        handle = plugin_handle(plugin_name)
+        unless handle.respond_to?(REGISTRATION_METHOD)
+          raise Error, "Plugin #{plugin_name.inspect} does not implement #{REGISTRATION_METHOD}."
+        end
+
+        handle.public_send(
+          REGISTRATION_METHOD,
+          PluginRegistrar.new(plugin_name: plugin_name, registry: registry)
+        )
+      rescue LoadError => e
+        raise Error, "Could not load plugin #{plugin_name.inspect}: #{e.message}"
+      end
+
+      def normalize_plugin_names(plugin_names)
+        Array(plugin_names).flatten.map { |name| name.to_s.strip }.reject(&:empty?).uniq
+      end
+
+      def plugin_require_path(plugin_name)
+        plugin_name.to_s.tr("-", "/")
+      end
+
+      def plugin_handle(plugin_name)
+        constant_name = plugin_name.to_s.split("-").map { |part| camelize(part) }.join("::")
+        constant_name.split("::").inject(Object) { |scope, name| scope.const_get(name) }
+      rescue NameError => e
+        raise Error, "Could not resolve plugin handle for #{plugin_name.inspect}: #{e.message}"
+      end
+
+      def camelize(value)
+        value.to_s.split("_").map(&:capitalize).join
+      end
+    end
+
+    class PluginContext
+      attr_reader :project_root, :mode, :facts, :recipe_pack, :recipe_reports,
+        :changed_files, :diagnostics, :helpers, :out
+
+      def initialize(project_root:, mode:, facts:, recipe_pack:, recipe_reports:, changed_files:, diagnostics:)
+        @project_root = project_root
+        @mode = mode
+        @facts = facts
+        @recipe_pack = recipe_pack
+        @recipe_reports = recipe_reports
+        @changed_files = changed_files
+        @diagnostics = diagnostics
+        @helpers = PluginHelpers.new(project_root: project_root, changed_files: changed_files, diagnostics: diagnostics)
+        @out = PluginOutput.new(diagnostics: diagnostics)
+      end
+    end
+
+    class PluginHelpers
+      def initialize(project_root:, changed_files:, diagnostics:)
+        @project_root = project_root
+        @changed_files = changed_files
+        @diagnostics = diagnostics
+      end
+
+      def record_template_result(path, action)
+        relative_path = relative_project_path(path)
+        @changed_files << relative_path unless @changed_files.include?(relative_path)
+        @diagnostics << {
+          kind: "plugin_file_change",
+          path: relative_path,
+          action: action.to_s
+        }
+      end
+
+      private
+
+      def relative_project_path(path)
+        expanded = File.expand_path(path.to_s, @project_root)
+        root = File.expand_path(@project_root)
+        expanded.start_with?("#{root}/") ? expanded.delete_prefix("#{root}/") : path.to_s
+      end
+    end
+
+    class PluginOutput
+      def initialize(diagnostics:)
+        @diagnostics = diagnostics
+      end
+
+      def report_detail(message)
+        @diagnostics << { kind: "plugin_detail", message: message.to_s }
+      end
+
+      def warning(message)
+        @diagnostics << { kind: "plugin_warning", message: message.to_s }
+      end
+    end
 
     module TemplateChecksums
       YAML_KEY = "kettle-jem"
@@ -862,7 +1052,10 @@ module Kettle
       recipe_reports = pack.fetch(:recipes).map do |recipe|
         execute_recipe(project_root: project_root, recipe: recipe, facts: facts, files: files)
       end
+      plugin_registry = plugin_registry_for_project(project_root)
       changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.sort
+      diagnostics = recipe_reports.flat_map { |report| report[:diagnostics] }
+      diagnostics << plugin_lifecycle_diagnostic(plugin_registry, callbacks_run: false) unless plugin_registry.configured_plugins.empty?
 
       {
         mode: "plan",
@@ -871,7 +1064,7 @@ module Kettle
         recipe_pack: pack,
         recipe_reports: recipe_reports,
         changed_files: changed_files,
-        diagnostics: recipe_reports.flat_map { |report| report[:diagnostics] },
+        diagnostics: diagnostics,
       }
     end
 
@@ -888,6 +1081,7 @@ module Kettle
           File.write(path, recipe_report.fetch(:final_content))
         end
       end
+      run_apply_plugin_lifecycle(project_root, report)
       report
     end
 
@@ -1645,6 +1839,79 @@ module Kettle
 
       config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
       config.is_a?(Hash) ? config : {}
+    end
+
+    def plugin_registry_for_project(project_root)
+      plugin_names = PluginLoader.normalize_plugin_names(plugin_names_from_config(kettle_jem_config(project_root)))
+      registry = PluginRegistry.new(configured_plugins: plugin_names)
+      plugin_names.each do |plugin_name|
+        PluginLoader.load_plugin!(plugin_name, registry: registry)
+        registry.loaded_plugins << plugin_name
+      rescue Error => e
+        registry.load_errors << {
+          plugin_name: plugin_name,
+          message: e.message
+        }
+      end
+      registry
+    end
+
+    def plugin_names_from_config(config)
+      raw = config.is_a?(Hash) ? config["plugins"] : nil
+      case raw
+      when Hash
+        raw.each_with_object([]) do |(name, enabled), names|
+          names << name unless falsey_config?(enabled)
+        end
+      else
+        raw
+      end
+    end
+
+    def plugin_lifecycle_diagnostic(plugin_registry, callbacks_run:)
+      {
+        kind: "plugin_lifecycle",
+        configured_plugins: plugin_registry.configured_plugins,
+        loaded_plugins: plugin_registry.loaded_plugins,
+        load_errors: plugin_registry.load_errors,
+        registered_hooks: plugin_registry.hooks.map do |hook|
+          {
+            plugin_name: hook.plugin_name,
+            phase: hook.phase.to_s,
+            timing: hook.timing.to_s
+          }
+        end,
+        callbacks_run: callbacks_run,
+        active_runner_phase: callbacks_run ? "remaining_files" : nil
+      }
+    end
+
+    def run_apply_plugin_lifecycle(project_root, report)
+      plugin_registry = plugin_registry_for_project(project_root)
+      return if plugin_registry.configured_plugins.empty?
+
+      changed_files = report.fetch(:changed_files)
+      diagnostics = report.fetch(:diagnostics)
+      unless plugin_registry.empty?
+        context = PluginContext.new(
+          project_root: project_root,
+          mode: "apply",
+          facts: report.fetch(:facts),
+          recipe_pack: report.fetch(:recipe_pack),
+          recipe_reports: report.fetch(:recipe_reports),
+          changed_files: changed_files,
+          diagnostics: diagnostics
+        )
+        plugin_registry.run(
+          timing: :after,
+          phase: :remaining_files,
+          context: context,
+          actor: self,
+          phase_stats: { recipe_count: report.fetch(:recipe_reports).length }
+        )
+      end
+      diagnostics << plugin_lifecycle_diagnostic(plugin_registry, callbacks_run: true)
+      changed_files.sort!
     end
 
     def opencollective_disabled?(config, env: ENV)
