@@ -835,6 +835,26 @@ RSpec.describe Ast::Merge do
     expect(report.gaps.fetch(0).diagnostic_code).to eq(fixture.dig(:expected, :first_diagnostic_code))
   end
 
+  it "conforms to the slice-901 false textual conflicts fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-901-false-textual-conflicts", "false-textual-conflicts.json"))
+    raw = fixture[:suite]
+    suite = described_class::FalseTextualConflictSuite.new(
+      suite_id: raw[:suite_id],
+      version: raw[:version],
+      source: raw[:source],
+      cases: raw[:cases].map { |conflict_case| described_class::FalseTextualConflictCase.new(**conflict_case) },
+      diagnostics: raw[:diagnostics]
+    )
+    languages = suite.cases.map(&:language)
+    categories = suite.cases.map(&:category)
+    unresolved_conflict_count = suite.cases.count(&:expected_unresolved_conflict)
+
+    expect(suite.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(languages).to eq(fixture.dig(:expected, :languages))
+    expect(categories).to eq(fixture.dig(:expected, :categories))
+    expect(unresolved_conflict_count).to eq(fixture.dig(:expected, :expected_unresolved_conflict_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

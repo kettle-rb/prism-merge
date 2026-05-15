@@ -654,6 +654,8 @@ module Ast
     BackendGapConformanceGap = Struct.new(:capability, :status, :impact, :diagnostic_code, :normalized_fallback, keyword_init: true)
     BackendGapConformanceSummary = Struct.new(:gap_count, :fallback_count, :silently_normalized, keyword_init: true)
     BackendGapConformanceReport = Struct.new(:report_id, :version, :language, :provider_id, :compared_provider_id, :gaps, :summary, :diagnostics, keyword_init: true)
+    FalseTextualConflictCase = Struct.new(:case_id, :language, :category, :base_path, :ours_path, :theirs_path, :expected_strategy, :expected_unresolved_conflict, keyword_init: true)
+    FalseTextualConflictSuite = Struct.new(:suite_id, :version, :source, :cases, :diagnostics, keyword_init: true)
 
     module_function
 
