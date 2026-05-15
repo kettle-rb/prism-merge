@@ -490,6 +490,17 @@ RSpec.describe TreeHaver do
     )
   end
 
+  def backend_availability_report(fixture)
+    described_class::BackendAvailabilityReport.new(
+      backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
+      status: fixture[:status],
+      checks: fixture[:checks].map do |check|
+        described_class::BackendAvailabilityCheck.new(**check)
+      end,
+      diagnostics: fixture[:diagnostics]
+    )
+  end
+
   def parse_error_tolerance(fixture)
     described_class::ParseErrorTolerance.new(
       backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
@@ -608,6 +619,20 @@ RSpec.describe TreeHaver do
 
     fixture[:backend_name_cases].each do |test_case|
       expect(described_class.safe_backend_name?(test_case[:value])).to eq(test_case[:expected_valid]), test_case[:name]
+    end
+  end
+
+  it "conforms to the slice-926 tree_haver backend availability fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-926-tree-haver-backend-availability",
+      "backend-availability.json"
+    ))
+
+    %i[available_report unavailable_report unknown_report].each do |name|
+      expected = backend_availability_report(fixture[name])
+      report = described_class.build_backend_availability_report(expected.backend_ref, expected.checks)
+      expect(json_ready(report.to_h)).to eq(json_ready(expected.to_h)), name.to_s
     end
   end
 

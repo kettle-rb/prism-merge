@@ -373,6 +373,28 @@ module TreeHaver
     end
   end
 
+  BackendAvailabilityCheck = Struct.new(:name, :status, :required, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        name: name,
+        status: status,
+        required: required,
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
+  BackendAvailabilityReport = Struct.new(:backend_ref, :status, :checks, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        backend_ref: backend_ref.to_h,
+        status: status,
+        checks: (checks || []).map(&:to_h),
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
   SourcePoint = Struct.new(:row, :column, keyword_init: true) do
     def to_h
       {
@@ -514,6 +536,28 @@ module TreeHaver
     name.to_s == "auto" || !BackendRegistry.fetch(name.to_s).nil?
   end
   module_function :safe_backend_name?
+
+  def build_backend_availability_report(backend_ref, checks)
+    if checks.empty?
+      return BackendAvailabilityReport.new(
+        backend_ref: backend_ref,
+        status: "unknown",
+        checks: [],
+        diagnostics: ["backend availability unknown: no checks supplied"]
+      )
+    end
+
+    diagnostics = []
+    status = "available"
+    checks.each do |check|
+      next unless check.required && check.status != "available"
+
+      status = "unavailable"
+      diagnostics << "backend unavailable: required check #{check.name} is #{check.status}"
+    end
+    BackendAvailabilityReport.new(backend_ref: backend_ref, status: status, checks: checks, diagnostics: diagnostics)
+  end
+  module_function :build_backend_availability_report
 
   def windows_absolute_path?(path)
     /\A[A-Za-z]:[\/\\]/.match?(path)
