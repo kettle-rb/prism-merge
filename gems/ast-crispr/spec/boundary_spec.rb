@@ -20,3 +20,32 @@ RSpec.describe Ast::Crispr do
     expect(described_class.ast_merge_contract_anchor).to eq("Ast::Merge.structured_edit")
   end
 end
+
+RSpec.describe Ast::Crispr::Limit do
+  it "conforms to the ast-crispr limit helper fixture" do
+    fixture_path = Pathname(__dir__).join(
+      "..",
+      "..",
+      "..",
+      "..",
+      "fixtures",
+      "diagnostics",
+      "slice-917-ast-crispr-limit-helpers",
+      "ast-crispr-limit-helpers.json"
+    )
+    fixture = JSON.parse(fixture_path.read, symbolize_names: true)
+
+    fixture.fetch(:cases).each do |test_case|
+      limit = described_class.new(test_case[:spec])
+      expect(limit.describe).to eq(test_case[:expected_description])
+      test_case.fetch(:expectations).each do |expectation|
+        expect(limit.allows?(expectation[:count])).to eq(expectation[:allowed])
+      end
+    end
+
+    fixture.fetch(:invalid_cases).each do |test_case|
+      expect { described_class.new(test_case[:spec]) }
+        .to raise_error(Ast::Crispr::Error) { |error| expect(error.code).to eq(test_case[:expected_error]) }
+    end
+  end
+end
