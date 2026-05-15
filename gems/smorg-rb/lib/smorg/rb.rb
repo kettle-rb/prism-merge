@@ -51,9 +51,6 @@ module Smorg
     def run_merge_driver(args, stdout, stderr)
       options = parse_merge_driver_options(args, stderr)
       return EXIT_USER_ERROR unless options
-      profile_exit = report_and_enforce_profile(options, stdout, stderr)
-      return profile_exit unless profile_exit == EXIT_SUCCESS
-
       ancestor_source = File.read(options[:ancestor])
       current_source = File.read(options[:current])
       other_source = File.read(options[:other])
@@ -61,6 +58,11 @@ module Smorg
 
       effective_path = options[:path_name] || options[:current]
       settings = load_path_settings(effective_path)
+      options[:profile_id] ||= settings[:profile_id]
+      options[:require_profile_status] ||= settings[:require_profile_status]
+      profile_exit = report_and_enforce_profile(options, stdout, stderr)
+      return profile_exit unless profile_exit == EXIT_SUCCESS
+
       result = merge_by_path(effective_path, settings[:language], other_source, current_source)
       output = result[:output]
       unless result[:ok] && output
@@ -376,6 +378,10 @@ module Smorg
           case key
           when "smorg.language", "linguist-language"
             settings[:language] = value
+          when "smorg.profile"
+            settings[:profile_id] = value
+          when "smorg.requireProfileStatus"
+            settings[:require_profile_status] = value
           when "conflict-marker-size"
             marker_size = value.to_i
             settings[:conflict_marker_size] = marker_size if marker_size.positive?
