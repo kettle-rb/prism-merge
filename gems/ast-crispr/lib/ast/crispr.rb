@@ -139,6 +139,76 @@ module Ast
       end
     end
 
+    class SelectionProfile
+      KNOWN_OWNER_SELECTORS = {
+        "line_bound_statements" => ["line_oriented", "Selects owners from line-bound statements"],
+        "heading_sections" => ["section", "Selects heading-owned section branches"]
+      }.freeze
+      KNOWN_SELECTOR_KINDS = {
+        "owner_filter" => ["owner_filter", "Selects structural owners by predicate"],
+        "comment_region_owner" => ["comment_anchor", "Selects owners anchored by comment regions"],
+        "heading_section" => ["section_branch", "Selects heading-owned section branches"]
+      }.freeze
+      KNOWN_SELECTION_INTENTS = {
+        "predicate_filter" => ["predicate", "Selection is driven by a predicate"],
+        "comment_region_filter" => ["comment", "Selection is driven by a comment region"],
+        "section_heading" => ["section", "Selection is driven by a section heading"]
+      }.freeze
+      KNOWN_COMMENT_REGIONS = {
+        "leading" => ["leading", "Leading comment region"],
+        "trailing" => ["trailing", "Trailing comment region"],
+        "inline" => ["inline", "Inline comment region"]
+      }.freeze
+
+      attr_reader :owner_scope,
+        :owner_selector,
+        :selector_kind,
+        :selection_intent,
+        :comment_region,
+        :include_trailing_gap
+
+      def initialize(
+        owner_scope: "shared_default",
+        owner_selector: "line_bound_statements",
+        selector_kind: "owner_filter",
+        selection_intent: "predicate_filter",
+        comment_region: nil,
+        include_trailing_gap: false
+      )
+        @owner_scope = owner_scope.to_s
+        @owner_selector = owner_selector.to_s
+        @selector_kind = selector_kind.to_s
+        @selection_intent = selection_intent.to_s
+        @comment_region = comment_region&.to_s
+        @include_trailing_gap = include_trailing_gap
+      end
+
+      def report
+        owner_selector_family = KNOWN_OWNER_SELECTORS.fetch(owner_selector, ["unknown"]).first
+        selector_kind_family = KNOWN_SELECTOR_KINDS.fetch(selector_kind, ["unknown"]).first
+        selection_intent_family = KNOWN_SELECTION_INTENTS.fetch(selection_intent, ["unknown"]).first
+        comment_region_family = comment_region.nil? ? "none" : KNOWN_COMMENT_REGIONS.fetch(comment_region, ["unknown"]).first
+        known_comment_region = !comment_region.nil? && KNOWN_COMMENT_REGIONS.key?(comment_region)
+        {
+          owner_scope: owner_scope,
+          owner_selector: owner_selector,
+          owner_selector_family: owner_selector_family,
+          known_owner_selector: KNOWN_OWNER_SELECTORS.key?(owner_selector),
+          selector_kind: selector_kind,
+          selector_kind_family: selector_kind_family,
+          known_selector_kind: KNOWN_SELECTOR_KINDS.key?(selector_kind),
+          selection_intent: selection_intent,
+          selection_intent_family: selection_intent_family,
+          known_selection_intent: KNOWN_SELECTION_INTENTS.key?(selection_intent),
+          comment_region: comment_region,
+          comment_region_family: comment_region_family,
+          known_comment_region: known_comment_region,
+          comment_anchored: selector_kind_family == "comment_anchor" || selection_intent_family == "comment" || known_comment_region,
+          include_trailing_gap: include_trailing_gap
+        }
+      end
+    end
+
     class << self
       def ast_merge_contract_anchor
         "Ast::Merge.structured_edit"
@@ -199,10 +269,10 @@ module Ast
             "boundary report",
             "ast-merge structured-edit contract anchor",
             "limit helpers",
-            "match profile helpers"
+            "match profile helpers",
+            "selection profile helpers"
           ],
           future_exports: [
-            "selection profile helpers",
             "destination profile helpers",
             "operation profile helpers",
             "replace/delete/insert/move helpers",
@@ -221,6 +291,24 @@ module Ast
 
       def match_profile(start_boundary: "owner_start", end_boundary: "owner_end", payload_kind: "structural_owner_body")
         MatchProfile.new(start_boundary: start_boundary, end_boundary: end_boundary, payload_kind: payload_kind)
+      end
+
+      def selection_profile(
+        owner_scope: "shared_default",
+        owner_selector: "line_bound_statements",
+        selector_kind: "owner_filter",
+        selection_intent: "predicate_filter",
+        comment_region: nil,
+        include_trailing_gap: false
+      )
+        SelectionProfile.new(
+          owner_scope: owner_scope,
+          owner_selector: owner_selector,
+          selector_kind: selector_kind,
+          selection_intent: selection_intent,
+          comment_region: comment_region,
+          include_trailing_gap: include_trailing_gap
+        )
       end
     end
   end
