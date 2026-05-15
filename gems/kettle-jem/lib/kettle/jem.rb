@@ -84,7 +84,7 @@ module Kettle
     APPRAISAL_MINIMUM_RUBY_FLOOR = Gem::Version.new("2.3")
     APPRAISAL_DEFAULT_FRESHNESS_TTL = 604_800
 
-    class AppraisalRubyGemsResolver
+    class RubyGemsResolver
       RUBYGEMS_V1_API_BASE = "https://rubygems.org/api/v1"
       RUBYGEMS_V2_API_BASE = "https://rubygems.org/api/v2/rubygems"
 
@@ -218,6 +218,7 @@ module Kettle
         URI.encode_www_form_component(value.to_s)
       end
     end
+    AppraisalRubyGemsResolver = RubyGemsResolver
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
     README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze

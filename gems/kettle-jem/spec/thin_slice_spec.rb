@@ -1564,7 +1564,7 @@ RSpec.describe Kettle::Jem do
     expect(resolved).to eq("sqlite3" => "1.6.9")
   end
 
-  it "resolves appraisal RubyGems version metadata through a cacheable Kettle/Jem resolver" do
+  it "resolves RubyGems version metadata through a cacheable Kettle/Jem resolver" do
     response = Struct.new(:code, :body)
     calls = []
     http_get = lambda do |uri|
@@ -1591,7 +1591,7 @@ RSpec.describe Kettle::Jem do
       end
     end
 
-    resolver = described_class::AppraisalRubyGemsResolver.new(
+    resolver = described_class::RubyGemsResolver.new(
       http_get: http_get,
       v1_api_base: "https://example.test/api/v1",
       v2_api_base: "https://example.test/api/v2/rubygems"
@@ -1626,6 +1626,7 @@ RSpec.describe Kettle::Jem do
       "https://example.test/api/v1/versions/active+record.json" => 1,
       "https://example.test/api/v2/rubygems/active+record/versions/7.1.3.json" => 1
     )
+    expect(described_class::AppraisalRubyGemsResolver).to equal(described_class::RubyGemsResolver)
   end
 
   it "ports appraisal CLI config orchestration helpers into Kettle/Jem" do
