@@ -630,6 +630,8 @@ module Ast
     RenderStrategyMetadata = Struct.new(:strategy, :path, :span, :preserves_source_fragment, :requires_reparse, keyword_init: true)
     RenderPlanReport = Struct.new(:plan_id, :version, :language, :strategies, :diagnostics, keyword_init: true)
     RenderVerificationReport = Struct.new(:verification_id, :version, :mode, :language, :render_strategy, :attempted, :passed, :hard_gate, :parse_errors, :diagnostics, keyword_init: true)
+    FormattingPreservationMetrics = Struct.new(:expected_output_line_diff_size, :expected_output_character_diff_size, :formatting_preservation_score, keyword_init: true)
+    FormattingPreservationConformanceReport = Struct.new(:report_id, :version, :suite, :case_id, :language, :formatting_metrics, :diagnostics, keyword_init: true)
 
     module_function
 

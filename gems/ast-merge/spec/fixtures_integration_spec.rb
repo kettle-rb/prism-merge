@@ -595,6 +595,26 @@ RSpec.describe Ast::Merge do
     expect(report.render_strategy).to eq(fixture.dig(:expected, :render_strategy))
   end
 
+  it "conforms to the slice-815 formatting preservation metrics fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-815-formatting-preservation-metrics", "formatting-preservation-metrics.json"))
+    raw = fixture[:conformance_report]
+    report = described_class::FormattingPreservationConformanceReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      suite: raw[:suite],
+      case_id: raw[:case_id],
+      language: raw[:language],
+      formatting_metrics: described_class::FormattingPreservationMetrics.new(**raw[:formatting_metrics]),
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.suite).to eq(fixture.dig(:expected, :suite))
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.formatting_metrics.expected_output_line_diff_size).to eq(fixture.dig(:expected, :line_diff_size))
+    expect(report.formatting_metrics.expected_output_character_diff_size).to eq(fixture.dig(:expected, :character_diff_size))
+    expect(report.formatting_metrics.formatting_preservation_score).to eq(fixture.dig(:expected, :score))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
