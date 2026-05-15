@@ -2464,6 +2464,33 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "exposes template root and manifest metadata for adjacent tools" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-template-manifest", tmp_root) do |root|
+      write_tree(root, {
+        "template/README.md.example" => "# Example\n",
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+      })
+
+      expect(described_class.packaged_template_root).to eq(described_class::PACKAGED_TEMPLATE_ROOT)
+      expect(described_class.template_root_path(root)).to eq(File.join(root, "template"))
+
+      manifest = described_class.template_manifest(project_root: root)
+      expect(manifest).to include(
+        kind: "kettle_jem_template_manifest",
+        version: 1,
+        template_root: File.join(root, "template")
+      )
+      expect(manifest.fetch(:checksums).keys).to eq(["README.md.example"])
+    end
+  end
+
   it "renders self-test and templating diagnostics reports" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

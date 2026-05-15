@@ -1030,6 +1030,27 @@ module Kettle
       text.to_s.gsub(VAR_HOME_TEXT, "/home")
     end
 
+    def packaged_template_root
+      PACKAGED_TEMPLATE_ROOT
+    end
+
+    def template_root_path(project_root = Dir.pwd, config: nil)
+      root = File.expand_path(project_root.to_s)
+      resolved_config = config || kettle_jem_config(root)
+      templates = resolved_config["templates"].is_a?(Hash) ? resolved_config["templates"] : {}
+      template_root(root, templates).fetch(:path)
+    end
+
+    def template_manifest(project_root: Dir.pwd, template_root: nil, config: nil)
+      root = template_root || template_root_path(project_root, config: config)
+      {
+        kind: "kettle_jem_template_manifest",
+        version: 1,
+        template_root: root,
+        checksums: TemplateChecksums.compute(template_root: root),
+      }
+    end
+
     def appraisal_gem_abbreviation(gem_name)
       APPRAISAL_GEM_ABBREVIATIONS.fetch(gem_name.to_s, gem_name.to_s)
     end
