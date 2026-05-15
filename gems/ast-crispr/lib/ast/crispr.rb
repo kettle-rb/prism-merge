@@ -96,6 +96,49 @@ module Ast
       end
     end
 
+    class MatchProfile
+      KNOWN_START_BOUNDARIES = {
+        "owner_start" => ["structural_owner", "Span starts at the structural owner's boundary"],
+        "comment_region_start" => ["comment_anchor", "Span starts at an owning comment-region boundary"]
+      }.freeze
+      KNOWN_END_BOUNDARIES = {
+        "owner_end" => ["structural_owner", "Span ends at the structural owner's boundary"],
+        "owner_end_plus_trailing_gap" => ["gap_extension", "Span extends past the owner boundary to include trailing blank-line gap"]
+      }.freeze
+      KNOWN_PAYLOAD_KINDS = {
+        "structural_owner_body" => ["owner_body", "Span represents a structural owner's body"],
+        "comment_owned_body" => ["comment_owned", "Span represents a structural owner body selected through an owning comment marker"],
+        "section_branch" => ["section_branch", "Span represents a heading-owned section branch payload"]
+      }.freeze
+
+      attr_reader :start_boundary, :end_boundary, :payload_kind
+
+      def initialize(start_boundary: "owner_start", end_boundary: "owner_end", payload_kind: "structural_owner_body")
+        @start_boundary = start_boundary.to_s
+        @end_boundary = end_boundary.to_s
+        @payload_kind = payload_kind.to_s
+      end
+
+      def report
+        start_family = KNOWN_START_BOUNDARIES.fetch(start_boundary, ["unknown"]).first
+        end_family = KNOWN_END_BOUNDARIES.fetch(end_boundary, ["unknown"]).first
+        payload_family = KNOWN_PAYLOAD_KINDS.fetch(payload_kind, ["unknown"]).first
+        {
+          start_boundary: start_boundary,
+          start_boundary_family: start_family,
+          known_start_boundary: KNOWN_START_BOUNDARIES.key?(start_boundary),
+          end_boundary: end_boundary,
+          end_boundary_family: end_family,
+          known_end_boundary: KNOWN_END_BOUNDARIES.key?(end_boundary),
+          payload_kind: payload_kind,
+          payload_family: payload_family,
+          known_payload_kind: KNOWN_PAYLOAD_KINDS.key?(payload_kind),
+          comment_anchored: start_family == "comment_anchor" || payload_family == "comment_owned",
+          trailing_gap_extended: end_family == "gap_extension"
+        }
+      end
+    end
+
     class << self
       def ast_merge_contract_anchor
         "Ast::Merge.structured_edit"
@@ -155,10 +198,10 @@ module Ast
             "package identity",
             "boundary report",
             "ast-merge structured-edit contract anchor",
-            "limit helpers"
+            "limit helpers",
+            "match profile helpers"
           ],
           future_exports: [
-            "match profile helpers",
             "selection profile helpers",
             "destination profile helpers",
             "operation profile helpers",
@@ -174,6 +217,10 @@ module Ast
 
       def limit(spec = nil)
         Limit.coerce(spec)
+      end
+
+      def match_profile(start_boundary: "owner_start", end_boundary: "owner_end", payload_kind: "structural_owner_body")
+        MatchProfile.new(start_boundary: start_boundary, end_boundary: end_boundary, payload_kind: payload_kind)
       end
     end
   end

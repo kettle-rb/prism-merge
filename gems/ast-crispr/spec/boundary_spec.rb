@@ -21,6 +21,27 @@ RSpec.describe Ast::Crispr do
   end
 end
 
+RSpec.describe Ast::Crispr::MatchProfile do
+  it "conforms to the ast-crispr match profile helper fixture" do
+    fixture_path = Pathname(__dir__).join(
+      "..",
+      "..",
+      "..",
+      "..",
+      "fixtures",
+      "diagnostics",
+      "slice-918-ast-crispr-match-profile-helpers",
+      "ast-crispr-match-profile-helpers.json"
+    )
+    fixture = JSON.parse(fixture_path.read, symbolize_names: true)
+
+    fixture.fetch(:cases).each do |test_case|
+      profile = described_class.new(**test_case.fetch(:profile))
+      expect(profile.report).to eq(test_case.fetch(:expected))
+    end
+  end
+end
+
 RSpec.describe Ast::Crispr::Limit do
   it "conforms to the ast-crispr limit helper fixture" do
     fixture_path = Pathname(__dir__).join(
