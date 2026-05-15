@@ -1286,6 +1286,54 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "normalizes preserved gemspec lines to the template block receiver" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-gemspec-receiver-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |gem|
+            gem.name = "example"
+            gem.summary = "Real summary"
+            gem.required_ruby_version = ">= 3.2"
+            gem.add_runtime_dependency "json", ">= 2.7"
+            gem.add_development_dependency "rubocop", "~> 1.70"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - example.gemspec
+        YAML
+        "template/example.gemspec.example" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "TODO: Write a short summary"
+            spec.required_ruby_version = ">= 3.1"
+            spec.add_runtime_dependency "json", ">= 2.0"
+            spec.add_development_dependency "rspec", "~> 3.13"
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      gemspec_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_example_gemspec"
+      end
+      gemspec_content = gemspec_report.fetch(:final_content)
+
+      expect(gemspec_content).to include('spec.summary = "Real summary"')
+      expect(gemspec_content).to include('spec.required_ruby_version = ">= 3.2"')
+      expect(gemspec_content).to include('spec.add_runtime_dependency "json", ">= 2.7"')
+      expect(gemspec_content).to include('spec.add_development_dependency "rubocop", "~> 1.70"')
+      expect(gemspec_content).not_to include("gem.summary")
+      expect(gemspec_content).not_to include("gem.add_runtime_dependency")
+      expect(File.read(File.join(root, "example.gemspec"))).to eq(gemspec_content)
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

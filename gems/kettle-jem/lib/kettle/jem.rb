@@ -1676,15 +1676,33 @@ module Kettle
     end
 
     def merge_gemspec_template_source(template_content, destination_content)
-      replacements = gemspec_preserved_assignments(destination_content)
+      template_receiver = gemspec_block_param(template_content) || "spec"
+      destination_receiver = gemspec_block_param(destination_content) || "spec"
+      replacements = gemspec_preserved_assignments(destination_content, receiver: destination_receiver)
       merged = replacements.reduce(template_content.dup) do |content, (field, source_line)|
-        pattern = /^(\s*spec\.#{Regexp.escape(field)}\s*=\s*).*$/
-        content.match?(pattern) ? content.sub(pattern, source_line.rstrip) : content
+        pattern = /^(\s*#{Regexp.escape(template_receiver)}\.#{Regexp.escape(field)}\s*=\s*).*$/
+        replacement = normalize_gemspec_receiver(source_line.rstrip, from: destination_receiver, to: template_receiver)
+        content.match?(pattern) ? content.sub(pattern, replacement) : content
       end
-      preserve_gemspec_dependency_lines(merged, destination_content)
+      preserve_gemspec_dependency_lines(
+        merged,
+        destination_content,
+        template_receiver: template_receiver,
+        destination_receiver: destination_receiver
+      )
     end
 
-    def gemspec_preserved_assignments(source)
+    def gemspec_block_param(source)
+      source.to_s[/Gem::Specification\.new\s+do\s+\|([^|]+)\|/, 1]&.strip
+    end
+
+    def normalize_gemspec_receiver(line, from:, to:)
+      return line if from.to_s.empty? || to.to_s.empty? || from == to
+
+      line.sub(/^(\s*)#{Regexp.escape(from)}\./, "\\1#{to}.")
+    end
+
+    def gemspec_preserved_assignments(source, receiver:)
       %w[
         name
         authors
@@ -1696,7 +1714,9 @@ module Kettle
         required_ruby_version
         executables
       ].each_with_object({}) do |field, assignments|
-        line = source.to_s.lines.find { |candidate| candidate.match?(/^\s*spec\.#{Regexp.escape(field)}\s*=/) }
+        line = source.to_s.lines.find do |candidate|
+          candidate.match?(/^\s*#{Regexp.escape(receiver)}\.#{Regexp.escape(field)}\s*=/)
+        end
         next unless line
         next if line.include?("TODO:")
 
@@ -1704,38 +1724,40 @@ module Kettle
       end
     end
 
-    def preserve_gemspec_dependency_lines(template_content, destination_content)
-      destination_dependencies = gemspec_dependency_line_index(destination_content)
+    def preserve_gemspec_dependency_lines(template_content, destination_content, template_receiver:, destination_receiver:)
+      destination_dependencies = gemspec_dependency_line_index(destination_content, receiver: destination_receiver).transform_values do |line|
+        normalize_gemspec_receiver(line, from: destination_receiver, to: template_receiver)
+      end
       return template_content if destination_dependencies.empty?
 
-      merged = replace_matching_gemspec_dependency_lines(template_content, destination_dependencies)
-      append_missing_gemspec_dependency_lines(merged, destination_dependencies)
+      merged = replace_matching_gemspec_dependency_lines(template_content, destination_dependencies, receiver: template_receiver)
+      append_missing_gemspec_dependency_lines(merged, destination_dependencies, receiver: template_receiver)
     end
 
-    def replace_matching_gemspec_dependency_lines(content, destination_dependencies)
+    def replace_matching_gemspec_dependency_lines(content, destination_dependencies, receiver:)
       content.to_s.lines.map do |line|
-        key = gemspec_dependency_line_key(line)
+        key = gemspec_dependency_line_key(line, receiver: receiver)
         key && destination_dependencies[key] ? destination_dependencies[key] : line
       end.join
     end
 
-    def append_missing_gemspec_dependency_lines(content, destination_dependencies)
-      existing_keys = gemspec_dependency_line_index(content).keys
+    def append_missing_gemspec_dependency_lines(content, destination_dependencies, receiver:)
+      existing_keys = gemspec_dependency_line_index(content, receiver: receiver).keys
       missing_lines = destination_dependencies.reject { |key, _line| existing_keys.include?(key) }.values
       return content if missing_lines.empty?
 
       content.sub(/^end\s*\z/, "#{missing_lines.join}end")
     end
 
-    def gemspec_dependency_line_index(source)
+    def gemspec_dependency_line_index(source, receiver:)
       source.to_s.lines.each_with_object({}) do |line, dependencies|
-        key = gemspec_dependency_line_key(line)
+        key = gemspec_dependency_line_key(line, receiver: receiver)
         dependencies[key] ||= line if key
       end
     end
 
-    def gemspec_dependency_line_key(line)
-      match = line.to_s.match(/^\s*spec\.(add_(?:development_|runtime_)?dependency)\s*\(?\s*["']([^"']+)["']/)
+    def gemspec_dependency_line_key(line, receiver:)
+      match = line.to_s.match(/^\s*#{Regexp.escape(receiver)}\.(add_(?:development_|runtime_)?dependency)\s*\(?\s*["']([^"']+)["']/)
       match && [match[1], match[2]]
     end
 
