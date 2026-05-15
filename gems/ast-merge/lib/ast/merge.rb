@@ -605,6 +605,8 @@ module Ast
 
     LocalLineFallbackReport = Struct.new(:fallback_id, :strategy, :scope, :path, :owner_path, :base_span, :left_span, :right_span, :result, :conflict_category, :diagnostics, keyword_init: true)
 
+    ConflictMarkerRenderingReport = Struct.new(:render_id, :strategy, :marker_size, :path_label, :left_label, :base_label, :right_label, :include_base, :output, :diagnostics, keyword_init: true)
+
     module_function
 
     def conformance_family_entries(manifest, family)

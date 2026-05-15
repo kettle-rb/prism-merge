@@ -438,6 +438,19 @@ RSpec.describe Ast::Merge do
     expect(report.right_span.end_line - report.right_span.start_line + 1).to eq(fixture.dig(:expected, :right_line_count))
   end
 
+  it "conforms to the slice-808 conflict marker rendering fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-808-conflict-marker-rendering", "conflict-marker-rendering.json"))
+    report = described_class::ConflictMarkerRenderingReport.new(**fixture[:rendering])
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.marker_size).to eq(fixture.dig(:expected, :marker_size))
+    expect(report.path_label).to eq(fixture.dig(:expected, :path_label))
+    expect(report.include_base).to eq(fixture.dig(:expected, :include_base))
+    expect(report.output).to start_with(fixture.dig(:expected, :starts_with))
+    expect(report.output).to include(fixture.dig(:expected, :contains_base_marker))
+    expect(report.output).to end_with(fixture.dig(:expected, :ends_with))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
