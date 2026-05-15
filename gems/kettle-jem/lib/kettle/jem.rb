@@ -25,8 +25,16 @@ module Kettle
     MANAGED_BLOCK_CLOSE = "# <</kettle-jem:generated>>"
     OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
-    FILE_DELETION_PRIMITIVES = %w[supplied_obsolete_file_deletion supplied_disabled_opencollective_file_deletion].freeze
+    FILE_DELETION_PRIMITIVES = %w[
+      supplied_obsolete_file_deletion
+      supplied_disabled_opencollective_file_deletion
+      supplied_legacy_destination_file_deletion
+    ].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
+    COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS = %w[REEK bin/setup].freeze
+    LEGACY_DESTINATION_PATHS = {
+      ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
+    }.freeze
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
     SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
     RUBY_TEMPLATE_BASENAMES = %w[Gemfile Rakefile Appraisals Appraisal.root.gemfile .simplecov].freeze
@@ -931,6 +939,8 @@ module Kettle
       template_facts = {}
       template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
+      legacy_cleanups = template_legacy_destination_cleanups(project_root, template_preferences)
+      template_facts[:legacy_destination_cleanups] = legacy_cleanups unless legacy_cleanups.empty?
       unless template_preferences.empty?
         facts[:license] = license unless license.empty?
         facts[:project_runtime] = project_runtime unless project_runtime.empty?
@@ -1026,6 +1036,15 @@ module Kettle
         recipe[:template_tokens] = facts.dig(:templates, :tokens) if facts.dig(:templates, :tokens)
         recipe[:readme_style] = facts[:readme_style] if preference.fetch(:target_path) == "README.md" && facts[:readme_style]
         recipes << recipe
+      end
+      facts.dig(:templates, :legacy_destination_cleanups).to_a.each do |cleanup|
+        recipes << recipe_entry(
+          "template_legacy_destination_cleanup_#{workflow_recipe_slug(cleanup.fetch(:legacy_path))}",
+          cleanup.fetch(:legacy_path),
+          "file",
+          "supplied_legacy_destination_file_deletion",
+          facts: %w[templates]
+        )
       end
       recipes << recipe_entry(
         "rakefile_scaffold_cleanup",
@@ -1321,6 +1340,8 @@ module Kettle
       when /\Agithub_actions_obsolete_workflow_cleanup_/
         ""
       when /\Aopencollective_disabled_file_cleanup_/
+        ""
+      when /\Atemplate_legacy_destination_cleanup_/
         ""
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
@@ -1674,6 +1695,13 @@ module Kettle
       if recipe.fetch(:primitive) == "supplied_disabled_opencollective_file_deletion"
         metadata.merge!(
           policy_kind: "delete_disabled_opencollective_file",
+          operation: "delete",
+          deleted_file: recipe.fetch(:target_path),
+        )
+      end
+      if recipe.fetch(:primitive) == "supplied_legacy_destination_file_deletion"
+        metadata.merge!(
+          policy_kind: "delete_legacy_destination_file",
           operation: "delete",
           deleted_file: recipe.fetch(:target_path),
         )
@@ -3175,6 +3203,10 @@ module Kettle
       logical_path
     end
 
+    def copy_only_when_missing_template_path?(relative_path)
+      COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS.include?(relative_path.to_s)
+    end
+
     def kettle_config_bootstrap_facts(project_root, env)
       return if File.exist?(File.join(project_root, ".kettle-jem.yml"))
 
@@ -3228,6 +3260,10 @@ module Kettle
       }
       preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
       preference[:file_type] = strategy_config.fetch(:file_type).to_s if strategy_config&.key?(:file_type)
+      if copy_only_when_missing_template_path?(target_path) && File.exist?(File.join(project_root, target_path))
+        preference[:strategy] = "keep_destination"
+        preference[:policy] = "copy_only_when_missing"
+      end
       preserve_config = readme_preserve_config(config)
       preference[:readme_preserve_config] = preserve_config if target_path == "README.md" && !preserve_config.empty?
       if template_root.fetch(:kind) == "packaged"
@@ -3236,6 +3272,21 @@ module Kettle
         preference[:source_root_path] = template_root.fetch(:path)
       end
       preference
+    end
+
+    def template_legacy_destination_cleanups(project_root, preferences)
+      preferences.filter_map do |preference|
+        canonical_path = preference.fetch(:target_path)
+        legacy_path = LEGACY_DESTINATION_PATHS[canonical_path]
+        next unless legacy_path
+        next unless File.exist?(File.join(project_root, legacy_path))
+        next if preference[:strategy] == "keep_destination" && !File.exist?(File.join(project_root, canonical_path))
+
+        {
+          canonical_path: canonical_path,
+          legacy_path: legacy_path,
+        }
+      end
     end
 
     def template_strategy_config(config, target_path)

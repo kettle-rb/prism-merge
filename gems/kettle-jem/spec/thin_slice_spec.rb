@@ -828,6 +828,60 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "applies remaining-files copy-only and legacy destination policies" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-remaining-files-policy-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - bin/setup
+              - .github/copilot_instructions.md
+        YAML
+        "bin/setup" => "custom setup\n",
+        ".github/COPILOT_INSTRUCTIONS.md" => "legacy copilot instructions\n",
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      setup_preference = plan.dig(:facts, :templates, :source_preferences).find do |preference|
+        preference.fetch(:target_path) == "bin/setup"
+      end
+      setup_report = plan.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_bin_setup"
+      end
+      legacy_cleanup = plan.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_legacy_destination_cleanup_github_COPILOT_INSTRUCTIONS_md"
+      end
+
+      expect(setup_preference).to include(
+        strategy: "keep_destination",
+        policy: "copy_only_when_missing"
+      )
+      expect(setup_report.fetch(:changed)).to be(false)
+      expect(setup_report.fetch(:final_content)).to eq("custom setup\n")
+      expect(legacy_cleanup.dig(:metadata, :delete_file)).to be(true)
+      expect(legacy_cleanup.dig(:report_envelope, :report, :step_reports, 0, :metadata)).to include(
+        policy_kind: "delete_legacy_destination_file",
+        deleted_file: ".github/COPILOT_INSTRUCTIONS.md"
+      )
+
+      apply = described_class.apply_project(root, env: {})
+      expect(File.read(File.join(root, "bin/setup"))).to eq("custom setup\n")
+      expect(File.exist?(File.join(root, ".github/copilot_instructions.md"))).to be(true)
+      expect(File.exist?(File.join(root, ".github/COPILOT_INSTRUCTIONS.md"))).to be(false)
+      expect(apply.fetch(:changed_files)).to include(".github/COPILOT_INSTRUCTIONS.md")
+    end
+  end
+
   it "preserves configured README sections during merge template application" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
