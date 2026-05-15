@@ -288,6 +288,33 @@ module Ast
       end
     end
 
+    StructuralPathMatch = Struct.new(:from_path, :to_path, :from_node_id, :to_node_id, :confidence, keyword_init: true) do
+      def to_h
+        {
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          confidence: confidence
+        }
+      end
+    end
+
+    StructuralMatchingReport = Struct.new(:matching_id, :strategy, :from_revision, :to_revision, :matches, :unmatched_from, :unmatched_to, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          from_revision: from_revision,
+          to_revision: to_revision,
+          matches: (matches || []).map(&:to_h),
+          unmatched_from: unmatched_from || [],
+          unmatched_to: unmatched_to || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)

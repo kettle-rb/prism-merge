@@ -168,6 +168,28 @@ RSpec.describe Ast::Merge do
     expect(report.cases.fetch(4).merge_ir_advantage).to eq("defer")
   end
 
+  it "conforms to the slice-797 structural matching baseline fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-797-structural-matching-baseline", "structural-matching-baseline.json"))
+    raw = fixture[:matching]
+    report = described_class::StructuralMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      from_revision: raw[:from_revision],
+      to_revision: raw[:to_revision],
+      matches: raw[:matches].map { |entry| described_class::StructuralPathMatch.new(**entry) },
+      unmatched_from: raw[:unmatched_from],
+      unmatched_to: raw[:unmatched_to],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(report.unmatched_from.length).to eq(fixture.dig(:expected, :unmatched_from_count))
+    expect(report.unmatched_to.length).to eq(fixture.dig(:expected, :unmatched_to_count))
+    expect(fixture.dig(:expected, :move_detection)).to be(false)
+    expect(report.matches.fetch(1).from_path).to eq("/declarations/Greet")
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
