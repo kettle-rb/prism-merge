@@ -513,6 +513,20 @@ RSpec.describe TreeHaver do
     )
   end
 
+  def edit_projection_execution_result(fixture)
+    described_class::EditProjectionExecutionResult.new(
+      ok: fixture[:ok],
+      status: fixture[:status],
+      source: fixture[:source],
+      applied_operations: fixture[:applied_operations].map do |operation|
+        described_class::AppliedEditProjectionOperation.new(**operation)
+      end,
+      diagnostics: fixture[:diagnostics].map do |diagnostic|
+        described_class::ProviderDiagnostic.new(**diagnostic)
+      end
+    )
+  end
+
   def parse_error_tolerance(fixture)
     described_class::ParseErrorTolerance.new(
       backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
@@ -665,6 +679,30 @@ RSpec.describe TreeHaver do
       )
       expect(json_ready(report.to_h)).to eq(json_ready(expected.to_h)), name.to_s
     end
+  end
+
+  it "conforms to the slice-928 edit projection execution contract fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-928-go-dst-edit-projection-execution",
+      "edit-projection-execution.json"
+    ))
+
+    expected = edit_projection_execution_result(fixture[:expected_result])
+    result = described_class.build_edit_projection_execution_result(
+      expected.source,
+      expected.applied_operations,
+      expected.diagnostics
+    )
+    expect(json_ready(result.to_h)).to eq(json_ready(expected.to_h))
+
+    unsupported = edit_projection_execution_result(fixture[:unsupported_result])
+    rejected = described_class.build_edit_projection_execution_result(
+      unsupported.source,
+      [],
+      unsupported.diagnostics
+    )
+    expect(json_ready(rejected.to_h)).to eq(json_ready(unsupported.to_h))
   end
 
   it "conforms to the slice-100 process baseline fixture" do

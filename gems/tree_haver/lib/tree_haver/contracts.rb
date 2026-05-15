@@ -420,6 +420,52 @@ module TreeHaver
     end
   end
 
+  EditProjectionOperationRequest = Struct.new(:operation, :target_node_id, :target_node_path, :replacement_source, keyword_init: true) do
+    def to_h
+      {
+        operation: operation,
+        target_node_id: target_node_id,
+        target_node_path: target_node_path,
+        replacement_source: replacement_source
+      }
+    end
+  end
+
+  EditProjectionExecutionRequest = Struct.new(:provider_id, :backend_ref, :language, :source, :operations, keyword_init: true) do
+    def to_h
+      {
+        provider_id: provider_id,
+        backend_ref: backend_ref.to_h,
+        language: language,
+        source: source,
+        operations: (operations || []).map(&:to_h)
+      }
+    end
+  end
+
+  AppliedEditProjectionOperation = Struct.new(:operation, :target_node_id, :correlation_key, :correlation_value, keyword_init: true) do
+    def to_h
+      {
+        operation: operation,
+        target_node_id: target_node_id,
+        correlation_key: correlation_key,
+        correlation_value: correlation_value
+      }
+    end
+  end
+
+  EditProjectionExecutionResult = Struct.new(:ok, :status, :source, :applied_operations, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        ok: ok,
+        status: status,
+        source: source,
+        applied_operations: (applied_operations || []).map(&:to_h),
+        diagnostics: (diagnostics || []).map(&:to_h)
+      }
+    end
+  end
+
   SourcePoint = Struct.new(:row, :column, keyword_init: true) do
     def to_h
       {
@@ -602,6 +648,27 @@ module TreeHaver
     )
   end
   module_function :build_provider_diagnostics_report
+
+  def build_edit_projection_execution_result(source, applied_operations, diagnostics)
+    if diagnostics.any?(&:blocking)
+      return EditProjectionExecutionResult.new(
+        ok: false,
+        status: "rejected",
+        source: source,
+        applied_operations: [],
+        diagnostics: diagnostics
+      )
+    end
+
+    EditProjectionExecutionResult.new(
+      ok: true,
+      status: "applied",
+      source: source,
+      applied_operations: applied_operations,
+      diagnostics: diagnostics
+    )
+  end
+  module_function :build_edit_projection_execution_result
 
   def windows_absolute_path?(path)
     /\A[A-Za-z]:[\/\\]/.match?(path)
