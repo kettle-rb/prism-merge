@@ -719,6 +719,24 @@ RSpec.describe Ast::Merge do
     expect(report.metadata_policy).to eq(fixture.dig(:expected, :metadata_policy))
   end
 
+  it "conforms to the slice-823 host language native provider contracts fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-823-host-language-native-provider-contracts", "host-language-native-provider-contracts.json"))
+    raw = fixture[:native_provider_contracts]
+    contracts = described_class::HostLanguageNativeProviderContracts.new(
+      suite_id: raw[:suite_id],
+      version: raw[:version],
+      providers: raw[:providers].map { |provider| described_class::HostLanguageNativeProviderContract.new(**provider) },
+      diagnostics: raw[:diagnostics]
+    )
+    provider_ids = contracts.providers.map(&:provider_id)
+    ruby_provider_count = contracts.providers.count { |provider| provider.host_language == "ruby" }
+
+    expect(contracts.providers.length).to eq(fixture.dig(:expected, :provider_count))
+    expect(provider_ids).to eq(fixture.dig(:expected, :provider_ids))
+    expect(ruby_provider_count).to eq(fixture.dig(:expected, :ruby_provider_count))
+    expect(contracts.providers.fetch(0).parser_name).to eq(fixture.dig(:expected, :first_provider_parser))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
