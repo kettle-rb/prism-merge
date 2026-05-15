@@ -704,6 +704,9 @@ module Ast
     ActiveProfileView = Struct.new(:profile_id, :family, :backend, :backend_family, :parser, :parser_version, :language_version, :dialect, :supported_dialects, :rule_counts, :validation, keyword_init: true)
     ProfileConformanceReport = Struct.new(:report_id, :version, :profile, :active_profile, :enabled_rules, :skipped_rules, :fallback_count, :unresolved_conflict_count, :diagnostics, keyword_init: true)
     ProfileDebugOutput = Struct.new(:mode, :active_profile, :diagnostics, keyword_init: true)
+    ProfilePromotionHardGate = Struct.new(:name, :passed, :required, :diagnostics, keyword_init: true)
+    ProfilePromotionMetrics = Struct.new(:required_fixture_count, :passed_fixture_count, :formatting_preservation_score, :formatting_threshold, :fallback_count, :fallback_threshold, :unresolved_conflict_count, :backend_parity_passed, keyword_init: true)
+    ProfilePromotionReport = Struct.new(:report_id, :version, :profile_id, :backend, :status, :active_profile, :hard_gates, :metrics, :required_suites, :blocking_reasons, :diagnostics, keyword_init: true)
     ProfileValidationDiagnostic = Struct.new(:severity, :message, keyword_init: true)
     ProfileValidationResult = Struct.new(:ok, :errors, :warnings, :diagnostics, keyword_init: true)
 

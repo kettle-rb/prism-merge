@@ -34,6 +34,15 @@ RSpec.describe Ast::Merge do
     diagnostics.map(&:message).sort
   end
 
+  def active_profile_contract(profile)
+    described_class::ActiveProfileView.new(
+      **profile.merge(
+        rule_counts: described_class::ActiveProfileRuleCounts.new(**profile[:rule_counts]),
+        validation: described_class::ActiveProfileValidationSummary.new(**profile[:validation])
+      )
+    )
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
@@ -1231,12 +1240,7 @@ RSpec.describe Ast::Merge do
     expected = fixture[:expected]
     active_profile = fixture[:active_profile]
 
-    contract = described_class::ActiveProfileView.new(
-      **active_profile.merge(
-        rule_counts: described_class::ActiveProfileRuleCounts.new(**active_profile[:rule_counts]),
-        validation: described_class::ActiveProfileValidationSummary.new(**active_profile[:validation])
-      )
-    )
+    contract = active_profile_contract(active_profile)
     report = described_class::ProfileConformanceReport.new(
       **fixture[:conformance_report].merge(active_profile: contract)
     )
@@ -1255,6 +1259,36 @@ RSpec.describe Ast::Merge do
     expect(report.active_profile.profile_id).to eq(expected[:profile_id])
     expect(debug_output.mode).to eq(expected[:debug_mode])
     expect(debug_output.active_profile.profile_id).to eq(expected[:profile_id])
+  end
+
+  it "conforms to the slice-911 profile promotion report fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-911-profile-promotion-report", "profile-promotion-report.json"))
+    expected = fixture[:expected]
+    report_fixture = fixture[:report]
+    blocked_fixture = fixture[:blocked_report]
+
+    report = described_class::ProfilePromotionReport.new(
+      **report_fixture.merge(
+        active_profile: active_profile_contract(report_fixture[:active_profile]),
+        hard_gates: report_fixture[:hard_gates].map { |gate| described_class::ProfilePromotionHardGate.new(**gate) },
+        metrics: described_class::ProfilePromotionMetrics.new(**report_fixture[:metrics])
+      )
+    )
+    blocked = described_class::ProfilePromotionReport.new(
+      **blocked_fixture.merge(
+        hard_gates: blocked_fixture[:hard_gates].map { |gate| described_class::ProfilePromotionHardGate.new(**gate) },
+        metrics: described_class::ProfilePromotionMetrics.new(**blocked_fixture[:metrics])
+      )
+    )
+
+    expect(report.profile_id).to eq(expected[:profile_id])
+    expect(report.status).to eq(expected[:recommended_status])
+    expect(report.hard_gates.length).to eq(expected[:hard_gate_count])
+    expect(report.metrics.required_fixture_count).to eq(expected[:required_fixture_count])
+    expect(report.metrics.formatting_threshold).to eq(expected[:formatting_threshold])
+    expect(report.active_profile.profile_id).to eq(expected[:profile_id])
+    expect(blocked.status).to eq(expected[:blocked_status])
+    expect(blocked.blocking_reasons.length).to eq(expected[:blocking_reason_count])
   end
 
   it "conforms to the template source path mapping fixture" do
