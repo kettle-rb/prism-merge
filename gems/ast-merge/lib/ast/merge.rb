@@ -607,6 +607,10 @@ module Ast
 
     ConflictMarkerRenderingReport = Struct.new(:render_id, :strategy, :marker_size, :path_label, :left_label, :base_label, :right_label, :include_base, :output, :diagnostics, keyword_init: true)
 
+    ConflictHandlerRegistration = Struct.new(:handler_id, :conflict_category, :fallback_scope, :node_roles, :capability, :enabled, keyword_init: true)
+
+    ConflictHandlerRegistryReport = Struct.new(:registry_id, :version, :handlers, :diagnostics, keyword_init: true)
+
     module_function
 
     def conformance_family_entries(manifest, family)

@@ -451,6 +451,23 @@ RSpec.describe Ast::Merge do
     expect(report.output).to end_with(fixture.dig(:expected, :ends_with))
   end
 
+  it "conforms to the slice-809 typed conflict handler extension points fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-809-typed-conflict-handler-extension-points", "typed-conflict-handler-extension-points.json"))
+    raw = fixture[:handlers]
+    report = described_class::ConflictHandlerRegistryReport.new(
+      registry_id: raw[:registry_id],
+      version: raw[:version],
+      handlers: raw[:handlers].map { |entry| described_class::ConflictHandlerRegistration.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+    enabled_count = report.handlers.count(&:enabled)
+
+    expect(report.handlers.length).to eq(fixture.dig(:expected, :handler_count))
+    expect(enabled_count).to eq(fixture.dig(:expected, :enabled_count))
+    expect(report.handlers.fetch(0).conflict_category).to eq(fixture.dig(:expected, :first_handler_category))
+    expect(report.handlers.fetch(1).fallback_scope).to eq(fixture.dig(:expected, :second_handler_scope))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
