@@ -468,6 +468,50 @@ RSpec.describe Ast::Merge do
     expect(report.handlers.fetch(1).fallback_scope).to eq(fixture.dig(:expected, :second_handler_scope))
   end
 
+  it "conforms to the slice-810 generic conflict handler execution fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-810-generic-conflict-handler-execution", "generic-conflict-handler-execution.json"))
+    raw = fixture[:execution]
+    execution = described_class::GenericConflictHandlerExecution.new(
+      execution_id: raw[:execution_id],
+      version: raw[:version],
+      cases: raw[:cases].map do |entry|
+        result = entry[:expected_result]
+        described_class::GenericConflictHandlerCase.new(
+          case_id: entry[:case_id],
+          handler_id: entry[:handler_id],
+          conflict_category: entry[:conflict_category],
+          parent_policy: entry[:parent_policy],
+          base_children: (entry[:base_children] || []).map { |node| described_class::HandlerChildNode.new(**node) },
+          left_insertions: (entry[:left_insertions] || []).map { |node| described_class::HandlerChildNode.new(**node) },
+          right_insertions: (entry[:right_insertions] || []).map { |node| described_class::HandlerChildNode.new(**node) },
+          base_members: (entry[:base_members] || []).map { |member| described_class::HandlerKeyedMember.new(**member) },
+          left_edits: (entry[:left_edits] || []).map { |member| described_class::HandlerKeyedMember.new(**member) },
+          right_edits: (entry[:right_edits] || []).map { |member| described_class::HandlerKeyedMember.new(**member) },
+          expected_result: described_class::GenericConflictHandlerResult.new(
+            resolved: result[:resolved],
+            merged_children: result.key?(:merged_children) ? result[:merged_children].map { |node| described_class::HandlerChildNode.new(**node) } : nil,
+            merged_members: result.key?(:merged_members) ? result[:merged_members].map { |member| described_class::HandlerKeyedMember.new(**member) } : nil,
+            diagnostics: result[:diagnostics]
+          )
+        )
+      end,
+      diagnostics: raw[:diagnostics]
+    )
+    resolved_count = execution.cases.count { |handler_case| handler_case.expected_result.resolved }
+    results = execution.cases.map { |handler_case| described_class.execute_generic_conflict_handler(handler_case) }
+
+    execution.cases.zip(results).each do |handler_case, result|
+      expect(result).to eq(handler_case.expected_result)
+    end
+
+    expect(execution.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(resolved_count).to eq(fixture.dig(:expected, :resolved_count))
+    expect(execution.cases.fetch(0).handler_id).to eq(fixture.dig(:expected, :first_handler_id))
+    expect(results.fetch(0).merged_children.length).to eq(fixture.dig(:expected, :first_merged_child_count))
+    expect(execution.cases.fetch(1).handler_id).to eq(fixture.dig(:expected, :second_handler_id))
+    expect(results.fetch(1).merged_members.length).to eq(fixture.dig(:expected, :second_merged_member_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

@@ -611,7 +611,86 @@ module Ast
 
     ConflictHandlerRegistryReport = Struct.new(:registry_id, :version, :handlers, :diagnostics, keyword_init: true)
 
+    HandlerChildNode = Struct.new(:node_id, :signature, :source, keyword_init: true)
+    HandlerKeyedMember = Struct.new(:key, :value, keyword_init: true)
+    GenericConflictHandlerResult = Struct.new(:resolved, :merged_children, :merged_members, :diagnostics, keyword_init: true)
+    GenericConflictHandlerCase = Struct.new(:case_id, :handler_id, :conflict_category, :parent_policy, :base_children, :left_insertions, :right_insertions, :base_members, :left_edits, :right_edits, :expected_result, keyword_init: true)
+    GenericConflictHandlerExecution = Struct.new(:execution_id, :version, :cases, :diagnostics, keyword_init: true)
+
     module_function
+
+    GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
+    GENERIC_KEYED_MEMBER_EDIT_HANDLER = "generic-keyed-member-edit"
+
+    def execute_generic_conflict_handler(handler_case)
+      case handler_case.handler_id
+      when GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER
+        execute_independent_commutative_insertions(handler_case)
+      when GENERIC_KEYED_MEMBER_EDIT_HANDLER
+        execute_independent_keyed_member_edits(handler_case)
+      else
+        GenericConflictHandlerResult.new(
+          resolved: false,
+          diagnostics: ["unsupported generic conflict handler"]
+        )
+      end
+    end
+
+    def execute_independent_commutative_insertions(handler_case)
+      unless handler_case.parent_policy == "commutative"
+        return GenericConflictHandlerResult.new(
+          resolved: false,
+          diagnostics: ["independent insertion handler requires a commutative parent"]
+        )
+      end
+
+      seen = {}
+      merged = []
+      [handler_case.base_children, handler_case.left_insertions, handler_case.right_insertions].each do |nodes|
+        (nodes || []).each do |node|
+          key = node.signature.to_s.empty? ? node.node_id : node.signature
+          next if seen[key]
+
+          seen[key] = true
+          merged << node
+        end
+      end
+
+      GenericConflictHandlerResult.new(
+        resolved: true,
+        merged_children: merged,
+        diagnostics: ["independent insertions into a commutative parent were unioned deterministically"]
+      )
+    end
+
+    def execute_independent_keyed_member_edits(handler_case)
+      order = []
+      values = {}
+      set_member = lambda do |member|
+        order << member.key unless values.key?(member.key)
+        values[member.key] = member.value
+      end
+
+      (handler_case.base_members || []).each { |member| set_member.call(member) }
+      (handler_case.left_edits || []).each { |member| set_member.call(member) }
+      (handler_case.right_edits || []).each do |member|
+        if values.key?(member.key) &&
+            values[member.key] != member.value &&
+            (handler_case.left_edits || []).any? { |left| left.key == member.key }
+          return GenericConflictHandlerResult.new(
+            resolved: false,
+            diagnostics: ["keyed member was edited differently on both sides"]
+          )
+        end
+        set_member.call(member)
+      end
+
+      GenericConflictHandlerResult.new(
+        resolved: true,
+        merged_members: order.map { |key| HandlerKeyedMember.new(key: key, value: values[key]) },
+        diagnostics: ["independent keyed member edits were merged by key"]
+      )
+    end
 
     def conformance_family_entries(manifest, family)
       families = manifest.fetch(:families, {})
