@@ -412,6 +412,32 @@ RSpec.describe Ast::Merge do
     expect(parse_limited.fallback_scope).to eq(fixture.dig(:expected, :parse_limited_fallback_scope))
   end
 
+  it "conforms to the slice-807 local line-based fallback fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-807-local-line-based-fallback", "local-line-based-fallback.json"))
+    raw = fixture[:fallback]
+    report = described_class::LocalLineFallbackReport.new(
+      fallback_id: raw[:fallback_id],
+      strategy: raw[:strategy],
+      scope: raw[:scope],
+      path: raw[:path],
+      owner_path: raw[:owner_path],
+      base_span: described_class::LineSpan.new(**raw[:base_span]),
+      left_span: described_class::LineSpan.new(**raw[:left_span]),
+      right_span: described_class::LineSpan.new(**raw[:right_span]),
+      result: raw[:result],
+      conflict_category: raw[:conflict_category],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.scope).to eq(fixture.dig(:expected, :scope))
+    expect(report.path).to eq(fixture.dig(:expected, :path))
+    expect(report.result).to eq(fixture.dig(:expected, :result))
+    expect(report.conflict_category).to eq(fixture.dig(:expected, :conflict_category))
+    expect(report.left_span.end_line - report.left_span.start_line + 1).to eq(fixture.dig(:expected, :left_line_count))
+    expect(report.right_span.end_line - report.right_span.start_line + 1).to eq(fixture.dig(:expected, :right_line_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

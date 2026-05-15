@@ -601,6 +601,10 @@ module Ast
       end
     end
 
+    LineSpan = Struct.new(:start_line, :end_line, keyword_init: true)
+
+    LocalLineFallbackReport = Struct.new(:fallback_id, :strategy, :scope, :path, :owner_path, :base_span, :left_span, :right_span, :result, :conflict_category, :diagnostics, keyword_init: true)
+
     module_function
 
     def conformance_family_entries(manifest, family)
