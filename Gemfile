@@ -22,6 +22,7 @@ gemspec path: "gems/prism-merge"
 gemspec path: "gems/typescript-merge"
 gemspec path: "gems/rust-merge"
 gemspec path: "gems/go-merge"
+gemspec path: "gems/smorg-rb"
 
 gem "rake"
 gem "rspec"

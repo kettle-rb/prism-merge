@@ -117,6 +117,15 @@ PATH
       tree_haver (= 7.0.0)
 
 PATH
+  remote: gems/smorg-rb
+  specs:
+    smorg-rb (7.0.0)
+      ast-merge (= 7.0.0)
+      go-merge (= 7.0.0)
+      json-merge (= 7.0.0)
+      plain-merge (= 7.0.0)
+
+PATH
   remote: gems/toml-merge
   specs:
     toml-merge (7.0.0)
@@ -212,6 +221,7 @@ DEPENDENCIES
   rspec
   ruby-merge!
   rust-merge!
+  smorg-rb!
   token-resolver (~> 1.0, >= 1.0.2)
   toml-merge!
   tree_haver!
@@ -253,6 +263,7 @@ CHECKSUMS
   rspec-support (3.13.7) sha256=0640e5570872aafefd79867901deeeeb40b0c9875a36b983d85f54fb7381c47c
   ruby-merge (7.0.0)
   rust-merge (7.0.0)
+  smorg-rb (7.0.0)
   token-resolver (1.0.2) sha256=bb7d1623f7552487f0880d3f64c2fc5c3de5bf838d78434c05ee0d6f2a37f721
   toml (0.3.0) sha256=0a91d0f76a9036e84e44f95693b12f58d358c1df3ac8e3b5271f2056ecc6e4b9
   toml-merge (7.0.0)
