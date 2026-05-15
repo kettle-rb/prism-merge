@@ -77,6 +77,7 @@ module Kettle
       "ancient" => { min: Gem::Version.new("2.3"), max: Gem::Version.new("2.5") },
     }.freeze
     APPRAISAL_ALWAYS_EXCLUDED_GEMS = %w[version_gem].freeze
+    APPRAISAL_VERSION_SELECTION_MODES = %w[major minor patch minor-minmax semver].freeze
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
     README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze
@@ -999,6 +1000,111 @@ module Kettle
         line[%r{eval_gemfile\s+["']\.\./([\w-]+)/}, 1]
       end
       (gems + APPRAISAL_ALWAYS_EXCLUDED_GEMS).uniq.sort
+    end
+
+    def appraisal_select_versions(version_metadata, mode:, requirements: nil)
+      mode = mode.to_s
+      raise ArgumentError, "invalid appraisal version selection mode: #{mode}" unless APPRAISAL_VERSION_SELECTION_MODES.include?(mode)
+
+      versions = appraisal_filtered_versions(version_metadata, requirements: requirements)
+      return versions if mode == "patch"
+
+      by_major = appraisal_minor_versions_by_major(versions)
+      return [] if by_major.empty?
+
+      current_major = by_major.last.fetch(:major)
+      case mode
+      when "major"
+        by_major.map { |entry| entry.fetch(:minors).last }
+      when "minor"
+        by_major.flat_map { |entry| entry.fetch(:minors) }
+      when "minor-minmax"
+        by_major.flat_map do |entry|
+          minors = entry.fetch(:minors)
+          entry.fetch(:major) < current_major ? [minors.first, minors.last].uniq : minors
+        end
+      when "semver"
+        by_major.flat_map do |entry|
+          entry.fetch(:major) < current_major ? [entry.fetch(:minors).last] : entry.fetch(:minors)
+        end
+      end
+    end
+
+    def appraisal_matrix_entries(tier1_gems:, tier2_gems: [])
+      entries = []
+      tier1_gems.each do |tier1|
+        tier1_name = tier1[:name] || tier1["name"]
+        assignments = tier1[:assignments] || tier1["assignments"] || []
+        assignments.each do |assignment|
+          tier1_version = assignment[:version] || assignment["version"]
+          ruby_series = assignment[:bucket] || assignment["bucket"] || assignment[:ruby_series] || assignment["ruby_series"]
+          if tier2_gems.empty?
+            entries << appraisal_matrix_entry(
+              tier1_name: tier1_name,
+              tier1_version: tier1_version,
+              ruby_series: ruby_series,
+            )
+          else
+            tier2_gems.each do |tier2|
+              tier2_name = tier2[:name] || tier2["name"]
+              Array(tier2[:versions] || tier2["versions"]).each do |tier2_version|
+                entries << appraisal_matrix_entry(
+                  tier1_name: tier1_name,
+                  tier1_version: tier1_version,
+                  ruby_series: ruby_series,
+                  tier2_name: tier2_name,
+                  tier2_version: tier2_version,
+                )
+              end
+            end
+          end
+        end
+      end
+      entries
+    end
+
+    def appraisal_matrix_entry(tier1_name:, tier1_version:, ruby_series:, tier2_name: nil, tier2_version: nil)
+      {
+        name: appraisal_name(
+          tier1_gem: tier1_name,
+          tier1_version: tier1_version,
+          tier2_gem: tier2_name,
+          tier2_version: tier2_version,
+          ruby_series: ruby_series,
+        ),
+        tier1_gemfile: appraisal_modular_gemfile_path(gem_name: tier1_name, version: tier1_version, ruby_series: ruby_series),
+        tier2_gemfile: tier2_name ? appraisal_modular_gemfile_path(gem_name: tier2_name, version: tier2_version, ruby_series: ruby_series) : nil,
+        x_std_libs_gemfile: File.join("gemfiles", "modular", "x_std_libs", ruby_series.to_s, "libs.gemfile"),
+        ruby_series: ruby_series.to_s,
+      }
+    end
+
+    def appraisal_filtered_versions(version_metadata, requirements:)
+      requirement = requirements ? Gem::Requirement.new(Array(requirements)) : nil
+      version_metadata.filter_map do |entry|
+        number = entry[:number] || entry["number"]
+        next if number.to_s.empty?
+        next if entry[:prerelease] || entry["prerelease"]
+        next if requirement && !requirement.satisfied_by?(Gem::Version.new(number))
+
+        number.to_s
+      end.sort_by { |version| Gem::Version.new(version) }
+    end
+
+    def appraisal_minor_versions_by_major(versions)
+      versions.map do |version|
+        gem_version = Gem::Version.new(version)
+        segments = gem_version.segments
+        {
+          major: segments[0],
+          minor: "#{segments[0]}.#{segments[1] || 0}",
+        }
+      end.uniq.group_by { |entry| entry.fetch(:major) }.map do |major, entries|
+        {
+          major: major,
+          minors: entries.map { |entry| entry.fetch(:minor) }.sort_by { |minor| Gem::Version.new(minor) },
+        }
+      end.sort_by { |entry| entry.fetch(:major) }
     end
 
     def discover_facts(project_root, env: ENV)

@@ -1444,6 +1444,59 @@ RSpec.describe Kettle::Jem do
     RUBY
   end
 
+  it "plans deterministic appraisal matrices from supplied version metadata" do
+    versions = %w[5.0.0 5.1.0 5.2.0 6.0.0 6.1.0 7.0.0 7.1.0 7.2.0].map do |number|
+      { number: number }
+    end
+
+    expect(described_class.appraisal_select_versions(versions, mode: "major")).to eq(["5.2", "6.1", "7.2"])
+    expect(described_class.appraisal_select_versions(versions, mode: "minor")).to eq(
+      ["5.0", "5.1", "5.2", "6.0", "6.1", "7.0", "7.1", "7.2"]
+    )
+    expect(described_class.appraisal_select_versions(versions, mode: "patch")).to eq(
+      ["5.0.0", "5.1.0", "5.2.0", "6.0.0", "6.1.0", "7.0.0", "7.1.0", "7.2.0"]
+    )
+    expect(described_class.appraisal_select_versions(versions, mode: "minor-minmax")).to eq(
+      ["5.0", "5.2", "6.0", "6.1", "7.0", "7.1", "7.2"]
+    )
+    expect(described_class.appraisal_select_versions(versions, mode: "semver")).to eq(["5.2", "6.1", "7.0", "7.1", "7.2"])
+    expect(described_class.appraisal_select_versions(versions, mode: "minor", requirements: [">= 6.0", "< 7.0"])).to eq(["6.0", "6.1"])
+
+    entries = described_class.appraisal_matrix_entries(
+      tier1_gems: [
+        {
+          name: "activerecord",
+          assignments: [
+            { version: "6.1", bucket: "r2" },
+            { version: "7.2", bucket: "r3" },
+          ],
+        },
+      ],
+      tier2_gems: [
+        { name: "omniauth", versions: ["2.1"] },
+      ]
+    )
+
+    expect(entries).to eq(
+      [
+        {
+          name: "kja-ar-6-1-oa-2-1-r2",
+          tier1_gemfile: "gemfiles/modular/activerecord/r2/v6.1.gemfile",
+          tier2_gemfile: "gemfiles/modular/omniauth/r2/v2.1.gemfile",
+          x_std_libs_gemfile: "gemfiles/modular/x_std_libs/r2/libs.gemfile",
+          ruby_series: "r2",
+        },
+        {
+          name: "kja-ar-7-2-oa-2-1-r3",
+          tier1_gemfile: "gemfiles/modular/activerecord/r3/v7.2.gemfile",
+          tier2_gemfile: "gemfiles/modular/omniauth/r3/v2.1.gemfile",
+          x_std_libs_gemfile: "gemfiles/modular/x_std_libs/r3/libs.gemfile",
+          ruby_series: "r3",
+        },
+      ]
+    )
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
