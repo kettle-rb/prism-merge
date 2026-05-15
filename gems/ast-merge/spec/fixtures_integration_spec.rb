@@ -747,6 +747,17 @@ RSpec.describe Ast::Merge do
     expect(report.checks).to eq(fixture.dig(:expected, :checks))
   end
 
+  it "conforms to the slice-825 go-dst provider stack fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-825-go-dst-provider-stack", "go-dst-provider-stack.json"))
+    report = described_class::GoDSTProviderStackReport.new(**fixture[:provider_stack])
+
+    expect(report.provider_id).to eq(fixture.dig(:expected, :provider_id))
+    expect(report.module).to eq(fixture.dig(:expected, :module))
+    expect(report.backend_family).to eq(fixture.dig(:expected, :backend_family))
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.compares_with.length).to eq(fixture.dig(:expected, :comparison_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
