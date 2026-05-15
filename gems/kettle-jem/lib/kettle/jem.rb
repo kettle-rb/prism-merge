@@ -4,9 +4,12 @@ require "fileutils"
 require "find"
 require "English"
 require "digest"
+require "json"
+require "net/http"
 require "open3"
 require "set"
 require "time"
+require "uri"
 require "ruby/merge"
 require "token/resolver"
 require "toml-merge"
@@ -79,6 +82,141 @@ module Kettle
     APPRAISAL_ALWAYS_EXCLUDED_GEMS = %w[version_gem].freeze
     APPRAISAL_VERSION_SELECTION_MODES = %w[major minor patch minor-minmax semver].freeze
     APPRAISAL_MINIMUM_RUBY_FLOOR = Gem::Version.new("2.3")
+
+    class AppraisalRubyGemsResolver
+      RUBYGEMS_V1_API_BASE = "https://rubygems.org/api/v1"
+      RUBYGEMS_V2_API_BASE = "https://rubygems.org/api/v2/rubygems"
+
+      attr_reader :cache
+
+      def initialize(cache: {}, http_get: nil, v1_api_base: RUBYGEMS_V1_API_BASE, v2_api_base: RUBYGEMS_V2_API_BASE)
+        @cache = cache
+        @http_get = http_get || ->(uri) { Net::HTTP.get_response(uri) }
+        @v1_api_base = v1_api_base.to_s.delete_suffix("/")
+        @v2_api_base = v2_api_base.to_s.delete_suffix("/")
+      end
+
+      def versions(gem_name, include_prerelease: false, requirements: nil)
+        requirement = normalize_requirements(requirements)
+        fetch_versions(gem_name).filter_map do |entry|
+          number = entry["number"].to_s
+          next if number.empty?
+          next if !include_prerelease && entry["prerelease"]
+          next if requirement && !requirement.satisfied_by?(Gem::Version.new(number))
+
+          {
+            number: number,
+            ruby_version: entry["ruby_version"],
+            created_at: entry["created_at"],
+            prerelease: !!entry["prerelease"],
+          }
+        end.sort_by { |entry| Gem::Version.new(entry.fetch(:number)) }
+      end
+
+      def version_info(gem_name, version)
+        data = fetch_gem_info(gem_name, version)
+        return unless data
+
+        runtime_dependencies = Array(data.dig("dependencies", "runtime")).map do |dependency|
+          {
+            name: dependency["name"],
+            requirements: dependency["requirements"],
+          }
+        end
+
+        {
+          number: data["number"] || version.to_s,
+          ruby_version: data["ruby_version"],
+          runtime_dependencies: runtime_dependencies,
+        }
+      end
+
+      def min_ruby_version(gem_name, version)
+        entry = fetch_versions(gem_name).find { |candidate| candidate["number"].to_s == version.to_s }
+        parse_min_ruby(entry && entry["ruby_version"])
+      end
+
+      def minor_versions_by_major(gem_name, requirements: nil)
+        versions(gem_name, requirements: requirements).each_with_object({}) do |entry, grouped|
+          version = Gem::Version.new(entry.fetch(:number))
+          segments = version.segments
+          next unless segments[0]
+
+          major = segments[0]
+          minor = "#{segments[0]}.#{segments[1] || 0}"
+          grouped[major] ||= Set.new
+          grouped[major] << minor
+        end.sort_by(&:first).map do |major, minors|
+          {
+            major: major,
+            minors: minors.to_a.sort_by { |minor| Gem::Version.new(minor) },
+          }
+        end
+      end
+
+      def fetch_versions(gem_name)
+        cache_key = "versions:#{gem_name}"
+        return cache.fetch(cache_key) if cache.key?(cache_key)
+
+        uri = URI("#{@v1_api_base}/versions/#{escape_path_component(gem_name)}.json")
+        response = @http_get.call(uri)
+        raise Error, "RubyGems API error for #{gem_name}: #{response_code(response)}" unless successful_response?(response)
+
+        cache[cache_key] = JSON.parse(response_body(response)).sort_by { |entry| Gem::Version.new(entry.fetch("number")) }
+      end
+
+      def fetch_gem_info(gem_name, version)
+        cache_key = "info:#{gem_name}:#{version}"
+        return cache.fetch(cache_key) if cache.key?(cache_key)
+
+        uri = URI("#{@v2_api_base}/#{escape_path_component(gem_name)}/versions/#{escape_path_component(version)}.json")
+        response = @http_get.call(uri)
+        return unless successful_response?(response)
+
+        cache[cache_key] = JSON.parse(response_body(response))
+      end
+
+      def parse_min_ruby(requirement)
+        return if requirement.to_s.strip.empty?
+
+        parsed = Gem::Requirement.new(requirement.to_s)
+        parsed.requirements.each do |operator, version|
+          return version if operator == ">="
+        end
+        parsed.requirements.each do |operator, version|
+          return version if operator == "~>"
+        end
+        nil
+      rescue ArgumentError
+        nil
+      end
+
+      private
+
+      def normalize_requirements(requirements)
+        values = Array(requirements).flatten.compact.map(&:to_s).map(&:strip).reject(&:empty?)
+        return if values.empty?
+
+        Gem::Requirement.new(values)
+      end
+
+      def successful_response?(response)
+        code = response_code(response).to_i
+        code >= 200 && code < 300
+      end
+
+      def response_code(response)
+        response.respond_to?(:code) ? response.code : response.fetch(:code)
+      end
+
+      def response_body(response)
+        response.respond_to?(:body) ? response.body : response.fetch(:body)
+      end
+
+      def escape_path_component(value)
+        URI.encode_www_form_component(value.to_s)
+      end
+    end
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
     README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze

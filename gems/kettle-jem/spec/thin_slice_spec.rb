@@ -1564,6 +1564,70 @@ RSpec.describe Kettle::Jem do
     expect(resolved).to eq("sqlite3" => "1.6.9")
   end
 
+  it "resolves appraisal RubyGems version metadata through a cacheable Kettle/Jem resolver" do
+    response = Struct.new(:code, :body)
+    calls = []
+    http_get = lambda do |uri|
+      calls << uri.to_s
+      case uri.to_s
+      when "https://example.test/api/v1/versions/active+record.json"
+        response.new("200", JSON.dump([
+          { "number" => "7.1.0.beta1", "ruby_version" => ">= 3.0", "prerelease" => true, "created_at" => "2024-01-01" },
+          { "number" => "6.1.7", "ruby_version" => ">= 2.5", "prerelease" => false, "created_at" => "2023-01-01" },
+          { "number" => "7.1.3", "ruby_version" => ">= 2.7", "prerelease" => false, "created_at" => "2024-02-01" },
+        ]))
+      when "https://example.test/api/v2/rubygems/active+record/versions/7.1.3.json"
+        response.new("200", JSON.dump({
+          "number" => "7.1.3",
+          "ruby_version" => ">= 2.7",
+          "dependencies" => {
+            "runtime" => [
+              { "name" => "sqlite3", "requirements" => "~> 1.6" },
+            ],
+          },
+        }))
+      else
+        response.new("404", "{}")
+      end
+    end
+
+    resolver = described_class::AppraisalRubyGemsResolver.new(
+      http_get: http_get,
+      v1_api_base: "https://example.test/api/v1",
+      v2_api_base: "https://example.test/api/v2/rubygems"
+    )
+
+    expect(resolver.versions("active record", requirements: ">= 7.0")).to eq(
+      [
+        { number: "7.1.3", ruby_version: ">= 2.7", created_at: "2024-02-01", prerelease: false },
+      ]
+    )
+    expect(resolver.versions("active record", include_prerelease: true).map { |entry| entry.fetch(:number) }).to eq(
+      ["6.1.7", "7.1.0.beta1", "7.1.3"]
+    )
+    expect(resolver.min_ruby_version("active record", "7.1.3")).to eq(Gem::Version.new("2.7"))
+    expect(resolver.minor_versions_by_major("active record")).to eq(
+      [
+        { major: 6, minors: ["6.1"] },
+        { major: 7, minors: ["7.1"] },
+      ]
+    )
+    expect(resolver.version_info("active record", "7.1.3")).to eq(
+      {
+        number: "7.1.3",
+        ruby_version: ">= 2.7",
+        runtime_dependencies: [
+          { name: "sqlite3", requirements: "~> 1.6" },
+        ],
+      }
+    )
+    expect(resolver.version_info("active record", "7.1.3")).to be_a(Hash)
+    expect(calls.tally).to eq(
+      "https://example.test/api/v1/versions/active+record.json" => 1,
+      "https://example.test/api/v2/rubygems/active+record/versions/7.1.3.json" => 1
+    )
+  end
+
   it "plans stale flat appraisal gemfile cleanup paths" do
     stale_paths = described_class.appraisal_stale_gemfile_paths(
       existing_paths: [
