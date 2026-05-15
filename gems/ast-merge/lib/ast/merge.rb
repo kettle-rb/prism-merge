@@ -636,6 +636,7 @@ module Ast
     FormattingRecommendationGate = Struct.new(:gate_id, :version, :threshold, :passed, :weights, :metrics, :diagnostics, keyword_init: true)
     FormattingHardGate = Struct.new(:name, :passed, :weighted, keyword_init: true)
     FormattingHardGateReport = Struct.new(:report_id, :version, :gates, :diagnostics, keyword_init: true)
+    SecondaryFormattingMetricsReport = Struct.new(:report_id, :version, :unchanged_line_churn, :output_diff_size, :source_fragment_retention, :weighted, :diagnostics, keyword_init: true)
 
     module_function
 

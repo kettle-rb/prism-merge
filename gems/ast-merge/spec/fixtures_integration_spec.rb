@@ -654,6 +654,16 @@ RSpec.describe Ast::Merge do
     expect(report.gates.fetch(1).name).to eq(fixture.dig(:expected, :second_gate))
   end
 
+  it "conforms to the slice-818 secondary formatting metrics fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-818-secondary-formatting-metrics", "secondary-formatting-metrics.json"))
+    report = described_class::SecondaryFormattingMetricsReport.new(**fixture[:secondary_metrics])
+
+    expect(report.unchanged_line_churn).to eq(fixture.dig(:expected, :unchanged_line_churn))
+    expect(report.output_diff_size).to eq(fixture.dig(:expected, :output_diff_size))
+    expect(report.source_fragment_retention).to eq(fixture.dig(:expected, :source_fragment_retention))
+    expect(report.weighted).to eq(fixture.dig(:expected, :weighted))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
