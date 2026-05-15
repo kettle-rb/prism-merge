@@ -634,6 +634,8 @@ module Ast
     FormattingPreservationConformanceReport = Struct.new(:report_id, :version, :suite, :case_id, :language, :formatting_metrics, :diagnostics, keyword_init: true)
     FormattingRecommendationWeights = Struct.new(:expected_output_line_diff_size, :expected_output_character_diff_size, keyword_init: true)
     FormattingRecommendationGate = Struct.new(:gate_id, :version, :threshold, :passed, :weights, :metrics, :diagnostics, keyword_init: true)
+    FormattingHardGate = Struct.new(:name, :passed, :weighted, keyword_init: true)
+    FormattingHardGateReport = Struct.new(:report_id, :version, :gates, :diagnostics, keyword_init: true)
 
     module_function
 

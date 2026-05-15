@@ -635,6 +635,25 @@ RSpec.describe Ast::Merge do
     expect(gate.metrics.formatting_preservation_score).to eq(fixture.dig(:expected, :score))
   end
 
+  it "conforms to the slice-817 formatting hard gates fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-817-formatting-hard-gates", "formatting-hard-gates.json"))
+    raw = fixture[:hard_gate_report]
+    report = described_class::FormattingHardGateReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      gates: raw[:gates].map { |gate| described_class::FormattingHardGate.new(**gate) },
+      diagnostics: raw[:diagnostics]
+    )
+    passed_count = report.gates.count(&:passed)
+    weighted_count = report.gates.count(&:weighted)
+
+    expect(report.gates.length).to eq(fixture.dig(:expected, :gate_count))
+    expect(passed_count == report.gates.length).to eq(fixture.dig(:expected, :all_passed))
+    expect(weighted_count).to eq(fixture.dig(:expected, :weighted_gate_count))
+    expect(report.gates.fetch(0).name).to eq(fixture.dig(:expected, :first_gate))
+    expect(report.gates.fetch(1).name).to eq(fixture.dig(:expected, :second_gate))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
