@@ -301,6 +301,30 @@ RSpec.describe Ast::Merge do
     expect(report.candidates.fetch(0).stable_body_hash).to eq(fixture.dig(:expected, :first_candidate_body_hash))
   end
 
+  it "conforms to the slice-802 ambiguity diagnostics fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-802-ambiguity-diagnostics", "ambiguity-diagnostics.json"))
+    raw = fixture[:matching]
+    report = described_class::AmbiguityMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      scope_path: raw[:scope_path],
+      ambiguous: raw[:ambiguous],
+      matches: raw[:matches].map { |entry| described_class::SignatureNodeMatch.new(**entry) },
+      ambiguities: raw[:ambiguities].map { |entry| described_class::MatchingAmbiguity.new(**entry) },
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.scope_path).to eq(fixture.dig(:expected, :scope_path))
+    expect(report.ambiguous).to eq(fixture.dig(:expected, :ambiguous))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(report.ambiguities.length).to eq(fixture.dig(:expected, :ambiguity_count))
+    expect(report.diagnostics.fetch(0).fetch(:category)).to eq(fixture.dig(:expected, :diagnostic_category))
+    expect(report.ambiguities.fetch(0).signature).to eq(fixture.dig(:expected, :first_ambiguity_signature))
+    expect(report.ambiguities.fetch(0).reason).to eq(fixture.dig(:expected, :first_ambiguity_reason))
+    expect(report.ambiguities.fetch(0).selected).to eq(fixture.dig(:expected, :first_ambiguity_selected))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

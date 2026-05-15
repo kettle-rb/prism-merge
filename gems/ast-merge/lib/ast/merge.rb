@@ -485,6 +485,34 @@ module Ast
       end
     end
 
+    MatchingAmbiguity = Struct.new(:signature, :scope_path, :from_candidates, :to_candidates, :selected, :reason, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          signature: signature,
+          scope_path: scope_path,
+          from_candidates: from_candidates || [],
+          to_candidates: to_candidates || [],
+          selected: selected,
+          reason: reason,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    AmbiguityMatchingReport = Struct.new(:matching_id, :strategy, :scope_path, :ambiguous, :matches, :ambiguities, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          scope_path: scope_path,
+          ambiguous: ambiguous,
+          matches: (matches || []).map(&:to_h),
+          ambiguities: (ambiguities || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
