@@ -1302,6 +1302,16 @@ module Kettle
       compatible.last.then { |entry| entry[:number] || entry["number"] }
     end
 
+    def appraisal_stale_gemfile_paths(existing_paths:, current_entries:)
+      current_names = current_entries.map { |entry| (entry[:name] || entry["name"]).to_s }.to_set
+      existing_paths.map(&:to_s).select do |path|
+        basename = File.basename(path, ".gemfile")
+        path.start_with?("gemfiles/#{APPRAISAL_NAME_PREFIX}-") &&
+          path.end_with?(".gemfile") &&
+          !current_names.include?(basename)
+      end.sort
+    end
+
     def discover_facts(project_root, env: ENV)
       gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
       raise ArgumentError, "no gemspec found in #{project_root}" unless gemspec_path

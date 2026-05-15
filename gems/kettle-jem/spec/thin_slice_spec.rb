@@ -1564,6 +1564,22 @@ RSpec.describe Kettle::Jem do
     expect(resolved).to eq("sqlite3" => "1.6.9")
   end
 
+  it "plans stale flat appraisal gemfile cleanup paths" do
+    stale_paths = described_class.appraisal_stale_gemfile_paths(
+      existing_paths: [
+        "gemfiles/kja-ar-7-1-r3.gemfile",
+        "gemfiles/kja-ar-6-1-r2.gemfile",
+        "gemfiles/manual.gemfile",
+        "gemfiles/modular/activerecord/r3/v7.1.gemfile",
+      ],
+      current_entries: [
+        { name: "kja-ar-7-1-r3" },
+      ]
+    )
+
+    expect(stale_paths).to eq(["gemfiles/kja-ar-6-1-r2.gemfile"])
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
