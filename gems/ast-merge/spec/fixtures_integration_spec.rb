@@ -788,6 +788,30 @@ RSpec.describe Ast::Merge do
     expect(source_span_case_count).to eq(fixture.dig(:expected, :source_span_case_count))
   end
 
+  it "conforms to the slice-828 provider richness projection fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-828-provider-richness-projection", "provider-richness-projection.json"))
+    raw = fixture[:projection]
+    projection = described_class::ProviderRichnessProjection.new(
+      projection_id: raw[:projection_id],
+      version: raw[:version],
+      provider_id: raw[:provider_id],
+      node_path: raw[:node_path],
+      generic_roles: raw[:generic_roles],
+      generic_signature: described_class::ProviderRichnessSignature.new(**raw[:generic_signature]),
+      private_metadata: raw[:private_metadata],
+      requires_private_fields: raw[:requires_private_fields],
+      diagnostics: raw[:diagnostics]
+    )
+    metadata_namespace = fixture.dig(:expected, :private_metadata_namespace).to_sym
+
+    expect(projection.provider_id).to eq(fixture.dig(:expected, :provider_id))
+    expect(projection.generic_roles.length).to eq(fixture.dig(:expected, :role_count))
+    expect(projection.generic_signature.kind).to eq(fixture.dig(:expected, :signature_kind))
+    expect(projection.generic_signature.name).to eq(fixture.dig(:expected, :signature_name))
+    expect(projection.requires_private_fields).to eq(fixture.dig(:expected, :requires_private_fields))
+    expect(projection.private_metadata.key?(metadata_namespace)).to eq(true)
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

@@ -649,6 +649,8 @@ module Ast
     GoProviderComparisonReport = Struct.new(:comparison_id, :version, :language, :providers, :dimensions, :diagnostics, keyword_init: true)
     BackendParityCase = Struct.new(:case_id, :native_provider, :tree_sitter_provider, :dimensions, keyword_init: true)
     BackendParitySuite = Struct.new(:suite_id, :version, :language, :cases, :diagnostics, keyword_init: true)
+    ProviderRichnessSignature = Struct.new(:kind, :name, :parameters, :result, keyword_init: true)
+    ProviderRichnessProjection = Struct.new(:projection_id, :version, :provider_id, :node_path, :generic_roles, :generic_signature, :private_metadata, :requires_private_fields, :diagnostics, keyword_init: true)
 
     module_function
 
