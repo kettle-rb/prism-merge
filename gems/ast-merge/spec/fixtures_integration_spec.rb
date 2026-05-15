@@ -615,6 +615,26 @@ RSpec.describe Ast::Merge do
     expect(report.formatting_metrics.formatting_preservation_score).to eq(fixture.dig(:expected, :score))
   end
 
+  it "conforms to the slice-816 formatting recommendation gate fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-816-formatting-recommendation-gate", "formatting-recommendation-gate.json"))
+    raw = fixture[:recommendation_gate]
+    gate = described_class::FormattingRecommendationGate.new(
+      gate_id: raw[:gate_id],
+      version: raw[:version],
+      threshold: raw[:threshold],
+      passed: raw[:passed],
+      weights: described_class::FormattingRecommendationWeights.new(**raw[:weights]),
+      metrics: described_class::FormattingPreservationMetrics.new(**raw[:metrics]),
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(gate.threshold).to eq(fixture.dig(:expected, :threshold))
+    expect(gate.passed).to eq(fixture.dig(:expected, :passed))
+    expect(gate.weights.expected_output_line_diff_size).to eq(fixture.dig(:expected, :line_weight))
+    expect(gate.weights.expected_output_character_diff_size).to eq(fixture.dig(:expected, :character_weight))
+    expect(gate.metrics.formatting_preservation_score).to eq(fixture.dig(:expected, :score))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
