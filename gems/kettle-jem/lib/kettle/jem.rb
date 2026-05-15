@@ -1253,6 +1253,55 @@ module Kettle
       assignments.sort_by { |assignment| bucket_ranges.fetch(assignment.fetch(:bucket)).fetch(:floor) }
     end
 
+    def appraisal_resolve_sub_dependencies(parent_gem:, parent_version:, parent_versions:, dependency_versions:, ruby_min: nil, excluded_gems: [])
+      parent = appraisal_latest_version_matching(parent_versions, parent_version)
+      return {} unless parent
+
+      ruby_floor = Gem::Version.new(ruby_min.to_s) unless ruby_min.to_s.empty?
+      excluded = excluded_gems.map(&:to_s)
+      Array(parent[:runtime_dependencies] || parent["runtime_dependencies"]).each_with_object({}) do |dependency, resolved|
+        name = (dependency[:name] || dependency["name"]).to_s
+        next if name.empty? || excluded.include?(name)
+
+        requirement = begin
+          Gem::Requirement.new(dependency[:requirements] || dependency["requirements"] || ">= 0")
+        rescue ArgumentError
+          Gem::Requirement.default
+        end
+        selected = appraisal_select_dependency_version(
+          Array(dependency_versions[name] || dependency_versions[name.to_sym]),
+          requirement: requirement,
+          ruby_min: ruby_floor
+        )
+        resolved[name] = selected if selected
+      end
+    end
+
+    def appraisal_latest_version_matching(version_metadata, requested_version)
+      prefix = "#{requested_version}."
+      version_metadata.select do |entry|
+        number = (entry[:number] || entry["number"]).to_s
+        number == requested_version.to_s || number.start_with?(prefix)
+      end.max_by { |entry| Gem::Version.new((entry[:number] || entry["number"]).to_s) }
+    end
+
+    def appraisal_select_dependency_version(version_metadata, requirement:, ruby_min:)
+      compatible = version_metadata.select do |entry|
+        number = (entry[:number] || entry["number"]).to_s
+        !number.empty? && requirement.satisfied_by?(Gem::Version.new(number))
+      end.sort_by { |entry| Gem::Version.new((entry[:number] || entry["number"]).to_s) }
+      return if compatible.empty?
+
+      if ruby_min
+        selected = compatible.reverse.find do |entry|
+          min_ruby = entry[:min_ruby] || entry["min_ruby"]
+          min_ruby.to_s.empty? || Gem::Version.new(min_ruby.to_s) <= ruby_min
+        end
+        return (selected || compatible.first).then { |entry| entry[:number] || entry["number"] }
+      end
+      compatible.last.then { |entry| entry[:number] || entry["number"] }
+    end
+
     def discover_facts(project_root, env: ENV)
       gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
       raise ArgumentError, "no gemspec found in #{project_root}" unless gemspec_path

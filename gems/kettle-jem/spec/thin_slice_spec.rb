@@ -1537,6 +1537,33 @@ RSpec.describe Kettle::Jem do
     )
   end
 
+  it "resolves appraisal sub-dependencies from supplied metadata" do
+    resolved = described_class.appraisal_resolve_sub_dependencies(
+      parent_gem: "activerecord",
+      parent_version: "7.1",
+      ruby_min: "3.0",
+      excluded_gems: ["erb", "version_gem"],
+      parent_versions: [
+        {
+          number: "7.1.3",
+          runtime_dependencies: [
+            { name: "sqlite3", requirements: "~> 1.6" },
+            { name: "erb", requirements: ">= 0" },
+          ],
+        },
+      ],
+      dependency_versions: {
+        "sqlite3" => [
+          { number: "1.6.8", min_ruby: "2.7" },
+          { number: "1.6.9", min_ruby: "3.0" },
+          { number: "1.7.0", min_ruby: "3.2" },
+        ],
+      }
+    )
+
+    expect(resolved).to eq("sqlite3" => "1.6.9")
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
