@@ -582,6 +582,35 @@ RSpec.describe TreeHaver do
     expect(unsupported.diagnostics.first).to eq("edit projection unavailable: native tree not retained")
   end
 
+  it "conforms to the slice-925 tree_haver path validation fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-925-tree-haver-path-validation",
+      "path-validation.json"
+    ))
+
+    fixture[:library_path_cases].each do |test_case|
+      validation = described_class.validate_library_path(test_case[:path])
+      expect(validation.path).to eq(test_case[:path])
+      expect(validation.valid).to eq(test_case[:expected_valid]), test_case[:name]
+      expect(validation.errors).to eq(test_case[:expected_errors]), test_case[:name]
+      expect(described_class.library_path_errors(test_case[:path])).to eq(test_case[:expected_errors])
+    end
+
+    fixture[:language_name_cases].each do |test_case|
+      expect(described_class.safe_language_name?(test_case[:value])).to eq(test_case[:expected_valid]), test_case[:name]
+      expect(described_class.sanitize_language_name(test_case[:value])).to eq(test_case[:expected_sanitized]), test_case[:name]
+    end
+
+    fixture[:symbol_name_cases].each do |test_case|
+      expect(described_class.safe_symbol_name?(test_case[:value])).to eq(test_case[:expected_valid]), test_case[:name]
+    end
+
+    fixture[:backend_name_cases].each do |test_case|
+      expect(described_class.safe_backend_name?(test_case[:value])).to eq(test_case[:expected_valid]), test_case[:name]
+    end
+  end
+
   it "conforms to the slice-100 process baseline fixture" do
     fixture = diagnostics_fixture("process_baseline")
     result = described_class.process_with_language_pack(

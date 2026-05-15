@@ -363,6 +363,16 @@ module TreeHaver
     end
   end
 
+  LibraryPathValidation = Struct.new(:path, :valid, :errors, keyword_init: true) do
+    def to_h
+      {
+        path: path,
+        valid: valid,
+        errors: errors || []
+      }
+    end
+  end
+
   SourcePoint = Struct.new(:row, :column, keyword_init: true) do
     def to_h
       {
@@ -452,6 +462,77 @@ module TreeHaver
     NODE_ROLES.dup
   end
   module_function :node_roles
+
+  MAX_LIBRARY_PATH_LENGTH = 4096
+  VALID_LIBRARY_FILENAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/
+  VALID_LANGUAGE_NAME_PATTERN = /\A[a-z][a-z0-9_]*\z/
+  VALID_SYMBOL_NAME_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*\z/
+  VERSIONED_SHARED_OBJECT_PATTERN = /\.so\.\d+\z/
+
+  def validate_library_path(path)
+    errors = library_path_errors(path)
+    LibraryPathValidation.new(path: path, valid: errors.empty?, errors: errors)
+  end
+  module_function :validate_library_path
+
+  def library_path_errors(path)
+    value = path.to_s
+    errors = []
+
+    errors << "path_empty" if value.empty?
+    errors << "path_too_long" if value.length > MAX_LIBRARY_PATH_LENGTH
+    errors << "path_contains_null_byte" if value.include?("\0")
+    errors << "path_not_absolute" unless value.start_with?("/") || windows_absolute_path?(value)
+
+    segments = value.split(%r{[/\\]})
+    errors << "path_contains_parent_traversal" if segments.include?("..")
+    errors << "path_contains_current_directory_traversal" if segments.include?(".")
+    errors << "path_extension_not_allowed" unless allowed_library_extension?(value)
+    errors << "filename_contains_invalid_characters" unless VALID_LIBRARY_FILENAME_PATTERN.match?(library_filename(value))
+
+    errors
+  end
+  module_function :library_path_errors
+
+  def safe_language_name?(name)
+    VALID_LANGUAGE_NAME_PATTERN.match?(name.to_s)
+  end
+  module_function :safe_language_name?
+
+  def sanitize_language_name(name)
+    sanitized = name.to_s.downcase.gsub(/[^a-z0-9_]/, "")
+    safe_language_name?(sanitized) ? sanitized : nil
+  end
+  module_function :sanitize_language_name
+
+  def safe_symbol_name?(symbol)
+    VALID_SYMBOL_NAME_PATTERN.match?(symbol.to_s)
+  end
+  module_function :safe_symbol_name?
+
+  def safe_backend_name?(name)
+    name.to_s == "auto" || !BackendRegistry.fetch(name.to_s).nil?
+  end
+  module_function :safe_backend_name?
+
+  def windows_absolute_path?(path)
+    /\A[A-Za-z]:[\/\\]/.match?(path)
+  end
+  module_function :windows_absolute_path?
+  private_class_method :windows_absolute_path?
+
+  def allowed_library_extension?(path)
+    normalized_path = path.downcase
+    normalized_path.end_with?(".so", ".dylib", ".dll") || VERSIONED_SHARED_OBJECT_PATTERN.match?(normalized_path)
+  end
+  module_function :allowed_library_extension?
+  private_class_method :allowed_library_extension?
+
+  def library_filename(path)
+    path.split(%r{[/\\]}).last.to_s
+  end
+  module_function :library_filename
+  private_class_method :library_filename
 
   ByteEditSpan = Struct.new(:start_byte, :old_end_byte, :new_end_byte, :start_point, :old_end_point, :new_end_point, keyword_init: true) do
     def old_range
