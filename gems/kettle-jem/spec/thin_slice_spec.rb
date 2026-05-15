@@ -2582,10 +2582,20 @@ RSpec.describe Kettle::Jem do
     )
   end
 
-  it "loads configured plugins and runs apply-time remaining-files hooks" do
+  it "loads configured plugins and runs apply-time phase hooks" do
     plugin_module = Module.new do
       class << self
         def register_kettle_jem_plugin(registrar)
+          registrar.before_phase(:github_workflows) do |context:, phase:, **|
+            path = File.join(context.project_root, ".github/workflows/ci.yml")
+            context.out.report_detail("before #{phase}: ci exists=#{File.exist?(path)}")
+          end
+
+          registrar.after_phase(:github_workflows) do |context:, phase:, **|
+            path = File.join(context.project_root, ".github/workflows/ci.yml")
+            context.out.report_detail("after #{phase}: ci exists=#{File.exist?(path)}")
+          end
+
           registrar.after_phase(:remaining_files) do |context:, phase:, phase_stats:, plugin_name:, **|
             path = File.join(context.project_root, "PLUGIN.md")
             File.write(path, "plugin=#{plugin_name}; phase=#{phase}; recipes=#{phase_stats.fetch(:recipe_count)}\n")
@@ -2622,9 +2632,24 @@ RSpec.describe Kettle::Jem do
         loaded_plugins: ["example-plugin"],
         callbacks_run: false
       )
+      expect(plan_lifecycle.fetch(:active_runner_phases)).to eq([])
+      expect(plan.fetch(:phase_reports).map { |phase_report| phase_report.fetch(:phase) }).to include(
+        "github_workflows",
+        "remaining_files"
+      )
+      github_phase = plan.fetch(:phase_reports).find { |phase_report| phase_report.fetch(:phase) == "github_workflows" }
+      expect(github_phase.fetch(:changed_files)).to include(".github/workflows/ci.yml")
       expect(plan.fetch(:run_stats).fetch(:plugin_file_changes)).to eq(0)
 
       apply = described_class.apply_project(root, env: {})
+      expect(apply.fetch(:diagnostics)).to include(
+        kind: "plugin_detail",
+        message: "before github_workflows: ci exists=false"
+      )
+      expect(apply.fetch(:diagnostics)).to include(
+        kind: "plugin_detail",
+        message: "after github_workflows: ci exists=true"
+      )
       expect(File.read(File.join(root, "PLUGIN.md"))).to include("plugin=example-plugin; phase=remaining_files; recipes=")
       expect(apply.fetch(:changed_files)).to include("PLUGIN.md")
       expect(apply.fetch(:run_stats).fetch(:plugin_file_changes)).to eq(1)
@@ -2640,10 +2665,20 @@ RSpec.describe Kettle::Jem do
       apply_lifecycle = apply.fetch(:diagnostics).select { |diagnostic| diagnostic[:kind] == "plugin_lifecycle" }.last
       expect(apply_lifecycle).to include(
         loaded_plugins: ["example-plugin"],
-        callbacks_run: true,
-        active_runner_phase: "remaining_files"
+        callbacks_run: true
       )
+      expect(apply_lifecycle.fetch(:active_runner_phases)).to eq(described_class::PHASE_ORDER.map(&:to_s))
       expect(apply_lifecycle.fetch(:registered_hooks)).to contain_exactly(
+        {
+          plugin_name: "example-plugin",
+          phase: "github_workflows",
+          timing: "before"
+        },
+        {
+          plugin_name: "example-plugin",
+          phase: "github_workflows",
+          timing: "after"
+        },
         {
           plugin_name: "example-plugin",
           phase: "remaining_files",

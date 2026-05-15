@@ -33,6 +33,19 @@ module Kettle
       supplied_disabled_opencollective_file_deletion
       supplied_legacy_destination_file_deletion
     ].freeze
+    PHASE_ORDER = %i[
+      config_sync
+      dev_container
+      github_workflows
+      quality_config
+      modular_gemfiles
+      spec_helper
+      environment_templates
+      remaining_files
+      git_hooks
+      license_files
+      duplicate_check
+    ].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS = %w[REEK bin/setup].freeze
     LEGACY_DESTINATION_PATHS = {
@@ -461,15 +474,16 @@ module Kettle
     end
 
     class PluginContext
-      attr_reader :project_root, :mode, :facts, :recipe_pack, :recipe_reports,
+      attr_reader :project_root, :mode, :facts, :recipe_pack, :recipe_reports, :phase_reports,
         :changed_files, :diagnostics, :helpers, :out
 
-      def initialize(project_root:, mode:, facts:, recipe_pack:, recipe_reports:, changed_files:, diagnostics:)
+      def initialize(project_root:, mode:, facts:, recipe_pack:, recipe_reports:, changed_files:, diagnostics:, phase_reports: [])
         @project_root = project_root
         @mode = mode
         @facts = facts
         @recipe_pack = recipe_pack
         @recipe_reports = recipe_reports
+        @phase_reports = phase_reports
         @changed_files = changed_files
         @diagnostics = diagnostics
         @helpers = PluginHelpers.new(project_root: project_root, changed_files: changed_files, diagnostics: diagnostics)
@@ -1787,7 +1801,14 @@ module Kettle
       plugin_registry = plugin_registry_for_project(project_root)
       changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.sort
       diagnostics = recipe_reports.flat_map { |report| report[:diagnostics] }
-      diagnostics << plugin_lifecycle_diagnostic(plugin_registry, callbacks_run: false) unless plugin_registry.configured_plugins.empty?
+      phase_reports = phase_reports_for(recipe_reports)
+      unless plugin_registry.configured_plugins.empty?
+        diagnostics << plugin_lifecycle_diagnostic(
+          plugin_registry,
+          callbacks_run: false,
+          active_runner_phases: []
+        )
+      end
       run_stats = recipe_run_stats(recipe_reports, diagnostics: diagnostics)
 
       {
@@ -1796,6 +1817,7 @@ module Kettle
         facts: facts,
         recipe_pack: pack,
         recipe_reports: recipe_reports,
+        phase_reports: phase_reports,
         changed_files: changed_files,
         diagnostics: diagnostics,
         run_stats: run_stats,
@@ -1804,18 +1826,7 @@ module Kettle
 
     def apply_project(project_root, env: ENV)
       report = plan_project(project_root, env: env).merge(mode: "apply")
-      report.fetch(:recipe_reports).each do |recipe_report|
-        next unless recipe_report[:changed]
-
-        path = File.join(project_root, recipe_report.fetch(:relative_path))
-        if recipe_report.dig(:metadata, :delete_file)
-          FileUtils.rm_f(path)
-        else
-          FileUtils.mkdir_p(File.dirname(path))
-          File.write(path, recipe_report.fetch(:final_content))
-        end
-      end
-      run_apply_plugin_lifecycle(project_root, report)
+      run_apply_phases(project_root, report)
       report
     end
 
@@ -2871,7 +2882,7 @@ module Kettle
       end
     end
 
-    def plugin_lifecycle_diagnostic(plugin_registry, callbacks_run:)
+    def plugin_lifecycle_diagnostic(plugin_registry, callbacks_run:, active_runner_phases:)
       {
         kind: "plugin_lifecycle",
         configured_plugins: plugin_registry.configured_plugins,
@@ -2885,37 +2896,121 @@ module Kettle
           }
         end,
         callbacks_run: callbacks_run,
-        active_runner_phase: callbacks_run ? "remaining_files" : nil
+        active_runner_phases: active_runner_phases.map(&:to_s)
       }
     end
 
-    def run_apply_plugin_lifecycle(project_root, report)
+    def run_apply_phases(project_root, report)
       plugin_registry = plugin_registry_for_project(project_root)
-      return if plugin_registry.configured_plugins.empty?
-
       changed_files = report.fetch(:changed_files)
       diagnostics = report.fetch(:diagnostics)
-      unless plugin_registry.empty?
-        context = PluginContext.new(
-          project_root: project_root,
-          mode: "apply",
-          facts: report.fetch(:facts),
-          recipe_pack: report.fetch(:recipe_pack),
-          recipe_reports: report.fetch(:recipe_reports),
-          changed_files: changed_files,
-          diagnostics: diagnostics
-        )
-        plugin_registry.run(
-          timing: :after,
-          phase: :remaining_files,
-          context: context,
-          actor: self,
-          phase_stats: { recipe_count: report.fetch(:recipe_reports).length }
+      context = PluginContext.new(
+        project_root: project_root,
+        mode: "apply",
+        facts: report.fetch(:facts),
+        recipe_pack: report.fetch(:recipe_pack),
+        recipe_reports: report.fetch(:recipe_reports),
+        phase_reports: report.fetch(:phase_reports),
+        changed_files: changed_files,
+        diagnostics: diagnostics
+      )
+      reports_by_phase = report.fetch(:recipe_reports).group_by { |recipe_report| recipe_report_phase(recipe_report) }
+      active_runner_phases = report.fetch(:phase_reports).map { |phase_report| phase_report.fetch(:phase).to_sym }
+      active_runner_phases.each do |phase|
+        phase_report = report.fetch(:phase_reports).find { |entry| entry.fetch(:phase).to_sym == phase }
+        phase_stats = phase_report.fetch(:stats)
+        unless plugin_registry.empty?
+          plugin_registry.run(
+            timing: :before,
+            phase: phase,
+            context: context,
+            actor: self,
+            phase_stats: phase_stats
+          )
+        end
+        reports_by_phase.fetch(phase, []).each do |recipe_report|
+          apply_recipe_report(project_root, recipe_report)
+        end
+        unless plugin_registry.empty?
+          plugin_registry.run(
+            timing: :after,
+            phase: phase,
+            context: context,
+            actor: self,
+            phase_stats: phase_stats
+          )
+        end
+      end
+      unless plugin_registry.configured_plugins.empty?
+        diagnostics << plugin_lifecycle_diagnostic(
+          plugin_registry,
+          callbacks_run: true,
+          active_runner_phases: active_runner_phases
         )
       end
-      diagnostics << plugin_lifecycle_diagnostic(plugin_registry, callbacks_run: true)
       changed_files.sort!
       report[:run_stats] = recipe_run_stats(report.fetch(:recipe_reports), diagnostics: diagnostics)
+    end
+
+    def apply_recipe_report(project_root, recipe_report)
+      return unless recipe_report[:changed]
+
+      path = File.join(project_root, recipe_report.fetch(:relative_path))
+      if recipe_report.dig(:metadata, :delete_file)
+        FileUtils.rm_f(path)
+      else
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, recipe_report.fetch(:final_content))
+      end
+    end
+
+    def phase_reports_for(recipe_reports)
+      reports_by_phase = recipe_reports.group_by { |recipe_report| recipe_report_phase(recipe_report) }
+      PHASE_ORDER.map do |phase|
+        reports = reports_by_phase.fetch(phase, [])
+        changed_reports = reports.select { |recipe_report| recipe_report[:changed] }
+        {
+          phase: phase.to_s,
+          recipes: reports.map { |recipe_report| recipe_report[:recipe_name] }.compact,
+          changed_files: changed_reports.map { |recipe_report| recipe_report[:relative_path] }.compact.sort,
+          stats: {
+            recipe_count: reports.length,
+            changed_count: changed_reports.length,
+          },
+        }
+      end
+    end
+
+    def recipe_report_phase(recipe_report)
+      phase_for_recipe(recipe_report[:recipe_name], recipe_report[:relative_path])
+    end
+
+    def phase_for_recipe(recipe_name, relative_path)
+      path = relative_path.to_s
+      name = recipe_name.to_s
+      return :config_sync if path == ".kettle-jem.yml" || name.include?("kettle_config")
+      return :dev_container if path.start_with?(".devcontainer/")
+      return :github_workflows if path.start_with?(".github/workflows/") || path == ".github/FUNDING.yml"
+      return :modular_gemfiles if path.start_with?("gemfiles/modular/")
+      return :spec_helper if path == "spec/spec_helper.rb" || path.start_with?("spec/support/")
+      return :environment_templates if path.start_with?(".env") || path.end_with?(".env")
+      return :git_hooks if path.start_with?(".git/hooks/") || path.start_with?("git-hooks/")
+      return :license_files if path.start_with?("LICENSE") || path.start_with?("NOTICE")
+      return :duplicate_check if name.include?("duplicate")
+      return :quality_config if quality_config_path?(path)
+
+      :remaining_files
+    end
+
+    def quality_config_path?(path)
+      %w[
+        .rubocop.yml
+        .reek.yml
+        .standard.yml
+        .simplecov
+        .yardopts
+        Rakefile
+      ].include?(path)
     end
 
     def recipe_run_stats(recipe_reports, diagnostics: [])
