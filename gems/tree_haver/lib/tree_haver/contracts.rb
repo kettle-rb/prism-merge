@@ -395,6 +395,31 @@ module TreeHaver
     end
   end
 
+  ProviderDiagnostic = Struct.new(:severity, :category, :code, :message, :path, :blocking, keyword_init: true) do
+    def to_h
+      {
+        severity: severity,
+        category: category,
+        code: code,
+        message: message,
+        path: path,
+        blocking: blocking
+      }
+    end
+  end
+
+  ProviderDiagnosticsReport = Struct.new(:provider_id, :backend_ref, :language, :status, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        provider_id: provider_id,
+        backend_ref: backend_ref.to_h,
+        language: language,
+        status: status,
+        diagnostics: (diagnostics || []).map(&:to_h)
+      }
+    end
+  end
+
   SourcePoint = Struct.new(:row, :column, keyword_init: true) do
     def to_h
       {
@@ -558,6 +583,25 @@ module TreeHaver
     BackendAvailabilityReport.new(backend_ref: backend_ref, status: status, checks: checks, diagnostics: diagnostics)
   end
   module_function :build_backend_availability_report
+
+  def build_provider_diagnostics_report(provider_id, backend_ref, language, diagnostics)
+    status = "clean"
+    diagnostics.each do |diagnostic|
+      if diagnostic.blocking
+        status = "blocked"
+        break
+      end
+      status = "warning" if diagnostic.severity == "warning"
+    end
+    ProviderDiagnosticsReport.new(
+      provider_id: provider_id,
+      backend_ref: backend_ref,
+      language: language,
+      status: status,
+      diagnostics: diagnostics
+    )
+  end
+  module_function :build_provider_diagnostics_report
 
   def windows_absolute_path?(path)
     /\A[A-Za-z]:[\/\\]/.match?(path)

@@ -501,6 +501,18 @@ RSpec.describe TreeHaver do
     )
   end
 
+  def provider_diagnostics_report(fixture)
+    described_class::ProviderDiagnosticsReport.new(
+      provider_id: fixture[:provider_id],
+      backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
+      language: fixture[:language],
+      status: fixture[:status],
+      diagnostics: fixture[:diagnostics].map do |diagnostic|
+        described_class::ProviderDiagnostic.new(**diagnostic)
+      end
+    )
+  end
+
   def parse_error_tolerance(fixture)
     described_class::ParseErrorTolerance.new(
       backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
@@ -632,6 +644,25 @@ RSpec.describe TreeHaver do
     %i[available_report unavailable_report unknown_report].each do |name|
       expected = backend_availability_report(fixture[name])
       report = described_class.build_backend_availability_report(expected.backend_ref, expected.checks)
+      expect(json_ready(report.to_h)).to eq(json_ready(expected.to_h)), name.to_s
+    end
+  end
+
+  it "conforms to the slice-927 tree_haver provider diagnostics fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-927-tree-haver-provider-diagnostics",
+      "provider-diagnostics.json"
+    ))
+
+    %i[clean_report warning_report blocked_report].each do |name|
+      expected = provider_diagnostics_report(fixture[name])
+      report = described_class.build_provider_diagnostics_report(
+        expected.provider_id,
+        expected.backend_ref,
+        expected.language,
+        expected.diagnostics
+      )
       expect(json_ready(report.to_h)).to eq(json_ready(expected.to_h)), name.to_s
     end
   end
