@@ -51,6 +51,54 @@ RSpec.describe Ast::Merge do
     expect(merge_ir.changes.fetch(1).class_id).to eq("class-import-strings")
   end
 
+  it "conforms to the slice-906 merge engine suite setting fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-906-merge-engine-suite-setting", "merge-engine-suite-setting.json"))
+    settings = fixture[:settings]
+    expected = fixture[:expected]
+
+    expect(described_class.normalize_merge_engine).to eq(expected[:default_engine])
+    expect(described_class.normalize_merge_engine(settings[:experimental_engine])).to eq(expected[:experimental_engine])
+    expect(settings[:supported_engines].length).to eq(expected[:supported_engine_count])
+    expect(described_class::MERGE_ENGINE_ENVIRONMENT_VARIABLE).to eq(expected[:environment_variable])
+    expect(settings[:experimental_policy]).to eq(expected[:experimental_policy])
+    expect(settings[:runs_same_suite]).to eq(expected[:runs_same_suite])
+    expect(described_class.merge_engine_from_environment(described_class::MERGE_ENGINE_ENVIRONMENT_VARIABLE => settings[:experimental_engine])).to eq("merge_ir_experimental")
+
+    manifest = {
+      family_feature_profiles: [],
+      suite_descriptors: [
+        {
+          kind: "family",
+          subject: { grammar: "go" },
+          roles: ["case"]
+        }
+      ],
+      families: {
+        go: [
+          {
+            role: "case",
+            path: ["go", "case.json"]
+          }
+        ]
+      }
+    }
+    plan = described_class.plan_named_conformance_suites_with_diagnostics(
+      manifest,
+      family_profiles: {
+        go: {
+          family: "go",
+          supported_dialects: [],
+          supported_policies: []
+        }
+      },
+      merge_engine: "merge_ir_experimental"
+    )
+
+    expect(plan[:entries].length).to eq(1)
+    expect(plan.dig(:entries, 0, :plan, :merge_engine)).to eq("merge_ir_experimental")
+    expect(plan.dig(:entries, 0, :plan, :entries, 0, :run, :merge_engine)).to eq("merge_ir_experimental")
+  end
+
   it "conforms to the slice-791 pairwise matchings fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-791-pairwise-matchings", "pairwise-matchings.json"))
     matchings = fixture[:pairwise_matchings].map do |raw|

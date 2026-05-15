@@ -9,11 +9,24 @@ module Ast
     PACKAGE_NAME = "ast-merge"
     REVIEW_TRANSPORT_VERSION = 1
     STRUCTURED_EDIT_TRANSPORT_VERSION = 1
+    MERGE_ENGINE_OWNER_PATH = "owner_path"
+    MERGE_ENGINE_EXPERIMENTAL_MERGE_IR = "merge_ir_experimental"
+    MERGE_ENGINE_ENVIRONMENT_VARIABLE = "SMORG_MERGE_ENGINE"
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
     COMPACT_RULESET_REQUIRED_DIRECTIVES = %w[format owners match read attach].freeze
     COMPACT_RULESET_SINGLETON_DIRECTIVES = %w[
       format owners match read attach comment_style render render_strategy
     ].freeze
+
+    def normalize_merge_engine(engine = nil)
+      engine.to_s == MERGE_ENGINE_EXPERIMENTAL_MERGE_IR ? MERGE_ENGINE_EXPERIMENTAL_MERGE_IR : MERGE_ENGINE_OWNER_PATH
+    end
+
+    def merge_engine_from_environment(env = ENV)
+      normalize_merge_engine(env[MERGE_ENGINE_ENVIRONMENT_VARIABLE])
+    end
+    module_function :normalize_merge_engine, :merge_engine_from_environment
+
     COMPACT_RULESET_REPEATABLE_KEYED_DIRECTIVES = %w[
       backend node_role atomic child_group capability logical_owner repair surface delegate
     ].freeze
@@ -1580,8 +1593,10 @@ module Ast
       JSON.generate(json_ready(definition))
     end
 
-    def default_conformance_family_context(family_profile)
-      { family_profile: deep_dup(family_profile) }
+    def default_conformance_family_context(family_profile, merge_engine = nil)
+      { family_profile: deep_dup(family_profile) }.tap do |context|
+        context[:merge_engine] = normalize_merge_engine(merge_engine) if merge_engine
+      end
     end
 
     def review_request_id_for_family_context(family)
@@ -3680,7 +3695,11 @@ module Ast
     def resolve_conformance_family_context(family, options)
       contexts = options.fetch(:contexts, {})
       key = family.to_sym
-      return [deep_dup(contexts[key] || contexts[family.to_s]), []] if contexts.key?(key) || contexts.key?(family.to_s)
+      if contexts.key?(key) || contexts.key?(family.to_s)
+        context = deep_dup(contexts[key] || contexts[family.to_s])
+        context[:merge_engine] = normalize_merge_engine(options[:merge_engine]) if options[:merge_engine] && !context[:merge_engine]
+        return [context, []]
+      end
 
       if options.fetch(:require_explicit_contexts, false)
         return [nil, [diagnostic("error", "configuration_error", "missing explicit family context for #{family}.")]]
@@ -3688,7 +3707,7 @@ module Ast
 
       family_profiles = options.fetch(:family_profiles, {})
       if family_profiles.key?(key) || family_profiles.key?(family.to_s)
-        context = default_conformance_family_context(family_profiles[key] || family_profiles[family.to_s])
+        context = default_conformance_family_context(family_profiles[key] || family_profiles[family.to_s], options[:merge_engine])
         diagnostics = [diagnostic("warning", "assumed_default", "using default family context for #{family}.")]
         return [context, diagnostics]
       end
@@ -3706,7 +3725,8 @@ module Ast
           family,
           contexts: options.fetch(:contexts, {}),
           family_profiles: options.fetch(:family_profiles, {}),
-          require_explicit_contexts: false
+          require_explicit_contexts: false,
+          merge_engine: options[:merge_engine]
         )
         return [context, diagnostics, [], []]
       end
@@ -3982,7 +4002,7 @@ module Ast
       { results: deep_dup(results), summary: summarize_conformance_results(results) }
     end
 
-    def plan_conformance_suite(manifest, family, roles, family_profile, feature_profile = nil)
+    def plan_conformance_suite(manifest, family, roles, family_profile, feature_profile = nil, merge_engine = nil)
       entries = []
       missing_roles = []
 
@@ -4000,6 +4020,7 @@ module Ast
           family_profile: deep_dup(family_profile)
         }
         run[:feature_profile] = deep_dup(feature_profile) if feature_profile
+        run[:merge_engine] = normalize_merge_engine(merge_engine) if merge_engine
         entries << {
           ref: ref,
           path: deep_dup(entry[:path]),
@@ -4007,7 +4028,9 @@ module Ast
         }
       end
 
-      { family: family, entries: entries, missing_roles: missing_roles }
+      { family: family, entries: entries, missing_roles: missing_roles }.tap do |plan|
+        plan[:merge_engine] = normalize_merge_engine(merge_engine) if merge_engine
+      end
     end
 
     def plan_named_conformance_suite(manifest, selector, family_profile, feature_profile = nil)
@@ -4018,8 +4041,15 @@ module Ast
     end
 
     def plan_named_conformance_suite_entry(manifest, selector, context)
-      plan = plan_named_conformance_suite(manifest, selector, context[:family_profile], context[:feature_profile])
       definition = conformance_suite_definition(manifest, selector)
+      plan = definition && plan_conformance_suite(
+        manifest,
+        definition.dig(:subject, :grammar),
+        definition[:roles],
+        context[:family_profile],
+        context[:feature_profile],
+        context[:merge_engine]
+      )
       plan && definition && { suite: definition, plan: plan }
     end
 
