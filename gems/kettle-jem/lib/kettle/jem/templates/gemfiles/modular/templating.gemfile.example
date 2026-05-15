@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 remote = ENV.fetch("KETTLE_RB_DEV", "false").casecmp("false").zero?
+structuredmerge_ruby_gems = ENV["STRUCTUREDMERGE_RUBY_GEMS"].to_s.strip
 
 # Cross-platform parsers
 gem "parslet"
@@ -20,14 +21,25 @@ platform :mri do
     "~> 2.1",
     require: false # DO NOT LOAD, because conflicts with FFI
 
-  if remote
+  if !structuredmerge_ruby_gems.empty?
+    %w[
+      tree_haver
+      ast-merge
+      ruby-merge
+      toml-merge
+      yaml-merge
+      kettle-jem
+    ].each do |gem_name|
+      gem gem_name, path: File.join(structuredmerge_ruby_gems, gem_name)
+    end
+  elsif remote
     # AST parsing for advanced templating.
     # Kettle-rb's Merge Recipes (released)
-    gem "kettle-jem", "~> 1.0"
+    gem "kettle-jem", ">= 7.0"
   end
 end
 
 # Set KETTLE_RB_DEV=true (or path) for local development with path-based dependencies.
 # When false (default / CI), released gems are used and explicit parser pins are needed.
 # Local path overrides — merge gems bring their own parser dependencies
-eval_gemfile "templating_local.gemfile" unless remote
+eval_gemfile "templating_local.gemfile" if !remote && structuredmerge_ruby_gems.empty?
