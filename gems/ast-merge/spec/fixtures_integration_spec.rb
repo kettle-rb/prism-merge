@@ -560,6 +560,28 @@ RSpec.describe Ast::Merge do
     expect(report.machine_output.fallbacks.fetch(0).scope).to eq(fixture.dig(:expected, :first_fallback_scope))
   end
 
+  it "conforms to the slice-813 render strategy metadata fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-813-render-strategy-metadata", "render-strategy-metadata.json"))
+    raw = fixture[:render_plan]
+    report = described_class::RenderPlanReport.new(
+      plan_id: raw[:plan_id],
+      version: raw[:version],
+      language: raw[:language],
+      strategies: raw[:strategies].map do |entry|
+        span = entry[:span] && described_class::RenderByteSpan.new(**entry[:span])
+        described_class::RenderStrategyMetadata.new(**entry.merge(span: span))
+      end,
+      diagnostics: raw[:diagnostics]
+    )
+    strategies = report.strategies.map(&:strategy)
+
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.strategies.length).to eq(fixture.dig(:expected, :strategy_count))
+    expect(strategies).to eq(fixture.dig(:expected, :strategies))
+    expect(report.strategies.fetch(0).preserves_source_fragment).to eq(fixture.dig(:expected, :source_reuse_preserves_fragment))
+    expect(report.strategies.fetch(-1).requires_reparse).to eq(fixture.dig(:expected, :full_file_requires_reparse))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

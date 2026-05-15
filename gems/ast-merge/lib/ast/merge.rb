@@ -626,6 +626,10 @@ module Ast
     GitDriverOutput = Struct.new(:stdout, :stderr, :exit_code, keyword_init: true)
     FallbackUsageReport = Struct.new(:report_id, :version, :mode, :quiet_by_default, :machine_output, :git_driver_output, :diagnostics, keyword_init: true)
 
+    RenderByteSpan = Struct.new(:start_byte, :end_byte, keyword_init: true)
+    RenderStrategyMetadata = Struct.new(:strategy, :path, :span, :preserves_source_fragment, :requires_reparse, keyword_init: true)
+    RenderPlanReport = Struct.new(:plan_id, :version, :language, :strategies, :diagnostics, keyword_init: true)
+
     module_function
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
