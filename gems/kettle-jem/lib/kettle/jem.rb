@@ -82,6 +82,7 @@ module Kettle
     APPRAISAL_ALWAYS_EXCLUDED_GEMS = %w[version_gem].freeze
     APPRAISAL_VERSION_SELECTION_MODES = %w[major minor patch minor-minmax semver].freeze
     APPRAISAL_MINIMUM_RUBY_FLOOR = Gem::Version.new("2.3")
+    APPRAISAL_DEFAULT_FRESHNESS_TTL = 604_800
 
     class AppraisalRubyGemsResolver
       RUBYGEMS_V1_API_BASE = "https://rubygems.org/api/v1"
@@ -1448,6 +1449,116 @@ module Kettle
           path.end_with?(".gemfile") &&
           !current_names.include?(basename)
       end.sort
+    end
+
+    def appraisal_extract_runtime_dependencies(gemspec_content)
+      gemspec_content.to_s.lines.filter_map do |line|
+        stripped = line.lstrip
+        next if stripped.start_with?("#")
+
+        stripped[/add_(?:runtime_)?dependency\s*\(?\s*["']([^"']+)["']/, 1]
+      end.uniq
+    end
+
+    def appraisal_scaffold_config(gemspec_content:, existing_config: {}, exclusions: [], default_mode: "semver", freshness_ttl: APPRAISAL_DEFAULT_FRESHNESS_TTL)
+      excluded = exclusions.map(&:to_s).to_set
+      runtime_dependencies = appraisal_extract_runtime_dependencies(gemspec_content)
+      tier1 = runtime_dependencies.reject { |name| excluded.include?(name) }.map { |name| { "name" => name } }
+      config = deep_string_key_hash(existing_config)
+      matrix = config["appraisal_matrix"] || {}
+      gems = matrix["gems"] || {}
+
+      matrix["mode"] ||= default_mode
+      matrix["freshness_ttl"] ||= freshness_ttl
+      gems["tier1"] = tier1
+      gems["tier2"] ||= []
+      matrix["gems"] = gems
+      config["appraisal_matrix"] = matrix
+      config
+    end
+
+    def appraisal_matrix_has_versions?(matrix)
+      gems = deep_string_key_hash(matrix || {}).fetch("gems", {})
+      %w[tier1 tier2].any? do |tier|
+        Array(gems[tier]).any? { |gem_config| Array(gem_config["versions"]).any? }
+      end
+    end
+
+    def appraisal_matrix_fresh?(matrix, now: Time.now.to_i)
+      resolved_at = (matrix || {})[:resolved_at] || (matrix || {})["resolved_at"]
+      return false unless resolved_at
+
+      ttl = (matrix || {})[:freshness_ttl] || (matrix || {})["freshness_ttl"] || APPRAISAL_DEFAULT_FRESHNESS_TTL
+      (now.to_i - resolved_at.to_i) < ttl.to_i
+    end
+
+    def appraisal_time_ago(timestamp, now: Time.now.to_i)
+      return "unknown" unless timestamp
+
+      seconds = now.to_i - timestamp.to_i
+      return "#{seconds / 60}m" if seconds < 3600
+      return "#{seconds / 3600}h" if seconds < 86_400
+
+      "#{seconds / 86_400}d"
+    end
+
+    def appraisal_all_versions_for(resolver:, gem_name:, mode:, requirements: nil, include_versions: nil, exclude_versions: nil)
+      base_versions = if mode.to_s == "patch"
+        resolver.versions(gem_name, requirements: requirements).map { |entry| entry[:number] || entry["number"] }
+      else
+        resolver.minor_versions_by_major(gem_name, requirements: requirements).flat_map { |entry| entry[:minors] || entry["minors"] }
+      end
+      appraisal_finalize_versions(base_versions, include_versions: include_versions, exclude_versions: exclude_versions)
+    end
+
+    def appraisal_finalize_versions(base_versions, include_versions: nil, exclude_versions: nil)
+      merged = appraisal_sort_versions(Array(base_versions) + Array(include_versions))
+      excluded = Array(exclude_versions).map(&:to_s).to_set
+      return merged if excluded.empty?
+
+      appraisal_sort_versions(merged.reject { |version| excluded.include?(version) })
+    end
+
+    def appraisal_compatible_version_for_bucket?(resolver:, gem_name:, version:, ruby_series:, bucket_ranges:)
+      range = bucket_ranges[ruby_series] || bucket_ranges[ruby_series.to_s]
+      return true unless range
+
+      ceiling = Gem::Version.new(((range[:ceiling] || range["ceiling"]).to_s))
+      exact_version = appraisal_latest_minor_patch(resolver: resolver, gem_name: gem_name, version: version)
+      min_ruby = resolver.min_ruby_version(gem_name, exact_version)
+      min_ruby.nil? || Gem::Version.new(min_ruby.to_s) <= ceiling
+    rescue StandardError
+      true
+    end
+
+    def appraisal_latest_minor_patch(resolver:, gem_name:, version:)
+      all_versions = resolver.versions(gem_name)
+      prefix = "#{version}."
+      matching = all_versions.select do |entry|
+        number = (entry[:number] || entry["number"]).to_s
+        number == version.to_s || number.start_with?(prefix)
+      end
+      return version.to_s if matching.empty?
+
+      latest = matching.max_by { |entry| Gem::Version.new((entry[:number] || entry["number"]).to_s) }
+      (latest[:number] || latest["number"]).to_s
+    end
+
+    def appraisal_sort_versions(values)
+      values.compact.map(&:to_s).reject(&:empty?).uniq.sort_by { |version| Gem::Version.new(version) }
+    end
+
+    def deep_string_key_hash(value)
+      case value
+      when Hash
+        value.each_with_object({}) do |(key, child), converted|
+          converted[key.to_s] = deep_string_key_hash(child)
+        end
+      when Array
+        value.map { |child| deep_string_key_hash(child) }
+      else
+        value
+      end
     end
 
     def discover_facts(project_root, env: ENV)

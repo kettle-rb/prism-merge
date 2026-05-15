@@ -1628,6 +1628,102 @@ RSpec.describe Kettle::Jem do
     )
   end
 
+  it "ports appraisal CLI config orchestration helpers into Kettle/Jem" do
+    gemspec_content = <<~RUBY
+      Gem::Specification.new do |spec|
+        spec.add_dependency "activerecord", "~> 7.1"
+        spec.add_runtime_dependency("erb", ">= 0")
+        # spec.add_dependency "ignored"
+        spec.add_runtime_dependency "sequel", ">= 5.0"
+      end
+    RUBY
+
+    scaffold = described_class.appraisal_scaffold_config(
+      gemspec_content: gemspec_content,
+      existing_config: {
+        appraisal_matrix: {
+          gems: {
+            tier2: [
+              { name: "omniauth" },
+            ],
+          },
+        },
+      },
+      exclusions: ["erb"],
+      freshness_ttl: 86_400
+    )
+
+    expect(scaffold.fetch("appraisal_matrix")).to include(
+      "mode" => "semver",
+      "freshness_ttl" => 86_400,
+    )
+    expect(scaffold.dig("appraisal_matrix", "gems", "tier1")).to eq(
+      [
+        { "name" => "activerecord" },
+        { "name" => "sequel" },
+      ]
+    )
+    expect(scaffold.dig("appraisal_matrix", "gems", "tier2")).to eq([{ "name" => "omniauth" }])
+
+    expect(described_class.appraisal_matrix_has_versions?(
+      "gems" => {
+        "tier1" => [{ "name" => "activerecord", "versions" => [] }],
+        "tier2" => [{ "name" => "omniauth", "versions" => ["2.1"] }],
+      }
+    )).to be true
+    expect(described_class.appraisal_matrix_fresh?({ "resolved_at" => 100, "freshness_ttl" => 50 }, now: 149)).to be true
+    expect(described_class.appraisal_matrix_fresh?({ "resolved_at" => 100, "freshness_ttl" => 50 }, now: 150)).to be false
+    expect(described_class.appraisal_time_ago(0, now: 90_000)).to eq("1d")
+    expect(described_class.appraisal_finalize_versions(%w[7.1.0 7.1.1], include_versions: ["6.0.9"], exclude_versions: ["7.1.0"])).to eq(
+      %w[6.0.9 7.1.1]
+    )
+
+    resolver = Class.new do
+      def versions(gem_name, requirements: nil)
+        case [gem_name, requirements]
+        when ["activerecord", [">= 7.1", "< 7.2"]]
+          [{ number: "7.1.0" }, { number: "7.1.1" }]
+        when ["omniauth", nil]
+          [{ number: "2.0.0" }, { number: "2.1.3" }]
+        else
+          []
+        end
+      end
+
+      def minor_versions_by_major(gem_name, requirements: nil)
+        case [gem_name, requirements]
+        when ["sequel", nil]
+          [{ major: 5, minors: ["5.0", "5.9"] }]
+        else
+          []
+        end
+      end
+
+      def min_ruby_version(gem_name, version)
+        return Gem::Version.new("3.2") if gem_name == "omniauth" && version == "2.1.3"
+
+        Gem::Version.new("2.7")
+      end
+    end.new
+
+    expect(described_class.appraisal_all_versions_for(
+      resolver: resolver,
+      gem_name: "activerecord",
+      mode: "patch",
+      requirements: [">= 7.1", "< 7.2"],
+      include_versions: ["6.0.9"],
+      exclude_versions: ["7.1.0"]
+    )).to eq(%w[6.0.9 7.1.1])
+    expect(described_class.appraisal_all_versions_for(resolver: resolver, gem_name: "sequel", mode: "major")).to eq(%w[5.0 5.9])
+    expect(described_class.appraisal_compatible_version_for_bucket?(
+      resolver: resolver,
+      gem_name: "omniauth",
+      version: "2.1",
+      ruby_series: "r3.1",
+      bucket_ranges: { "r3.1" => { floor: "3.0", ceiling: "3.1" } }
+    )).to be false
+  end
+
   it "plans stale flat appraisal gemfile cleanup paths" do
     stale_paths = described_class.appraisal_stale_gemfile_paths(
       existing_paths: [
