@@ -1538,7 +1538,9 @@ module Kettle
       case file_type
       when :gemspec
         return merge_gemspec_template_source(template_content, destination_content)
-      when :ruby, :gemfile, :appraisals, :rakefile
+      when :appraisals
+        return merge_appraisals_template_source(template_content, destination_content, facts: facts)
+      when :ruby, :gemfile, :rakefile
         merge_result = Ruby::Merge.merge_ruby(
           template_content,
           destination_content,
@@ -1555,6 +1557,7 @@ module Kettle
       if merge_result[:ok]
         output = merge_result.fetch(:output)
         return merge_gemfile_template_policy(output, facts: facts) if file_type == :gemfile
+        return merge_appraisals_template_policy(output, facts: facts) if file_type == :appraisals
 
         return output
       end
@@ -1580,6 +1583,96 @@ module Kettle
         match && names.include?(match[1])
       end
       ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def merge_appraisals_template_policy(content, facts:)
+      package_name = facts.dig(:package, :name).to_s if facts
+      min_ruby = minimum_ruby_token(facts.dig(:rubygems, :min_ruby)) if facts
+      pruned = prune_appraisals_below_min_ruby(content, min_ruby)
+      remove_gemfile_dependency_lines(pruned, [package_name])
+    end
+
+    def merge_appraisals_template_source(template_content, destination_content, facts:)
+      template = appraisal_blocks(template_content)
+      destination = appraisal_blocks(destination_content)
+      ordered_blocks = template.fetch(:order).map { |name| template.fetch(:blocks).fetch(name) }
+      destination.fetch(:order).each do |name|
+        next if template.fetch(:blocks).key?(name)
+
+        ordered_blocks << destination.fetch(:blocks).fetch(name)
+      end
+      prelude = template.fetch(:prelude).to_s.strip.empty? ? destination.fetch(:prelude) : template.fetch(:prelude)
+      merged = ([prelude.to_s.rstrip] + ordered_blocks.map { |block| block.rstrip }).reject(&:empty?).join("\n\n")
+      merge_appraisals_template_policy(ensure_trailing_newline(merged), facts: facts)
+    end
+
+    def appraisal_blocks(content)
+      lines = content.to_s.lines
+      prelude = []
+      blocks = {}
+      order = []
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        match = line.match(/^\s*appraise\s+["']([^"']+)["']\s+do\b/)
+        unless match
+          prelude << line if blocks.empty?
+          index += 1
+          next
+        end
+
+        stop_index = skip_ruby_do_block(lines, index)
+        name = match[1]
+        unless blocks.key?(name)
+          blocks[name] = lines[index...stop_index].join
+          order << name
+        end
+        index = stop_index
+      end
+      { prelude: prelude.join, blocks: blocks, order: order }
+    end
+
+    def prune_appraisals_below_min_ruby(content, min_ruby)
+      return content if min_ruby.to_s.empty?
+
+      minimum = Gem::Version.new(min_ruby.to_s)
+      lines = content.to_s.lines
+      kept = []
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        match = line.match(/^\s*appraise\s+["']ruby-(\d+)-(\d+)["']\s+do\b/)
+        unless match
+          kept << line
+          index += 1
+          next
+        end
+
+        appraisal_version = Gem::Version.new("#{match[1]}.#{match[2]}")
+        if appraisal_version >= minimum
+          kept << line
+          index += 1
+          next
+        end
+
+        index = skip_ruby_do_block(lines, index)
+      end
+      ensure_trailing_newline(kept.join.gsub(/\n{3,}/, "\n\n"))
+    rescue ArgumentError
+      content
+    end
+
+    def skip_ruby_do_block(lines, start_index)
+      depth = 0
+      index = start_index
+      while index < lines.length
+        line = lines[index]
+        depth += line.scan(/\bdo\b/).length
+        depth -= 1 if line.match?(/^\s*end\b/)
+        index += 1
+        break if depth <= 0
+      end
+      index
     end
 
     def merge_gemspec_template_source(template_content, destination_content)

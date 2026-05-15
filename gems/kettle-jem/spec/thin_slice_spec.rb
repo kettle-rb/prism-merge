@@ -1221,6 +1221,71 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "applies Appraisals template policy with self-dependency and minimum Ruby pruning" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-appraisals-policy-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - Appraisals
+        YAML
+        "Appraisals" => <<~RUBY,
+          # frozen_string_literal: true
+
+          appraise "ruby-2-7" do
+            gem "example"
+            eval_gemfile "gemfiles/modular/x_std_libs/r2/libs.gemfile"
+          end
+
+          appraise "ruby-3-2" do
+            gem "example", path: "../example"
+            eval_gemfile "gemfiles/modular/x_std_libs/r3/libs.gemfile"
+          end
+
+          appraise "coverage" do
+            gem "simplecov"
+          end
+        RUBY
+        "template/Appraisals.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          appraise "ruby-3-2" do
+            eval_gemfile "gemfiles/modular/x_std_libs/r3/libs.gemfile"
+          end
+
+          appraise "style" do
+            eval_gemfile "gemfiles/modular/style.gemfile"
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      appraisals_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_Appraisals"
+      end
+      appraisals_content = appraisals_report.fetch(:final_content)
+
+      expect(appraisals_content).not_to include('appraise "ruby-2-7"')
+      expect(appraisals_content).not_to include('gem "example"')
+      expect(appraisals_content).to include('appraise "ruby-3-2"')
+      expect(appraisals_content).to include('eval_gemfile "gemfiles/modular/x_std_libs/r3/libs.gemfile"')
+      expect(appraisals_content).to include('appraise "coverage"')
+      expect(appraisals_content).to include('gem "simplecov"')
+      expect(appraisals_content).to include('appraise "style"')
+      expect(File.read(File.join(root, "Appraisals"))).to eq(appraisals_content)
+    end
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
