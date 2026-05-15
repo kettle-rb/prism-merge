@@ -360,6 +360,39 @@ module Ast
       end
     end
 
+    SourceTextNormalizedMatch = Struct.new(:normalized_text, :from_path, :to_path, :from_node_id, :to_node_id, :from_source_text, :to_source_text, :confidence, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          normalized_text: normalized_text,
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          from_source_text: from_source_text,
+          to_source_text: to_source_text,
+          confidence: confidence,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    SourceTextNormalizedMatchingReport = Struct.new(:matching_id, :strategy, :from_revision, :to_revision, :normalization, :leaf_kinds, :matches, :unmatched_from, :unmatched_to, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          from_revision: from_revision,
+          to_revision: to_revision,
+          normalization: normalization || [],
+          leaf_kinds: leaf_kinds || [],
+          matches: (matches || []).map(&:to_h),
+          unmatched_from: unmatched_from || [],
+          unmatched_to: unmatched_to || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)

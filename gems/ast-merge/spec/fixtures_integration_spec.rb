@@ -219,6 +219,32 @@ RSpec.describe Ast::Merge do
     expect(report.matches.fetch(0).to_path).to eq(fixture.dig(:expected, :first_match_to_path))
   end
 
+  it "conforms to the slice-799 source-text normalized leaf matching fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-799-source-text-normalized-leaf-matching", "source-text-normalized-leaf-matching.json"))
+    raw = fixture[:matching]
+    report = described_class::SourceTextNormalizedMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      from_revision: raw[:from_revision],
+      to_revision: raw[:to_revision],
+      normalization: raw[:normalization],
+      leaf_kinds: raw[:leaf_kinds],
+      matches: raw[:matches].map { |entry| described_class::SourceTextNormalizedMatch.new(**entry) },
+      unmatched_from: raw[:unmatched_from],
+      unmatched_to: raw[:unmatched_to],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.normalization).to eq(fixture.dig(:expected, :normalization))
+    expect(report.leaf_kinds).to eq(fixture.dig(:expected, :leaf_kinds))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(report.unmatched_from.length).to eq(fixture.dig(:expected, :unmatched_from_count))
+    expect(report.unmatched_to.length).to eq(fixture.dig(:expected, :unmatched_to_count))
+    expect(report.matches.fetch(0).normalized_text).to eq(fixture.dig(:expected, :first_match_normalized_text))
+    expect(report.matches.fetch(0).confidence).to be >= fixture.dig(:expected, :minimum_confidence)
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
