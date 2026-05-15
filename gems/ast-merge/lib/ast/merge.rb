@@ -707,6 +707,10 @@ module Ast
     ProfilePromotionHardGate = Struct.new(:name, :passed, :required, :diagnostics, keyword_init: true)
     ProfilePromotionMetrics = Struct.new(:required_fixture_count, :passed_fixture_count, :formatting_preservation_score, :formatting_threshold, :fallback_count, :fallback_threshold, :unresolved_conflict_count, :backend_parity_passed, keyword_init: true)
     ProfilePromotionReport = Struct.new(:report_id, :version, :profile_id, :backend, :status, :active_profile, :hard_gates, :metrics, :required_suites, :blocking_reasons, :diagnostics, keyword_init: true)
+    ProfileRecommendationGate = Struct.new(:required_fixture_count, :formatting_threshold, :fallback_threshold, :unresolved_conflict_threshold, :requires_backend_parity, :requires_cross_implementation_parity, keyword_init: true)
+    ProfileDefaultGate = Struct.new(:requires_recommended_status, :requires_explicit_package_rollout, :minimum_recommended_days, :requires_narrow_scope, keyword_init: true)
+    ProfilePromotionPolicyEntry = Struct.new(:profile_id, :family, :scope, :eligible_statuses, :recommendation_gate, :default_gate, :required_suites, :diagnostics, keyword_init: true)
+    ProfilePromotionPolicy = Struct.new(:policy_id, :version, :global_hard_gates, :profiles, :diagnostics, keyword_init: true)
     ProfileValidationDiagnostic = Struct.new(:severity, :message, keyword_init: true)
     ProfileValidationResult = Struct.new(:ok, :errors, :warnings, :diagnostics, keyword_init: true)
 

@@ -43,6 +43,15 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  def promotion_policy_entry_contract(entry)
+    described_class::ProfilePromotionPolicyEntry.new(
+      **entry.merge(
+        recommendation_gate: described_class::ProfileRecommendationGate.new(**entry[:recommendation_gate]),
+        default_gate: described_class::ProfileDefaultGate.new(**entry[:default_gate])
+      )
+    )
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
@@ -1289,6 +1298,33 @@ RSpec.describe Ast::Merge do
     expect(report.active_profile.profile_id).to eq(expected[:profile_id])
     expect(blocked.status).to eq(expected[:blocked_status])
     expect(blocked.blocking_reasons.length).to eq(expected[:blocking_reason_count])
+  end
+
+  it "conforms to the slice-912 profile promotion policy fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-912-profile-promotion-policy", "profile-promotion-policy.json"))
+    expected = fixture[:expected]
+    policy_fixture = fixture[:policy]
+    policy = described_class::ProfilePromotionPolicy.new(
+      **policy_fixture.merge(
+        profiles: policy_fixture[:profiles].map { |entry| promotion_policy_entry_contract(entry) }
+      )
+    )
+
+    recommended_eligible = policy.profiles.count { |entry| entry.eligible_statuses.include?("recommended") }
+    default_eligible = policy.profiles.count { |entry| entry.eligible_statuses.include?("default") }
+    source_subprofiles = policy.profiles.count { |entry| entry.scope == "source_subprofile" }
+    json_policy = policy.profiles.find { |entry| entry.profile_id == "json.keyed-object" }
+    ruby_policy = policy.profiles.find { |entry| entry.profile_id == "ruby.gemspec-dependencies" }
+
+    expect(policy.policy_id).to eq(expected[:policy_id])
+    expect(policy.profiles.length).to eq(expected[:profile_count])
+    expect(policy.global_hard_gates.length).to eq(expected[:global_hard_gate_count])
+    expect(recommended_eligible).to eq(expected[:recommended_eligible_count])
+    expect(default_eligible).to eq(expected[:default_eligible_count])
+    expect(source_subprofiles).to eq(expected[:source_subprofile_count])
+    expect(json_policy.recommendation_gate.requires_cross_implementation_parity).to eq(expected[:json_requires_cross_implementation_parity])
+    expect(ruby_policy.recommendation_gate.requires_backend_parity).to eq(expected[:ruby_requires_backend_parity])
+    expect(json_policy.recommendation_gate.formatting_threshold).to eq(expected[:formatting_threshold])
   end
 
   it "conforms to the template source path mapping fixture" do
