@@ -644,6 +644,7 @@ module Ast
     NativeProviderMetadataReport = Struct.new(:provider_id, :family, :host_language, :target_language, :parser_name, :parser_version, :language_version, :dialect, :parse_error_behavior, :source_span_support, :render_support, :semantic_role_support, :retains_native_tree, :native_tree_visibility, :metadata_policy, :diagnostics, keyword_init: true)
     HostLanguageNativeProviderContract = Struct.new(:provider_id, :host_language, :target_language, :parser_name, keyword_init: true)
     HostLanguageNativeProviderContracts = Struct.new(:suite_id, :version, :providers, :diagnostics, keyword_init: true)
+    NativeProviderProvingGroundReport = Struct.new(:report_id, :version, :language, :providers, :checks, :diagnostics, keyword_init: true)
 
     module_function
 

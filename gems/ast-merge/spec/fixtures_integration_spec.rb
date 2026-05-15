@@ -737,6 +737,16 @@ RSpec.describe Ast::Merge do
     expect(contracts.providers.fetch(0).parser_name).to eq(fixture.dig(:expected, :first_provider_parser))
   end
 
+  it "conforms to the slice-824 Go native proving ground fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-824-go-native-proving-ground", "go-native-proving-ground.json"))
+    report = described_class::NativeProviderProvingGroundReport.new(**fixture[:proving_ground])
+
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.providers.length).to eq(fixture.dig(:expected, :provider_count))
+    expect(report.providers).to eq(fixture.dig(:expected, :providers))
+    expect(report.checks).to eq(fixture.dig(:expected, :checks))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
