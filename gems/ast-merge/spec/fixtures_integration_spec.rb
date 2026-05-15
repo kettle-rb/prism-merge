@@ -2392,6 +2392,7 @@ RSpec.describe Ast::Merge do
     structured_edit_request_envelope_fixture = diagnostics_fixture("structured_edit_request_envelope")
     structured_edit_request_envelope_rejection_fixture = diagnostics_fixture("structured_edit_request_envelope_rejection")
     structured_edit_request_envelope_application_fixture = diagnostics_fixture("structured_edit_request_envelope_application")
+    structured_edit_profile_promotion_envelope_fixture = read_json(fixtures_root.join("diagnostics", "slice-915-structured-edit-profile-promotion-envelope", "structured-edit-profile-promotion-envelope.json"))
     structured_edit_execution_report_fixture = diagnostics_fixture("structured_edit_execution_report")
     structured_edit_crispr_overmatch_fail_closed_fixture = diagnostics_fixture("structured_edit_crispr_overmatch_fail_closed")
     structured_edit_crispr_acceptance_scenario_fixture = diagnostics_fixture("structured_edit_crispr_acceptance_scenario")
@@ -3402,6 +3403,19 @@ RSpec.describe Ast::Merge do
         described_class.import_structured_edit_request_envelope(test_case[:envelope])
       expect(json_ready(request_rejection_error)).to eq(json_ready(test_case[:expected_error]))
     end
+
+    profile_promotion_request_envelope = described_class.structured_edit_request_envelope(
+      structured_edit_profile_promotion_envelope_fixture[:structured_edit_request],
+      profile_id: structured_edit_profile_promotion_envelope_fixture.dig(:expected, :profile_id),
+      minimum_profile_status: structured_edit_profile_promotion_envelope_fixture.dig(:expected, :minimum_profile_status),
+      promotion_policy_id: structured_edit_profile_promotion_envelope_fixture.dig(:expected, :promotion_policy_id)
+    )
+    expect(json_ready(profile_promotion_request_envelope)).to eq(
+      json_ready(structured_edit_profile_promotion_envelope_fixture[:expected_request_envelope])
+    )
+    expect(json_ready(described_class.profile_selection_requirement_from_request_envelope(profile_promotion_request_envelope).to_h)).to eq(
+      json_ready(structured_edit_profile_promotion_envelope_fixture[:profile_selection_requirement])
+    )
 
     structured_edit_execution_report_fixture[:cases].each do |entry|
       report = described_class.structured_edit_execution_report(
@@ -6430,6 +6444,19 @@ RSpec.describe Ast::Merge do
         described_class.import_structured_edit_execution_report_envelope(test_case[:envelope])
       expect(json_ready(application_rejection_error)).to eq(json_ready(test_case[:expected_error]))
     end
+
+    profile_promotion_report_envelope = described_class.structured_edit_execution_report_envelope(
+      structured_edit_profile_promotion_envelope_fixture[:structured_edit_execution_report]
+    )
+    expect(json_ready(profile_promotion_report_envelope)).to eq(
+      json_ready(structured_edit_profile_promotion_envelope_fixture[:expected_execution_report_envelope])
+    )
+    expect(structured_edit_profile_promotion_envelope_fixture.dig(:structured_edit_execution_report, :profile_selection_decision, :rejection_code)).to eq(
+      structured_edit_profile_promotion_envelope_fixture.dig(:expected, :rejection_code)
+    )
+    expect(structured_edit_profile_promotion_envelope_fixture.dig(:structured_edit_execution_report, :profile_blocking_reasons).length).to eq(
+      structured_edit_profile_promotion_envelope_fixture.dig(:expected, :profile_blocking_reason_count)
+    )
 
     structured_edit_batch_request_fixture[:cases].each do |entry|
       batch_request = described_class.structured_edit_batch_request(

@@ -2242,12 +2242,27 @@ module Ast
       [deep_dup(envelope[:application]), nil]
     end
 
-    def structured_edit_request_envelope(request)
-      {
+    def structured_edit_request_envelope(request, profile_id: nil, minimum_profile_status: nil, promotion_policy_id: nil)
+      envelope = {
         kind: "structured_edit_request",
         version: STRUCTURED_EDIT_TRANSPORT_VERSION,
         request: deep_dup(request)
       }
+      envelope[:profile_id] = profile_id.to_s if profile_id
+      envelope[:minimum_profile_status] = minimum_profile_status.to_s if minimum_profile_status
+      envelope[:promotion_policy_id] = promotion_policy_id.to_s if promotion_policy_id
+      envelope
+    end
+
+    def profile_selection_requirement_from_request_envelope(envelope)
+      return nil unless envelope[:profile_id] || envelope[:minimum_profile_status] || envelope[:promotion_policy_id]
+
+      ProfileSelectionRequirement.new(
+        profile_id: envelope[:profile_id].to_s,
+        promotion_policy_id: envelope[:promotion_policy_id].to_s,
+        minimum_profile_status: (envelope[:minimum_profile_status] || "available").to_s,
+        enforcement_mode: "required"
+      )
     end
 
     def import_structured_edit_request_envelope(envelope)
@@ -2257,13 +2272,17 @@ module Ast
       [deep_dup(envelope[:request]), nil]
     end
 
-    def structured_edit_execution_report(application:, provider_family:, diagnostics:, provider_backend: nil, metadata: nil)
+    def structured_edit_execution_report(application:, provider_family:, diagnostics:, provider_backend: nil, active_profile: nil, profile_promotion_evaluation: nil, profile_selection_decision: nil, profile_blocking_reasons: nil, metadata: nil)
       report = {
         application: deep_dup(application),
         provider_family: provider_family.to_s,
         diagnostics: deep_dup(diagnostics)
       }
       report[:provider_backend] = provider_backend.to_s if provider_backend
+      report[:active_profile] = deep_dup(active_profile) if active_profile
+      report[:profile_promotion_evaluation] = deep_dup(profile_promotion_evaluation) if profile_promotion_evaluation
+      report[:profile_selection_decision] = deep_dup(profile_selection_decision) if profile_selection_decision
+      report[:profile_blocking_reasons] = Array(profile_blocking_reasons).map(&:to_s) if profile_blocking_reasons
       report[:metadata] = deep_dup(metadata) if metadata
       report
     end
