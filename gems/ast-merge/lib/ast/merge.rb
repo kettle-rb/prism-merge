@@ -712,6 +712,8 @@ module Ast
     ProfilePromotionPolicyEntry = Struct.new(:profile_id, :family, :scope, :eligible_statuses, :recommendation_gate, :default_gate, :required_suites, :diagnostics, keyword_init: true)
     ProfilePromotionPolicy = Struct.new(:policy_id, :version, :global_hard_gates, :profiles, :diagnostics, keyword_init: true)
     ProfilePromotionEvaluation = Struct.new(:profile_id, :status, :blocking_reasons, :diagnostics, keyword_init: true)
+    ProfileSelectionRequirement = Struct.new(:profile_id, :promotion_policy_id, :minimum_profile_status, :enforcement_mode, keyword_init: true)
+    ProfileSelectionDecision = Struct.new(:profile_id, :promotion_policy_id, :minimum_profile_status, :evaluated_status, :enforcement_mode, :satisfied, :enforced, :allowed, :rejection_code, :active_profile, :profile_promotion_evaluation, :blocking_reasons, :diagnostics, keyword_init: true)
     ProfileValidationDiagnostic = Struct.new(:severity, :message, keyword_init: true)
     ProfileValidationResult = Struct.new(:ok, :errors, :warnings, :diagnostics, keyword_init: true)
 
@@ -824,6 +826,46 @@ module Ast
         blocking_reasons: blocking_reasons,
         diagnostics: []
       )
+    end
+
+    def evaluate_profile_selection_requirement(requirement, active_profile, evaluation)
+      satisfied = profile_promotion_status_rank(evaluation.status) >= profile_promotion_status_rank(requirement.minimum_profile_status) &&
+        evaluation.status != "disabled"
+      enforced = requirement.enforcement_mode == "required"
+      allowed = satisfied || !enforced
+      blocking_reasons = evaluation.blocking_reasons.dup
+      rejection_code = ""
+      unless satisfied
+        blocking_reasons.unshift("profile status #{evaluation.status} is below required #{requirement.minimum_profile_status}")
+        rejection_code = "profile_status_unmet" if enforced
+      end
+      diagnostics = evaluation.diagnostics.dup
+      diagnostics << "selected profile does not match promotion evaluation profile" if requirement.profile_id != evaluation.profile_id
+      ProfileSelectionDecision.new(
+        profile_id: requirement.profile_id,
+        promotion_policy_id: requirement.promotion_policy_id,
+        minimum_profile_status: requirement.minimum_profile_status,
+        evaluated_status: evaluation.status,
+        enforcement_mode: requirement.enforcement_mode,
+        satisfied: satisfied,
+        enforced: enforced,
+        allowed: allowed,
+        rejection_code: rejection_code,
+        active_profile: active_profile,
+        profile_promotion_evaluation: evaluation,
+        blocking_reasons: blocking_reasons,
+        diagnostics: diagnostics
+      )
+    end
+
+    def profile_promotion_status_rank(status)
+      {
+        "disabled" => 0,
+        "experimental" => 1,
+        "available" => 2,
+        "recommended" => 3,
+        "default" => 4
+      }.fetch(status, 0)
     end
 
     def profile_promotion_blocking_reasons(entry, report)

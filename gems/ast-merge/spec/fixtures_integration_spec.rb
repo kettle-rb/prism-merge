@@ -70,6 +70,14 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  def promotion_evaluation_contract(fixture)
+    described_class::ProfilePromotionEvaluation.new(**fixture)
+  end
+
+  def profile_selection_requirement_contract(fixture)
+    described_class::ProfileSelectionRequirement.new(**fixture)
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
@@ -1350,6 +1358,37 @@ RSpec.describe Ast::Merge do
     unknown_report = promotion_report_contract(fixture[:recommended_report].merge(profile_id: "unknown.profile"))
     unknown = described_class.evaluate_profile_promotion(policy, unknown_report)
     expect(unknown.status).to eq(expected[:unknown_profile_status])
+  end
+
+  it "conforms to the slice-914 profile selection enforcement fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-914-profile-selection-enforcement", "profile-selection-enforcement.json"))
+    expected = fixture[:expected]
+    active_profile = active_profile_contract(fixture[:active_profile])
+    available_evaluation = promotion_evaluation_contract(fixture[:available_evaluation])
+    recommended_evaluation = promotion_evaluation_contract(fixture[:recommended_evaluation])
+    advisory_requirement = profile_selection_requirement_contract(fixture[:advisory_requirement])
+    required_requirement = profile_selection_requirement_contract(fixture[:required_requirement])
+    satisfied_requirement = profile_selection_requirement_contract(fixture[:satisfied_requirement])
+
+    advisory = described_class.evaluate_profile_selection_requirement(advisory_requirement, active_profile, available_evaluation)
+    expect(advisory.allowed).to eq(expected[:advisory_allowed])
+    expect(advisory.satisfied).to eq(expected[:advisory_satisfied])
+    expect(advisory.enforced).to eq(expected[:advisory_enforced])
+    expect(advisory.rejection_code).to eq(expected[:advisory_rejection_code])
+
+    required = described_class.evaluate_profile_selection_requirement(required_requirement, active_profile, available_evaluation)
+    expect(required.allowed).to eq(expected[:required_allowed])
+    expect(required.satisfied).to eq(expected[:required_satisfied])
+    expect(required.enforced).to eq(expected[:required_enforced])
+    expect(required.rejection_code).to eq(expected[:required_rejection_code])
+    expect(required.blocking_reasons.first).to eq(expected[:required_first_blocking_reason])
+
+    satisfied = described_class.evaluate_profile_selection_requirement(satisfied_requirement, active_profile, recommended_evaluation)
+    expect(satisfied.allowed).to eq(expected[:satisfied_allowed])
+    expect(satisfied.satisfied).to eq(expected[:satisfied_satisfied])
+    expect(satisfied.enforced).to eq(expected[:satisfied_enforced])
+    expect(satisfied.rejection_code).to eq(expected[:satisfied_rejection_code])
+    expect(satisfied.blocking_reasons).to be_empty
   end
 
   it "conforms to the template source path mapping fixture" do
