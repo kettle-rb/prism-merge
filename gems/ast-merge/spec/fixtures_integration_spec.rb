@@ -664,6 +664,16 @@ RSpec.describe Ast::Merge do
     expect(report.weighted).to eq(fixture.dig(:expected, :weighted))
   end
 
+  it "conforms to the slice-819 token span preservation metrics fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-819-token-span-preservation-metrics", "token-span-preservation-metrics.json"))
+    report = described_class::TokenSpanPreservationMetricsReport.new(**fixture[:token_span_metrics])
+
+    expect(report.source_spans_available).to eq(fixture.dig(:expected, :source_spans_available))
+    expect(report.token_preservation).to eq(fixture.dig(:expected, :token_preservation))
+    expect(report.span_preservation).to eq(fixture.dig(:expected, :span_preservation))
+    expect(report.weighted).to eq(fixture.dig(:expected, :weighted))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
