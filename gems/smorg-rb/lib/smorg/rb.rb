@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "go-merge"
+require "ast/merge"
+require "json"
 require "json-merge"
 require "pathname"
 require "plain-merge"
@@ -20,7 +22,7 @@ module Smorg
       command, *rest = args
       case command
       when "merge-driver"
-        run_merge_driver(rest, stderr)
+        run_merge_driver(rest, stdout, stderr)
       when "diff-driver"
         run_diff_driver(rest, stdout, stderr)
       when "conflicts"
@@ -46,9 +48,11 @@ module Smorg
       out.puts("       smorg-rb languages --gitattributes")
     end
 
-    def run_merge_driver(args, stderr)
+    def run_merge_driver(args, stdout, stderr)
       options = parse_merge_driver_options(args, stderr)
       return EXIT_USER_ERROR unless options
+      profile_exit = report_and_enforce_profile(options, stdout, stderr)
+      return profile_exit unless profile_exit == EXIT_SUCCESS
 
       ancestor_source = File.read(options[:ancestor])
       current_source = File.read(options[:current])
@@ -82,7 +86,7 @@ module Smorg
     end
 
     def parse_merge_driver_options(args, stderr)
-      options = { strict: false, fallback: "full-file", check_only: false, exit_code: false }
+      options = { strict: false, fallback: "full-file", check_only: false, exit_code: false, profile_report: false }
       positionals = []
       index = 0
       while index < args.length
@@ -109,6 +113,14 @@ module Smorg
           options[:check_only] = true
         when "--exit-code"
           options[:exit_code] = true
+        when "--profile"
+          index += 1
+          options[:profile_id] = args[index]
+        when "--profile-report"
+          options[:profile_report] = true
+        when "--require-profile-status"
+          index += 1
+          options[:require_profile_status] = args[index]
         when "--fallback"
           index += 1
           options[:fallback] = args[index]
@@ -139,6 +151,34 @@ module Smorg
         return nil
       end
       options
+    end
+
+    def report_and_enforce_profile(options, stdout, stderr)
+      return EXIT_SUCCESS unless options[:profile_id] || options[:profile_report] || options[:require_profile_status]
+
+      profile_id = options[:profile_id] || Ast::Merge::PROMOTION_PROFILE_JSON_KEYED_OBJECT
+      evaluation = Ast::Merge::ProfilePromotionEvaluation.new(
+        profile_id: profile_id,
+        status: "available",
+        blocking_reasons: ["profile promotion evidence is not loaded by this CLI command"],
+        diagnostics: []
+      )
+      decision = Ast::Merge.evaluate_profile_selection_requirement(
+        Ast::Merge::ProfileSelectionRequirement.new(
+          profile_id: profile_id,
+          promotion_policy_id: Ast::Merge.initial_profile_promotion_policy.policy_id,
+          minimum_profile_status: options[:require_profile_status] || "available",
+          enforcement_mode: options[:require_profile_status] ? "required" : "advisory"
+        ),
+        nil,
+        evaluation
+      )
+      stdout.puts(JSON.generate(Ast::Merge.json_ready(decision.to_h))) if options[:profile_report]
+      unless decision.allowed
+        stderr.puts(decision.blocking_reasons.first)
+        return EXIT_USER_ERROR
+      end
+      EXIT_SUCCESS
     end
 
     def run_diff_driver(args, stdout, stderr)

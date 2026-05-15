@@ -74,6 +74,24 @@ RSpec.describe Smorg::RB do
     expect(File.read(current)).not_to include('"other":true')
   end
 
+  it "prints profile report and blocks unmet required profile status" do
+    ancestor = write_file(@dir, "ancestor.json", '{"name":"structuredmerge"}')
+    current = write_file(@dir, "current.json", '{"name":"structuredmerge","current":true}')
+    other = write_file(@dir, "other.json", '{"name":"structuredmerge","other":true}')
+    stdout = StringIO.new
+    stderr = StringIO.new
+
+    exit_code = described_class.run(
+      ["merge-driver", "--profile", "json.keyed-object", "--profile-report", "--require-profile-status", "recommended", ancestor, current, other, "package.json"],
+      stdout: stdout,
+      stderr: stderr
+    )
+
+    expect(exit_code).to eq(described_class::EXIT_USER_ERROR)
+    expect(stdout.string).to include('"rejection_code":"profile_status_unmet"')
+    expect(stderr.string).to include("profile status available is below required recommended")
+  end
+
   it "supports diff-driver git arities" do
     [7, 9].each do |argument_count|
       old_path = write_file(@dir, "old-#{argument_count}.json", '{"old":true}')
