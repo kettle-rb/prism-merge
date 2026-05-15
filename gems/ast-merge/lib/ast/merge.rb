@@ -647,6 +647,8 @@ module Ast
     NativeProviderProvingGroundReport = Struct.new(:report_id, :version, :language, :providers, :checks, :diagnostics, keyword_init: true)
     GoDSTProviderStackReport = Struct.new(:provider_id, :module, :backend_family, :language, :role, :compares_with, :diagnostics, keyword_init: true)
     GoProviderComparisonReport = Struct.new(:comparison_id, :version, :language, :providers, :dimensions, :diagnostics, keyword_init: true)
+    BackendParityCase = Struct.new(:case_id, :native_provider, :tree_sitter_provider, :dimensions, keyword_init: true)
+    BackendParitySuite = Struct.new(:suite_id, :version, :language, :cases, :diagnostics, keyword_init: true)
 
     module_function
 

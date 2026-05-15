@@ -768,6 +768,26 @@ RSpec.describe Ast::Merge do
     expect(report.dimensions.include?("backend_deficiencies")).to eq(fixture.dig(:expected, :includes_backend_deficiencies))
   end
 
+  it "conforms to the slice-827 backend parity fixtures fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-827-backend-parity-fixtures", "backend-parity-fixtures.json"))
+    raw = fixture[:parity_suite]
+    suite = described_class::BackendParitySuite.new(
+      suite_id: raw[:suite_id],
+      version: raw[:version],
+      language: raw[:language],
+      cases: raw[:cases].map { |parity_case| described_class::BackendParityCase.new(**parity_case) },
+      diagnostics: raw[:diagnostics]
+    )
+    native_providers = suite.cases.map(&:native_provider)
+    source_span_case_count = suite.cases.count { |parity_case| parity_case.dimensions.include?("source_spans") }
+
+    expect(suite.language).to eq(fixture.dig(:expected, :language))
+    expect(suite.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(native_providers).to eq(fixture.dig(:expected, :native_providers))
+    expect(suite.cases.fetch(0).tree_sitter_provider).to eq(fixture.dig(:expected, :tree_sitter_provider))
+    expect(source_span_case_count).to eq(fixture.dig(:expected, :source_span_case_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
