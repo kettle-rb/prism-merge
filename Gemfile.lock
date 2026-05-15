@@ -1,4 +1,10 @@
 PATH
+  remote: gems/ast-crispr
+  specs:
+    ast-crispr (7.0.0)
+      ast-merge (= 7.0.0)
+
+PATH
   remote: gems/ast-merge
   specs:
     ast-merge (7.0.0)
@@ -202,6 +208,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  ast-crispr!
   ast-merge!
   ast-template!
   binary-merge!
@@ -230,6 +237,7 @@ DEPENDENCIES
   zip-merge!
 
 CHECKSUMS
+  ast-crispr (7.0.0)
   ast-merge (7.0.0)
   ast-template (7.0.0)
   binary-merge (7.0.0)

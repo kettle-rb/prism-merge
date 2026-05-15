@@ -2,6 +2,7 @@ source "https://rubygems.org"
 
 gemspec path: "gems/tree_haver"
 gemspec path: "gems/ast-merge"
+gemspec path: "gems/ast-crispr"
 gemspec path: "gems/ast-template"
 gemspec path: "gems/kettle-jem"
 gemspec path: "gems/plain-merge"
