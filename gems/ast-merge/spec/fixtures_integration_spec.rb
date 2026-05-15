@@ -30,6 +30,10 @@ RSpec.describe Ast::Merge do
     Marshal.load(Marshal.dump(value))
   end
 
+  def sorted_validation_messages(diagnostics)
+    diagnostics.map(&:message).sort
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
@@ -1205,6 +1209,21 @@ RSpec.describe Ast::Merge do
     expect(contract.git_attributes.language_attributes.first).to eq(expected[:primary_language_attribute])
     expect(contract.rules.signatures.first.name).to eq(expected[:first_signature])
     expect(contract.rules.commutative_parents.first.selector).to eq(expected[:first_commutative_parent])
+  end
+
+  it "conforms to the slice-909 profile validation fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-909-profile-validation", "profile-validation.json"))
+    expected = fixture[:expected]
+
+    structural = described_class.validate_language_backend_profile(fixture[:structural_profile])
+    expect(sorted_validation_messages(structural.errors)).to eq(expected[:structural_errors].sort)
+
+    exhaustive = described_class.validate_language_backend_profile(fixture[:unknown_selector_profile], fixture[:backend_metadata])
+    expect(sorted_validation_messages(exhaustive.errors)).to eq(expected[:exhaustive_backend_errors].sort)
+
+    partial = described_class.validate_language_backend_profile(fixture[:unknown_selector_profile], fixture[:partial_backend_metadata])
+    expect(partial.errors).to be_empty
+    expect(sorted_validation_messages(partial.warnings)).to eq(expected[:partial_backend_warnings].sort)
   end
 
   it "conforms to the template source path mapping fixture" do

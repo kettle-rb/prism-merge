@@ -700,11 +700,125 @@ module Ast
     PerformanceGuardrails = Struct.new(:guardrail_id, :version, :max_bytes, :max_nodes, :max_match_candidates, :timeout_ms, :timeout_diagnostic, :diagnostics, keyword_init: true)
     ProfileSkippedRule = Struct.new(:rule, :reason, keyword_init: true)
     ProfileConformanceReport = Struct.new(:report_id, :version, :profile, :enabled_rules, :skipped_rules, :fallback_count, :unresolved_conflict_count, :diagnostics, keyword_init: true)
+    ProfileValidationDiagnostic = Struct.new(:severity, :message, keyword_init: true)
+    ProfileValidationResult = Struct.new(:ok, :errors, :warnings, :diagnostics, keyword_init: true)
 
     module_function
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
     GENERIC_KEYED_MEMBER_EDIT_HANDLER = "generic-keyed-member-edit"
+
+    def validate_language_backend_profile(profile, capability = nil)
+      errors = []
+      warnings = []
+      diagnostics = []
+      add_error = lambda do |message|
+        diagnostic = ProfileValidationDiagnostic.new(severity: "error", message: message)
+        errors << diagnostic
+        diagnostics << diagnostic
+      end
+      add_warning = lambda do |message|
+        diagnostic = ProfileValidationDiagnostic.new(severity: "warning", message: message)
+        warnings << diagnostic
+        diagnostics << diagnostic
+      end
+
+      rules = profile_value(profile, :rules) || {}
+      valid_roles = %w[structural token trivia comment delimiter separator virtual error opaque]
+      profile_array(rules, :node_roles).each do |role|
+        add_error.call("invalid node role #{role}") unless valid_roles.include?(role)
+      end
+
+      signature_names = []
+      profile_array(rules, :signatures).each do |signature|
+        name = profile_value(signature, :name)
+        selector = profile_value(signature, :selector)
+        extractor = profile_value(signature, :extractor).to_s
+        if name.to_s.empty?
+          add_error.call("signature name is required")
+        elsif signature_names.include?(name)
+          add_error.call("duplicate signature name #{name}")
+        end
+        signature_names << name
+        add_error.call("signature selector is required") if selector.to_s.empty?
+        add_error.call("unsupported signature extractor #{extractor}") unless valid_signature_extractor?(extractor)
+      end
+
+      child_groups = []
+      profile_array(rules, :child_groups).each do |group|
+        name = profile_value(group, :name)
+        if name.to_s.empty?
+          add_error.call("child group name is required")
+        elsif child_groups.include?(name)
+          add_error.call("duplicate child group name #{name}")
+        end
+        child_groups << name
+      end
+      profile_array(rules, :commutative_parents).each do |parent|
+        selector = profile_value(parent, :selector)
+        child_group = profile_value(parent, :child_group)
+        add_error.call("commutative parent selector is required") if selector.to_s.empty?
+        unless child_groups.include?(child_group)
+          add_error.call("commutative parent #{selector} references unknown child group #{child_group}")
+        end
+      end
+      profile_array(rules, :atomic_nodes).each do |atomic|
+        add_error.call("atomic node selector is required") if profile_value(atomic, :selector).to_s.empty?
+      end
+      profile_array(rules, :comment_attachment).each do |attachment|
+        add_error.call("comment attachment selector is required") if profile_value(attachment, :selector).to_s.empty?
+        add_error.call("comment attachment strategy is required") if profile_value(attachment, :strategy).to_s.empty?
+      end
+
+      validate_backend_inventory(profile, capability, add_error, add_warning) if profile_value(capability, :grammar_inventory)
+
+      ProfileValidationResult.new(ok: errors.empty?, errors: errors, warnings: warnings, diagnostics: diagnostics)
+    end
+
+    def valid_signature_extractor?(extractor)
+      extractor == "text" || extractor.start_with?("field:", "kind:", "custom:")
+    end
+
+    def validate_backend_inventory(profile, capability, add_error, add_warning)
+      rules = profile_value(profile, :rules) || {}
+      node_kinds = profile_array(capability, :known_node_kinds)
+      fields = profile_array(capability, :known_fields)
+      report = profile_value(capability, :grammar_inventory) == "exhaustive" ? add_error : add_warning
+      check_selector = lambda do |prefix, selector|
+        report.call("#{prefix} #{selector}") if !selector.to_s.empty? && !node_kinds.empty? && !node_kinds.include?(selector)
+      end
+
+      profile_array(rules, :atomic_nodes).each do |atomic|
+        check_selector.call("unknown atomic node selector", profile_value(atomic, :selector))
+      end
+      profile_array(rules, :signatures).each do |signature|
+        check_selector.call("unknown signature selector", profile_value(signature, :selector))
+        extractor = profile_value(signature, :extractor).to_s
+        next unless extractor.start_with?("field:")
+
+        field = extractor.delete_prefix("field:")
+        report.call("unknown signature field #{field}") if !fields.empty? && !fields.include?(field)
+      end
+      profile_array(rules, :commutative_parents).each do |parent|
+        check_selector.call("unknown commutative parent selector", profile_value(parent, :selector))
+      end
+      profile_array(rules, :comment_attachment).each do |attachment|
+        check_selector.call("unknown comment attachment selector", profile_value(attachment, :selector))
+      end
+    end
+
+    def profile_array(object, key)
+      profile_value(object, key) || []
+    end
+
+    def profile_value(object, key)
+      return nil if object.nil?
+      return object[key] if object.respond_to?(:key?) && object.key?(key)
+      return object[key.to_s] if object.respond_to?(:key?) && object.key?(key.to_s)
+      return object.public_send(key) if object.respond_to?(key)
+
+      nil
+    end
 
     def raw_merge_change_sets(raw_merge_id, change_sets)
       RawMerge.new(

@@ -82,6 +82,9 @@ module TreeHaver
     :semantic_role_support,
     :normalized_tree_support,
     :native_node_access,
+    :known_node_kinds,
+    :known_fields,
+    :grammar_inventory,
     :diagnostics,
     keyword_init: true
   ) do
@@ -98,6 +101,9 @@ module TreeHaver
         semantic_role_support: semantic_role_support,
         normalized_tree_support: normalized_tree_support,
         native_node_access: native_node_access,
+        known_node_kinds: known_node_kinds || [],
+        known_fields: known_fields || [],
+        grammar_inventory: grammar_inventory,
         diagnostics: diagnostics
       }
     end
