@@ -719,6 +719,11 @@ module Ast
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
     GENERIC_KEYED_MEMBER_EDIT_HANDLER = "generic-keyed-member-edit"
+    PROMOTION_PROFILE_JSON_KEYED_OBJECT = "json.keyed-object"
+    PROMOTION_PROFILE_GO_IMPORT_DECLARATIONS = "go.import-declarations"
+    PROMOTION_PROFILE_RUST_USE_DECLARATIONS = "rust.use-declarations"
+    PROMOTION_PROFILE_TYPESCRIPT_IMPORT_DECLARATIONS = "typescript.import-declarations"
+    PROMOTION_PROFILE_RUBY_GEMSPEC_DEPENDENCY_DECLARATIONS = "ruby.gemspec-dependency-declarations"
 
     def evaluate_profile_promotion(policy, report)
       entry = policy.profiles.find { |profile| profile.profile_id == report.profile_id }
