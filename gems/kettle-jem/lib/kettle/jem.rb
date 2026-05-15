@@ -1350,7 +1350,7 @@ module Kettle
       when /\Atemplate_source_preference_/
         original
       when /\Atemplate_source_application_/
-        apply_template_source(project_root, recipe, original)
+        apply_template_source(project_root, recipe, original, facts: facts)
       when "rakefile_scaffold_cleanup"
         deletion.fetch(:content)
       else
@@ -1470,7 +1470,7 @@ module Kettle
       File.read(path)
     end
 
-    def apply_template_source(project_root, recipe, original)
+    def apply_template_source(project_root, recipe, original, facts: nil)
       strategy = recipe.dig(:template_preference, :strategy).to_s
       return original if strategy == "keep_destination"
 
@@ -1493,7 +1493,7 @@ module Kettle
           preserve_config: recipe.dig(:template_preference, :readme_preserve_config) || {}
         )
       end
-      return merge_config_template_source(recipe, resolved, original) if strategy.empty? || strategy == "merge"
+      return merge_config_template_source(recipe, resolved, original, facts: facts) if strategy.empty? || strategy == "merge"
 
       resolved
     end
@@ -1530,7 +1530,7 @@ module Kettle
       ensure_trailing_newline(lines.join("\n").gsub(/\n{3,}/, "\n\n").strip)
     end
 
-    def merge_config_template_source(recipe, template_content, destination_content)
+    def merge_config_template_source(recipe, template_content, destination_content, facts: nil)
       file_type = template_file_type(recipe)
       return template_content if destination_content.to_s.strip.empty?
       return destination_content if destination_content == template_content
@@ -1552,11 +1552,34 @@ module Kettle
       else
         return template_content
       end
-      return merge_result.fetch(:output) if merge_result[:ok]
+      if merge_result[:ok]
+        output = merge_result.fetch(:output)
+        return merge_gemfile_template_policy(output, facts: facts) if file_type == :gemfile
+
+        return output
+      end
 
       diagnostics = merge_result.fetch(:diagnostics, [])
       message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
       raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def merge_gemfile_template_policy(content, facts:)
+      package_name = facts.dig(:package, :name).to_s if facts
+      removable_gems = ["appraisal"]
+      removable_gems << package_name unless package_name.to_s.empty?
+      remove_gemfile_dependency_lines(content, removable_gems)
+    end
+
+    def remove_gemfile_dependency_lines(content, gem_names)
+      names = gem_names.map(&:to_s).reject(&:empty?).uniq
+      return content if names.empty?
+
+      lines = content.to_s.lines.reject do |line|
+        match = line.match(/^\s*gem\s+["']([^"']+)["']/)
+        match && names.include?(match[1])
+      end
+      ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
     end
 
     def merge_gemspec_template_source(template_content, destination_content)

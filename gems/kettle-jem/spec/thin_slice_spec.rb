@@ -1132,6 +1132,7 @@ RSpec.describe Kettle::Jem do
         "Gemfile" => <<~RUBY,
           source "https://rubygems.org"
           gem "rspec"
+          gem "example", path: "../example"
           eval_gemfile "gemfiles/modular/style.gemfile"
         RUBY
         "Rakefile" => <<~RUBY,
@@ -1153,6 +1154,8 @@ RSpec.describe Kettle::Jem do
           source "https://gem.coop"
           gemspec
           eval_gemfile "gemfiles/modular/style.gemfile"
+          gem "appraisal"
+          gem "example", path: "."
           gem "rake"
         RUBY
         "template/Rakefile.example" => <<~RUBY,
@@ -1208,6 +1211,8 @@ RSpec.describe Kettle::Jem do
       expect(gemfile_content.scan('eval_gemfile "gemfiles/modular/style.gemfile"').size).to eq(1)
       expect(gemfile_content).to include('gem "rspec"')
       expect(gemfile_content).to include('gem "rake"')
+      expect(gemfile_content).not_to include('gem "appraisal"')
+      expect(gemfile_content).not_to include('gem "example"')
 
       rakefile_content = rakefile_report.fetch(:final_content)
       expect(rakefile_content.scan(/task\s+:default/).size).to eq(1)
