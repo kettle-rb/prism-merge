@@ -378,11 +378,10 @@ module Ast
             "selection profile helpers",
             "destination profile helpers",
             "operation profile helpers",
-            "replace/delete/insert/move helpers"
-          ],
-          future_exports: [
+            "replace/delete/insert/move helpers",
             "batch operation helpers"
           ],
+          future_exports: [],
           metadata: {
             source: "legacy_crispr_reference",
             decision: "Keep ast-merge as the base contract layer and revive ast-crispr as a separate thin package in every implementation."
@@ -490,6 +489,14 @@ module Ast
           captures_source_text: true,
           supports_if_missing: true
         )
+      end
+
+      def batch_operation_report(profiles)
+        {
+          operation_count: profiles.length,
+          operation_kinds: profiles.map(&:operation_kind),
+          operation_profiles: profiles.map(&:report)
+        }
       end
     end
   end

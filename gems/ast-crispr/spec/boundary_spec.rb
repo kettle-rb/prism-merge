@@ -161,3 +161,31 @@ RSpec.describe "Ast::Crispr operation helpers" do
     end
   end
 end
+
+RSpec.describe "Ast::Crispr batch operation helpers" do
+  it "conforms to the ast-crispr batch operation helper fixture" do
+    fixture_path = Pathname(__dir__).join(
+      "..",
+      "..",
+      "..",
+      "..",
+      "fixtures",
+      "diagnostics",
+      "slice-923-ast-crispr-batch-operation-helpers",
+      "ast-crispr-batch-operation-helpers.json"
+    )
+    fixture = JSON.parse(fixture_path.read, symbolize_names: true)
+
+    helpers = {
+      replace: Ast::Crispr.method(:replace_operation),
+      delete: Ast::Crispr.method(:delete_operation),
+      insert: Ast::Crispr.method(:insert_operation),
+      move: Ast::Crispr.method(:move_operation)
+    }
+
+    fixture.fetch(:cases).each do |test_case|
+      profiles = test_case.fetch(:helpers).map { |helper| helpers.fetch(helper.to_sym).call }
+      expect(Ast::Crispr.batch_operation_report(profiles)).to eq(test_case.fetch(:expected))
+    end
+  end
+end
