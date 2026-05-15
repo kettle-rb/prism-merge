@@ -812,6 +812,29 @@ RSpec.describe Ast::Merge do
     expect(projection.private_metadata.key?(metadata_namespace)).to eq(true)
   end
 
+  it "conforms to the slice-829 backend gap conformance report fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-829-backend-gap-conformance-report", "backend-gap-conformance-report.json"))
+    raw = fixture[:report]
+    report = described_class::BackendGapConformanceReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      language: raw[:language],
+      provider_id: raw[:provider_id],
+      compared_provider_id: raw[:compared_provider_id],
+      gaps: raw[:gaps].map { |gap| described_class::BackendGapConformanceGap.new(**gap) },
+      summary: described_class::BackendGapConformanceSummary.new(**raw[:summary]),
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.provider_id).to eq(fixture.dig(:expected, :provider_id))
+    expect(report.compared_provider_id).to eq(fixture.dig(:expected, :compared_provider_id))
+    expect(report.gaps.length).to eq(fixture.dig(:expected, :gap_count))
+    expect(report.summary.fallback_count).to eq(fixture.dig(:expected, :fallback_count))
+    expect(report.summary.silently_normalized).to eq(fixture.dig(:expected, :silently_normalized))
+    expect(report.gaps.fetch(0).diagnostic_code).to eq(fixture.dig(:expected, :first_diagnostic_code))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

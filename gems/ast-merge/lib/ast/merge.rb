@@ -651,6 +651,9 @@ module Ast
     BackendParitySuite = Struct.new(:suite_id, :version, :language, :cases, :diagnostics, keyword_init: true)
     ProviderRichnessSignature = Struct.new(:kind, :name, :parameters, :result, keyword_init: true)
     ProviderRichnessProjection = Struct.new(:projection_id, :version, :provider_id, :node_path, :generic_roles, :generic_signature, :private_metadata, :requires_private_fields, :diagnostics, keyword_init: true)
+    BackendGapConformanceGap = Struct.new(:capability, :status, :impact, :diagnostic_code, :normalized_fallback, keyword_init: true)
+    BackendGapConformanceSummary = Struct.new(:gap_count, :fallback_count, :silently_normalized, keyword_init: true)
+    BackendGapConformanceReport = Struct.new(:report_id, :version, :language, :provider_id, :compared_provider_id, :gaps, :summary, :diagnostics, keyword_init: true)
 
     module_function
 
