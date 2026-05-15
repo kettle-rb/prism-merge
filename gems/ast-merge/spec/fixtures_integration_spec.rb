@@ -52,6 +52,24 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  def promotion_report_contract(fixture)
+    described_class::ProfilePromotionReport.new(
+      **fixture.merge(
+        active_profile: fixture[:active_profile] && active_profile_contract(fixture[:active_profile]),
+        hard_gates: fixture[:hard_gates].map { |gate| described_class::ProfilePromotionHardGate.new(**gate) },
+        metrics: described_class::ProfilePromotionMetrics.new(**fixture[:metrics])
+      )
+    )
+  end
+
+  def promotion_policy_contract(fixture)
+    described_class::ProfilePromotionPolicy.new(
+      **fixture.merge(
+        profiles: fixture[:profiles].map { |entry| promotion_policy_entry_contract(entry) }
+      )
+    )
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
@@ -1276,19 +1294,8 @@ RSpec.describe Ast::Merge do
     report_fixture = fixture[:report]
     blocked_fixture = fixture[:blocked_report]
 
-    report = described_class::ProfilePromotionReport.new(
-      **report_fixture.merge(
-        active_profile: active_profile_contract(report_fixture[:active_profile]),
-        hard_gates: report_fixture[:hard_gates].map { |gate| described_class::ProfilePromotionHardGate.new(**gate) },
-        metrics: described_class::ProfilePromotionMetrics.new(**report_fixture[:metrics])
-      )
-    )
-    blocked = described_class::ProfilePromotionReport.new(
-      **blocked_fixture.merge(
-        hard_gates: blocked_fixture[:hard_gates].map { |gate| described_class::ProfilePromotionHardGate.new(**gate) },
-        metrics: described_class::ProfilePromotionMetrics.new(**blocked_fixture[:metrics])
-      )
-    )
+    report = promotion_report_contract(report_fixture)
+    blocked = promotion_report_contract(blocked_fixture)
 
     expect(report.profile_id).to eq(expected[:profile_id])
     expect(report.status).to eq(expected[:recommended_status])
@@ -1304,11 +1311,7 @@ RSpec.describe Ast::Merge do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-912-profile-promotion-policy", "profile-promotion-policy.json"))
     expected = fixture[:expected]
     policy_fixture = fixture[:policy]
-    policy = described_class::ProfilePromotionPolicy.new(
-      **policy_fixture.merge(
-        profiles: policy_fixture[:profiles].map { |entry| promotion_policy_entry_contract(entry) }
-      )
-    )
+    policy = promotion_policy_contract(policy_fixture)
 
     recommended_eligible = policy.profiles.count { |entry| entry.eligible_statuses.include?("recommended") }
     default_eligible = policy.profiles.count { |entry| entry.eligible_statuses.include?("default") }
@@ -1325,6 +1328,27 @@ RSpec.describe Ast::Merge do
     expect(json_policy.recommendation_gate.requires_cross_implementation_parity).to eq(expected[:json_requires_cross_implementation_parity])
     expect(ruby_policy.recommendation_gate.requires_backend_parity).to eq(expected[:ruby_requires_backend_parity])
     expect(json_policy.recommendation_gate.formatting_threshold).to eq(expected[:formatting_threshold])
+  end
+
+  it "conforms to the slice-913 profile promotion evaluation fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-913-profile-promotion-evaluation", "profile-promotion-evaluation.json"))
+    expected = fixture[:expected]
+    policy = promotion_policy_contract(fixture[:policy])
+    recommended_report = promotion_report_contract(fixture[:recommended_report])
+    blocked_report = promotion_report_contract(fixture[:blocked_report])
+
+    recommended = described_class.evaluate_profile_promotion(policy, recommended_report)
+    expect(recommended.status).to eq(expected[:recommended_status])
+    expect(recommended.blocking_reasons.length).to eq(expected[:recommended_blocking_reason_count])
+
+    blocked = described_class.evaluate_profile_promotion(policy, blocked_report)
+    expect(blocked.status).to eq(expected[:blocked_status])
+    expect(blocked.blocking_reasons.length).to eq(expected[:blocked_blocking_reason_count])
+    expect(blocked.blocking_reasons.first).to eq(expected[:first_blocking_reason])
+
+    unknown_report = promotion_report_contract(fixture[:recommended_report].merge(profile_id: "unknown.profile"))
+    unknown = described_class.evaluate_profile_promotion(policy, unknown_report)
+    expect(unknown.status).to eq(expected[:unknown_profile_status])
   end
 
   it "conforms to the template source path mapping fixture" do

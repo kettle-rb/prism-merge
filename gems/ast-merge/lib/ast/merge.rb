@@ -711,6 +711,7 @@ module Ast
     ProfileDefaultGate = Struct.new(:requires_recommended_status, :requires_explicit_package_rollout, :minimum_recommended_days, :requires_narrow_scope, keyword_init: true)
     ProfilePromotionPolicyEntry = Struct.new(:profile_id, :family, :scope, :eligible_statuses, :recommendation_gate, :default_gate, :required_suites, :diagnostics, keyword_init: true)
     ProfilePromotionPolicy = Struct.new(:policy_id, :version, :global_hard_gates, :profiles, :diagnostics, keyword_init: true)
+    ProfilePromotionEvaluation = Struct.new(:profile_id, :status, :blocking_reasons, :diagnostics, keyword_init: true)
     ProfileValidationDiagnostic = Struct.new(:severity, :message, keyword_init: true)
     ProfileValidationResult = Struct.new(:ok, :errors, :warnings, :diagnostics, keyword_init: true)
 
@@ -718,6 +719,42 @@ module Ast
 
     GENERIC_INDEPENDENT_COMMUTATIVE_INSERTIONS_HANDLER = "generic-independent-commutative-insertions"
     GENERIC_KEYED_MEMBER_EDIT_HANDLER = "generic-keyed-member-edit"
+
+    def evaluate_profile_promotion(policy, report)
+      entry = policy.profiles.find { |profile| profile.profile_id == report.profile_id }
+      unless entry
+        return ProfilePromotionEvaluation.new(
+          profile_id: report.profile_id,
+          status: "experimental",
+          blocking_reasons: ["profile has no promotion policy"],
+          diagnostics: []
+        )
+      end
+
+      blocking_reasons = profile_promotion_blocking_reasons(entry, report)
+      status = blocking_reasons.empty? && entry.eligible_statuses.include?("recommended") ? "recommended" : "available"
+      ProfilePromotionEvaluation.new(
+        profile_id: report.profile_id,
+        status: status,
+        blocking_reasons: blocking_reasons,
+        diagnostics: []
+      )
+    end
+
+    def profile_promotion_blocking_reasons(entry, report)
+      reasons = []
+      report.hard_gates.each do |gate|
+        reasons << "required hard gate #{gate.name} failed" if gate.required && !gate.passed
+      end
+      gate = entry.recommendation_gate
+      metrics = report.metrics
+      reasons << "passed fixture count is below required fixture count" if metrics.passed_fixture_count < gate.required_fixture_count
+      reasons << "formatting preservation score is below threshold" if metrics.formatting_preservation_score < gate.formatting_threshold
+      reasons << "fallback count exceeds threshold" if metrics.fallback_count > gate.fallback_threshold
+      reasons << "unresolved conflict count exceeds threshold" if metrics.unresolved_conflict_count > gate.unresolved_conflict_threshold
+      reasons << "backend parity did not pass" if gate.requires_backend_parity && !metrics.backend_parity_passed
+      reasons
+    end
 
     def validate_language_backend_profile(profile, capability = nil)
       errors = []
