@@ -705,6 +705,22 @@ RSpec.describe TreeHaver do
     expect(json_ready(rejected.to_h)).to eq(json_ready(unsupported.to_h))
   end
 
+  it "conforms to the slice-929 insert-child edit projection contract fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-929-go-dst-insert-child-edit-projection",
+      "insert-child-edit-projection.json"
+    ))
+
+    expected = edit_projection_execution_result(fixture[:expected_result])
+    result = described_class.build_edit_projection_execution_result(
+      expected.source,
+      expected.applied_operations,
+      expected.diagnostics
+    )
+    expect(json_ready(result.to_h)).to eq(json_ready(expected.to_h))
+  end
+
   it "conforms to the slice-100 process baseline fixture" do
     fixture = diagnostics_fixture("process_baseline")
     result = described_class.process_with_language_pack(
