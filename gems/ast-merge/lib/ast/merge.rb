@@ -638,6 +638,8 @@ module Ast
     FormattingHardGateReport = Struct.new(:report_id, :version, :gates, :diagnostics, keyword_init: true)
     SecondaryFormattingMetricsReport = Struct.new(:report_id, :version, :unchanged_line_churn, :output_diff_size, :source_fragment_retention, :weighted, :diagnostics, keyword_init: true)
     TokenSpanPreservationMetricsReport = Struct.new(:report_id, :version, :source_spans_available, :token_preservation, :span_preservation, :weighted, :diagnostics, keyword_init: true)
+    FormattingEdgeFixtureCase = Struct.new(:case_id, :category, :requires_conflict_markers, keyword_init: true)
+    FormattingEdgeFixtureSuite = Struct.new(:suite_id, :version, :cases, :diagnostics, keyword_init: true)
 
     module_function
 

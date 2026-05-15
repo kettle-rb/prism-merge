@@ -674,6 +674,23 @@ RSpec.describe Ast::Merge do
     expect(report.weighted).to eq(fixture.dig(:expected, :weighted))
   end
 
+  it "conforms to the slice-820 formatting edge fixtures fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-820-formatting-edge-fixtures", "formatting-edge-fixtures.json"))
+    raw = fixture[:fixture_suite]
+    suite = described_class::FormattingEdgeFixtureSuite.new(
+      suite_id: raw[:suite_id],
+      version: raw[:version],
+      cases: raw[:cases].map { |fixture_case| described_class::FormattingEdgeFixtureCase.new(**fixture_case) },
+      diagnostics: raw[:diagnostics]
+    )
+    categories = suite.cases.map(&:category)
+    conflict_marker_case_count = suite.cases.count(&:requires_conflict_markers)
+
+    expect(suite.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(categories).to eq(fixture.dig(:expected, :categories))
+    expect(conflict_marker_case_count).to eq(fixture.dig(:expected, :conflict_marker_case_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
