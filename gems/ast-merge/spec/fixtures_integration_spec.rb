@@ -880,6 +880,25 @@ RSpec.describe Ast::Merge do
     expect(updated_current_file_count).to eq(fixture.dig(:expected, :updated_current_file_count))
   end
 
+  it "conforms to the slice-903 diff driver smoke fixtures fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-903-diff-driver-smoke-fixtures", "diff-driver-smoke-fixtures.json"))
+    raw = fixture[:suite]
+    suite = described_class::DiffDriverSmokeSuite.new(
+      suite_id: raw[:suite_id],
+      version: raw[:version],
+      driver_name: raw[:driver_name],
+      cases: raw[:cases].map { |smoke_case| described_class::DiffDriverSmokeCase.new(**smoke_case) },
+      diagnostics: raw[:diagnostics]
+    )
+    argument_counts = suite.cases.map(&:argument_count)
+    structured_diff_count = suite.cases.count { |smoke_case| smoke_case.expected_output_kind == "structured_diff" }
+
+    expect(suite.driver_name).to eq(fixture.dig(:expected, :driver_name))
+    expect(suite.cases.length).to eq(fixture.dig(:expected, :case_count))
+    expect(argument_counts).to eq(fixture.dig(:expected, :argument_counts))
+    expect(structured_diff_count).to eq(fixture.dig(:expected, :structured_diff_count))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

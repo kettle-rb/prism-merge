@@ -658,6 +658,8 @@ module Ast
     FalseTextualConflictSuite = Struct.new(:suite_id, :version, :source, :cases, :diagnostics, keyword_init: true)
     GitDriverSmokeCase = Struct.new(:case_id, :family, :ancestor_placeholder, :current_placeholder, :other_placeholder, :path_placeholder, :expected_exit_code, :expected_current_file_updated, keyword_init: true)
     GitDriverSmokeSuite = Struct.new(:suite_id, :version, :driver_name, :cases, :diagnostics, keyword_init: true)
+    DiffDriverSmokeCase = Struct.new(:case_id, :argument_count, :argument_roles, :expected_exit_code, :expected_output_kind, keyword_init: true)
+    DiffDriverSmokeSuite = Struct.new(:suite_id, :version, :driver_name, :cases, :diagnostics, keyword_init: true)
 
     module_function
 
