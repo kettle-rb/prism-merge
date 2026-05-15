@@ -29,6 +29,13 @@ The Ruby implementation ships the implementation-specific `smorg-rb` command.
 Use that name in git configuration unless a package manager or local install has
 provided a `smorg` symlink.
 
+Package-manager formulas may expose the selected implementation as `smorg`.
+For a local user-created symlink:
+
+```sh
+ln -s "$(command -v smorg-rb)" ~/.local/bin/smorg
+```
+
 ```sh
 git config merge.smorg-rb.driver 'smorg-rb merge-driver %O %A %B %P'
 git config diff.smorg-rb.command 'smorg-rb diff-driver'
