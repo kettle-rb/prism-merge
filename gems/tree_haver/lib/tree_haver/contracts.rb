@@ -332,6 +332,37 @@ module TreeHaver
     end
   end
 
+  EditProjectionSupport = Struct.new(
+    :backend_ref,
+    :language,
+    :supports_edit_projection,
+    :native_edit_target,
+    :normalized_edit_target,
+    :supported_operations,
+    :required_node_fields,
+    :correlation_keys,
+    :preserves_source_fragments,
+    :unsupported_reason,
+    :diagnostics,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        backend_ref: backend_ref.to_h,
+        language: language,
+        supports_edit_projection: supports_edit_projection,
+        native_edit_target: native_edit_target,
+        normalized_edit_target: normalized_edit_target,
+        supported_operations: supported_operations || [],
+        required_node_fields: required_node_fields || [],
+        correlation_keys: correlation_keys || [],
+        preserves_source_fragments: preserves_source_fragments,
+        unsupported_reason: unsupported_reason,
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
   SourcePoint = Struct.new(:row, :column, keyword_init: true) do
     def to_h
       {

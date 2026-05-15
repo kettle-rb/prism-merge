@@ -474,6 +474,22 @@ RSpec.describe TreeHaver do
     )
   end
 
+  def edit_projection_support(fixture)
+    described_class::EditProjectionSupport.new(
+      backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
+      language: fixture[:language],
+      supports_edit_projection: fixture[:supports_edit_projection],
+      native_edit_target: fixture[:native_edit_target],
+      normalized_edit_target: fixture[:normalized_edit_target],
+      supported_operations: fixture[:supported_operations],
+      required_node_fields: fixture[:required_node_fields],
+      correlation_keys: fixture[:correlation_keys],
+      preserves_source_fragments: fixture[:preserves_source_fragments],
+      unsupported_reason: fixture[:unsupported_reason],
+      diagnostics: fixture[:diagnostics]
+    )
+  end
+
   def parse_error_tolerance(fixture)
     described_class::ParseErrorTolerance.new(
       backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
@@ -541,6 +557,29 @@ RSpec.describe TreeHaver do
     expect(report.member_decisions[1].nested_family).to eq("xml")
     expect(report.unsafe_entries.map(&:category)).to include("path_traversal", "duplicate_normalized_path", "encrypted_member")
     expect(report.merge_report.preserved_ranges.first.length).to eq(76)
+  end
+
+  it "conforms to the slice-924 tree_haver edit projection support fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-924-tree-haver-edit-projection-support",
+      "edit-projection-support.json"
+    ))
+    support = edit_projection_support(fixture[:support])
+    unsupported = edit_projection_support(fixture[:unsupported])
+
+    expect(support.supports_edit_projection).to be(true)
+    expect(support.backend_ref.id).to eq("go-dst")
+    expect(support.supported_operations.first).to eq("replace_node")
+    expect(support.correlation_keys.fetch(1)).to eq("metadata.go_dst.node_path")
+    expect(support.preserves_source_fragments).to be(true)
+    expect(support.unsupported_reason).to be_nil
+
+    expect(unsupported.supports_edit_projection).to be(false)
+    expect(unsupported.backend_ref.id).to eq("psych")
+    expect(unsupported.unsupported_reason).to eq("backend_does_not_retain_native_tree")
+    expect(unsupported.supported_operations).to be_empty
+    expect(unsupported.diagnostics.first).to eq("edit projection unavailable: native tree not retained")
   end
 
   it "conforms to the slice-100 process baseline fixture" do
