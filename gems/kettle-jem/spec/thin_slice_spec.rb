@@ -1497,6 +1497,46 @@ RSpec.describe Kettle::Jem do
     )
   end
 
+  it "detects appraisal Ruby seams and assigns selected versions to buckets" do
+    versions = [
+      { number: "5.2.8", min_ruby: "2.3" },
+      { number: "6.0.6", min_ruby: "2.5" },
+      { number: "6.1.7", min_ruby: "2.5" },
+      { number: "7.0.8", min_ruby: "2.7" },
+      { number: "7.1.5", min_ruby: "2.7" },
+      { number: "7.2.2", min_ruby: "3.1" },
+    ]
+
+    seams = described_class.appraisal_find_ruby_seams(versions)
+    expect(seams).to eq(
+      [
+        { version: "5.2", min_ruby: Gem::Version.new("2.3") },
+        { version: "6.0", min_ruby: Gem::Version.new("2.5") },
+        { version: "7.0", min_ruby: Gem::Version.new("2.7") },
+        { version: "7.2", min_ruby: Gem::Version.new("3.1") },
+      ]
+    )
+
+    series = described_class.appraisal_ruby_series(versions)
+    expect(series.fetch(:buckets)).to eq(["r2.4", "r2.6", "r2", "r3"])
+
+    assignments = described_class.appraisal_assign_version_buckets(
+      selected_versions: ["5.2", "6.1", "7.2"],
+      seams: seams,
+      buckets: series.fetch(:buckets),
+      bucket_ranges: series.fetch(:bucket_ranges),
+      all_versions: ["5.2", "6.0", "6.1", "7.0", "7.1", "7.2"]
+    )
+    expect(assignments).to eq(
+      [
+        { version: "5.2", bucket: "r2.4" },
+        { version: "6.1", bucket: "r2.6" },
+        { version: "7.1", bucket: "r2", filler: true },
+        { version: "7.2", bucket: "r3" },
+      ]
+    )
+  end
+
   it "honors author template token config and environment overrides" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

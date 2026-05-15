@@ -78,6 +78,7 @@ module Kettle
     }.freeze
     APPRAISAL_ALWAYS_EXCLUDED_GEMS = %w[version_gem].freeze
     APPRAISAL_VERSION_SELECTION_MODES = %w[major minor patch minor-minmax semver].freeze
+    APPRAISAL_MINIMUM_RUBY_FLOOR = Gem::Version.new("2.3")
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
     README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze
@@ -1105,6 +1106,151 @@ module Kettle
           minors: entries.map { |entry| entry.fetch(:minor) }.sort_by { |minor| Gem::Version.new(minor) },
         }
       end.sort_by { |entry| entry.fetch(:major) }
+    end
+
+    def appraisal_find_ruby_seams(version_metadata)
+      minors = appraisal_latest_patch_by_minor(version_metadata)
+      seams = []
+      previous = nil
+      minors.sort_by { |minor, _entry| Gem::Version.new(minor) }.each do |minor, entry|
+        min_ruby = Gem::Version.new((entry[:min_ruby] || entry["min_ruby"]).to_s)
+        min_ruby = [min_ruby, APPRAISAL_MINIMUM_RUBY_FLOOR].max
+        if previous.nil? || min_ruby > previous
+          seams << { version: minor, min_ruby: min_ruby }
+        end
+        previous = min_ruby
+      end
+      seams
+    end
+
+    def appraisal_ruby_series(version_metadata, project_min_ruby: nil)
+      floors = appraisal_find_ruby_seams(version_metadata).map { |seam| seam.fetch(:min_ruby) }
+      if project_min_ruby
+        floor = Gem::Version.new(project_min_ruby.to_s)
+        floors.reject! { |version| version < floor }
+        floors << floor unless floors.include?(floor)
+      end
+      floors = [Gem::Version.new("3.2")] if floors.empty?
+      appraisal_minor_versions_to_buckets(floors.map { |version| appraisal_minor_key(version) }.uniq.sort)
+    end
+
+    def appraisal_assign_version_buckets(selected_versions:, seams:, buckets:, bucket_ranges:, all_versions:)
+      return [] if selected_versions.empty? || buckets.empty?
+
+      normalized_ranges = appraisal_normalized_bucket_ranges(bucket_ranges)
+      version_min_rubies = appraisal_version_min_ruby_map(all_versions, seams)
+      assignments = selected_versions.sort_by { |version| Gem::Version.new(version) }.filter_map do |version|
+        min_ruby = version_min_rubies[version]
+        next unless min_ruby
+
+        next_seam = appraisal_next_seam_ruby(version, min_ruby, all_versions, version_min_rubies)
+        bucket = next_seam ? appraisal_bucket_below(next_seam, buckets, normalized_ranges) : buckets.last
+        { version: version, bucket: bucket } if bucket
+      end
+      appraisal_fill_bucket_gaps(assignments, buckets, normalized_ranges, version_min_rubies, all_versions)
+    end
+
+    def appraisal_latest_patch_by_minor(version_metadata)
+      version_metadata.each_with_object({}) do |entry, latest|
+        number = (entry[:number] || entry["number"]).to_s
+        next if number.empty?
+
+        version = Gem::Version.new(number)
+        minor = "#{version.segments[0]}.#{version.segments[1] || 0}"
+        current = latest[minor]
+        latest[minor] = entry if current.nil? || version > Gem::Version.new((current[:number] || current["number"]).to_s)
+      end
+    end
+
+    def appraisal_minor_versions_to_buckets(minor_versions)
+      by_major = minor_versions.group_by { |minor| minor.split(".").first.to_i }
+      buckets = []
+      ranges = {}
+      by_major.each do |major, minors|
+        sorted = minors.sort_by { |minor| Gem::Version.new(minor) }
+        sorted.each_with_index do |minor, index|
+          bucket = index == sorted.length - 1 ? "r#{major}" : "r#{major}.#{[sorted[index + 1].split(".").last.to_i - 1, minor.split(".").last.to_i].max}"
+          next if ranges.key?(bucket)
+
+          buckets << bucket
+          ceiling = index == sorted.length - 1 ? "#{major}.99" : bucket.split(".").last ? "#{major}.#{bucket.split(".").last}" : "#{major}.99"
+          ranges[bucket] = { floor: Gem::Version.new(minor), ceiling: Gem::Version.new(ceiling) }
+        end
+      end
+      { buckets: buckets.sort_by { |bucket| appraisal_bucket_sort_key(bucket) }, bucket_ranges: ranges }
+    end
+
+    def appraisal_minor_key(version)
+      segments = Gem::Version.new(version.to_s).segments
+      "#{segments[0]}.#{segments[1] || 0}"
+    end
+
+    def appraisal_bucket_sort_key(bucket)
+      match = bucket.to_s.match(/\Ar(\d+)(?:\.(\d+))?\z/)
+      [match[1].to_i, match[2] ? match[2].to_i : 999]
+    end
+
+    def appraisal_normalized_bucket_ranges(bucket_ranges)
+      bucket_ranges.transform_values do |range|
+        {
+          floor: Gem::Version.new((range[:floor] || range["floor"]).to_s),
+          ceiling: Gem::Version.new((range[:ceiling] || range["ceiling"]).to_s),
+        }
+      end
+    end
+
+    def appraisal_version_min_ruby_map(all_versions, seams)
+      sorted_seams = seams.sort_by { |seam| Gem::Version.new(seam[:version] || seam["version"]) }
+      seam_index = 0
+      current = nil
+      all_versions.sort_by { |version| Gem::Version.new(version) }.each_with_object({}) do |version, map|
+        while seam_index < sorted_seams.length && Gem::Version.new(sorted_seams[seam_index][:version] || sorted_seams[seam_index]["version"]) <= Gem::Version.new(version)
+          current = Gem::Version.new((sorted_seams[seam_index][:min_ruby] || sorted_seams[seam_index]["min_ruby"]).to_s)
+          current = [current, APPRAISAL_MINIMUM_RUBY_FLOOR].max
+          seam_index += 1
+        end
+        map[version] = current if current
+      end
+    end
+
+    def appraisal_next_seam_ruby(version, min_ruby, all_versions, version_min_rubies)
+      found = false
+      all_versions.sort_by { |candidate| Gem::Version.new(candidate) }.each do |candidate|
+        found ||= Gem::Version.new(candidate) >= Gem::Version.new(version)
+        next unless found
+
+        candidate_ruby = version_min_rubies[candidate]
+        return candidate_ruby if candidate_ruby && candidate_ruby > min_ruby
+      end
+      nil
+    end
+
+    def appraisal_bucket_below(ruby_floor, buckets, bucket_ranges)
+      buckets.filter_map do |bucket|
+        range = bucket_ranges[bucket]
+        next unless range && range.fetch(:ceiling) < ruby_floor
+
+        [bucket, range.fetch(:ceiling)]
+      end.max_by(&:last)&.first
+    end
+
+    def appraisal_fill_bucket_gaps(assignments, buckets, bucket_ranges, version_min_rubies, all_versions)
+      covered = assignments.map { |assignment| assignment.fetch(:bucket) }
+      (buckets - covered).each do |bucket|
+        range = bucket_ranges[bucket]
+        next unless range
+
+        filler = all_versions.sort_by { |version| Gem::Version.new(version) }.reverse.find do |version|
+          ruby = version_min_rubies[version]
+          ruby && ruby.between?(range.fetch(:floor), range.fetch(:ceiling))
+        end
+        filler ||= all_versions.sort_by { |version| Gem::Version.new(version) }.reverse.find do |version|
+          ruby = version_min_rubies[version]
+          ruby && ruby <= range.fetch(:ceiling)
+        end
+        assignments << { version: filler, bucket: bucket, filler: true } if filler
+      end
+      assignments.sort_by { |assignment| bucket_ranges.fetch(assignment.fetch(:bucket)).fetch(:floor) }
     end
 
     def discover_facts(project_root, env: ENV)
