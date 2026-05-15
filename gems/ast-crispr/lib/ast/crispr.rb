@@ -377,10 +377,10 @@ module Ast
             "match profile helpers",
             "selection profile helpers",
             "destination profile helpers",
-            "operation profile helpers"
+            "operation profile helpers",
+            "replace/delete/insert/move helpers"
           ],
           future_exports: [
-            "replace/delete/insert/move helpers",
             "batch operation helpers"
           ],
           metadata: {
@@ -445,6 +445,50 @@ module Ast
           replacement_source: replacement_source,
           captures_source_text: captures_source_text,
           supports_if_missing: supports_if_missing
+        )
+      end
+
+      def replace_operation
+        OperationProfile.new(
+          operation_kind: "replace",
+          source_requirement: "required",
+          destination_requirement: "none",
+          replacement_source: "explicit_text",
+          captures_source_text: true,
+          supports_if_missing: false
+        )
+      end
+
+      def delete_operation
+        OperationProfile.new(
+          operation_kind: "delete",
+          source_requirement: "required",
+          destination_requirement: "none",
+          replacement_source: "none",
+          captures_source_text: true,
+          supports_if_missing: false
+        )
+      end
+
+      def insert_operation
+        OperationProfile.new(
+          operation_kind: "insert",
+          source_requirement: "none",
+          destination_requirement: "optional",
+          replacement_source: "explicit_text",
+          captures_source_text: false,
+          supports_if_missing: true
+        )
+      end
+
+      def move_operation
+        OperationProfile.new(
+          operation_kind: "move",
+          source_requirement: "optional",
+          destination_requirement: "optional",
+          replacement_source: "captured_text_or_explicit",
+          captures_source_text: true,
+          supports_if_missing: true
         )
       end
     end
