@@ -315,6 +315,51 @@ module Ast
       end
     end
 
+    SignatureMatchingParent = Struct.new(:kind, :role, :from_path, :to_path, :from_node_id, :to_node_id, :child_order, keyword_init: true) do
+      def to_h
+        {
+          kind: kind,
+          role: role,
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          child_order: child_order
+        }
+      end
+    end
+
+    SignatureNodeMatch = Struct.new(:signature, :from_path, :to_path, :from_node_id, :to_node_id, :confidence, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          signature: signature,
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          confidence: confidence,
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    SignatureMatchingReport = Struct.new(:matching_id, :strategy, :parent_policy, :signature_components, :from_revision, :to_revision, :matches, :unmatched_from, :unmatched_to, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          parent_policy: parent_policy,
+          signature_components: signature_components || [],
+          from_revision: from_revision,
+          to_revision: to_revision,
+          matches: (matches || []).map(&:to_h),
+          unmatched_from: unmatched_from || [],
+          unmatched_to: unmatched_to || [],
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)

@@ -190,6 +190,35 @@ RSpec.describe Ast::Merge do
     expect(report.matches.fetch(1).from_path).to eq("/declarations/Greet")
   end
 
+  it "conforms to the slice-798 signature matching commutative parent fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-798-signature-matching-commutative-parent", "signature-matching-commutative-parent.json"))
+    parent = described_class::SignatureMatchingParent.new(**fixture[:parent])
+    raw = fixture[:matching]
+    report = described_class::SignatureMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      parent_policy: raw[:parent_policy],
+      signature_components: raw[:signature_components],
+      from_revision: raw[:from_revision],
+      to_revision: raw[:to_revision],
+      matches: raw[:matches].map { |entry| described_class::SignatureNodeMatch.new(**entry) },
+      unmatched_from: raw[:unmatched_from],
+      unmatched_to: raw[:unmatched_to],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(parent.child_order).to eq(fixture.dig(:expected, :parent_policy))
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.parent_policy).to eq(fixture.dig(:expected, :parent_policy))
+    expect(report.signature_components).to eq(fixture.dig(:expected, :signature_components))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(report.unmatched_from.length).to eq(fixture.dig(:expected, :unmatched_from_count))
+    expect(report.unmatched_to.length).to eq(fixture.dig(:expected, :unmatched_to_count))
+    expect(fixture.dig(:expected, :order_sensitive)).to be(false)
+    expect(report.matches.fetch(0).signature).to eq(fixture.dig(:expected, :first_match_signature))
+    expect(report.matches.fetch(0).to_path).to eq(fixture.dig(:expected, :first_match_to_path))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
