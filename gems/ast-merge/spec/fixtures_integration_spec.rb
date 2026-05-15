@@ -1174,6 +1174,39 @@ RSpec.describe Ast::Merge do
     expect(json_ready(feature_profile)).to eq(json_ready(fixture[:feature_profile]))
   end
 
+  it "conforms to the slice-908 language backend profile schema fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-908-language-backend-profile-schema", "language-backend-profile-schema.json"))
+    profile = fixture[:profile]
+    expected = fixture[:expected]
+
+    contract = described_class::LanguageBackendProfile.new(
+      profile_id: profile[:profile_id],
+      family: profile[:family],
+      version: profile[:version],
+      parser_identity: described_class::ParserIdentity.new(**profile[:parser_identity]),
+      extensions: profile[:extensions],
+      aliases: profile[:aliases],
+      git_attributes: described_class::GitAttributeProfile.new(**profile[:git_attributes]),
+      supported_dialects: profile[:supported_dialects],
+      backends: profile[:backends].map { |backend| described_class::BackendProfile.new(**backend) },
+      rules: described_class::LanguageBackendProfileRules.new(
+        node_roles: profile.dig(:rules, :node_roles),
+        atomic_nodes: profile.dig(:rules, :atomic_nodes).map { |rule| described_class::AtomicNodeRule.new(**rule) },
+        signatures: profile.dig(:rules, :signatures).map { |rule| described_class::SignatureDefinition.new(**rule) },
+        commutative_parents: profile.dig(:rules, :commutative_parents).map { |rule| described_class::CommutativeParentDefinition.new(**rule) },
+        child_groups: profile.dig(:rules, :child_groups).map { |rule| described_class::ChildGroupDefinition.new(**rule) },
+        comment_attachment: profile.dig(:rules, :comment_attachment).map { |rule| described_class::CommentAttachmentRule.new(**rule) }
+      )
+    )
+
+    expect(contract.profile_id).to eq(expected[:profile_id])
+    expect(contract.family).to eq(expected[:family])
+    expect(contract.backends.first.backend).to eq(expected[:default_backend])
+    expect(contract.git_attributes.language_attributes.first).to eq(expected[:primary_language_attribute])
+    expect(contract.rules.signatures.first.name).to eq(expected[:first_signature])
+    expect(contract.rules.commutative_parents.first.selector).to eq(expected[:first_commutative_parent])
+  end
+
   it "conforms to the template source path mapping fixture" do
     fixture = diagnostics_fixture("template_source_path_mapping")
 

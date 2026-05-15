@@ -645,6 +645,17 @@ module Ast
     LanguageProfileHandlerRegistration = Struct.new(:role, :handler_id, :conflict_categories, :enabled, keyword_init: true)
     LanguageProfileHandlerRegistry = Struct.new(:profile_id, :language, :version, :registrations, :diagnostics, keyword_init: true)
 
+    ParserIdentity = Struct.new(:parser, :backend, :backend_family, :parser_version, :language_version, keyword_init: true)
+    GitAttributeProfile = Struct.new(:attribute_namespace, :language_attributes, :language, :merge_driver, :diff_driver, :conflict_marker_size_attribute, keyword_init: true)
+    BackendProfile = Struct.new(:backend, :family, :default, :capabilities, keyword_init: true)
+    AtomicNodeRule = Struct.new(:selector, :reason, keyword_init: true)
+    SignatureDefinition = Struct.new(:name, :selector, :extractor, keyword_init: true)
+    CommutativeParentDefinition = Struct.new(:selector, :child_group, keyword_init: true)
+    ChildGroupDefinition = Struct.new(:name, :separator, :delimiter, keyword_init: true)
+    CommentAttachmentRule = Struct.new(:selector, :strategy, keyword_init: true)
+    LanguageBackendProfileRules = Struct.new(:node_roles, :atomic_nodes, :signatures, :commutative_parents, :child_groups, :comment_attachment, keyword_init: true)
+    LanguageBackendProfile = Struct.new(:profile_id, :family, :version, :parser_identity, :extensions, :aliases, :git_attributes, :supported_dialects, :backends, :rules, keyword_init: true)
+
     FallbackUsageEntry = Struct.new(:fallback_id, :strategy, :scope, :path, :conflict_category, keyword_init: true)
     FallbackUsageSummary = Struct.new(:fallback_count, :conflict_count, :resolved_count, keyword_init: true)
     FallbackUsageMachineOutput = Struct.new(:fallbacks, :summary, keyword_init: true)
