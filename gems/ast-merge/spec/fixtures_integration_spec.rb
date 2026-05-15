@@ -325,6 +325,34 @@ RSpec.describe Ast::Merge do
     expect(report.ambiguities.fetch(0).selected).to eq(fixture.dig(:expected, :first_ambiguity_selected))
   end
 
+  it "conforms to the slice-803 duplicate signature tie-break fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-803-duplicate-signature-tie-break", "duplicate-signature-tie-break.json"))
+    raw = fixture[:matching]
+    report = described_class::TieBreakMatchingReport.new(
+      matching_id: raw[:matching_id],
+      strategy: raw[:strategy],
+      scope_path: raw[:scope_path],
+      tie_break_rules: raw[:tie_break_rules],
+      matches: raw[:matches].map do |entry|
+        described_class::TieBreakMatch.new(
+          **entry.merge(
+            rejected_candidates: entry[:rejected_candidates].map { |candidate| described_class::RejectedTieBreakCandidate.new(**candidate) }
+          )
+        )
+      end,
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.strategy).to eq(fixture.dig(:expected, :strategy))
+    expect(report.scope_path).to eq(fixture.dig(:expected, :scope_path))
+    expect(report.tie_break_rules).to eq(fixture.dig(:expected, :tie_break_rules))
+    expect(report.matches.length).to eq(fixture.dig(:expected, :match_count))
+    expect(report.matches.fetch(0).signature).to eq(fixture.dig(:expected, :first_match_signature))
+    expect(report.matches.fetch(0).selected_by).to eq(fixture.dig(:expected, :first_match_selected_by))
+    expect(report.matches.fetch(0).rejected_candidates.length).to eq(fixture.dig(:expected, :rejected_candidate_count))
+    expect(report.matches.fetch(0).rejected_candidates.fetch(0).rejected_by).to eq(fixture.dig(:expected, :first_rejected_by))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {

@@ -513,6 +513,46 @@ module Ast
       end
     end
 
+    RejectedTieBreakCandidate = Struct.new(:from_path, :from_node_id, :confidence, :rejected_by, keyword_init: true) do
+      def to_h
+        {
+          from_path: from_path,
+          from_node_id: from_node_id,
+          confidence: confidence,
+          rejected_by: rejected_by
+        }
+      end
+    end
+
+    TieBreakMatch = Struct.new(:signature, :from_path, :to_path, :from_node_id, :to_node_id, :confidence, :selected_by, :rejected_candidates, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          signature: signature,
+          from_path: from_path,
+          to_path: to_path,
+          from_node_id: from_node_id,
+          to_node_id: to_node_id,
+          confidence: confidence,
+          selected_by: selected_by,
+          rejected_candidates: (rejected_candidates || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
+    TieBreakMatchingReport = Struct.new(:matching_id, :strategy, :scope_path, :tie_break_rules, :matches, :diagnostics, keyword_init: true) do
+      def to_h
+        {
+          matching_id: matching_id,
+          strategy: strategy,
+          scope_path: scope_path,
+          tie_break_rules: tie_break_rules || [],
+          matches: (matches || []).map(&:to_h),
+          diagnostics: diagnostics || []
+        }
+      end
+    end
+
     module_function
 
     def conformance_family_entries(manifest, family)
