@@ -662,6 +662,8 @@ module Ast
     DiffDriverSmokeSuite = Struct.new(:suite_id, :version, :driver_name, :cases, :diagnostics, keyword_init: true)
     PerformanceTimeoutDiagnostic = Struct.new(:severity, :category, :code, :fallback, keyword_init: true)
     PerformanceGuardrails = Struct.new(:guardrail_id, :version, :max_bytes, :max_nodes, :max_match_candidates, :timeout_ms, :timeout_diagnostic, :diagnostics, keyword_init: true)
+    ProfileSkippedRule = Struct.new(:rule, :reason, keyword_init: true)
+    ProfileConformanceReport = Struct.new(:report_id, :version, :profile, :enabled_rules, :skipped_rules, :fallback_count, :unresolved_conflict_count, :diagnostics, keyword_init: true)
 
     module_function
 

@@ -921,6 +921,28 @@ RSpec.describe Ast::Merge do
     expect(guardrails.timeout_diagnostic.fallback).to eq(fixture.dig(:expected, :fallback))
   end
 
+  it "conforms to the slice-905 profile conformance reports fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-905-profile-conformance-reports", "profile-conformance-reports.json"))
+    raw = fixture[:report]
+    report = described_class::ProfileConformanceReport.new(
+      report_id: raw[:report_id],
+      version: raw[:version],
+      profile: raw[:profile],
+      enabled_rules: raw[:enabled_rules],
+      skipped_rules: raw[:skipped_rules].map { |skipped_rule| described_class::ProfileSkippedRule.new(**skipped_rule) },
+      fallback_count: raw[:fallback_count],
+      unresolved_conflict_count: raw[:unresolved_conflict_count],
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(report.profile).to eq(fixture.dig(:expected, :profile))
+    expect(report.enabled_rules.length).to eq(fixture.dig(:expected, :enabled_rule_count))
+    expect(report.skipped_rules.length).to eq(fixture.dig(:expected, :skipped_rule_count))
+    expect(report.fallback_count).to eq(fixture.dig(:expected, :fallback_count))
+    expect(report.unresolved_conflict_count).to eq(fixture.dig(:expected, :unresolved_conflict_count))
+    expect(report.skipped_rules.fetch(0).rule).to eq(fixture.dig(:expected, :skipped_rule))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
