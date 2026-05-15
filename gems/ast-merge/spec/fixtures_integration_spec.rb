@@ -899,6 +899,28 @@ RSpec.describe Ast::Merge do
     expect(structured_diff_count).to eq(fixture.dig(:expected, :structured_diff_count))
   end
 
+  it "conforms to the slice-904 performance guardrails fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-904-performance-guardrails", "performance-guardrails.json"))
+    raw = fixture[:guardrails]
+    guardrails = described_class::PerformanceGuardrails.new(
+      guardrail_id: raw[:guardrail_id],
+      version: raw[:version],
+      max_bytes: raw[:max_bytes],
+      max_nodes: raw[:max_nodes],
+      max_match_candidates: raw[:max_match_candidates],
+      timeout_ms: raw[:timeout_ms],
+      timeout_diagnostic: described_class::PerformanceTimeoutDiagnostic.new(**raw[:timeout_diagnostic]),
+      diagnostics: raw[:diagnostics]
+    )
+
+    expect(guardrails.max_bytes).to eq(fixture.dig(:expected, :max_bytes))
+    expect(guardrails.max_nodes).to eq(fixture.dig(:expected, :max_nodes))
+    expect(guardrails.max_match_candidates).to eq(fixture.dig(:expected, :max_match_candidates))
+    expect(guardrails.timeout_ms).to eq(fixture.dig(:expected, :timeout_ms))
+    expect(guardrails.timeout_diagnostic.code).to eq(fixture.dig(:expected, :timeout_code))
+    expect(guardrails.timeout_diagnostic.fallback).to eq(fixture.dig(:expected, :fallback))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
