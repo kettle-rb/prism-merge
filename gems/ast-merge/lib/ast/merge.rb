@@ -646,6 +646,7 @@ module Ast
     HostLanguageNativeProviderContracts = Struct.new(:suite_id, :version, :providers, :diagnostics, keyword_init: true)
     NativeProviderProvingGroundReport = Struct.new(:report_id, :version, :language, :providers, :checks, :diagnostics, keyword_init: true)
     GoDSTProviderStackReport = Struct.new(:provider_id, :module, :backend_family, :language, :role, :compares_with, :diagnostics, keyword_init: true)
+    GoProviderComparisonReport = Struct.new(:comparison_id, :version, :language, :providers, :dimensions, :diagnostics, keyword_init: true)
 
     module_function
 

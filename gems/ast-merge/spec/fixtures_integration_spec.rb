@@ -758,6 +758,16 @@ RSpec.describe Ast::Merge do
     expect(report.compares_with.length).to eq(fixture.dig(:expected, :comparison_count))
   end
 
+  it "conforms to the slice-826 Go provider comparison fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-826-go-provider-comparison", "go-provider-comparison.json"))
+    report = described_class::GoProviderComparisonReport.new(**fixture[:comparison])
+
+    expect(report.language).to eq(fixture.dig(:expected, :language))
+    expect(report.providers.length).to eq(fixture.dig(:expected, :provider_count))
+    expect(report.dimensions.length).to eq(fixture.dig(:expected, :dimension_count))
+    expect(report.dimensions.include?("backend_deficiencies")).to eq(fixture.dig(:expected, :includes_backend_deficiencies))
+  end
+
   def content_recipe_execution_request(recipe_name:, recipe_version:, relative_path:, provider_family:,
     template_content:, destination_content:, steps:, provider_backend: nil, runtime_context: nil, metadata: nil)
     request = {
