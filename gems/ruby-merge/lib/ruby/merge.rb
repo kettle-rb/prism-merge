@@ -600,7 +600,7 @@ module Ruby
     def merge_array_constant_text(template_text, destination_text)
       template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*)\[(.*)\]\z/)
       destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*)\[(.*)\]\z/)
-      return unless template_match && destination_match
+      return merge_multiline_array_constant_text(template_text, destination_text) unless template_match && destination_match
 
       destination_elements = split_ruby_array_elements(destination_match[2])
       template_elements = split_ruby_array_elements(template_match[2])
@@ -609,6 +609,22 @@ module Ruby
       return destination_text if appended.empty?
 
       "#{destination_match[1]}[#{(destination_elements + appended).join(", ")}]"
+    end
+
+    def merge_multiline_array_constant_text(template_text, destination_text)
+      template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*\[\n)(.*)(\n\s*\])\z/m)
+      destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*\[\n)(.*)(\n\s*\])\z/m)
+      return unless template_match && destination_match
+
+      destination_elements = multiline_array_elements(destination_match[2])
+      template_elements = multiline_array_elements(template_match[2])
+      destination_keys = destination_elements.map { |element| normalize_array_element_key(element[:value]) }.to_h { |key| [key, true] }
+      appended = template_elements.reject { |element| destination_keys[normalize_array_element_key(element[:value])] }
+      return destination_text if appended.empty?
+
+      insertion_prefix = destination_elements.last&.dig(:indent) || template_elements.first&.dig(:indent) || "  "
+      insertion_lines = appended.map { |element| "#{insertion_prefix}#{element[:value]}," }
+      "#{destination_match[1]}#{destination_match[2].rstrip}\n#{insertion_lines.join("\n")}#{destination_match[3]}"
     end
 
     def merge_declaration_body_methods(template_text, destination_text)
@@ -939,7 +955,7 @@ module Ruby
           next
         end
 
-        finish_index = lines[index].include?("{") ? (hash_assignment_finish_line(lines, index) || index) : index
+        finish_index = constant_assignment_finish_index(lines, index)
         entries << {
           name: match[2],
           text: lines[index..finish_index].join("\n").rstrip,
@@ -980,6 +996,55 @@ module Ruby
 
     def normalize_array_element_key(element)
       element.to_s.strip
+    end
+
+    def multiline_array_elements(source)
+      source.to_s.lines.filter_map do |line|
+        stripped = line.strip
+        next if stripped.empty? || stripped.start_with?("#")
+
+        {
+          indent: line[/\A\s*/],
+          value: stripped.sub(/,\z/, "")
+        }
+      end
+    end
+
+    def constant_assignment_finish_index(lines, index)
+      return hash_assignment_finish_line(lines, index) || index if lines[index].include?("{")
+      return array_assignment_finish_line(lines, index) || index if lines[index].include?("[")
+
+      index
+    end
+
+    def array_assignment_finish_line(lines, start_line)
+      depth = 0
+      in_string = nil
+      escape = false
+      start_line.upto(lines.length - 1) do |line_index|
+        lines[line_index].each_char do |char|
+          if in_string
+            if escape
+              escape = false
+            elsif char == "\\"
+              escape = true
+            elsif char == in_string
+              in_string = nil
+            end
+            next
+          end
+
+          if char == "\"" || char == "'"
+            in_string = char
+          elsif char == "["
+            depth += 1
+          elsif char == "]"
+            depth -= 1
+            return line_index if depth.zero?
+          end
+        end
+      end
+      nil
     end
 
     def visibility_section_start_index(index, consumed)

@@ -264,6 +264,21 @@ RSpec.describe "Ruby::Merge" do
     expect(array_constant_result[:ok]).to eq(array_constant_fixture.dig(:expected, :ok))
     expect(array_constant_result[:output]).to eq(array_constant_fixture.dig(:expected, :output))
 
+    multiline_array_constant_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-953-multiline-array-constant-merge",
+        "multiline-array-constant-merge.json"
+      )
+    )
+    multiline_array_constant_result = RUBY_MERGE.merge_ruby(
+      multiline_array_constant_fixture[:template],
+      multiline_array_constant_fixture[:destination],
+      "ruby"
+    )
+    expect(multiline_array_constant_result[:ok]).to eq(multiline_array_constant_fixture.dig(:expected, :ok))
+    expect(multiline_array_constant_result[:output]).to eq(multiline_array_constant_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
