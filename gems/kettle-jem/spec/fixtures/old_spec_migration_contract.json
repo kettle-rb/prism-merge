@@ -1,0 +1,20 @@
+{
+  "case_id": "kettle-jem-old-spec-migration",
+  "ecosystem": "rubygems",
+  "cases": {
+    "gemspec_self_dependency": {
+      "package_name": "my-gem",
+      "removed_dependency": "my-gem",
+      "preserved_dependency": "addressable",
+      "preserved_fields": [
+        "summary",
+        "homepage",
+        "required_ruby_version"
+      ]
+    },
+    "appraisals_custom_blocks": {
+      "template_appraisal": "ruby-4-0",
+      "destination_appraisal": "custom-local"
+    }
+  }
+}

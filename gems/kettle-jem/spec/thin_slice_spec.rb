@@ -30,6 +30,8 @@ RSpec.describe Kettle::Jem do
   let(:contract) { JSON.parse(contract_path.read, symbolize_names: true) }
   let(:bootstrap_contract_path) { Pathname(__dir__).join("fixtures/bootstrap_contract.json").expand_path }
   let(:bootstrap_contract) { JSON.parse(bootstrap_contract_path.read, symbolize_names: true) }
+  let(:old_spec_contract_path) { Pathname(__dir__).join("fixtures/old_spec_migration_contract.json").expand_path }
+  let(:old_spec_contract) { JSON.parse(old_spec_contract_path.read, symbolize_names: true) }
 
   it "plans and applies the RubyGems thin vertical slice" do
     expected_recipe_names = contract.fetch(:canonical_recipes).map { |recipe| recipe.fetch(:name).to_s }
@@ -1488,6 +1490,65 @@ RSpec.describe Kettle::Jem do
         )
       )
       expect(File.read(File.join(root, "example.gemspec"))).to eq(gemspec_content)
+    end
+  end
+
+  it "ports old gemspec self-dependency removal while preserving project fields" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    contract_case = old_spec_contract.fetch(:cases).fetch(:gemspec_self_dependency)
+    package_name = contract_case.fetch(:package_name)
+
+    Dir.mktmpdir("kettle-jem-old-gemspec-policy", tmp_root) do |root|
+      write_tree(root, {
+        "#{package_name}.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "#{package_name}"
+            spec.summary = "Destination summary"
+            spec.homepage = "https://github.com/acme/#{package_name}"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: gem.gemspec
+                target: #{package_name}.gemspec
+        YAML
+        "template/gem.gemspec.example" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "{KJ|GEM_NAME}"
+            spec.summary = "Template summary"
+            spec.homepage = "https://template.example"
+            spec.required_ruby_version = ">= 3.2"
+            spec.add_dependency("{KJ|GEM_NAME}", "~> 1.0")
+            spec.add_dependency '{KJ|GEM_NAME}'
+            spec.add_development_dependency("{KJ|GEM_NAME}")
+            spec.add_development_dependency '{KJ|GEM_NAME}', ">= 0"
+            spec.add_dependency("#{contract_case.fetch(:preserved_dependency)}", ">= 2.8", "< 3")
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == "#{package_name}.gemspec"
+      end
+      gemspec_content = report.fetch(:final_content)
+
+      expect(gemspec_content).to include(%(spec.name = "#{package_name}"))
+      expect(gemspec_content).to include('spec.summary = "Destination summary"')
+      expect(gemspec_content).to include(%(spec.homepage = "https://github.com/acme/#{package_name}"))
+      expect(gemspec_content).to include('spec.required_ruby_version = ">= 4.0"')
+      expect(gemspec_content).to include(%(spec.add_dependency("#{contract_case.fetch(:preserved_dependency)}", ">= 2.8", "< 3")))
+      expect(gemspec_content).not_to match(
+        /add_(?:development_)?dependency\s*\(?\s*["']#{Regexp.escape(contract_case.fetch(:removed_dependency))}["']/
+      )
+      expect(report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :ruby_template_policy, :operations)).to include(
+        include(operation: "delete_self_dependency_declarations", deleted_dependency_count: 4)
+      )
     end
   end
 

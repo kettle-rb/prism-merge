@@ -2372,7 +2372,7 @@ module Kettle
       when :gemfile
         gemfile_policy_operations(template_content, original, final, request)
       when :gemspec
-        gemspec_policy_operations(template_content, original, final)
+        gemspec_policy_operations(template_content, original, final, request)
       when :appraisals
         appraisals_policy_operations(template_content, original, final, request)
       end
@@ -2415,9 +2415,11 @@ module Kettle
       ]
     end
 
-    def gemspec_policy_operations(template_content, original, final)
+    def gemspec_policy_operations(template_content, original, final, request)
       template_receiver = gemspec_block_param(template_content) || "spec"
       destination_receiver = gemspec_block_param(original) || "spec"
+      package_name = runtime_context_value(request, :package, :name).to_s
+      self_dependency_names = gemspec_self_dependency_names(request, package_name)
       operations = [
         {
           operation: "preserve_project_fields",
@@ -2430,6 +2432,14 @@ module Kettle
           preserved_dependencies: gemspec_dependency_line_index(original, receiver: destination_receiver).keys.map(&:last).select do |gem_name|
             final.include?(%("#{gem_name}"))
           end.sort,
+        },
+        {
+          operation: "delete_self_dependency_declarations",
+          deleted_dependency_count: [
+            gemspec_dependency_names("#{template_content}\n#{original}").count { |name| self_dependency_names.include?(name) } -
+              gemspec_dependency_names(final).count { |name| self_dependency_names.include?(name) },
+            0,
+          ].max,
         },
       ]
       if template_receiver != destination_receiver
@@ -2565,7 +2575,7 @@ module Kettle
 
       case file_type
       when :gemspec
-        return merge_gemspec_template_source(template_content, destination_content)
+        return merge_gemspec_template_source(template_content, destination_content, facts: facts)
       when :appraisals
         return merge_appraisals_template_source(template_content, destination_content, facts: facts)
       when :ruby, :gemfile, :rakefile
@@ -2708,21 +2718,23 @@ module Kettle
       index
     end
 
-    def merge_gemspec_template_source(template_content, destination_content)
+    def merge_gemspec_template_source(template_content, destination_content, facts: nil)
       template_receiver = gemspec_block_param(template_content) || "spec"
       destination_receiver = gemspec_block_param(destination_content) || "spec"
+      package_name = facts.dig(:package, :name).to_s if facts
       replacements = gemspec_preserved_assignments(destination_content, receiver: destination_receiver)
       merged = replacements.reduce(template_content.dup) do |content, (field, source_line)|
         pattern = /^(\s*#{Regexp.escape(template_receiver)}\.#{Regexp.escape(field)}\s*=\s*).*$/
         replacement = normalize_gemspec_receiver(source_line.rstrip, from: destination_receiver, to: template_receiver)
         content.match?(pattern) ? content.sub(pattern, replacement) : content
       end
-      preserve_gemspec_dependency_lines(
+      merged = preserve_gemspec_dependency_lines(
         merged,
         destination_content,
         template_receiver: template_receiver,
         destination_receiver: destination_receiver
       )
+      remove_gemspec_self_dependency_lines(merged, package_name, receiver: template_receiver)
     end
 
     def gemspec_block_param(source)
@@ -2787,6 +2799,29 @@ module Kettle
         key = gemspec_dependency_line_key(line, receiver: receiver)
         dependencies[key] ||= line if key
       end
+    end
+
+    def gemspec_dependency_names(source)
+      source.to_s.lines.filter_map do |line|
+        line[/^\s*\w+\.add_(?:development_|runtime_)?dependency\s*(?:\(|\s)\s*["']([^"']+)["']/, 1]
+      end
+    end
+
+    def gemspec_self_dependency_names(request, package_name)
+      names = [package_name.to_s]
+      token_value = runtime_context_value(request, :template_tokens, "KJ|GEM_NAME")
+      names << "{KJ|GEM_NAME}" if token_value.to_s == package_name.to_s
+      names.reject(&:empty?).uniq
+    end
+
+    def remove_gemspec_self_dependency_lines(content, package_name, receiver:)
+      name = package_name.to_s
+      return content if name.empty?
+
+      lines = content.to_s.lines.reject do |line|
+        line.match?(/^\s*#{Regexp.escape(receiver)}\.add_(?:development_|runtime_)?dependency\s*(?:\(|\s)\s*["']#{Regexp.escape(name)}["']/)
+      end
+      ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
     end
 
     def gemspec_dependency_line_key(line, receiver:)
