@@ -29,6 +29,7 @@ RSpec.describe Kettle::Jem::CLI do
 
     expect(help_status).to eq(0)
     expect(help_out).to include("kettle-jem plan")
+    expect(help_out).to include("kettle-jem selftest")
     expect(help_err).to eq("")
     expect(version_status).to eq(0)
     expect(version_out).to eq("#{Kettle::Jem::Version::VERSION}\n")
@@ -90,6 +91,57 @@ RSpec.describe Kettle::Jem::CLI do
       expect(status).to eq(0)
       expect(err).to eq("")
       expect(out).to match(/template manifest: \d+ entries/)
+    end
+  end
+
+  it "runs the selftest command and emits a report" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      report_path = File.join(root, "tmp", "selftest.json")
+      allow(Kettle::Jem::Tasks::SelfTestTask).to receive(:run).and_return(
+        {
+          mode: "selftest",
+          report_path: File.join(root, "tmp", "template_test", "report", "summary.md"),
+          comparison: {
+            matched: ["README.md"],
+            changed: ["Gemfile"],
+            added: [],
+            removed: [],
+            skipped: [],
+          },
+        }
+      )
+
+      template_root = File.join(root, "template")
+      output_root = File.join(root, "tmp", "selftest-output")
+      status, out, err = run_cli([
+        "selftest",
+        root,
+        "--json",
+        "--report",
+        report_path,
+        "--destination",
+        root,
+        "--template-root",
+        template_root,
+        "--selftest-output",
+        output_root,
+        "--min-divergence-threshold",
+        "75",
+      ])
+
+      expect(status).to eq(0)
+      expect(err).to eq("")
+      expect(Kettle::Jem::Tasks::SelfTestTask).to have_received(:run).with(
+        project_root: root,
+        destination_root: root,
+        template_root: template_root,
+        output_root: output_root,
+        min_divergence_threshold: 75.0
+      )
+      payload = JSON.parse(out, symbolize_names: true)
+      expect(payload.fetch(:mode)).to eq("selftest")
+      expect(payload.fetch(:comparison).fetch(:changed)).to eq(["Gemfile"])
+      expect(JSON.parse(File.read(report_path), symbolize_names: true).fetch(:mode)).to eq("selftest")
     end
   end
 end

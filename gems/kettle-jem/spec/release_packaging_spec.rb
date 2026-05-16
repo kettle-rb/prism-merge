@@ -33,6 +33,13 @@ RSpec.describe "kettle-jem release packaging" do
     expect(File.executable?(gem_root.join("exe/kettle-jem"))).to be(true)
     expect(expected_template_files).not_to be_empty
     expect(files).to include(*expected_template_files)
+    expect(files).to include(
+      "lib/kettle/jem/tasks.rb",
+      "lib/kettle/jem/rakelib/prepare.rake",
+      "lib/kettle/jem/rakelib/template.rake",
+      "lib/kettle/jem/rakelib/install.rake",
+      "lib/kettle/jem/rakelib/selftest.rake"
+    )
     expect(files).to include("certs/pboling.pem")
     expect(spec.extra_rdoc_files).to include("README.md")
   end
@@ -61,6 +68,7 @@ RSpec.describe "kettle-jem release packaging" do
     expected_template = "lib/kettle/jem/templates/.kettle-jem.yml.example"
     expect(package_spec.executables).to include("kettle-jem")
     expect(package_spec.files).to include(expected_template)
+    expect(package_spec.files).to include("lib/kettle/jem/rakelib/selftest.rake")
 
     unpack_root = tmp_root.join("unpacked")
     FileUtils.mkdir_p(unpack_root)
@@ -68,6 +76,7 @@ RSpec.describe "kettle-jem release packaging" do
     exe = unpack_root.join("exe/kettle-jem")
     expect(File).to exist(exe)
     expect(File).to exist(unpack_root.join(expected_template))
+    expect(File).to exist(unpack_root.join("lib/kettle/jem/rakelib/selftest.rake"))
 
     run_stdout, run_stderr, run_status = Open3.capture3(
       {"RUBYLIB" => unpack_root.join("lib").to_s},

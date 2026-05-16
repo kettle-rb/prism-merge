@@ -13,6 +13,7 @@ module Kettle
           kettle-jem apply [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive]
           kettle-jem template [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive]
           kettle-jem manifest [PROJECT_ROOT] [--json]
+          kettle-jem selftest [PROJECT_ROOT] [--json] [--report PATH] [--destination PATH] [--template-root PATH] [--selftest-output PATH]
           kettle-jem version
       USAGE
 
@@ -49,7 +50,7 @@ module Kettle
       end
 
       def command_allowed?(command)
-        %w[plan apply template manifest help version].include?(command)
+        %w[plan apply template manifest selftest help version].include?(command)
       end
 
       def parse_options(args)
@@ -68,6 +69,18 @@ module Kettle
           opts.on("--interactive", "Use interactive decision mode when supported.") do
             options[:run_options][:interactive] = true
           end
+          opts.on("--destination PATH", "Selftest destination root.") do |path|
+            options[:destination_root] = path
+          end
+          opts.on("--template-root PATH", "Selftest template root.") do |path|
+            options[:template_root] = path
+          end
+          opts.on("--selftest-output PATH", "Selftest output root.") do |path|
+            options[:selftest_output_root] = path
+          end
+          opts.on("--min-divergence-threshold PERCENT", "Fail selftest when divergence exceeds PERCENT.") do |value|
+            options[:min_divergence_threshold] = Float(value)
+          end
         end
         remaining = parser.parse(args)
         raise ArgumentError, "Expected at most one PROJECT_ROOT" if remaining.length > 1
@@ -84,6 +97,14 @@ module Kettle
           Kettle::Jem.apply_project(project_root, env: env, run_options: options.fetch(:run_options))
         when "manifest"
           Kettle::Jem.template_manifest(project_root: project_root)
+        when "selftest"
+          Kettle::Jem::Tasks::SelfTestTask.run(
+            project_root: project_root,
+            destination_root: options[:destination_root] || project_root,
+            template_root: options[:template_root],
+            output_root: options[:selftest_output_root],
+            min_divergence_threshold: options[:min_divergence_threshold]
+          )
         else
           raise ArgumentError, "Unsupported kettle-jem command #{command.inspect}"
         end
@@ -99,6 +120,13 @@ module Kettle
         when "manifest"
           entries = result.fetch(:entries, [])
           out.puts("template manifest: #{entries.length} entr#{entries.length == 1 ? "y" : "ies"}")
+        when "selftest"
+          comparison = result.fetch(:comparison, {})
+          divergent = comparison.fetch(:changed, []).size +
+            comparison.fetch(:added, []).size +
+            comparison.fetch(:removed, []).size
+          out.puts("selftest: #{divergent} divergent file#{divergent == 1 ? "" : "s"}")
+          out.puts("  report: #{result.fetch(:report_path)}") if result[:report_path]
         else
           changed_files = result.fetch(:changed_files, [])
           out.puts("#{result.fetch(:mode)}: #{changed_files.length} changed file#{changed_files.length == 1 ? "" : "s"}")

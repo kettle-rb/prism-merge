@@ -1166,6 +1166,13 @@ module Kettle
       end
     end
 
+    module Tasks
+      autoload :InstallTask, "kettle/jem/tasks/install_task"
+      autoload :PrepareTask, "kettle/jem/tasks/prepare_task"
+      autoload :SelfTestTask, "kettle/jem/tasks/self_test_task"
+      autoload :TemplateTask, "kettle/jem/tasks/template_task"
+    end
+
     module_function
 
     def display_path(path)
@@ -1199,6 +1206,11 @@ module Kettle
         template_root: root,
         checksums: TemplateChecksums.compute(template_root: root),
       }
+    end
+
+    def install_tasks
+      require "rake"
+      load File.expand_path("jem/tasks.rb", __dir__)
     end
 
     def appraisal_gem_abbreviation(gem_name)
@@ -5467,4 +5479,8 @@ module Kettle
       Marshal.load(Marshal.dump(value))
     end
   end
+end
+
+if File.basename($PROGRAM_NAME).match?(/\Arake(?:\z|\.)/) || defined?(Rake.application)
+  Kettle::Jem.install_tasks
 end
