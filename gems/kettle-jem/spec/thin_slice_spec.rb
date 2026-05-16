@@ -51,8 +51,8 @@ RSpec.describe Kettle::Jem do
       recipe_names = plan[:recipe_pack][:recipes].map { |recipe| recipe[:name] }
       expect(recipe_names.take(expected_recipe_names.length)).to eq(expected_recipe_names)
       expect(recipe_names).to include("github_funding_yml")
-      expect(recipe_names).to include("github_actions_ci")
-      expect(recipe_names).to include("github_actions_framework_ci")
+      expect(recipe_names).not_to include("github_actions_ci")
+      expect(recipe_names).not_to include("github_actions_framework_ci")
       expect(recipe_names).to include(a_string_starting_with("github_actions_obsolete_workflow_cleanup_"))
       expect(recipe_names).to include("rakefile_scaffold_cleanup")
       expect(recipe_names).to include(a_string_starting_with("github_actions_workflow_snippets_"))
@@ -69,17 +69,9 @@ RSpec.describe Kettle::Jem do
       expect(rakefile_report.fetch(:final_content)).to include("task :custom")
       expect(rakefile_report.fetch(:final_content)).not_to include("bundler/gem_tasks")
       expect(rakefile_report.fetch(:final_content)).not_to include("RSpec::Core::RakeTask")
-      ci_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_ci" }
-      expect(ci_report.dig(:request_envelope, :request, :provider_family)).to eq("yaml")
-      expect(ci_report.fetch(:final_content)).to include("ruby/setup-ruby@")
-      expect(ci_report.fetch(:final_content)).to include("- \"3.2\"")
       funding_yml_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_funding_yml" }
       expect(funding_yml_report.fetch(:final_content)).to include("tidelift: rubygems/example")
       expect(funding_yml_report.fetch(:final_content)).to include("open_collective: example")
-      framework_ci_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_framework_ci" }
-      expect(framework_ci_report.fetch(:final_content)).to include("name: Rails CI")
-      expect(framework_ci_report.fetch(:final_content)).to include("gemfiles/rails_7_0")
-      expect(framework_ci_report.fetch(:final_content)).to include("BUNDLE_GEMFILE")
       custom_ci_report = plan[:recipe_reports].find do |report|
         report.fetch(:relative_path) == ".github/workflows/custom-ci.yml"
       end
@@ -105,7 +97,7 @@ RSpec.describe Kettle::Jem do
     end
   end
 
-  it "generates a coverage workflow when configured" do
+  it "does not synthesize a standalone coverage workflow outside the packaged template inventory" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
     Dir.mktmpdir("kettle-jem-coverage-slice", tmp_root) do |root|
@@ -127,14 +119,9 @@ RSpec.describe Kettle::Jem do
       })
 
       plan = described_class.plan_project(root, env: {})
-      coverage_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_actions_coverage_ci" }
-      expect(coverage_report.dig(:request_envelope, :request, :provider_family)).to eq("yaml")
-      expect(coverage_report.fetch(:relative_path)).to eq(".github/workflows/coverage.yml")
-      expect(coverage_report.fetch(:final_content)).to include("name: Test Coverage")
-      expect(coverage_report.fetch(:final_content)).to include("K_SOUP_COV_DO: true")
-      expect(coverage_report.fetch(:final_content)).to include("bundle exec appraisal ${{ matrix.appraisal }} bundle exec ${{ matrix.exec_cmd }}")
-      expect(coverage_report.fetch(:final_content)).to include("Upload coverage to CodeCov")
-      expect(plan[:changed_files]).to include(".github/workflows/coverage.yml")
+      recipe_names = plan[:recipe_reports].map { |report| report.fetch(:recipe_name) }
+      expect(recipe_names).not_to include("github_actions_coverage_ci")
+      expect(plan[:changed_files]).not_to include(".github/workflows/coverage.yml")
     end
   end
 
@@ -869,18 +856,19 @@ RSpec.describe Kettle::Jem do
       expect(apply.fetch(:changed_files)).to include(bootstrap_target)
       expect(File).to exist(File.join(root, bootstrap_target))
 
+      second_apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
       selected = bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths).to_h do |relative_path|
         [relative_path, File.exist?(File.join(root, relative_path)) ? File.read(File.join(root, relative_path)) : nil]
       end
-      second_apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+      third_apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
 
-      expect(second_apply.fetch(:decision_policy).fetch(:mode)).to eq(
+      expect(third_apply.fetch(:decision_policy).fetch(:mode)).to eq(
         bootstrap_contract.fetch(:expected).fetch(:non_interactive_mode)
       )
       expect(bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths).to_h { |relative_path|
         [relative_path, File.exist?(File.join(root, relative_path)) ? File.read(File.join(root, relative_path)) : nil]
       }).to eq(selected)
-      expect(second_apply.fetch(:changed_files)).not_to include(
+      expect(third_apply.fetch(:changed_files)).not_to include(
         *bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths)
       )
     end
@@ -3960,13 +3948,13 @@ RSpec.describe Kettle::Jem do
       class << self
         def register_kettle_jem_plugin(registrar)
           registrar.before_phase(:github_workflows) do |context:, phase:, **|
-            path = File.join(context.project_root, ".github/workflows/ci.yml")
-            context.out.report_detail("before #{phase}: ci exists=#{File.exist?(path)}")
+            path = File.join(context.project_root, ".github/FUNDING.yml")
+            context.out.report_detail("before #{phase}: funding exists=#{File.exist?(path)}")
           end
 
           registrar.after_phase(:github_workflows) do |context:, phase:, **|
-            path = File.join(context.project_root, ".github/workflows/ci.yml")
-            context.out.report_detail("after #{phase}: ci exists=#{File.exist?(path)}")
+            path = File.join(context.project_root, ".github/FUNDING.yml")
+            context.out.report_detail("after #{phase}: funding exists=#{File.exist?(path)}")
           end
 
           registrar.after_phase(:remaining_files) do |context:, phase:, phase_stats:, plugin_name:, **|
@@ -4011,17 +3999,17 @@ RSpec.describe Kettle::Jem do
         "remaining_files"
       )
       github_phase = plan.fetch(:phase_reports).find { |phase_report| phase_report.fetch(:phase) == "github_workflows" }
-      expect(github_phase.fetch(:changed_files)).to include(".github/workflows/ci.yml")
+      expect(github_phase.fetch(:changed_files)).to include(".github/FUNDING.yml")
       expect(plan.fetch(:run_stats).fetch(:plugin_file_changes)).to eq(0)
 
       apply = described_class.apply_project(root, env: {})
       expect(apply.fetch(:diagnostics)).to include(
         kind: "plugin_detail",
-        message: "before github_workflows: ci exists=false"
+        message: "before github_workflows: funding exists=false"
       )
       expect(apply.fetch(:diagnostics)).to include(
         kind: "plugin_detail",
-        message: "after github_workflows: ci exists=true"
+        message: "after github_workflows: funding exists=true"
       )
       expect(File.read(File.join(root, "PLUGIN.md"))).to include("plugin=example-plugin; phase=remaining_files; recipes=")
       expect(apply.fetch(:changed_files)).to include("PLUGIN.md")

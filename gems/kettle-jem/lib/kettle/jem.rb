@@ -29,6 +29,20 @@ module Kettle
     MANAGED_BLOCK_CLOSE = "# <</kettle-jem:generated>>"
     OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
+    DEFAULT_ENGINES = %w[ruby jruby truffleruby].freeze
+    ENGINE_WORKFLOW_MAP = {
+      "jruby" => "jruby",
+      "jruby-9.1" => "jruby",
+      "jruby-9.2" => "jruby",
+      "jruby-9.3" => "jruby",
+      "jruby-9.4" => "jruby",
+      "truffle" => "truffleruby",
+      "truffleruby-22.3" => "truffleruby",
+      "truffleruby-23.0" => "truffleruby",
+      "truffleruby-23.1" => "truffleruby",
+      "truffleruby-24.2" => "truffleruby",
+      "truffleruby-25.0" => "truffleruby",
+    }.freeze
     FILE_DELETION_PRIMITIVES = %w[
       supplied_obsolete_file_deletion
       supplied_disabled_opencollective_file_deletion
@@ -59,7 +73,33 @@ module Kettle
     RUBY_TEMPLATE_SUFFIXES = %w[.gemspec .gemfile].freeze
     RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
-    EMPTY_TEMPLATE_TOKENS = %w[KJ|COPYRIGHT_PREFIX KJ|MIN_DIVERGENCE_THRESHOLD].freeze
+    EMPTY_TEMPLATE_TOKENS = %w[
+      KJ|CB:USER
+      KJ|COPYRIGHT_PREFIX
+      KJ|FUNDING:BUYMEACOFFEE
+      KJ|FUNDING:ISSUEHUNT
+      KJ|FUNDING:KOFI
+      KJ|FUNDING:LIBERAPAY
+      KJ|FUNDING:PATREON
+      KJ|FUNDING:PAYPAL
+      KJ|FUNDING:POLAR
+      KJ|GH:USER
+      KJ|GL:USER
+      KJ|MIN_DIVERGENCE_THRESHOLD
+      KJ|OPENCOLLECTIVE_ORG
+      KJ|README:COPYRIGHT_NOTICE
+      KJ|README:LICENSE_BADGE
+      KJ|README:LICENSE_COMPAT_BADGE
+      KJ|README:LICENSE_INTRO
+      KJ|README:LICENSE_REFS
+      KJ|README:TOP_LOGO_REFS
+      KJ|README:TOP_LOGO_ROW
+      KJ|SH:USER
+      KJ|SOCIAL:BLUESKY
+      KJ|SOCIAL:DEVTO
+      KJ|SOCIAL:LINKTREE
+      KJ|SOCIAL:MASTODON
+    ].freeze
     COPYRIGHT_NAME_RE = /\ACopyright \(c\) [\d,\s\-]+ (.+)\z/
     BOT_EMAIL_PATTERN = /\A\d+\+[^@]+\[bot\]@/i
     BOT_NAME_SUFFIX = /\[bot\]\z/i
@@ -2044,7 +2084,8 @@ module Kettle
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
       template_facts = {}
-      template_preferences = template_source_preferences(project_root, kettle_config, opencollective_disabled: opencollective_disabled)
+      template_config = template_runtime_config(kettle_config, facts)
+      template_preferences = template_source_preferences(project_root, template_config, opencollective_disabled: opencollective_disabled)
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
       legacy_cleanups = template_legacy_destination_cleanups(project_root, template_preferences)
       template_facts[:legacy_destination_cleanups] = legacy_cleanups unless legacy_cleanups.empty?
@@ -2074,34 +2115,9 @@ module Kettle
           "supplied_github_funding_yaml_synchronization",
           facts: %w[package funding]
         ),
-        recipe_entry(
-          "github_actions_ci",
-          ".github/workflows/ci.yml",
-          "yaml",
-          "supplied_github_actions_workflow_synchronization",
-          facts: %w[package rubygems ci]
-        ),
       ]
       if facts[:kettle_config_bootstrap]
         recipes.unshift(kettle_config_bootstrap_recipe(facts.fetch(:kettle_config_bootstrap)))
-      end
-      if facts.dig(:ci, :framework_matrix)
-        recipes << recipe_entry(
-          "github_actions_framework_ci",
-          ".github/workflows/framework-ci.yml",
-          "yaml",
-          "supplied_github_actions_framework_workflow_synchronization",
-          facts: %w[package rubygems ci]
-        )
-      end
-      if facts.dig(:ci, :coverage)
-        recipes << recipe_entry(
-          "github_actions_coverage_ci",
-          ".github/workflows/coverage.yml",
-          "yaml",
-          "supplied_github_actions_coverage_workflow_synchronization",
-          facts: %w[package rubygems ci]
-        )
       end
       facts.dig(:ci, :obsolete_workflows).to_a.each do |workflow_path|
         recipes << recipe_entry(
@@ -3586,7 +3602,8 @@ module Kettle
     end
 
     def generated_or_obsolete_github_workflow?(relative_path)
-      return true if %w[.github/workflows/ci.yml .github/workflows/coverage.yml .github/workflows/framework-ci.yml].include?(relative_path)
+      return true if preferred_template_source(PACKAGED_TEMPLATE_ROOT, relative_path)
+      return true if relative_path == ".github/workflows/opencollective.yml"
 
       OBSOLETE_GITHUB_WORKFLOWS.include?(File.basename(relative_path))
     end
@@ -3977,7 +3994,7 @@ module Kettle
         readme_logo_template_tokens(facts.fetch(:readme_logo, {}))
       )
       org = funding[:open_collective_org].to_s
-      tokens["KJ|OPENCOLLECTIVE_ORG"] = org unless org.empty?
+      tokens["KJ|OPENCOLLECTIVE_ORG"] = org
       tokens["KJ|README:FAMILY_INTRO_BACKEND_MATRIX"] = readme_family_intro_and_backend_matrix
 
       tokens.reject { |key, value| value.empty? && !EMPTY_TEMPLATE_TOKENS.include?(key) }
@@ -4314,7 +4331,7 @@ module Kettle
         template_run_year: run_timestamp.year.to_s,
         kettle_dev_gem: "kettle-dev",
         yard_host: "#{package_name.to_s.tr("_", "-")}.#{author_domain.to_s.empty? ? "example.com" : author_domain}",
-        project_emoji: preferred_template_token_value(nil, config["project_emoji"], env, "KJ_PROJECT_EMOJI").to_s,
+        project_emoji: preferred_template_token_value("💎", config["project_emoji"], env, "KJ_PROJECT_EMOJI").to_s,
         min_divergence_threshold: preferred_template_token_value(nil, config["min_divergence_threshold"], env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
         min_dev_ruby: minimum_dev_ruby_token(min_ruby),
         version: version.to_s,
@@ -5183,7 +5200,7 @@ module Kettle
     end
 
     def template_source_preferences(project_root, config, opencollective_disabled: false)
-      templates = config["templates"]
+      templates = template_activation_config(config)
       return [] unless templates.is_a?(Hash)
 
       root = template_root(project_root, templates)
@@ -5201,6 +5218,26 @@ module Kettle
           apply_templates: apply_templates
         )
       end
+    end
+
+    def template_runtime_config(config, facts)
+      result = deep_dup(config)
+      result["rubygems"] = {} unless result["rubygems"].is_a?(Hash)
+      result["rubygems"]["min_ruby"] ||= facts.dig(:rubygems, :min_ruby)
+      result
+    end
+
+    def template_activation_config(config)
+      return config["templates"] if config["templates"].is_a?(Hash)
+      return default_template_config if generated_kettle_config_without_templates?(config)
+
+      nil
+    end
+
+    def generated_kettle_config_without_templates?(config)
+      return false unless config.is_a?(Hash)
+
+      config["tokens"].is_a?(Hash)
     end
 
     def template_entries(project_root, root, templates)
@@ -5288,6 +5325,7 @@ module Kettle
     def template_source_preference(project_root, template_root, entry, config, opencollective_disabled: false, apply_templates: false)
       source_path, target_path = template_entry_paths(entry)
       return nil if source_path.to_s.empty? || target_path.to_s.empty?
+      return nil if skip_packaged_workflow_template?(target_path, config)
 
       selected_source = preferred_template_source(template_root.fetch(:path), source_path, opencollective_disabled: opencollective_disabled)
       return nil unless selected_source
@@ -5413,6 +5451,41 @@ module Kettle
 
       path = configured_root.start_with?("/") ? configured_root : File.join(project_root, configured_root)
       { kind: "project", path: path, display_prefix: configured_root }
+    end
+
+    def default_template_config
+      {
+        "root" => "packaged",
+        "apply" => true,
+      }
+    end
+
+    def skip_packaged_workflow_template?(target_path, config)
+      path = target_path.to_s
+      return false unless path.start_with?(".github/workflows/")
+
+      basename = File.basename(path, ".yml")
+      engine = ENGINE_WORKFLOW_MAP[basename]
+      return true if engine && !enabled_ruby_engines(config).include?(engine)
+
+      version = basename[/\Aruby-(\d+\.\d+)\z/, 1]
+      return false unless version
+
+      min_ruby = config_min_ruby(config)
+      return false unless min_ruby
+
+      Gem::Version.new(version) < min_ruby
+    end
+
+    def enabled_ruby_engines(config)
+      engines = ruby_engines_config(config)
+      engines.nil? || engines.empty? ? DEFAULT_ENGINES : engines
+    end
+
+    def config_min_ruby(config)
+      value = config.dig("rubygems", "min_ruby") || config["min_ruby"]
+      version = value.to_s[/\d+\.\d+(?:\.\d+)?/]
+      version && Gem::Version.new(version)
     end
 
     def template_source_display_path(template_root, selected_source)

@@ -217,6 +217,14 @@ machine_users:
 # ENV override: KJ_MIN_DIVERGENCE_THRESHOLD
 min_divergence_threshold: {KJ|MIN_DIVERGENCE_THRESHOLD}
 
+# Template source inventory.
+# The packaged inventory is the canonical kettle-jem project template. It
+# includes the detailed GitHub Actions workflow set, modular gemfiles,
+# README badges, license files, config files, and support scripts.
+templates:
+  root: packaged
+  apply: true
+
 # Optional kettle-jem plugins.
 # Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is
 # added as a development dependency so it is available after bin/setup.

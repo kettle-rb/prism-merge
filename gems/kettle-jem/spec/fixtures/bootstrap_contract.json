@@ -10,7 +10,7 @@
     ],
     "idempotent_selected_paths": [
       ".kettle-jem.yml",
-      ".github/workflows/ci.yml",
+      ".github/workflows/current.yml",
       "Rakefile"
     ]
   }

@@ -111,12 +111,6 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     path = File.join(gem_root, ".kettle-jem.yml")
     content = File.read(path)
     content = content.sub('project_emoji: ""', 'project_emoji: "💎"')
-    content += <<~YAML
-
-      templates:
-        root: packaged
-        apply: true
-    YAML
     File.write(path, content)
   end
 
@@ -163,10 +157,10 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     expect(File.read(File.join(gem_root, ".kettle-jem.yml"))).to include("min_divergence_threshold: 5")
     expect(bootstrap.fetch(:changed_files)).to include(
       ".github/FUNDING.yml",
-      ".github/workflows/ci.yml",
       ".kettle-jem.yml",
       "Rakefile"
     )
+    expect(bootstrap.fetch(:changed_files)).not_to include(".github/workflows/ci.yml")
 
     enable_packaged_templates!
     seed_destination_readme!
@@ -175,7 +169,10 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     apply = Kettle::Jem.apply_project(gem_root, env: env)
     expect(apply.fetch(:changed_files)).to include(".github/dependabot.yml", "Gemfile", "Rakefile", "README.md")
     expect(File).to exist(File.join(gem_root, ".github/FUNDING.yml"))
-    expect(File).to exist(File.join(gem_root, ".github/workflows/ci.yml"))
+    expect(File).not_to exist(File.join(gem_root, ".github/workflows/ci.yml"))
+    expect(File).to exist(File.join(gem_root, ".github/workflows/current.yml"))
+    expect(File).to exist(File.join(gem_root, ".github/workflows/ruby-3.2.yml"))
+    expect(File).to exist(File.join(gem_root, ".github/workflows/style.yml"))
 
     readme = File.read(File.join(gem_root, "README.md"))
     expect(readme).to include("# 💎 Dummy::Gem")
