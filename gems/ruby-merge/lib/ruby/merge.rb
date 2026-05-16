@@ -744,7 +744,7 @@ module Ruby
     def merge_array_constant_text(template_text, destination_text)
       template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*)\[(.*)\]\z/)
       destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*)\[(.*)\]\z/)
-      return merge_multiline_array_constant_text(template_text, destination_text) unless template_match && destination_match
+      return merge_percent_array_constant_text(template_text, destination_text) || merge_multiline_array_constant_text(template_text, destination_text) unless template_match && destination_match
 
       destination_elements = split_ruby_array_elements(destination_match[2])
       template_elements = split_ruby_array_elements(template_match[2])
@@ -753,6 +753,20 @@ module Ruby
       return destination_text if appended.empty?
 
       "#{destination_match[1]}[#{(destination_elements + appended).join(", ")}]"
+    end
+
+    def merge_percent_array_constant_text(template_text, destination_text)
+      template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wi]\[)(.*)(\])\z/)
+      destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wi]\[)(.*)(\])\z/)
+      return unless template_match && destination_match
+
+      destination_elements = destination_match[2].split(/\s+/).reject(&:empty?)
+      template_elements = template_match[2].split(/\s+/).reject(&:empty?)
+      destination_keys = destination_elements.to_h { |element| [element, true] }
+      appended = template_elements.reject { |element| destination_keys[element] }
+      return destination_text if appended.empty?
+
+      "#{destination_match[1]}#{(destination_elements + appended).join(" ")}#{destination_match[3]}"
     end
 
     def merge_multiline_array_constant_text(template_text, destination_text)

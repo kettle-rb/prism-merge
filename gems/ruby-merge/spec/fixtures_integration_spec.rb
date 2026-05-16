@@ -336,6 +336,21 @@ RSpec.describe "Ruby::Merge" do
     expect(no_trailing_comma_array_result[:ok]).to eq(no_trailing_comma_array_fixture.dig(:expected, :ok))
     expect(no_trailing_comma_array_result[:output]).to eq(no_trailing_comma_array_fixture.dig(:expected, :output))
 
+    percent_word_array_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-963-percent-word-array-constant-merge",
+        "percent-word-array-constant-merge.json"
+      )
+    )
+    percent_word_array_result = RUBY_MERGE.merge_ruby(
+      percent_word_array_fixture[:template],
+      percent_word_array_fixture[:destination],
+      "ruby"
+    )
+    expect(percent_word_array_result[:ok]).to eq(percent_word_array_fixture.dig(:expected, :ok))
+    expect(percent_word_array_result[:output]).to eq(percent_word_array_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",
