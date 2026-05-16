@@ -576,17 +576,7 @@ module Ruby
       missing_methods = template_methods.reject { |entry| destination_method_names[entry[:name]] }
       return destination_text if missing_methods.empty?
 
-      lines = destination_text.to_s.split("\n")
-      closing_index = declaration_closing_end_index(lines)
-      return destination_text unless closing_index
-
-      insertion_index = direct_visibility_section_index(lines, closing_index) || closing_index
-      insertion = []
-      insertion << "" unless insertion_index == 1 || lines[insertion_index - 1].to_s.strip.empty?
-      insertion.concat(missing_methods.map { |entry| entry[:text] }.join("\n\n").split("\n"))
-      insertion << "" if insertion_index != closing_index && !lines[insertion_index].to_s.strip.empty?
-      lines.insert(insertion_index, *insertion)
-      "#{lines.join("\n").sub(/\n+\z/, "")}\n".chomp
+      insert_declaration_body_blocks(destination_text, missing_methods.map { |entry| entry[:text] })
     end
 
     def merge_nested_body_declarations(template_text, destination_text)
@@ -602,7 +592,12 @@ module Ruby
 
         output[destination_entry[:range]] = merge_ruby_declaration_entry(template_entry, destination_entry)[:text]
       end
-      output
+
+      destination_paths = destination_entries.map { |entry| entry[:path] }.to_h { |path| [path, true] }
+      missing_entries = template_entries.reject { |entry| destination_paths[entry[:path]] }
+      return output if missing_entries.empty?
+
+      insert_declaration_body_blocks(output, missing_entries.map { |entry| entry[:text] })
     end
 
     def unsupported_feature_result(message)
@@ -877,6 +872,20 @@ module Ruby
         return index if depth.zero? && index.positive?
       end
       nil
+    end
+
+    def insert_declaration_body_blocks(destination_text, blocks)
+      lines = destination_text.to_s.split("\n")
+      closing_index = declaration_closing_end_index(lines)
+      return destination_text unless closing_index
+
+      insertion_index = direct_visibility_section_index(lines, closing_index) || closing_index
+      insertion = []
+      insertion << "" unless insertion_index == 1 || lines[insertion_index - 1].to_s.strip.empty?
+      insertion.concat(blocks.join("\n\n").split("\n"))
+      insertion << "" if insertion_index != closing_index && !lines[insertion_index].to_s.strip.empty?
+      lines.insert(insertion_index, *insertion)
+      "#{lines.join("\n").sub(/\n+\z/, "")}\n".chomp
     end
 
     def direct_visibility_section_index(lines, closing_index)

@@ -129,6 +129,21 @@ RSpec.describe "Ruby::Merge" do
     expect(nested_class_result[:ok]).to eq(nested_class_fixture.dig(:expected, :ok))
     expect(nested_class_result[:output]).to eq(nested_class_fixture.dig(:expected, :output))
 
+    template_nested_class_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-944-template-only-nested-declaration-merge",
+        "template-only-nested-class-merge.json"
+      )
+    )
+    template_nested_class_result = RUBY_MERGE.merge_ruby(
+      template_nested_class_fixture[:template],
+      template_nested_class_fixture[:destination],
+      "ruby"
+    )
+    expect(template_nested_class_result[:ok]).to eq(template_nested_class_fixture.dig(:expected, :ok))
+    expect(template_nested_class_result[:output]).to eq(template_nested_class_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
