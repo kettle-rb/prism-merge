@@ -81,6 +81,17 @@ RSpec.describe "Ruby::Merge" do
     expect(merge_result[:ok]).to eq(merge_fixture.dig(:expected, :ok))
     expect(merge_result[:output]).to eq(merge_fixture.dig(:expected, :output))
 
+    advanced_leaf_fixture = read_json(
+      fixtures_root.join("ruby", "slice-720-advanced-leaf-merge", "class-hash-leaf-merge.json")
+    )
+    advanced_leaf_result = RUBY_MERGE.merge_ruby(
+      advanced_leaf_fixture[:template],
+      advanced_leaf_fixture[:destination],
+      "ruby"
+    )
+    expect(advanced_leaf_result[:ok]).to eq(advanced_leaf_fixture.dig(:expected, :ok))
+    expect(advanced_leaf_result[:output]).to eq(advanced_leaf_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],

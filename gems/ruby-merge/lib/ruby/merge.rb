@@ -19,6 +19,7 @@ module Ruby
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
     MODULE_PATTERN = /^\s*module\s+([A-Z]\w*(?:::\w+)*)/.freeze
     DEF_PATTERN = /^\s*def\s+(?:self\.)?([a-zA-Z_]\w*[!?=]?)/.freeze
+    CONSTANT_HASH_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=\s*\{/.freeze
     EXAMPLE_TAG = /\A@example\b(?<rest>.*)\z/.freeze
     TAG_PREFIX = /\A@[a-z_]+\b/.freeze
 
@@ -109,6 +110,7 @@ module Ruby
       destination_declarations = collect_ruby_declaration_entries(destination.dig(:analysis, :source))
       template_declarations = collect_ruby_declaration_entries(template.dig(:analysis, :source))
       destination_paths = destination_declarations.to_h { |entry| [entry[:path], true] }
+      template_declarations_by_path = template_declarations.to_h { |entry| [entry[:path], entry] }
       destination_dsl = collect_top_level_dsl_entries(destination.dig(:analysis, :source))
       template_dsl = collect_top_level_dsl_entries(template.dig(:analysis, :source))
       sections = []
@@ -118,7 +120,11 @@ module Ruby
       require_block = requires.map { |entry| entry[:text] }.join("\n").strip
       sections << require_block unless require_block.empty?
       sections.concat(merge_top_level_dsl_entries(destination_dsl, template_dsl).map { |entry| entry[:text] })
-      sections.concat(destination_declarations.map { |entry| entry[:text] })
+      sections.concat(
+        destination_declarations.map do |entry|
+          merge_ruby_declaration_entry(template_declarations_by_path[entry[:path]], entry)[:text]
+        end
+      )
       sections.concat(
         template_declarations.reject { |entry| destination_paths[entry[:path]] }.map { |entry| entry[:text] }
       )
@@ -529,6 +535,35 @@ module Ruby
       entries
     end
 
+    def merge_ruby_declaration_entry(template_entry, destination_entry)
+      return destination_entry unless template_entry
+
+      destination_entry.merge(
+        text: merge_declaration_hash_constants(template_entry[:text], destination_entry[:text])
+      )
+    end
+
+    def merge_declaration_hash_constants(template_text, destination_text)
+      template_blocks = constant_hash_blocks(template_text).to_h { |block| [block[:constant], block] }
+      destination_blocks = constant_hash_blocks(destination_text)
+      return destination_text if template_blocks.empty? || destination_blocks.empty?
+
+      output = destination_text.dup
+      destination_blocks.reverse_each do |destination_block|
+        template_block = template_blocks[destination_block[:constant]]
+        next unless template_block
+
+        template_hash = RubyHashLiteralParser.new(template_block[:hash_source]).parse
+        destination_hash = RubyHashLiteralParser.new(destination_block[:hash_source]).parse
+        merged_hash = merge_ruby_hash_literals(template_hash, destination_hash)
+        rendered = "#{destination_block[:prefix]}#{render_ruby_hash_literal(merged_hash, destination_block[:base_indent])}"
+        output[destination_block[:range]] = rendered
+      rescue ArgumentError
+        next
+      end
+      output
+    end
+
     def unsupported_feature_result(message)
       {
         ok: false,
@@ -538,6 +573,217 @@ module Ruby
     end
 
     private
+
+    RubyHashNode = Struct.new(:pairs, :inline, keyword_init: true)
+    RubyHashPair = Struct.new(:key, :value, keyword_init: true)
+    RubyScalarNode = Struct.new(:source, keyword_init: true)
+
+    class RubyHashLiteralParser
+      def initialize(source)
+        @source = source.to_s
+        @index = 0
+      end
+
+      def parse
+        parse_hash.tap do
+          skip_whitespace
+          raise ArgumentError, "unexpected trailing hash literal content" unless eof?
+        end
+      end
+
+      private
+
+      attr_reader :source
+
+      def parse_hash
+        start_index = @index
+        consume("{")
+        pairs = []
+        loop do
+          skip_whitespace
+          break if peek == "}"
+
+          key = parse_symbol_key
+          skip_whitespace
+          value = parse_value
+          pairs << RubyHashPair.new(key: key, value: value)
+          skip_whitespace
+          break if peek == "}"
+
+          consume(",")
+        end
+        consume("}")
+        RubyHashNode.new(pairs: pairs, inline: !source[start_index...@index].include?("\n"))
+      end
+
+      def parse_value
+        skip_whitespace
+        return parse_hash if peek == "{"
+
+        RubyScalarNode.new(source: parse_scalar_source)
+      end
+
+      def parse_symbol_key
+        match = source[@index..].to_s.match(/\A([a-zA-Z_]\w*):/)
+        raise ArgumentError, "expected symbol hash key" unless match
+
+        @index += match[0].length
+        match[1]
+      end
+
+      def parse_scalar_source
+        start_index = @index
+        string_quote = nil
+        escape = false
+        while @index < source.length
+          char = source[@index]
+          if string_quote
+            if escape
+              escape = false
+            elsif char == "\\"
+              escape = true
+            elsif char == string_quote
+              string_quote = nil
+            end
+            @index += 1
+            next
+          end
+
+          break if char == "," || char == "}"
+          string_quote = char if char == "\"" || char == "'"
+          @index += 1
+        end
+        source[start_index...@index].rstrip
+      end
+
+      def skip_whitespace
+        @index += 1 while @index < source.length && source[@index].match?(/\s/)
+      end
+
+      def consume(expected)
+        raise ArgumentError, "expected #{expected}" unless peek == expected
+
+        @index += 1
+      end
+
+      def peek
+        source[@index]
+      end
+
+      def eof?
+        @index >= source.length
+      end
+    end
+
+    def constant_hash_blocks(text)
+      lines = text.to_s.split("\n", -1)
+      line_start_offsets = []
+      offset = 0
+      lines.each do |line|
+        line_start_offsets << offset
+        offset += line.length + 1
+      end
+
+      blocks = []
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        match = CONSTANT_HASH_ASSIGNMENT_PATTERN.match(line)
+        unless match
+          index += 1
+          next
+        end
+
+        start_line = index
+        finish_line = hash_assignment_finish_line(lines, start_line)
+        if finish_line
+          block_source = lines[start_line..finish_line].join("\n")
+          hash_offset = block_source.index("{")
+          start_offset = line_start_offsets[start_line]
+          finish_offset = line_start_offsets[finish_line] + lines[finish_line].length
+          blocks << {
+            constant: match[2],
+            prefix: block_source[0...hash_offset],
+            hash_source: block_source[hash_offset..],
+            base_indent: match[1].length,
+            range: (start_offset...finish_offset)
+          }
+          index = finish_line + 1
+        else
+          index += 1
+        end
+      end
+      blocks
+    end
+
+    def hash_assignment_finish_line(lines, start_line)
+      depth = 0
+      in_string = nil
+      escape = false
+      start_line.upto(lines.length - 1) do |line_index|
+        lines[line_index].each_char do |char|
+          if in_string
+            if escape
+              escape = false
+            elsif char == "\\"
+              escape = true
+            elsif char == in_string
+              in_string = nil
+            end
+            next
+          end
+
+          if char == "\"" || char == "'"
+            in_string = char
+          elsif char == "{"
+            depth += 1
+          elsif char == "}"
+            depth -= 1
+            return line_index if depth.zero?
+          end
+        end
+      end
+      nil
+    end
+
+    def merge_ruby_hash_literals(template, destination)
+      destination_by_key = destination.pairs.to_h { |pair| [pair.key, pair] }
+      merged_pairs = template.pairs.map do |template_pair|
+        destination_pair = destination_by_key[template_pair.key]
+        if destination_pair.nil?
+          template_pair
+        elsif template_pair.value.is_a?(RubyHashNode) && destination_pair.value.is_a?(RubyHashNode)
+          RubyHashPair.new(
+            key: template_pair.key,
+            value: merge_ruby_hash_literals(template_pair.value, destination_pair.value)
+          )
+        else
+          destination_pair
+        end
+      end
+      template_keys = template.pairs.map(&:key).to_h { |key| [key, true] }
+      merged_pairs.concat(destination.pairs.reject { |pair| template_keys[pair.key] })
+      RubyHashNode.new(pairs: merged_pairs, inline: template.inline)
+    end
+
+    def render_ruby_hash_literal(node, base_indent)
+      return node.source unless node.is_a?(RubyHashNode)
+      return render_inline_ruby_hash_literal(node) if node.inline
+
+      child_indent = base_indent + 2
+      lines = node.pairs.each_with_index.map do |pair, index|
+        suffix = index == node.pairs.length - 1 ? "" : ","
+        "#{" " * child_indent}#{pair.key}: #{render_ruby_hash_literal(pair.value, child_indent)}#{suffix}"
+      end
+      "{\n#{lines.join("\n")}\n#{" " * base_indent}}"
+    end
+
+    def render_inline_ruby_hash_literal(node)
+      inner = node.pairs.map do |pair|
+        "#{pair.key}: #{render_ruby_hash_literal(pair.value, 0)}"
+      end.join(", ")
+      "{#{inner}}"
+    end
 
     def comment_line?(line)
       line.lstrip.start_with?("#")
