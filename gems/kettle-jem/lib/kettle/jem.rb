@@ -53,6 +53,7 @@ module Kettle
     }.freeze
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
     SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
+    SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
     RUBY_TEMPLATE_BASENAMES = %w[Gemfile Rakefile Appraisals Appraisal.root.gemfile .simplecov].freeze
     RUBY_TEMPLATE_SUFFIXES = %w[.gemspec .gemfile].freeze
     RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
@@ -2570,7 +2571,8 @@ module Kettle
           template_content,
           destination_content,
           "ruby",
-          merge_template_requires: file_type == :rakefile
+          merge_template_requires: file_type == :rakefile,
+          method_move_policy: ruby_method_move_policy(recipe)
         )
       when :yaml
         merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
@@ -2590,6 +2592,10 @@ module Kettle
       diagnostics = merge_result.fetch(:diagnostics, [])
       message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
       raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def ruby_method_move_policy(recipe)
+      recipe.dig(:template_preference, :method_move_policy) || Ruby::Merge::DEFAULT_METHOD_MOVE_POLICY
     end
 
     def merge_gemfile_template_policy(content, facts:)
@@ -4551,6 +4557,7 @@ module Kettle
       }
       preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
       preference[:file_type] = strategy_config.fetch(:file_type).to_s if strategy_config&.key?(:file_type)
+      preference[:method_move_policy] = strategy_config.fetch(:method_move_policy).to_s if strategy_config&.key?(:method_move_policy)
       if copy_only_when_missing_template_path?(target_path) && File.exist?(File.join(project_root, target_path))
         preference[:strategy] = "keep_destination"
         preference[:policy] = "copy_only_when_missing"
@@ -4632,6 +4639,12 @@ module Kettle
           result[:add_template_only_nodes] = entry.key?("add_template_only_nodes") ? entry["add_template_only_nodes"] : defaults["add_template_only_nodes"]
         end
         result[:freeze_token] = (entry.key?("freeze_token") ? entry["freeze_token"] : defaults["freeze_token"]).to_s if entry.key?("freeze_token") || defaults.key?("freeze_token")
+        if entry.key?("method_move_policy") || defaults.key?("method_move_policy")
+          policy = (entry.key?("method_move_policy") ? entry["method_move_policy"] : defaults["method_move_policy"]).to_s
+          raise ArgumentError, "unknown kettle-jem Ruby method_move_policy: #{policy}" unless SUPPORTED_RUBY_METHOD_MOVE_POLICIES.include?(policy)
+
+          result[:method_move_policy] = policy
+        end
       end
       result
     end

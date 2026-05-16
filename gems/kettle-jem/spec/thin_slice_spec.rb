@@ -1227,6 +1227,75 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "passes Ruby method move policy through per-file template strategy config" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-ruby-method-move-policy-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          files:
+            lib:
+              example.rb:
+                strategy: merge
+                file_type: ruby
+                method_move_policy: destination_order
+          templates:
+            root: template
+            apply: true
+            entries:
+              - lib/example.rb
+        YAML
+        "lib/example.rb" => <<~RUBY,
+          class Greeter
+            def beta
+              :beta
+            end
+
+            def alpha
+              :alpha
+            end
+          end
+        RUBY
+        "template/lib/example.rb.example" => <<~RUBY,
+          class Greeter
+            def alpha
+              :template_alpha
+            end
+
+            def beta
+              :template_beta
+            end
+
+            def gamma
+              :gamma
+            end
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find do |entry|
+        entry.fetch(:recipe_name) == "template_source_application_lib_example_rb"
+      end
+      final_content = report.fetch(:final_content)
+
+      expect(final_content.index("def beta")).to be < final_content.index("def alpha")
+      expect(final_content.scan("def alpha").size).to eq(1)
+      expect(final_content.scan("def beta").size).to eq(1)
+      expect(final_content.scan("def gamma").size).to eq(1)
+      expect(report.dig(:metadata, :template_source_preference)).to include(
+        file_type: "ruby",
+        method_move_policy: "destination_order"
+      )
+    end
+  end
+
   it "applies Appraisals template policy with self-dependency and minimum Ruby pruning" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
