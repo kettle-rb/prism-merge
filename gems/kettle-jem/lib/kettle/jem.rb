@@ -49,6 +49,7 @@ module Kettle
       supplied_obsolete_file_deletion
       supplied_disabled_opencollective_file_deletion
       supplied_legacy_destination_file_deletion
+      supplied_obsolete_license_file_deletion
     ].freeze
     PHASE_ORDER = %i[
       config_sync
@@ -65,6 +66,17 @@ module Kettle
     ].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS = %w[REEK bin/setup].freeze
+    NON_LICENSE_MD_BASENAMES = %w[
+      AGENTS
+      CHANGELOG
+      CODE_OF_CONDUCT
+      CONTRIBUTING
+      FUNDING
+      LICENSE
+      README
+      RUBOCOP
+      SECURITY
+    ].freeze
     LEGACY_DESTINATION_PATHS = {
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
     }.freeze
@@ -2086,11 +2098,13 @@ module Kettle
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
       template_facts = {}
-      template_config = template_runtime_config(kettle_config, facts)
+      template_config = template_runtime_config(kettle_config, facts, license: license)
       template_preferences = template_source_preferences(project_root, template_config, opencollective_disabled: opencollective_disabled)
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
       legacy_cleanups = template_legacy_destination_cleanups(project_root, template_preferences)
       template_facts[:legacy_destination_cleanups] = legacy_cleanups unless legacy_cleanups.empty?
+      license_cleanups = template_obsolete_license_cleanups(project_root, template_config, template_preferences)
+      template_facts[:obsolete_license_cleanups] = license_cleanups unless license_cleanups.empty?
       unless template_preferences.empty?
         facts[:license] = license unless license.empty?
         facts[:project_runtime] = project_runtime unless project_runtime.empty?
@@ -2169,6 +2183,15 @@ module Kettle
           "file",
           "supplied_legacy_destination_file_deletion",
           facts: %w[templates]
+        )
+      end
+      facts.dig(:templates, :obsolete_license_cleanups).to_a.each do |cleanup|
+        recipes << recipe_entry(
+          "template_obsolete_license_cleanup_#{workflow_recipe_slug(cleanup.fetch(:license_path))}",
+          cleanup.fetch(:license_path),
+          "file",
+          "supplied_obsolete_license_file_deletion",
+          facts: %w[templates license]
         )
       end
       recipes << recipe_entry(
@@ -2512,6 +2535,8 @@ module Kettle
       when /\Aopencollective_disabled_file_cleanup_/
         ""
       when /\Atemplate_legacy_destination_cleanup_/
+        ""
+      when /\Atemplate_obsolete_license_cleanup_/
         ""
       when /\Agithub_actions_workflow_snippets_/
         synchronize_github_actions_workflow_snippets(original)
@@ -3461,6 +3486,13 @@ module Kettle
           deleted_file: recipe.fetch(:target_path),
         )
       end
+      if recipe.fetch(:primitive) == "supplied_obsolete_license_file_deletion"
+        metadata.merge!(
+          policy_kind: "delete_obsolete_license_file",
+          operation: "delete",
+          deleted_file: recipe.fetch(:target_path),
+        )
+      end
       if recipe.fetch(:primitive) == "supplied_template_source_preference"
         metadata.merge!(
           policy_kind: "select_template_source",
@@ -3840,7 +3872,7 @@ module Kettle
       return :spec_helper if path == "spec/spec_helper.rb" || path.start_with?("spec/support/")
       return :environment_templates if path.start_with?(".env") || path.end_with?(".env")
       return :git_hooks if path.start_with?(".git/hooks/") || path.start_with?("git-hooks/")
-      return :license_files if path.start_with?("LICENSE") || path.start_with?("NOTICE")
+      return :license_files if path.start_with?("LICENSE") || path.start_with?("NOTICE") || managed_license_template_basename(path)
       return :duplicate_check if name.include?("duplicate")
       return :quality_config if quality_config_path?(path)
 
@@ -5222,10 +5254,11 @@ module Kettle
       end
     end
 
-    def template_runtime_config(config, facts)
+    def template_runtime_config(config, facts, license: {})
       result = deep_dup(config)
       result["rubygems"] = {} unless result["rubygems"].is_a?(Hash)
       result["rubygems"]["min_ruby"] ||= facts.dig(:rubygems, :min_ruby)
+      result["resolved_licenses"] = license[:spdx]
       result
     end
 
@@ -5328,6 +5361,7 @@ module Kettle
       source_path, target_path = template_entry_paths(entry)
       return nil if source_path.to_s.empty? || target_path.to_s.empty?
       return nil if skip_packaged_workflow_template?(target_path, config)
+      return nil if skip_packaged_license_template?(target_path, config)
 
       selected_source = preferred_template_source(template_root.fetch(:path), source_path, opencollective_disabled: opencollective_disabled)
       return nil unless selected_source
@@ -5374,6 +5408,21 @@ module Kettle
           canonical_path: canonical_path,
           legacy_path: legacy_path,
         }
+      end
+    end
+
+    def template_obsolete_license_cleanups(project_root, config, preferences)
+      active_basenames = active_license_basenames(config)
+      return [] if active_basenames.empty?
+
+      retained_paths = preferences.map { |preference| preference.fetch(:target_path) }.to_set
+      known_license_template_basenames.filter_map do |basename|
+        license_path = "#{basename}.md"
+        next if active_basenames.include?(basename)
+        next if retained_paths.include?(license_path)
+        next unless File.exist?(File.join(project_root, license_path))
+
+        { license_path: license_path, license_basename: basename }
       end
     end
 
@@ -5460,6 +5509,40 @@ module Kettle
         "root" => "packaged",
         "apply" => true,
       }
+    end
+
+    def skip_packaged_license_template?(target_path, config)
+      basename = managed_license_template_basename(target_path)
+      return false unless basename
+
+      active_basenames = active_license_basenames(config)
+      return false if active_basenames.empty?
+
+      !active_basenames.include?(basename)
+    end
+
+    def managed_license_template_basename(target_path)
+      path = target_path.to_s
+      return unless path.end_with?(".md")
+
+      basename = File.basename(path, ".md")
+      return if NON_LICENSE_MD_BASENAMES.include?(basename)
+
+      known_license_template_basenames.include?(basename) ? basename : nil
+    end
+
+    def known_license_template_basenames
+      @known_license_template_basenames ||= Dir.glob(File.join(PACKAGED_TEMPLATE_ROOT, "*.md.example"))
+        .map { |path| File.basename(path, ".md.example") }
+        .reject { |basename| NON_LICENSE_MD_BASENAMES.include?(basename) }
+        .to_set
+    end
+
+    def active_license_basenames(config)
+      Array(config["resolved_licenses"])
+        .map { |license| spdx_basename(license) }
+        .reject(&:empty?)
+        .to_set
     end
 
     def skip_packaged_workflow_template?(target_path, config)

@@ -3197,6 +3197,62 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "applies and prunes root license files from configured licenses" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-license-file-prune-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.licenses = ["MIT"]
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          licenses:
+            - AGPL-3.0-only
+            - PolyForm-Small-Business-1.0.0
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - LICENSE.md
+              - AGPL-3.0-only.md
+              - MIT.md
+              - PolyForm-Noncommercial-1.0.0.md
+              - PolyForm-Small-Business-1.0.0.md
+              - Big-Time-Public-License.md
+        YAML
+        "MIT.md" => "obsolete MIT license\n",
+        "PolyForm-Noncommercial-1.0.0.md" => "obsolete PolyForm NC license\n",
+        "Big-Time-Public-License.md" => "obsolete Big Time license\n",
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      recipe_names = apply[:recipe_reports].map { |report| report.fetch(:recipe_name) }
+
+      expect(apply.dig(:facts, :license, :spdx)).to eq(["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"])
+      expect(recipe_names).to include("template_source_application_AGPL_3_0_only_md")
+      expect(recipe_names).to include("template_source_application_PolyForm_Small_Business_1_0_0_md")
+      expect(recipe_names).not_to include("template_source_application_MIT_md")
+      expect(recipe_names).not_to include("template_source_application_PolyForm_Noncommercial_1_0_0_md")
+      expect(recipe_names).not_to include("template_source_application_Big_Time_Public_License_md")
+      expect(apply[:changed_files]).to include(
+        "MIT.md",
+        "PolyForm-Noncommercial-1.0.0.md",
+        "Big-Time-Public-License.md",
+        "AGPL-3.0-only.md",
+        "PolyForm-Small-Business-1.0.0.md"
+      )
+      expect(File).to exist(File.join(root, "AGPL-3.0-only.md"))
+      expect(File).to exist(File.join(root, "PolyForm-Small-Business-1.0.0.md"))
+      expect(File).not_to exist(File.join(root, "MIT.md"))
+      expect(File).not_to exist(File.join(root, "PolyForm-Noncommercial-1.0.0.md"))
+      expect(File).not_to exist(File.join(root, "Big-Time-Public-License.md"))
+    end
+  end
+
   it "projects copyright holders from git blame into license templates" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
