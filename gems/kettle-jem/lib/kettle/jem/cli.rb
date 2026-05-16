@@ -9,6 +9,8 @@ module Kettle
     module CLI
       USAGE = <<~USAGE.freeze
         Usage:
+          kettle-jem [PROJECT_ROOT] [--accept-config] [--bootstrap-mode] [--quiet|--verbose]
+          kettle-jem setup [PROJECT_ROOT] [--accept-config] [--bootstrap-mode] [--quiet|--verbose]
           kettle-jem plan [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
           kettle-jem apply [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
           kettle-jem template [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
@@ -43,7 +45,13 @@ module Kettle
       def normalize_command(argv)
         args = Array(argv).dup
         command = args.shift
-        command = "help" if command.nil? || command == "help" || command == "--help" || command == "-h"
+        return ["help", []] if command == "help" || command == "--help" || command == "-h"
+        return ["setup", []] if command.nil?
+
+        unless command_allowed?(command)
+          args.unshift(command)
+          command = "setup"
+        end
         command = "version" if command == "version" || command == "--version" || command == "-v"
         raise ArgumentError, "Unsupported kettle-jem command #{command.inspect}" unless command_allowed?(command)
 
@@ -51,7 +59,7 @@ module Kettle
       end
 
       def command_allowed?(command)
-        %w[plan apply template install manifest selftest help version].include?(command)
+        %w[setup plan apply template install manifest selftest help version].include?(command)
       end
 
       def parse_options(args)
@@ -125,6 +133,8 @@ module Kettle
 
       def execute(command, project_root:, env:, options:)
         case command
+        when "setup"
+          Kettle::Jem.setup_project(project_root, env: env, run_options: options.fetch(:run_options))
         when "plan"
           Kettle::Jem.plan_project(project_root, env: env, run_options: options.fetch(:run_options))
         when "apply", "template"
@@ -155,6 +165,13 @@ module Kettle
         end
 
         case command
+        when "setup"
+          out.puts("setup: #{result.fetch(:setup_status)}")
+          result.fetch(:changed_files, []).each { |path| out.puts("  #{path}") }
+          result.fetch(:diagnostics, []).each do |diagnostic|
+            message = diagnostic.is_a?(Hash) ? diagnostic[:message] || diagnostic["message"] : diagnostic
+            out.puts("  #{message}") unless message.to_s.empty?
+          end
         when "manifest"
           entries = result.fetch(:entries, [])
           out.puts("template manifest: #{entries.length} entr#{entries.length == 1 ? "y" : "ies"}")

@@ -28,6 +28,7 @@ RSpec.describe Kettle::Jem::CLI do
     version_status, version_out, version_err = run_cli(["version"])
 
     expect(help_status).to eq(0)
+    expect(help_out).to include("kettle-jem [PROJECT_ROOT]")
     expect(help_out).to include("kettle-jem plan")
     expect(help_out).to include("kettle-jem install")
     expect(help_out).to include("kettle-jem selftest")
@@ -35,6 +36,51 @@ RSpec.describe Kettle::Jem::CLI do
     expect(version_status).to eq(0)
     expect(version_out).to eq("#{Kettle::Jem::Version::VERSION}\n")
     expect(version_err).to eq("")
+  end
+
+  it "uses no-subcommand invocation as first-run setup bootstrap" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+      })
+
+      status, out, err = run_cli([root])
+
+      expect(status).to eq(0)
+      expect(err).to eq("")
+      expect(out).to include("setup: bootstrap_config_written")
+      expect(out).to include("Review it, then run kettle-jem --accept-config")
+      expect(File).to exist(File.join(root, ".kettle-jem.yml"))
+      expect(File).not_to exist(File.join(root, ".github", "FUNDING.yml"))
+    end
+  end
+
+  it "continues setup when first-run config bootstrap is accepted" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+      })
+
+      status, out, err = run_cli(["setup", root, "--accept-config"])
+
+      expect(status).to eq(0)
+      expect(err).to eq("")
+      expect(out).to include("setup: accepted_config_applied")
+      expect(File).to exist(File.join(root, ".kettle-jem.yml"))
+      expect(File).to exist(File.join(root, ".github", "FUNDING.yml"))
+    end
   end
 
   it "plans a project and emits a machine-readable report" do

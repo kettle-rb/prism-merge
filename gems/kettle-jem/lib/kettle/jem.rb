@@ -2023,6 +2023,33 @@ module Kettle
       report
     end
 
+    def setup_project(project_root, env: ENV, run_options: {})
+      root = File.expand_path(project_root.to_s)
+      config_path = File.join(root, ".kettle-jem.yml")
+      config_existed = File.exist?(config_path)
+      plan = plan_project(root, env: env, run_options: run_options)
+      selection = plan.fetch(:template_selection)
+      bootstrap_only = selection[:bootstrap_mode] || (!config_existed && !selection[:accept_config])
+
+      if bootstrap_only
+        bootstrap_report = plan.fetch(:recipe_reports).find { |report| report.fetch(:relative_path) == ".kettle-jem.yml" }
+        apply_recipe_report(root, bootstrap_report) if bootstrap_report&.fetch(:changed, false)
+        changed_files = bootstrap_report&.fetch(:changed, false) ? [".kettle-jem.yml"] : []
+        return plan.merge(
+          mode: "setup",
+          setup_status: config_existed ? "bootstrap_config_already_present" : "bootstrap_config_written",
+          ready: config_existed,
+          changed_files: changed_files,
+          diagnostics: plan.fetch(:diagnostics) + [setup_guidance_diagnostic(config_existed: config_existed)],
+        )
+      end
+
+      apply_project(root, env: env, run_options: run_options).merge(
+        mode: "setup",
+        setup_status: config_existed ? "configured_project_applied" : "accepted_config_applied",
+      )
+    end
+
     def plan_readme_style(project_root, env: ENV)
       facts = discover_facts(project_root, env: env)
       config = kettle_jem_config(project_root)
@@ -3095,6 +3122,17 @@ module Kettle
         diagnostics << "Deletion is allowed only for explicit Kettle/Jem cleanup primitives."
       end
       diagnostics
+    end
+
+    def setup_guidance_diagnostic(config_existed:)
+      {
+        severity: "advisory",
+        message: if config_existed
+          "Kettle/Jem setup bootstrap mode found existing .kettle-jem.yml; run kettle-jem apply to template the project."
+        else
+          "Created .kettle-jem.yml. Review it, then run kettle-jem --accept-config to continue setup."
+        end,
+      }
     end
 
     def recipe_entry(name, target_path, provider_family, primitive, facts:, provider_backend: nil, selectors: [])
