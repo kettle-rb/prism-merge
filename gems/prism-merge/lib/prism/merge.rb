@@ -389,6 +389,78 @@ module Prism
       }
     end
 
+    def parse_ruby_normalized(source, dialect = "ruby", backend: nil)
+      requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
+      return unsupported_feature_result("Unsupported Ruby dialect #{dialect}.") unless dialect == "ruby"
+      return unsupported_feature_result("Unsupported Ruby backend #{requested}.") unless requested == BACKEND_REFERENCE.id
+
+      result = ::Prism.parse(source)
+      unless result.success?
+        return TreeHaver::NormalizedParseResult.new(
+          ok: false,
+          backend_capability: ruby_normalized_backend_capability(dialect),
+          root_id: nil,
+          nodes: [],
+          parse_error_tolerance: ruby_prism_parse_error_tolerance,
+          source_fragments_available: false,
+          diagnostics: result.errors.map(&:message),
+          metadata: prism_normalized_metadata
+        ).to_h
+      end
+
+      root_node = result.value
+      body = root_node.statements&.body || []
+      class_nodes = body.each_with_index.filter_map do |node, index|
+        next unless node.is_a?(::Prism::ClassNode)
+
+        prism_class_node(source, node, index)
+      end
+      method_nodes = body.each_with_index.flat_map do |node, class_index|
+        next [] unless node.is_a?(::Prism::ClassNode)
+
+        Array(node.body&.body).each_with_index.filter_map do |child, method_index|
+          next unless child.is_a?(::Prism::DefNode)
+
+          prism_method_node(source, child, class_index, method_index)
+        end
+      end
+
+      root = TreeHaver::NormalizedTreeNode.new(
+        id: "prism:program:0",
+        kind: "program",
+        role: "structural",
+        parent_id: nil,
+        child_ids: class_nodes.map(&:id),
+        span: full_source_span(source),
+        field_name: nil,
+        named: true,
+        anonymous: false,
+        has_source_text: true,
+        source_fragment: source,
+        backend_kind: root_node.class.name,
+        semantic_roles: ["compilation_unit"],
+        backend_roles: ["prism.ProgramNode"],
+        unsupported_features: [],
+        metadata: {
+          prism: {
+            node_path: "program",
+            native_tree_visibility: "provider_internal"
+          }
+        }
+      )
+
+      TreeHaver::NormalizedParseResult.new(
+        ok: true,
+        backend_capability: ruby_normalized_backend_capability(dialect),
+        root_id: root.id,
+        nodes: [root] + class_nodes + method_nodes,
+        parse_error_tolerance: ruby_prism_parse_error_tolerance,
+        source_fragments_available: true,
+        diagnostics: [],
+        metadata: prism_normalized_metadata
+      ).to_h
+    end
+
     def match_ruby_owners(template, destination)
       Ruby::Merge.match_ruby_owners(template, destination)
     end
@@ -473,6 +545,118 @@ module Prism
       Ruby::Merge.unsupported_feature_result(message)
     end
 
+    def ruby_normalized_backend_capability(dialect)
+      TreeHaver::BackendCapability.new(
+        backend_ref: BACKEND_REFERENCE,
+        language: "ruby",
+        parser_identity: TreeHaver::ParserIdentity.new(
+          name: "prism",
+          version: ::Prism::VERSION,
+          implementation: "ruby"
+        ),
+        language_version: TreeHaver::LanguageVersion.new(version: "ruby", dialect: dialect),
+        parse_error_behavior: "diagnostic_without_tree",
+        source_span_support: "byte_range_and_points",
+        source_fragment_support: "source_slice",
+        render_strategies: ["source_fragment_reuse", "full_file_fallback"],
+        semantic_role_support: "backend_specific_with_portable_mapping",
+        normalized_tree_support: true,
+        native_node_access: true,
+        diagnostics: []
+      )
+    end
+
+    def ruby_prism_parse_error_tolerance
+      TreeHaver::ParseErrorTolerance.new(
+        backend_ref: BACKEND_REFERENCE,
+        language: "ruby",
+        behavior: "diagnostic_without_tree",
+        tolerates_errors: false,
+        error_nodes: [],
+        diagnostics: []
+      )
+    end
+
+    def prism_normalized_metadata
+      {
+        prism: {
+          native_tree_retained: "true",
+          native_tree_visibility: "provider_internal"
+        }
+      }
+    end
+
+    def prism_class_node(source, node, index)
+      TreeHaver::NormalizedTreeNode.new(
+        id: "prism:class:#{index}",
+        kind: "class_declaration",
+        role: "structural",
+        parent_id: "prism:program:0",
+        child_ids: Array(node.body&.body).each_with_index.filter_map do |child, child_index|
+          "prism:def:#{child_index}" if child.is_a?(::Prism::DefNode)
+        end,
+        span: source_span_for_location(node.location),
+        field_name: "declaration",
+        named: true,
+        anonymous: false,
+        has_source_text: true,
+        source_fragment: source.byteslice(node.location.start_offset...node.location.end_offset),
+        backend_kind: node.class.name,
+        semantic_roles: ["declaration", "class", "named_symbol"],
+        backend_roles: ["prism.ClassNode"],
+        unsupported_features: [],
+        metadata: {
+          prism: {
+            node_path: "statements.body[#{index}]",
+            raw_identifier: node.name.to_s
+          }
+        }
+      )
+    end
+
+    def prism_method_node(source, node, class_index, method_index)
+      TreeHaver::NormalizedTreeNode.new(
+        id: "prism:def:#{method_index}",
+        kind: "method_declaration",
+        role: "structural",
+        parent_id: "prism:class:#{class_index}",
+        child_ids: [],
+        span: source_span_for_location(node.location),
+        field_name: "body",
+        named: true,
+        anonymous: false,
+        has_source_text: true,
+        source_fragment: source.byteslice(node.location.start_offset...node.location.end_offset),
+        backend_kind: node.class.name,
+        semantic_roles: ["declaration", "method", "named_symbol"],
+        backend_roles: ["prism.DefNode"],
+        unsupported_features: [],
+        metadata: {
+          prism: {
+            node_path: "statements.body[#{class_index}].body.body[#{method_index}]",
+            raw_identifier: node.name.to_s
+          }
+        }
+      )
+    end
+
+    def full_source_span(source)
+      lines = source.split("\n", -1)
+      TreeHaver::SourceSpan.new(
+        range: TreeHaver::ByteRange.new(start_byte: 0, end_byte: source.bytesize),
+        start_point: TreeHaver::SourcePoint.new(row: 0, column: 0),
+        end_point: TreeHaver::SourcePoint.new(row: lines.length - 1, column: lines.last.bytesize)
+      )
+    end
+
+    def source_span_for_location(location)
+      TreeHaver::SourceSpan.new(
+        range: TreeHaver::ByteRange.new(start_byte: location.start_offset, end_byte: location.end_offset),
+        start_point: TreeHaver::SourcePoint.new(row: location.start_line - 1, column: location.start_column),
+        end_point: TreeHaver::SourcePoint.new(row: location.end_line - 1, column: location.end_column)
+      )
+    end
+
     module_function(
       :ruby_feature_profile,
       :available_ruby_backends,
@@ -486,6 +670,7 @@ module Prism
       :ruby_structured_edit_batch_request_projection,
       :ruby_structured_edit_batch_report_projection,
       :parse_ruby,
+      :parse_ruby_normalized,
       :match_ruby_owners,
       :merge_ruby,
       :merge_ruby_with_reviewed_nested_outputs,
@@ -495,7 +680,14 @@ module Prism
       :merge_ruby_with_reviewed_nested_outputs_from_review_state_envelope,
       :ruby_discovered_surfaces,
       :ruby_delegated_child_operations,
-      :unsupported_feature_result
+      :unsupported_feature_result,
+      :ruby_normalized_backend_capability,
+      :ruby_prism_parse_error_tolerance,
+      :prism_normalized_metadata,
+      :prism_class_node,
+      :prism_method_node,
+      :full_source_span,
+      :source_span_for_location
     )
   end
 end
