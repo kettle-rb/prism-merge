@@ -777,6 +777,9 @@ RSpec.describe Kettle::Jem do
       expect(bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths).to_h { |relative_path|
         [relative_path, File.exist?(File.join(root, relative_path)) ? File.read(File.join(root, relative_path)) : nil]
       }).to eq(selected)
+      expect(second_apply.fetch(:changed_files)).not_to include(
+        *bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths)
+      )
     end
   end
 

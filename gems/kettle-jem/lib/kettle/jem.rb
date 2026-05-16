@@ -5451,7 +5451,8 @@ module Kettle
 
       close_end = close_index + close_marker.length
       close_end += 1 if content[close_end] == "\n"
-      "#{content[0...open_index]}#{replacement}\n#{content[close_end..]}"
+      separator = replacement.end_with?("\n") ? "" : "\n"
+      "#{content[0...open_index]}#{replacement}#{separator}#{content[close_end..]}"
     end
 
     def ensure_trailing_newline(text)
