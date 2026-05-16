@@ -36,6 +36,12 @@
       "resolved_gem_name": "example",
       "commented_dependency": "irb",
       "active_dependency": "debug"
+    },
+    "gemspec_emoji_block_integrity": {
+      "package_name": "kettle-dev",
+      "summary": "🍲 A kettle-rb meta tool",
+      "description": "🍲 Kettle::Dev is a meta tool from kettle-rb to streamline development",
+      "executable": "kettle-changelog"
     }
   }
 }

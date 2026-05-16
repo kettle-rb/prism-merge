@@ -1677,6 +1677,83 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "ports old gemspec emoji field replacement without duplicating the Gem::Specification block" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    contract_case = old_spec_contract.fetch(:cases).fetch(:gemspec_emoji_block_integrity)
+    package_name = contract_case.fetch(:package_name)
+
+    Dir.mktmpdir("kettle-jem-old-gemspec-emoji-policy", tmp_root) do |root|
+      write_tree(root, {
+        "#{package_name}.gemspec" => <<~RUBY,
+          # coding: utf-8
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec|
+            spec.name = "#{package_name}"
+            spec.version = "2.0.0"
+            spec.authors = ["Kettle Maintainer"]
+            spec.email = ["maintainer@example.com"]
+            spec.summary = "#{contract_case.fetch(:summary)}"
+            spec.description = "#{contract_case.fetch(:description)}"
+            spec.homepage = "https://github.com/kettle-rb/#{package_name}"
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 4.0"
+            spec.require_paths = ["lib"]
+            spec.bindir = "exe"
+            spec.executables = ["#{contract_case.fetch(:executable)}"]
+            spec.add_development_dependency("gitmoji-regex", "~> 1.0")
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: gem.gemspec
+                target: #{package_name}.gemspec
+        YAML
+        "template/gem.gemspec.example" => <<~RUBY,
+          # coding: utf-8
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec|
+            spec.name = "{KJ|GEM_NAME}"
+            spec.version = "1.0.0"
+            spec.authors = ["Template Author"]
+            spec.email = ["template@example.com"]
+            spec.summary = "🍲 "
+            spec.description = "🍲 "
+            spec.homepage = "https://github.com/kettle-rb/{KJ|GEM_NAME}"
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 2.3.0"
+            spec.require_paths = ["lib"]
+            spec.bindir = "exe"
+            spec.executables = []
+            spec.add_development_dependency("{KJ|GEM_NAME}", "~> 1.0")
+            spec.add_development_dependency("rake", "~> 13.0")
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+      report = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == "#{package_name}.gemspec" }
+      gemspec_content = report.fetch(:final_content)
+
+      expect { RubyVM::InstructionSequence.compile(gemspec_content) }.not_to raise_error
+      expect(gemspec_content.scan(/Gem::Specification\.new\s+do/).count).to eq(1)
+      expect(gemspec_content.scan(/^\s*spec\.name\s*=/).count).to eq(1)
+      expect(gemspec_content).not_to match(/^spec\./)
+      expect(gemspec_content).to include(contract_case.fetch(:summary))
+      expect(gemspec_content).to include(contract_case.fetch(:description))
+      expect(gemspec_content).to include(%(spec.executables = ["#{contract_case.fetch(:executable)}"]))
+      expect(gemspec_content).to include(%(spec.add_development_dependency("gitmoji-regex", "~> 1.0")))
+      expect(gemspec_content).not_to include("# Hence.")
+      expect(gemspec_content).not_to include("add_development_dependency(\"#{package_name}\"")
+      expect(File.read(File.join(root, "#{package_name}.gemspec"))).to eq(gemspec_content)
+    end
+  end
+
   it "ports old gemspec self-dependency removal while preserving project fields" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
