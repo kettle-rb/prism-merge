@@ -351,6 +351,21 @@ RSpec.describe "Ruby::Merge" do
     expect(percent_word_array_result[:ok]).to eq(percent_word_array_fixture.dig(:expected, :ok))
     expect(percent_word_array_result[:output]).to eq(percent_word_array_fixture.dig(:expected, :output))
 
+    uppercase_percent_array_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-967-uppercase-percent-array-constant-merge",
+        "uppercase-percent-array-constant-merge.json"
+      )
+    )
+    uppercase_percent_array_result = RUBY_MERGE.merge_ruby(
+      uppercase_percent_array_fixture[:template],
+      uppercase_percent_array_fixture[:destination],
+      "ruby"
+    )
+    expect(uppercase_percent_array_result[:ok]).to eq(uppercase_percent_array_fixture.dig(:expected, :ok))
+    expect(uppercase_percent_array_result[:output]).to eq(uppercase_percent_array_fixture.dig(:expected, :output))
+
     hash_destination_style_fixture = read_json(
       fixtures_root.join(
         "ruby",

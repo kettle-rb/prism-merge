@@ -756,8 +756,8 @@ module Ruby
     end
 
     def merge_percent_array_constant_text(template_text, destination_text)
-      template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wi]\[)(.*)(\])\z/)
-      destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wi]\[)(.*)(\])\z/)
+      template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wWiI]\[)(.*)(\])\z/)
+      destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wWiI]\[)(.*)(\])\z/)
       return unless template_match && destination_match
 
       destination_elements = destination_match[2].split(/\s+/).reject(&:empty?)
