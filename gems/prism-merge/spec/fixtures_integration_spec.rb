@@ -212,6 +212,19 @@ RSpec.describe "Prism::Merge" do
     expect(json_ready(result)).to eq(json_ready(fixture[:expected_result]))
   end
 
+  it "executes a source-preserving Prism insert-child edit projection" do
+    fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-940-prism-edit-projection-insert-child",
+        "method-insert-child.json"
+      )
+    )
+
+    result = PRISM_MERGE.apply_edit_projection(fixture[:request])
+    expect(json_ready(result)).to eq(json_ready(fixture[:expected_result]))
+  end
+
   it "conforms to the shared Ruby family fixtures" do
     analysis_fixture = read_json(fixtures_root.join("ruby", "slice-218-analysis", "module-owners.json"))
     matching_fixture = read_json(fixtures_root.join("ruby", "slice-219-matching", "path-equality.json"))

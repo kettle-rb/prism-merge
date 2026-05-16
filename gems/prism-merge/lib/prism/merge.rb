@@ -483,7 +483,7 @@ module Prism
       end
 
       operation = operations.first
-      unless %w[replace_node delete_node].include?(operation.fetch(:operation))
+      unless %w[replace_node insert_child delete_node].include?(operation.fetch(:operation))
         return edit_projection_rejection(source, "operations[0].operation", "edit_projection_operation_unsupported", "Prism edit projection does not support #{operation.fetch(:operation)}")
       end
 
@@ -499,6 +499,12 @@ module Prism
       output = if operation.fetch(:operation) == "delete_node"
         delete_range = line_deletion_range(source, range)
         source.byteslice(0...delete_range[:start_byte]) + source.byteslice(delete_range[:end_byte]..)
+      elsif operation.fetch(:operation) == "insert_child"
+        insertion_byte = class_body_insertion_byte(source, range)
+        source.byteslice(0...insertion_byte) +
+          operation.fetch(:replacement_source) +
+          "\n" +
+          source.byteslice(insertion_byte..)
       else
         source.byteslice(0...range[:start_byte]) +
           operation.fetch(:replacement_source) +
@@ -629,6 +635,11 @@ module Prism
       next_newline = source.index("\n", end_byte)
       line_end = next_newline ? next_newline + 1 : end_byte
       { start_byte: line_start, end_byte: line_end }
+    end
+
+    def class_body_insertion_byte(source, range)
+      end_byte = range.fetch(:end_byte)
+      source.rindex("\n", end_byte - 1)&.+(1) || end_byte
     end
 
     def ruby_normalized_backend_capability(dialect)
@@ -857,6 +868,7 @@ module Prism
       :unsupported_feature_result,
       :edit_projection_rejection,
       :line_deletion_range,
+      :class_body_insertion_byte,
       :ruby_normalized_backend_capability,
       :ruby_prism_parse_error_tolerance,
       :prism_normalized_metadata,
