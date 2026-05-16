@@ -34,9 +34,8 @@ RSpec.describe "old Kettle/Jem public spec audit" do
     pending = files.select { |entry| entry.fetch(:status) == "partially_ported" }
     expect(pending).to all(include(:ported_behaviors, :remaining_behaviors))
     expect(pending.flat_map { |entry| entry.fetch(:remaining_behaviors) }).to include(
-      "README badge trimming policy",
-      "mise trust refresh behavior",
-      "per-file recipe overrides parity"
+      "interactive prompt surface",
+      "legacy markdown fine-tuning cases not yet represented by active fixtures"
     )
   end
 end

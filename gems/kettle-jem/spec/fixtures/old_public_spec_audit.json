@@ -31,29 +31,25 @@
     },
     {
       "path": "spec/kettle/jem/tasks/install_task_spec.rb",
-      "status": "partially_ported",
+      "status": "ported",
       "active_specs": ["spec/rake_tasks_spec.rb", "spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "public install task registration",
         "install task no longer invokes template implicitly",
         "README and gemspec templating behavior moved to active template specs",
-        "full post-template install orchestration"
-      ],
-      "remaining_behaviors": [
+        "full post-template install orchestration",
         "README badge trimming policy"
       ]
     },
     {
       "path": "spec/kettle/jem/tasks/prepare_task_spec.rb",
-      "status": "partially_ported",
+      "status": "ported",
       "active_specs": ["spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "config bootstrap",
         "token projection",
         "malformed project preflight failure",
-        "explicit setup phase return states"
-      ],
-      "remaining_behaviors": [
+        "explicit setup phase return states",
         "mise trust refresh behavior"
       ]
     },
@@ -75,12 +71,12 @@
         "README section preservation",
         "template checksum drift reporting",
         "non-interactive default decision policy",
-        "plugin hook lifecycle"
+        "plugin hook lifecycle",
+        "per-file recipe overrides parity",
+        "generated runtime artifact filtering"
       ],
       "remaining_behaviors": [
         "interactive prompt surface",
-        "per-file recipe overrides parity",
-        "full generated artifact filtering",
         "legacy markdown fine-tuning cases not yet represented by active fixtures"
       ]
     },
