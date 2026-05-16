@@ -576,7 +576,19 @@ module Ruby
       missing_methods = template_methods.reject { |entry| destination_method_names[entry[:name]] }
       return destination_text if missing_methods.empty?
 
-      insert_declaration_body_blocks(destination_text, missing_methods.map { |entry| entry[:text] })
+      public_methods, visibility_methods = missing_methods.partition { |entry| entry[:visibility] == "public" }
+      merged_text = destination_text
+      merged_text = insert_declaration_body_blocks(merged_text, public_methods.map { |entry| entry[:text] }) unless public_methods.empty?
+      visibility_methods.group_by { |entry| entry[:visibility] }.each do |visibility, entries|
+        blocks = if direct_visibility_section_present?(merged_text, visibility)
+          merged_text = insert_declaration_body_blocks(merged_text, entries.map { |entry| entry[:body_text] }, before_visibility: false)
+          next
+        else
+          entries.map { |entry| entry[:text] }
+        end
+        merged_text = insert_declaration_body_blocks(merged_text, blocks)
+      end
+      merged_text
     end
 
     def merge_nested_body_declarations(template_text, destination_text)
@@ -788,6 +800,7 @@ module Ruby
 
       entries = []
       pending_comments = []
+      current_visibility = "public"
       visibility_start_index = nil
       visibility_consumed = false
       index = 1
@@ -807,6 +820,7 @@ module Ruby
         end
 
         if %w[private protected public].include?(stripped)
+          current_visibility = stripped
           visibility_start_index = index
           visibility_consumed = false
           pending_comments = []
@@ -832,7 +846,9 @@ module Ruby
         finish_index = ruby_block_finish_index(lines, index)
         entries << {
           name: match[1],
-          text: lines[start_index..finish_index].join("\n").rstrip
+          visibility: current_visibility,
+          text: lines[start_index..finish_index].join("\n").rstrip,
+          body_text: lines[(pending_comments.first || index)..finish_index].join("\n").rstrip
         }
         pending_comments = []
         visibility_consumed = true
@@ -891,12 +907,12 @@ module Ruby
       nil
     end
 
-    def insert_declaration_body_blocks(destination_text, blocks)
+    def insert_declaration_body_blocks(destination_text, blocks, before_visibility: true)
       lines = destination_text.to_s.split("\n")
       closing_index = declaration_closing_end_index(lines)
       return destination_text unless closing_index
 
-      insertion_index = direct_visibility_section_index(lines, closing_index) || closing_index
+      insertion_index = before_visibility ? (direct_visibility_section_index(lines, closing_index) || closing_index) : closing_index
       insertion = []
       insertion << "" unless insertion_index == 1 || lines[insertion_index - 1].to_s.strip.empty?
       insertion.concat(blocks.join("\n\n").split("\n"))
@@ -905,11 +921,24 @@ module Ruby
       "#{lines.join("\n").sub(/\n+\z/, "")}\n".chomp
     end
 
+    def direct_visibility_section_present?(text, visibility)
+      lines = text.to_s.split("\n")
+      closing_index = declaration_closing_end_index(lines)
+      return false unless closing_index
+
+      find_direct_visibility_section_index(lines, closing_index, visibility: visibility)
+    end
+
     def direct_visibility_section_index(lines, closing_index)
+      find_direct_visibility_section_index(lines, closing_index, visibility: nil)
+    end
+
+    def find_direct_visibility_section_index(lines, closing_index, visibility:)
       depth = 1
       1.upto(closing_index - 1) do |index|
         stripped = lines[index].strip
-        return index if depth == 1 && %w[private protected].include?(stripped)
+        visibility_match = visibility ? stripped == visibility : %w[private protected].include?(stripped)
+        return index if depth == 1 && visibility_match
 
         depth += 1 if declaration_for_line(stripped)
         depth -= 1 if stripped == "end"

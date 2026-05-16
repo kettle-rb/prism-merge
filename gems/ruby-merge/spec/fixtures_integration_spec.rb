@@ -159,6 +159,21 @@ RSpec.describe "Ruby::Merge" do
     expect(private_method_result[:ok]).to eq(private_method_fixture.dig(:expected, :ok))
     expect(private_method_result[:output]).to eq(private_method_fixture.dig(:expected, :output))
 
+    existing_private_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-946-existing-private-section-method-merge",
+        "private-method-into-existing-section.json"
+      )
+    )
+    existing_private_result = RUBY_MERGE.merge_ruby(
+      existing_private_fixture[:template],
+      existing_private_fixture[:destination],
+      "ruby"
+    )
+    expect(existing_private_result[:ok]).to eq(existing_private_fixture.dig(:expected, :ok))
+    expect(existing_private_result[:output]).to eq(existing_private_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
