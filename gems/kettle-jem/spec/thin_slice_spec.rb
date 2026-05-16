@@ -851,6 +851,32 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "hard-fails invalid kettle config shape before later discovery" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    {
+      "root_scalar" => ["true\n", /root must be a mapping/],
+      "templates_scalar" => ["templates: packaged\n", /templates must be a mapping/],
+      "entries_scalar" => ["templates:\n  entries: README.md\n", /templates\.entries must be a list/],
+    }.each do |case_name, (config, message)|
+      Dir.mktmpdir("kettle-jem-config-validation-#{case_name}", tmp_root) do |root|
+        write_tree(root, {
+          "example.gemspec" => <<~RUBY,
+            Gem::Specification.new do |spec|
+              spec.name = "example"
+              spec.summary = "Example gem"
+            end
+          RUBY
+          ".kettle-jem.yml" => config,
+        })
+
+        expect {
+          described_class.plan_project(root, env: {})
+        }.to raise_error(Kettle::Jem::Error, message)
+      end
+    end
+  end
+
   it "classifies template entries with files and patterns strategy config" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

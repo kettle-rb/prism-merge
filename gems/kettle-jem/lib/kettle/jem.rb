@@ -3435,7 +3435,23 @@ module Kettle
       return {} unless File.exist?(path)
 
       config = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false) || {}
-      config.is_a?(Hash) ? config : {}
+      validate_kettle_jem_config!(config)
+      config
+    rescue Psych::SyntaxError => error
+      raise Error, "Invalid .kettle-jem.yml: #{error.message}"
+    end
+
+    def validate_kettle_jem_config!(config)
+      raise Error, "Invalid .kettle-jem.yml: root must be a mapping" unless config.is_a?(Hash)
+
+      templates = config["templates"]
+      if templates && !templates.is_a?(Hash)
+        raise Error, "Invalid .kettle-jem.yml: templates must be a mapping"
+      end
+      return unless templates&.key?("entries")
+      return if templates["entries"].is_a?(Array)
+
+      raise Error, "Invalid .kettle-jem.yml: templates.entries must be a list"
     end
 
     def plugin_registry_for_project(project_root)
