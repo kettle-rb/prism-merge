@@ -29,6 +29,7 @@ RSpec.describe Kettle::Jem::CLI do
 
     expect(help_status).to eq(0)
     expect(help_out).to include("kettle-jem plan")
+    expect(help_out).to include("kettle-jem install")
     expect(help_out).to include("kettle-jem selftest")
     expect(help_err).to eq("")
     expect(version_status).to eq(0)
@@ -63,6 +64,81 @@ RSpec.describe Kettle::Jem::CLI do
     end
   end
 
+  it "maps old executable option semantics into the shared report contract" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+      })
+
+      status, out, err = run_cli([
+        "plan",
+        root,
+        "--json",
+        "--force",
+        "--failure-mode",
+        "warn",
+        "--allowed",
+        "env",
+        "--hook-templates",
+        "false",
+        "--quiet",
+        "--verbose",
+        "--accept-config",
+        "--bootstrap-mode",
+        "--only",
+        "Gemfile,Rakefile",
+        "--include",
+        "gemfiles/modular/**",
+        "--skip-commit",
+      ])
+
+      expect(status).to eq(0)
+      expect(err).to eq("")
+      payload = JSON.parse(out, symbolize_names: true)
+      expect(payload.fetch(:decision_policy)).to include(
+        mode: "accept",
+        failure_mode: "warn"
+      )
+      expect(payload.fetch(:template_selection)).to eq(
+        allowed: "env",
+        hook_templates: "false",
+        only: ["Gemfile", "Rakefile"],
+        include: ["gemfiles/modular/**"],
+        skip_commit: true,
+        accept_config: true,
+        bootstrap_mode: true,
+        quiet: true,
+        verbose: true
+      )
+    end
+  end
+
+  it "supports old underscore aliases and quiet text output" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+      })
+
+      status, out, err = run_cli(["plan", root, "--quiet", "--hook_templates", "false"])
+
+      expect(status).to eq(0)
+      expect(out).to eq("")
+      expect(err).to eq("")
+    end
+  end
+
   it "applies a project through the template alias" do
     Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
       write_tree(root, {
@@ -81,6 +157,30 @@ RSpec.describe Kettle::Jem::CLI do
       expect(err).to eq("")
       expect(out).to include("apply:")
       expect(File.exist?(File.join(root, ".kettle-jem.yml"))).to be(true)
+    end
+  end
+
+  it "runs the install command through the active install task" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      allow(Kettle::Jem::Tasks::InstallTask).to receive(:run).and_return(
+        {
+          mode: "install",
+          installed: false,
+          changed_files: [],
+          diagnostics: [],
+        }
+      )
+
+      status, out, err = run_cli(["install", root, "--force"])
+
+      expect(status).to eq(0)
+      expect(err).to eq("")
+      expect(out).to include("install: 0 changed files")
+      expect(Kettle::Jem::Tasks::InstallTask).to have_received(:run).with(
+        project_root: root,
+        env: {},
+        run_options: include(force: true)
+      )
     end
   end
 

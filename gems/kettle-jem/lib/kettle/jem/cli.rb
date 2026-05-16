@@ -9,9 +9,10 @@ module Kettle
     module CLI
       USAGE = <<~USAGE.freeze
         Usage:
-          kettle-jem plan [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive]
-          kettle-jem apply [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive]
-          kettle-jem template [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive]
+          kettle-jem plan [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
+          kettle-jem apply [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
+          kettle-jem template [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
+          kettle-jem install [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
           kettle-jem manifest [PROJECT_ROOT] [--json]
           kettle-jem selftest [PROJECT_ROOT] [--json] [--report PATH] [--destination PATH] [--template-root PATH] [--selftest-output PATH]
           kettle-jem version
@@ -50,7 +51,7 @@ module Kettle
       end
 
       def command_allowed?(command)
-        %w[plan apply template manifest selftest help version].include?(command)
+        %w[plan apply template install manifest selftest help version].include?(command)
       end
 
       def parse_options(args)
@@ -68,6 +69,39 @@ module Kettle
           opts.on("--force", "Alias for --accept.") { options[:run_options][:force] = true }
           opts.on("--interactive", "Use interactive decision mode when supported.") do
             options[:run_options][:interactive] = true
+          end
+          opts.on("--quiet", "Suppress normal text output.") do
+            options[:run_options][:quiet] = true
+          end
+          opts.on("--verbose", "Request verbose diagnostics where supported.") do
+            options[:run_options][:verbose] = true
+          end
+          opts.on("--failure-mode MODE", "Set the template failure mode.") do |mode|
+            options[:run_options][:failure_mode] = mode
+          end
+          opts.on("--allowed VALUE", "Set the env-file change policy.") do |value|
+            options[:run_options][:allowed] = value
+          end
+          opts.on("--hook-templates VALUE", "Set hook template handling.") do |value|
+            options[:run_options][:hook_templates] = value
+          end
+          opts.on("--hook_templates VALUE", "Alias for --hook-templates.") do |value|
+            options[:run_options][:hook_templates] = value
+          end
+          opts.on("--only PATHS", "Restrict templating to comma-separated paths or patterns.") do |value|
+            (options[:run_options][:only] ||= []) << value
+          end
+          opts.on("--include PATHS", "Include comma-separated paths or patterns.") do |value|
+            (options[:run_options][:include] ||= []) << value
+          end
+          opts.on("--skip-commit", "Skip bootstrap commit behavior.") do
+            options[:run_options][:skip_commit] = true
+          end
+          opts.on("--accept-config", "Accept first-run template config bootstrap.") do
+            options[:run_options][:accept_config] = true
+          end
+          opts.on("--bootstrap-mode", "Force first-run bootstrap mode.") do
+            options[:run_options][:bootstrap_mode] = true
           end
           opts.on("--destination PATH", "Selftest destination root.") do |path|
             options[:destination_root] = path
@@ -95,6 +129,8 @@ module Kettle
           Kettle::Jem.plan_project(project_root, env: env, run_options: options.fetch(:run_options))
         when "apply", "template"
           Kettle::Jem.apply_project(project_root, env: env, run_options: options.fetch(:run_options))
+        when "install"
+          Kettle::Jem::Tasks::InstallTask.run(project_root: project_root, env: env, run_options: options.fetch(:run_options))
         when "manifest"
           Kettle::Jem.template_manifest(project_root: project_root)
         when "selftest"
@@ -111,6 +147,8 @@ module Kettle
       end
 
       def print_result(command, result, options:, out:)
+        return if options.fetch(:run_options, {})[:quiet] && !options[:json]
+
         if options[:json]
           out.puts(JSON.pretty_generate(result))
           return

@@ -44,4 +44,36 @@ RSpec.describe "kettle-jem Rake tasks" do
 
     Rake::Task["kettle:jem:selftest"].invoke
   end
+
+  it "maps old ENV-style template arguments into shared run options" do
+    env = {
+      "force" => "true",
+      "FAILURE_MODE" => "warn",
+      "allowed" => "env",
+      "hook_templates" => "false",
+      "only" => "Gemfile,Rakefile",
+      "include" => "gemfiles/modular/**",
+      "KETTLE_JEM_SKIP_COMMIT" => "true",
+      "KETTLE_JEM_ACCEPT_CONFIG" => "true",
+      "KETTLE_JEM_BOOTSTRAP_MODE" => "true",
+      "KETTLE_JEM_QUIET" => "true",
+      "KETTLE_JEM_VERBOSE" => "true",
+    }
+
+    expect(Kettle::Jem::Tasks::TemplateTask.env_run_options(env)).to include(
+      accept: true,
+      force: true,
+      interactive: false,
+      failure_mode: "warn",
+      allowed: "env",
+      hook_templates: "false",
+      only: "Gemfile,Rakefile",
+      include: "gemfiles/modular/**",
+      skip_commit: true,
+      accept_config: true,
+      bootstrap_mode: true,
+      quiet: true,
+      verbose: true
+    )
+  end
 end

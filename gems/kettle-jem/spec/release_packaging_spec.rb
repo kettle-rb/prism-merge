@@ -78,13 +78,43 @@ RSpec.describe "kettle-jem release packaging" do
     expect(File).to exist(unpack_root.join(expected_template))
     expect(File).to exist(unpack_root.join("lib/kettle/jem/rakelib/selftest.rake"))
 
-    run_stdout, run_stderr, run_status = Open3.capture3(
+    version_stdout, version_stderr, version_status = Open3.capture3(
       {"RUBYLIB" => unpack_root.join("lib").to_s},
       Gem.ruby,
       exe.to_s,
       "version"
     )
-    expect(run_status.success?).to be(true), "artifact executable failed\nstdout=#{run_stdout}\nstderr=#{run_stderr}"
-    expect(run_stdout).to eq("#{Kettle::Jem::Version::VERSION}\n")
+    expect(version_status.success?).to be(true), "artifact executable failed\nstdout=#{version_stdout}\nstderr=#{version_stderr}"
+    expect(version_stdout).to eq("#{Kettle::Jem::Version::VERSION}\n")
+
+    help_stdout, help_stderr, help_status = Open3.capture3(
+      {"RUBYLIB" => unpack_root.join("lib").to_s},
+      Gem.ruby,
+      exe.to_s,
+      "--help"
+    )
+    expect(help_status.success?).to be(true), "artifact help failed\nstdout=#{help_stdout}\nstderr=#{help_stderr}"
+    expect(help_stdout).to include("kettle-jem install")
+    expect(help_stdout).to include("kettle-jem selftest")
+
+    project_root = tmp_root.join("project")
+    FileUtils.mkdir_p(project_root)
+    File.write(project_root.join("example.gemspec"), <<~RUBY)
+      Gem::Specification.new do |spec|
+        spec.name = "example"
+        spec.summary = "Example gem"
+        spec.required_ruby_version = ">= 4.0"
+      end
+    RUBY
+    plan_stdout, plan_stderr, plan_status = Open3.capture3(
+      {"RUBYLIB" => unpack_root.join("lib").to_s},
+      Gem.ruby,
+      exe.to_s,
+      "plan",
+      project_root.to_s,
+      "--json"
+    )
+    expect(plan_status.success?).to be(true), "artifact plan failed\nstdout=#{plan_stdout}\nstderr=#{plan_stderr}"
+    expect(JSON.parse(plan_stdout).fetch("mode")).to eq("plan")
   end
 end

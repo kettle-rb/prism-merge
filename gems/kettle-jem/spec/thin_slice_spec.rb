@@ -3208,6 +3208,39 @@ RSpec.describe Kettle::Jem do
     end.to raise_error(Kettle::Jem::Error, /No safe default decision/)
   end
 
+  it "reports git preflight state and lets skip-commit bypass clean-worktree enforcement" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-git-preflight", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+      })
+      expect(system("git", "-C", root, "init", "-q")).to be(true)
+
+      expect do
+        described_class.plan_project(root, env: {"KETTLE_JEM_REQUIRE_CLEAN" => "true"})
+      end.to raise_error(Kettle::Jem::Error, /worktree is not clean/)
+
+      plan = described_class.plan_project(root, env: {
+        "KETTLE_JEM_REQUIRE_CLEAN" => "true",
+        "KETTLE_JEM_SKIP_COMMIT" => "true",
+      })
+      expect(plan.fetch(:template_selection)).to include(skip_commit: true)
+      expect(plan.fetch(:git_preflight)).to include(
+        git_repository: true,
+        clean_worktree: false,
+        skip_commit: true
+      )
+      expect(plan.fetch(:git_preflight).fetch(:dirty_entries)).not_to be_empty
+    end
+  end
+
   it "loads configured plugins and runs apply-time phase hooks" do
     plugin_module = Module.new do
       class << self

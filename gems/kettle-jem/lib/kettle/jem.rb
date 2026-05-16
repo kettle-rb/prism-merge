@@ -1976,7 +1976,10 @@ module Kettle
 
     def plan_project(project_root, env: ENV, run_options: {})
       preflight_project!(project_root)
+      template_selection = template_selection_for(env, run_options)
       decision_policy = decision_policy_for(env, run_options)
+      git_preflight = git_preflight_report(project_root, template_selection: template_selection)
+      enforce_git_preflight!(git_preflight, decision_policy: decision_policy, template_selection: template_selection)
       facts = discover_facts(project_root, env: env)
       pack = recipe_pack(facts)
       files = read_project_files(project_root, pack)
@@ -2005,6 +2008,8 @@ module Kettle
         recipe_reports: recipe_reports,
         phase_reports: phase_reports,
         decision_policy: decision_policy.to_h,
+        template_selection: template_selection,
+        git_preflight: git_preflight,
         decision_evaluations: decision_evaluations,
         changed_files: changed_files,
         diagnostics: diagnostics,
@@ -2268,6 +2273,7 @@ module Kettle
       else
         original
       end
+      final = normalize_generated_rakefile(final) if relative_path == "Rakefile"
 
       template_content = recipe_template_content(project_root, recipe)
       request = content_recipe_execution_request(
@@ -2518,6 +2524,31 @@ module Kettle
         preference.fetch(:source_relative_path, preference.fetch(:selected_source))
       )
       File.read(path)
+    end
+
+    def normalize_generated_rakefile(content)
+      strip_orphaned_rake_task_requires(content.to_s).gsub(
+        /^require "kettle\/dev"\n/,
+        <<~RUBY
+          begin
+            require "kettle/dev"
+          rescue LoadError
+            warn("NOTE: kettle-dev isn't installed, or is disabled for \#{RUBY_VERSION} in the current environment")
+          end
+        RUBY
+      )
+    end
+
+    def strip_orphaned_rake_task_requires(content)
+      guarded_requires = %w[kettle/dev kettle/jem stone_checksums]
+      previous_significant = nil
+      content.to_s.lines.filter_map do |line|
+        required = line[/^\s*require\s+["']([^"']+)["']\s*$/, 1]
+        orphaned_task_require = required && guarded_requires.include?(required) && previous_significant != "begin"
+        stripped = line.strip
+        previous_significant = stripped unless stripped.empty? || stripped.start_with?("#")
+        orphaned_task_require ? nil : line
+      end.join
     end
 
     def apply_template_source(project_root, recipe, original, facts: nil)
@@ -3005,6 +3036,27 @@ module Kettle
       DecisionPolicy.from_env(env || {}, **(run_options || {}))
     end
 
+    def template_selection_for(env, run_options)
+      env_hash = env || {}
+      option_hash = run_options || {}
+      {
+        allowed: option_hash.fetch(:allowed, env_hash["allowed"]),
+        hook_templates: option_hash.fetch(:hook_templates, env_hash["hook_templates"]),
+        only: normalize_list_option(option_hash.fetch(:only, env_hash["only"])),
+        include: normalize_list_option(option_hash.fetch(:include, env_hash["include"])),
+        skip_commit: DecisionPolicy.value_to_boolean(option_hash.fetch(:skip_commit, env_hash["KETTLE_JEM_SKIP_COMMIT"])),
+        accept_config: DecisionPolicy.value_to_boolean(option_hash.fetch(:accept_config, env_hash["KETTLE_JEM_ACCEPT_CONFIG"])),
+        bootstrap_mode: DecisionPolicy.value_to_boolean(option_hash.fetch(:bootstrap_mode, env_hash["KETTLE_JEM_BOOTSTRAP_MODE"])),
+        quiet: DecisionPolicy.value_to_boolean(option_hash.fetch(:quiet, env_hash["KETTLE_JEM_QUIET"])),
+        verbose: DecisionPolicy.value_to_boolean(option_hash.fetch(:verbose, env_hash["KETTLE_JEM_VERBOSE"])),
+      }.compact
+    end
+
+    def normalize_list_option(value)
+      values = Array(value).flat_map { |entry| entry.to_s.split(",") }.map(&:strip).reject(&:empty?)
+      values.empty? ? nil : values
+    end
+
     def recipe_decision_evaluation(decision_policy:, recipe:, changed:, destination_existed:)
       decision_policy.resolve(
         id: "recipe:#{recipe.fetch(:name)}",
@@ -3247,6 +3299,35 @@ module Kettle
       gemfile_path = File.join(project_root, "Gemfile")
       paths << gemfile_path if File.exist?(gemfile_path)
       paths.each { |path| preflight_ruby_syntax!(project_root, path) }
+    end
+
+    def git_preflight_report(project_root, template_selection:)
+      inside = git_success?(project_root, "rev-parse", "--is-inside-work-tree")
+      status = inside ? git_output(project_root, "status", "--porcelain") : nil
+      dirty_entries = status.to_s.lines.map(&:chomp).reject(&:empty?)
+      {
+        git_repository: inside,
+        clean_worktree: inside && dirty_entries.empty?,
+        dirty_entries: dirty_entries,
+        skip_commit: template_selection.fetch(:skip_commit, false),
+      }
+    end
+
+    def enforce_git_preflight!(git_preflight, decision_policy:, template_selection:)
+      return unless decision_policy.require_clean
+      return if template_selection.fetch(:skip_commit, false)
+      raise Error, "Git preflight failed: project is not a git repository" unless git_preflight.fetch(:git_repository)
+      raise Error, "Git preflight failed: worktree is not clean" unless git_preflight.fetch(:clean_worktree)
+    end
+
+    def git_success?(project_root, *args)
+      _stdout, _stderr, status = Open3.capture3("git", "-C", project_root.to_s, *args)
+      status.success?
+    end
+
+    def git_output(project_root, *args)
+      stdout, _stderr, status = Open3.capture3("git", "-C", project_root.to_s, *args)
+      status.success? ? stdout : ""
     end
 
     def preflight_ruby_syntax!(project_root, path)

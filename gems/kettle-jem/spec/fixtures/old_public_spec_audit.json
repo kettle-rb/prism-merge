@@ -1,0 +1,125 @@
+{
+  "case_id": "kettle-jem-old-public-spec-audit",
+  "source_project": "reference/kettle-jem",
+  "policy": "Port public behavior into active Kettle/Jem APIs; do not recreate old internal helper classes unless they remain the best active shape.",
+  "files": [
+    {
+      "path": "spec/bin/setup_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/system/bundle_gem_scaffold_spec.rb"],
+      "notes": "Generated bin/setup preserves the old quiet bundle-install behavior through the packaged template and scaffold system spec."
+    },
+    {
+      "path": "spec/kettle/jem/setup_cli_spec.rb",
+      "status": "partially_ported",
+      "active_specs": ["spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
+      "ported_behaviors": [
+        "machine-readable plan/apply reports",
+        "force/accept decision policy",
+        "failure-mode option parsing",
+        "skip-commit option projection",
+        "template selection option projection",
+        "config bootstrap boundary",
+        "preflight parse failure hard-stop"
+      ],
+      "remaining_behaviors": [
+        "unbundled versus bundled setup handoff",
+        "git repository and clean-worktree prechecks",
+        "bootstrap commit policy",
+        "bundle binstubs handoff",
+        "preflight version-file bootstrap"
+      ]
+    },
+    {
+      "path": "spec/kettle/jem/tasks/install_task_spec.rb",
+      "status": "partially_ported",
+      "active_specs": ["spec/rake_tasks_spec.rb", "spec/thin_slice_spec.rb"],
+      "ported_behaviors": [
+        "public install task registration",
+        "install task no longer invokes template implicitly",
+        "README and gemspec templating behavior moved to active template specs"
+      ],
+      "remaining_behaviors": [
+        "full post-template install orchestration",
+        "README badge trimming policy"
+      ]
+    },
+    {
+      "path": "spec/kettle/jem/tasks/prepare_task_spec.rb",
+      "status": "partially_ported",
+      "active_specs": ["spec/thin_slice_spec.rb"],
+      "ported_behaviors": [
+        "config bootstrap",
+        "token projection",
+        "malformed project preflight failure"
+      ],
+      "remaining_behaviors": [
+        "explicit setup phase return states",
+        "mise trust refresh behavior"
+      ]
+    },
+    {
+      "path": "spec/kettle/jem/tasks/template_task_include_spec.rb",
+      "status": "partially_ported",
+      "active_specs": ["spec/cli_spec.rb", "spec/rake_tasks_spec.rb"],
+      "ported_behaviors": ["include option parsing and reporting"],
+      "remaining_behaviors": ["include/only recipe filtering"]
+    },
+    {
+      "path": "spec/kettle/jem/tasks/template_task_spec.rb",
+      "status": "partially_ported",
+      "active_specs": ["spec/thin_slice_spec.rb", "spec/system/bundle_gem_scaffold_spec.rb"],
+      "ported_behaviors": [
+        "file type classification",
+        "Ruby-family Gemfile/gemspec/Appraisals policies",
+        "YAML/TOML merge policies",
+        "README section preservation",
+        "template checksum drift reporting",
+        "non-interactive default decision policy",
+        "plugin hook lifecycle"
+      ],
+      "remaining_behaviors": [
+        "interactive prompt surface",
+        "per-file recipe overrides parity",
+        "full generated artifact filtering",
+        "legacy markdown fine-tuning cases not yet represented by active fixtures"
+      ]
+    },
+    {
+      "path": "spec/kettle/jem/tasks/self_test_task_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/self_test_task_spec.rb", "spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
+      "notes": "Selftest now validates template output against a destination and emits machine-readable plus markdown drift reports."
+    },
+    {
+      "path": "spec/kettle/jem/rakelib/prepare_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/rake_tasks_spec.rb"],
+      "notes": "Active Rake task surface registers prepare through packaged rakelib."
+    },
+    {
+      "path": "spec/kettle/jem/rakelib/selftest_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/rake_tasks_spec.rb", "spec/self_test_task_spec.rb"],
+      "notes": "Active Rake task surface registers selftest and delegates to the shared task implementation."
+    },
+    {
+      "path": "spec/kettle/jem/rakelib/tasks_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/rake_tasks_spec.rb", "spec/system/bundle_gem_scaffold_spec.rb"],
+      "notes": "Generated Rakefiles now expose the active task surface when kettle-jem is installed."
+    },
+    {
+      "path": "spec/kettle/jem/self_test/manifest_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/thin_slice_spec.rb"],
+      "notes": "Template manifest and checksum metadata are active public APIs."
+    },
+    {
+      "path": "spec/kettle/jem/self_test/reporter_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/self_test_task_spec.rb", "spec/thin_slice_spec.rb"],
+      "notes": "Selftest report rendering is covered through the active task and diagnostic report specs."
+    }
+  ]
+}

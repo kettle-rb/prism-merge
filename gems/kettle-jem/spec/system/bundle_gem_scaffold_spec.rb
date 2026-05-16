@@ -2,6 +2,7 @@
 
 require_relative "../spec_helper"
 require "open3"
+require "rake"
 
 RSpec.describe "bundle gem scaffold + kettle-jem", :system do
   let(:sandbox_root) { File.expand_path("../../../tmp/sandbox", __dir__) }
@@ -222,11 +223,46 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     rakefile = File.read(File.join(gem_root, "Rakefile"))
     expect(rakefile).to include('require "bundler/gem_tasks"')
     expect(rakefile).to include('require "kettle/dev"')
+    expect(rakefile).to include("Kettle::Jem.install_tasks")
+    expect(rakefile).to include("rescue LoadError")
+    previous_significant = nil
+    orphaned_task_requires = rakefile.lines.filter_map do |line|
+      required = line[/^\s*require\s+["']([^"']+)["']\s*$/, 1]
+      orphaned = required && %w[kettle/dev kettle/jem stone_checksums].include?(required) && previous_significant != "begin"
+      stripped = line.strip
+      previous_significant = stripped unless stripped.empty? || stripped.start_with?("#")
+      line if orphaned
+    end
+    expect(orphaned_task_requires).to eq([])
     expect(rakefile.scan(/^task\s+:default\b/).size).to eq(1)
     expect(rakefile).to include('desc "Default tasks aggregator"')
     expect(rakefile.index('desc "Default tasks aggregator"')).to be < rakefile.index("task :default do")
     expect(rakefile.scan('task("kettle:jem:selftest")').size).to eq(1)
     expect(rakefile.scan('task("build:generate_checksums")').size).to eq(1)
+    expect(rakefile).not_to include('desc("(stub) kettle:jem:template is unavailable")')
+
+    FileUtils.mkdir_p(File.join(gem_root, "lib", "dummy", "gem"))
+    File.write(File.join(gem_root, "lib", "dummy", "gem", "version.rb"), <<~RUBY)
+      module Dummy
+        module Gem
+          module Version
+            VERSION = "0.1.0"
+          end
+        end
+      end
+    RUBY
+
+    previous_rake_application = Rake.application
+    Rake.application = Rake::Application.new
+    begin
+      Dir.chdir(gem_root) { load File.join(gem_root, "Rakefile") }
+      expect(Rake::Task.task_defined?("kettle:jem:prepare")).to be(true)
+      expect(Rake::Task.task_defined?("kettle:jem:template")).to be(true)
+      expect(Rake::Task.task_defined?("kettle:jem:install")).to be(true)
+      expect(Rake::Task.task_defined?("kettle:jem:selftest")).to be(true)
+    ensure
+      Rake.application = previous_rake_application
+    end
 
     aggregate_failures "hidden packaged template directories" do
       expected_hidden_directories.each do |relative_path|
@@ -266,6 +302,7 @@ RSpec.describe "bundle gem scaffold + kettle-jem", :system do
     rakefile_after_second_apply = File.read(File.join(gem_root, "Rakefile"))
     expect(rakefile_after_second_apply).to include('require "bundler/gem_tasks"')
     expect(rakefile_after_second_apply).to include('require "kettle/dev"')
+    expect(rakefile_after_second_apply).to include("rescue LoadError")
     expect(rakefile_after_second_apply.scan('task("kettle:jem:selftest")').size).to eq(1)
     expect(rakefile_after_second_apply.scan('task("build:generate_checksums")').size).to eq(1)
   end

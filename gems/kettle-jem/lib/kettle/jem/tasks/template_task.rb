@@ -16,6 +16,15 @@ module Kettle
             force: truthy?(env["force"]),
             interactive: falsey?(env["force"]),
             failure_mode: env["FAILURE_MODE"] || env["failure_mode"],
+            allowed: env["allowed"],
+            hook_templates: env["hook_templates"],
+            only: env["only"],
+            include: env["include"],
+            skip_commit: truthy?(env["KETTLE_JEM_SKIP_COMMIT"]),
+            accept_config: truthy?(env["KETTLE_JEM_ACCEPT_CONFIG"]),
+            bootstrap_mode: truthy?(env["KETTLE_JEM_BOOTSTRAP_MODE"]),
+            quiet: truthy?(env["KETTLE_JEM_QUIET"]),
+            verbose: truthy?(env["KETTLE_JEM_VERBOSE"]),
           }.compact
         end
 
