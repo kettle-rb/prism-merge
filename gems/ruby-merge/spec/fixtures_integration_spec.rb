@@ -129,6 +129,36 @@ RSpec.describe "Ruby::Merge" do
     expect(merge_move_count).to eq(merge_move_report_fixture.dig(:expected, :move_count))
     expect(merge_matching_report.dig(:capability, :default_enabled)).to be(false)
 
+    destination_order_move_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-969-move-detection-destination-order-policy",
+        "move-detection-destination-order-policy.json"
+      )
+    )
+    destination_order_move_result = RUBY_MERGE.merge_ruby(
+      destination_order_move_fixture[:template],
+      destination_order_move_fixture[:destination],
+      "ruby"
+    )
+    destination_order_move_count = destination_order_move_result.dig(
+      :merge_planning,
+      :method_move_detection,
+      :moved_method_count
+    )
+    expect(destination_order_move_result[:ok]).to eq(destination_order_move_fixture.dig(:expected, :ok))
+    expect(destination_order_move_result[:output]).to eq(destination_order_move_fixture.dig(:expected, :output))
+    expect(destination_order_move_result.dig(:merge_planning, :method_move_policy)).to eq(
+      destination_order_move_fixture.dig(:expected, :method_move_policy)
+    )
+    expect(destination_order_move_result.dig(:merge_planning, :method_move_detection, :preserves_destination_order)).to eq(
+      destination_order_move_fixture.dig(:expected, :preserves_destination_order)
+    )
+    expect(destination_order_move_result.dig(:merge_planning, :method_move_detection, :suppresses_duplicate_moved_methods)).to eq(
+      destination_order_move_fixture.dig(:expected, :suppresses_duplicate_moved_methods)
+    )
+    expect(destination_order_move_count).to eq(destination_order_move_fixture.dig(:expected, :move_count))
+
     template = RUBY_MERGE.parse_ruby(matching_fixture[:template], matching_fixture[:dialect])
     destination = RUBY_MERGE.parse_ruby(matching_fixture[:destination], matching_fixture[:dialect])
     matching = RUBY_MERGE.match_ruby_owners(template[:analysis], destination[:analysis])

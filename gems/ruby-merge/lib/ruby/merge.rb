@@ -10,6 +10,7 @@ module Ruby
     PACKAGE_NAME = "ruby-merge"
     TREE_SITTER_BACKEND = TreeHaver::KREUZBERG_LANGUAGE_PACK_BACKEND
     DESTINATION_WINS_ARRAY_POLICY = { surface: "array", name: "destination_wins_array" }.freeze
+    DEFAULT_METHOD_MOVE_POLICY = "destination_order"
     DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/
     MAGIC_COMMENT_PREFIXES = %w[coding encoding frozen_string_literal shareable_constant_value typed warn_indent].freeze
     REQUIRE_PATTERN = /^\s*require(?:_relative)?\s+["']([^"']+)["']/.freeze
@@ -139,9 +140,10 @@ module Ruby
       ).to_h
     end
 
-    def merge_ruby(template_source, destination_source, dialect, merge_template_requires: false)
+    def merge_ruby(template_source, destination_source, dialect, merge_template_requires: false, method_move_policy: DEFAULT_METHOD_MOVE_POLICY)
       template = parse_ruby(template_source, dialect)
       return template unless template[:ok]
+      method_move_policy = normalize_method_move_policy(method_move_policy)
 
       destination = parse_ruby(destination_source, dialect)
       unless destination[:ok]
@@ -186,13 +188,25 @@ module Ruby
 
       output = "#{sections.join("\n\n").strip}\n"
       matching_reports = [ruby_method_move_detection(template_source, destination_source, dialect)]
+      move_report = matching_reports.first
+      moved_method_count = move_report.fetch(:matches).count { |entry| entry.fetch(:moved) }
 
       {
         ok: true,
         diagnostics: [],
         output: normalize_rakefile_default_task_scaffold(output),
         policies: [DESTINATION_WINS_ARRAY_POLICY],
-        matching_reports: matching_reports
+        matching_reports: matching_reports,
+        merge_planning: {
+          method_move_policy: method_move_policy,
+          method_move_detection: {
+            matching_id: move_report.fetch(:matching_id),
+            moved_method_count: moved_method_count,
+            preserves_destination_order: method_move_policy == DEFAULT_METHOD_MOVE_POLICY,
+            suppresses_duplicate_moved_methods: method_move_policy == DEFAULT_METHOD_MOVE_POLICY,
+            override_scope: "per_file_recipe"
+          }
+        }
       }
     end
 
@@ -844,6 +858,14 @@ module Ruby
         diagnostics: [{ severity: "error", category: "unsupported_feature", message: message }],
         policies: []
       }
+    end
+
+    def normalize_method_move_policy(policy)
+      normalized = policy.to_s.strip
+      normalized = DEFAULT_METHOD_MOVE_POLICY if normalized.empty?
+      return normalized if normalized == DEFAULT_METHOD_MOVE_POLICY
+
+      raise ArgumentError, "Unsupported Ruby method move policy #{policy.inspect}"
     end
 
     private
