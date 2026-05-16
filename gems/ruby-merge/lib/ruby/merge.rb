@@ -912,7 +912,12 @@ module Ruby
           return { key: match[1].delete_prefix(":"), key_source: match[1], delimiter: "=>" }
         end
 
-        raise ArgumentError, "expected symbol hash key"
+        if (match = remaining.match(/\A((["'])(?:\\.|(?!\2).)*\2)\s*=>/))
+          @index += match[0].length
+          return { key: match[1], key_source: match[1], delimiter: "=>" }
+        end
+
+        raise ArgumentError, "expected hash key"
       end
 
       def parse_scalar_source
