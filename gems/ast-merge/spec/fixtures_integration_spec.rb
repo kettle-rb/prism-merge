@@ -205,6 +205,44 @@ RSpec.describe Ast::Merge do
     expect(fixture.fetch(:decision)).to include("Do not port old FreezeNodeBase")
   end
 
+  it "conforms to the template-only partial-template helper inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-844-template-only-partial-template-helper-inventory",
+        "template-only-partial-template-helper-inventory.json"
+      )
+    )
+
+    expect(fixture.fetch(:portable_template_only_contracts).map { |contract| contract.fetch(:id) }).to eq(
+      [
+        "exact-match-before-insertion",
+        "destination-order-preservation",
+        "neighbor-anchored-template-only",
+        "delayed-interior-group-flush",
+        "deterministic-prefix-tail"
+      ]
+    )
+    expect(fixture.fetch(:portable_partial_template_contracts).map { |contract| contract.fetch(:id) }).to include(
+      "section-selector",
+      "key-path-selector",
+      "missing-target-policy",
+      "diff-node-mapping"
+    )
+    expect(fixture.fetch(:retired_public_surfaces).map { |surface| surface.fetch(:old_surface) }).to include(
+      "PartialTemplateMergerBase",
+      "KeyPathPartialTemplateMergerBase",
+      "DiffMapperBase",
+      "FileAlignerBase"
+    )
+    expect(fixture.dig(:helper_api_policy, :exposed_now)).to be(false)
+    expect(fixture.dig(:helper_api_policy, :promotion_condition)).to include("at least two active families")
+    expect(fixture.fetch(:current_fixture_evidence)).to include(
+      "slice-941-ruby-template-only-class-method-merge",
+      "slice-920-ast-crispr-destination-profile-helpers"
+    )
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
