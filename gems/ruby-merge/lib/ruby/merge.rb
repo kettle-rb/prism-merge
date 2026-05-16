@@ -18,7 +18,7 @@ module Ruby
     RAKEFILE_DEFAULT_TASK_DESC = 'desc "Default tasks aggregator"'
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
     MODULE_PATTERN = /^\s*module\s+([A-Z]\w*(?:::\w+)*)/.freeze
-    DEF_PATTERN = /^\s*def\s+(?:self\.)?([a-zA-Z_]\w*[!?=]?)/.freeze
+    DEF_PATTERN = /^\s*def\s+((?:self\.)?)([a-zA-Z_]\w*[!?=]?)/.freeze
     CONSTANT_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=/.freeze
     CONSTANT_HASH_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=\s*\{/.freeze
     EXAMPLE_TAG = /\A@example\b(?<rest>.*)\z/.freeze
@@ -632,8 +632,8 @@ module Ruby
       destination_methods = direct_body_method_entries(destination_text)
       return destination_text if template_methods.empty?
 
-      destination_method_names = destination_methods.map { |entry| entry[:name] }.to_h { |name| [name, true] }
-      missing_methods = template_methods.reject { |entry| destination_method_names[entry[:name]] }
+      destination_method_signatures = destination_methods.map { |entry| entry[:signature] }.to_h { |signature| [signature, true] }
+      missing_methods = template_methods.reject { |entry| destination_method_signatures[entry[:signature]] }
       return destination_text if missing_methods.empty?
 
       public_methods, visibility_methods = missing_methods.partition { |entry| entry[:visibility] == "public" }
@@ -911,7 +911,8 @@ module Ruby
         start_index = pending_comments.first || visibility_section_start_index(visibility_start_index, visibility_consumed) || index
         finish_index = ruby_block_finish_index(lines, index)
         entries << {
-          name: match[1],
+          name: match[2],
+          signature: "#{match[1]}#{match[2]}",
           visibility: current_visibility,
           text: lines[start_index..finish_index].join("\n").rstrip,
           body_text: lines[(pending_comments.first || index)..finish_index].join("\n").rstrip
@@ -1191,7 +1192,7 @@ module Ruby
       elsif (match = MODULE_PATTERN.match(line))
         { kind: "module", name: match[1] }
       elsif (match = DEF_PATTERN.match(line))
-        { kind: "def", name: match[1] }
+        { kind: "def", name: match[2], signature: "#{match[1]}#{match[2]}" }
       end
     end
 
