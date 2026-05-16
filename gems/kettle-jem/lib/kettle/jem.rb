@@ -2028,6 +2028,7 @@ module Kettle
       root = File.expand_path(project_root.to_s)
       config_path = File.join(root, ".kettle-jem.yml")
       config_existed = File.exist?(config_path)
+      execution_context = setup_execution_context(env, run_options)
       plan = plan_project(root, env: env, run_options: run_options)
       selection = plan.fetch(:template_selection)
       bootstrap_only = selection[:bootstrap_mode] || (!config_existed && !selection[:accept_config])
@@ -2039,6 +2040,7 @@ module Kettle
         return plan.merge(
           mode: "setup",
           setup_status: config_existed ? "bootstrap_config_already_present" : "bootstrap_config_written",
+          setup_execution_context: execution_context,
           ready: config_existed,
           changed_files: changed_files,
           diagnostics: plan.fetch(:diagnostics) + [setup_guidance_diagnostic(config_existed: config_existed)],
@@ -2049,6 +2051,7 @@ module Kettle
       install_kwargs[:command_runner] = command_runner if command_runner
       Tasks::InstallTask.run(**install_kwargs).merge(
         mode: "setup",
+        setup_execution_context: execution_context,
         setup_status: config_existed ? "configured_project_applied" : "accepted_config_applied",
       )
     end
@@ -3160,6 +3163,17 @@ module Kettle
         else
           "Created .kettle-jem.yml. Review it, then run kettle-jem --accept-config to continue setup."
         end,
+      }
+    end
+
+    def setup_execution_context(env, run_options)
+      return {bundled: false, source: "bootstrap_mode", bundle_gemfile: nil} if DecisionPolicy.value_to_boolean((run_options || {})[:bootstrap_mode])
+
+      bundle_gemfile = (env || {})["BUNDLE_GEMFILE"].to_s.strip
+      {
+        bundled: !bundle_gemfile.empty?,
+        source: bundle_gemfile.empty? ? "process" : "BUNDLE_GEMFILE",
+        bundle_gemfile: bundle_gemfile.empty? ? nil : bundle_gemfile,
       }
     end
 

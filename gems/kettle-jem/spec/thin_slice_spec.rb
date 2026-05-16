@@ -1076,6 +1076,57 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "reports setup execution context without load-path inspection" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-setup-context-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - bin/setup
+        YAML
+      })
+      command_runner = lambda do |_command, chdir:, env:, quiet:|
+        expect(chdir).to eq(root)
+        expect(env).to eq("BUNDLE_GEMFILE" => File.join(root, "Gemfile"))
+        expect(quiet).to be(true)
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+
+      bundled = described_class.setup_project(
+        root,
+        env: {"BUNDLE_GEMFILE" => File.join(root, "Gemfile")},
+        run_options: {only: "bin/setup", quiet: true},
+        command_runner: command_runner
+      )
+      expect(bundled.fetch(:setup_execution_context)).to eq(
+        bundled: true,
+        source: "BUNDLE_GEMFILE",
+        bundle_gemfile: File.join(root, "Gemfile")
+      )
+
+      bootstrap = described_class.setup_project(
+        root,
+        env: {"BUNDLE_GEMFILE" => File.join(root, "Gemfile")},
+        run_options: {only: "bin/setup", bootstrap_mode: true}
+      )
+      expect(bootstrap.fetch(:setup_execution_context)).to eq(
+        bundled: false,
+        source: "bootstrap_mode",
+        bundle_gemfile: nil
+      )
+    end
+  end
+
   it "preserves configured README sections during merge template application" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
