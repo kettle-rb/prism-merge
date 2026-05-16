@@ -1059,6 +1059,23 @@ RSpec.describe Kettle::Jem do
         status: "skipped",
         reason: "skip_commit"
       )
+      expect(install.fetch(:install_phase_reports)).to include(
+        phase: "post_template",
+        steps: %w[bin_setup_executable bin_setup bundle_binstubs],
+        statuses: {
+          "bin_setup_executable" => "updated",
+          "bin_setup" => "succeeded",
+          "bundle_binstubs" => "succeeded"
+        }
+      )
+      expect(install.fetch(:install_phase_reports)).to include(
+        phase: "orchestration",
+        steps: %w[bundled_handoff bootstrap_commit],
+        statuses: {
+          "bundled_handoff" => "ready",
+          "bootstrap_commit" => "skipped"
+        }
+      )
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],

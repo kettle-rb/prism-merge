@@ -22,6 +22,7 @@ module Kettle
             mode: "install",
             installed: true,
             install_steps: install_steps,
+            install_phase_reports: install_phase_reports(install_steps),
             diagnostics: report.fetch(:diagnostics) + [{
               severity: "advisory",
               message: "kettle:jem:install applied templates, completed local post-template checks, and reported the bundled handoff contract.",
@@ -51,6 +52,22 @@ module Kettle
           content.to_s.lines.filter_map do |line|
             line[/^\s*\w+\.add_development_dependency\s*(?:\(|\s)\s*["']([^"']+)["']/, 1]
           end.uniq
+        end
+
+        def install_phase_reports(install_steps)
+          phases = {
+            "template_apply" => %w[gemspec_dependency_sync],
+            "post_template" => %w[bin_setup_executable bin_setup bundle_binstubs],
+            "orchestration" => %w[bundled_handoff bootstrap_commit],
+          }
+          phases.map do |phase, names|
+            steps = install_steps.select { |step| names.include?(step.fetch(:name).to_s) }
+            {
+              phase: phase,
+              steps: steps.map { |step| step.fetch(:name) },
+              statuses: steps.to_h { |step| [step.fetch(:name), step.fetch(:status)] },
+            }
+          end
         end
 
         def ensure_bin_setup_executable(project_root)
