@@ -994,6 +994,50 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "runs install as active apply plus local post-template checks" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-install-post-template-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - bin/setup
+        YAML
+      })
+
+      install = Kettle::Jem::Tasks::InstallTask.run(project_root: root, env: {}, run_options: {only: "bin/setup"})
+      setup_path = File.join(root, "bin", "setup")
+
+      expect(install.fetch(:mode)).to eq("install")
+      expect(install.fetch(:installed)).to be(true)
+      expect(install.fetch(:changed_files)).to eq(["bin/setup"])
+      expect(install.fetch(:install_steps)).to include(
+        name: "bin_setup_executable",
+        path: "bin/setup",
+        status: "updated"
+      )
+      expect(File).to exist(setup_path)
+      expect(File.executable?(setup_path)).to be(true)
+
+      second = Kettle::Jem::Tasks::InstallTask.run(project_root: root, env: {}, run_options: {only: "bin/setup"})
+      expect(second.fetch(:changed_files)).to eq([])
+      expect(second.fetch(:install_steps)).to include(
+        name: "bin_setup_executable",
+        path: "bin/setup",
+        status: "already_executable"
+      )
+    end
+  end
+
   it "preserves configured README sections during merge template application" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
