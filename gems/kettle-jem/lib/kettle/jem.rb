@@ -5092,8 +5092,13 @@ module Kettle
         apply: template_entry_apply?(entry, apply_templates),
       }
       preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
-      preference[:file_type] = strategy_config.fetch(:file_type).to_s if strategy_config&.key?(:file_type)
-      preference[:method_move_policy] = strategy_config.fetch(:method_move_policy).to_s if strategy_config&.key?(:method_move_policy)
+      if strategy_config
+        %i[file_type preference freeze_token method_move_policy max_recursion_depth].each do |key|
+          preference[key] = strategy_config.fetch(key).to_s if strategy_config.key?(key)
+        end
+        preference[:add_template_only_nodes] = strategy_config.fetch(:add_template_only_nodes) if strategy_config.key?(:add_template_only_nodes)
+        preference[:skip_unresolved_scan] = strategy_config.fetch(:skip_unresolved_scan) if strategy_config.key?(:skip_unresolved_scan)
+      end
       if copy_only_when_missing_template_path?(target_path) && File.exist?(File.join(project_root, target_path))
         preference[:strategy] = "keep_destination"
         preference[:policy] = "copy_only_when_missing"
@@ -5175,6 +5180,7 @@ module Kettle
           result[:add_template_only_nodes] = entry.key?("add_template_only_nodes") ? entry["add_template_only_nodes"] : defaults["add_template_only_nodes"]
         end
         result[:freeze_token] = (entry.key?("freeze_token") ? entry["freeze_token"] : defaults["freeze_token"]).to_s if entry.key?("freeze_token") || defaults.key?("freeze_token")
+        result[:max_recursion_depth] = (entry.key?("max_recursion_depth") ? entry["max_recursion_depth"] : defaults["max_recursion_depth"]).to_s if entry.key?("max_recursion_depth") || defaults.key?("max_recursion_depth")
         if entry.key?("method_move_policy") || defaults.key?("method_move_policy")
           policy = (entry.key?("method_move_policy") ? entry["method_move_policy"] : defaults["method_move_policy"]).to_s
           raise ArgumentError, "unknown kettle-jem Ruby method_move_policy: #{policy}" unless SUPPORTED_RUBY_METHOD_MOVE_POLICIES.include?(policy)

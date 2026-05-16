@@ -923,6 +923,63 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "projects full per-file merge options into recipe metadata and runtime context" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-template-merge-option-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          defaults:
+            preference: template
+            add_template_only_nodes: true
+            freeze_token: kettle-jem
+            max_recursion_depth: 7
+          files:
+            config:
+              settings.yml:
+                strategy: merge
+                file_type: yaml
+                freeze_token: destination-token
+                skip_unresolved_scan: true
+          templates:
+            root: template
+            apply: true
+            entries:
+              - config/settings.yml
+        YAML
+        "config/settings.yml" => <<~YAML,
+          enabled: false
+        YAML
+        "template/config/settings.yml.example" => <<~YAML,
+          enabled: true
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_config_settings_yml"
+      end
+      expected_policy = {
+        strategy: "merge",
+        file_type: "yaml",
+        preference: "template",
+        add_template_only_nodes: true,
+        freeze_token: "destination-token",
+        skip_unresolved_scan: true,
+        max_recursion_depth: "7",
+      }
+
+      expect(report.dig(:metadata, :template_source_preference)).to include(expected_policy)
+      expect(report.dig(:request_envelope, :request, :runtime_context, :template_source_preference)).to include(expected_policy)
+    end
+  end
+
   it "plans packaged template inventory when entries are omitted" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
