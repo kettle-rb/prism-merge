@@ -527,6 +527,27 @@ RSpec.describe TreeHaver do
     )
   end
 
+  def edit_projection_provider_matrix_entry(fixture)
+    described_class::EditProjectionProviderMatrixEntry.new(
+      provider_id: fixture[:provider_id],
+      backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
+      language: fixture[:language],
+      formatting_preservation: fixture[:formatting_preservation],
+      preserves_source_fragments: fixture[:preserves_source_fragments],
+      operations: fixture[:operations].map do |operation|
+        described_class::EditProjectionProviderOperation.new(**operation)
+      end
+    )
+  end
+
+  def edit_projection_provider_matrix(fixture)
+    described_class::EditProjectionProviderMatrix.new(
+      operations: fixture[:operations],
+      providers: fixture[:providers].map { |provider| edit_projection_provider_matrix_entry(provider) },
+      diagnostics: fixture[:diagnostics]
+    )
+  end
+
   def parse_error_tolerance(fixture)
     described_class::ParseErrorTolerance.new(
       backend_ref: described_class::BackendReference.new(**fixture[:backend_ref]),
@@ -749,6 +770,23 @@ RSpec.describe TreeHaver do
       expected.source,
       expected.applied_operations,
       expected.diagnostics
+    )
+    expect(json_ready(result.to_h)).to eq(json_ready(expected.to_h))
+  end
+
+  it "conforms to the slice-932 edit projection provider operation matrix fixture" do
+    fixture = read_json(fixtures_root.join(
+      "diagnostics",
+      "slice-932-edit-projection-provider-operation-matrix",
+      "provider-operation-matrix.json"
+    ))
+
+    providers = fixture[:providers].map { |provider| edit_projection_provider_matrix_entry(provider) }
+    expected = edit_projection_provider_matrix(fixture[:expected_matrix])
+    result = described_class.build_edit_projection_provider_matrix(
+      fixture[:operations],
+      providers,
+      []
     )
     expect(json_ready(result.to_h)).to eq(json_ready(expected.to_h))
   end

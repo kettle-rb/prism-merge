@@ -466,6 +466,60 @@ module TreeHaver
     end
   end
 
+  EditProjectionProviderOperation = Struct.new(
+    :operation,
+    :status,
+    :node_scope,
+    :correlation_keys,
+    :fixture_slices,
+    :formatting_preservation,
+    :diagnostics,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        operation: operation,
+        status: status,
+        node_scope: node_scope,
+        correlation_keys: correlation_keys || [],
+        fixture_slices: fixture_slices || [],
+        formatting_preservation: formatting_preservation,
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
+  EditProjectionProviderMatrixEntry = Struct.new(
+    :provider_id,
+    :backend_ref,
+    :language,
+    :formatting_preservation,
+    :preserves_source_fragments,
+    :operations,
+    keyword_init: true
+  ) do
+    def to_h
+      {
+        provider_id: provider_id,
+        backend_ref: backend_ref.to_h,
+        language: language,
+        formatting_preservation: formatting_preservation,
+        preserves_source_fragments: preserves_source_fragments,
+        operations: (operations || []).map(&:to_h)
+      }
+    end
+  end
+
+  EditProjectionProviderMatrix = Struct.new(:operations, :providers, :diagnostics, keyword_init: true) do
+    def to_h
+      {
+        operations: operations || [],
+        providers: (providers || []).map(&:to_h),
+        diagnostics: diagnostics || []
+      }
+    end
+  end
+
   SourcePoint = Struct.new(:row, :column, keyword_init: true) do
     def to_h
       {
@@ -669,6 +723,15 @@ module TreeHaver
     )
   end
   module_function :build_edit_projection_execution_result
+
+  def build_edit_projection_provider_matrix(operations, providers, diagnostics)
+    EditProjectionProviderMatrix.new(
+      operations: operations || [],
+      providers: providers || [],
+      diagnostics: diagnostics || []
+    )
+  end
+  module_function :build_edit_projection_provider_matrix
 
   def windows_absolute_path?(path)
     /\A[A-Za-z]:[\/\\]/.match?(path)
