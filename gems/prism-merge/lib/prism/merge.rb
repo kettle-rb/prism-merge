@@ -483,7 +483,7 @@ module Prism
       end
 
       operation = operations.first
-      unless operation.fetch(:operation) == "replace_node"
+      unless %w[replace_node delete_node].include?(operation.fetch(:operation))
         return edit_projection_rejection(source, "operations[0].operation", "edit_projection_operation_unsupported", "Prism edit projection does not support #{operation.fetch(:operation)}")
       end
 
@@ -496,9 +496,14 @@ module Prism
       return edit_projection_rejection(source, "operations[0].target_node_path", "edit_projection_target_not_found", "Prism node path #{operation.fetch(:target_node_path)} was not found") unless target
 
       range = target.dig(:span, :range)
-      output = source.byteslice(0...range[:start_byte]) +
-        operation.fetch(:replacement_source) +
-        source.byteslice(range[:end_byte]..)
+      output = if operation.fetch(:operation) == "delete_node"
+        delete_range = line_deletion_range(source, range)
+        source.byteslice(0...delete_range[:start_byte]) + source.byteslice(delete_range[:end_byte]..)
+      else
+        source.byteslice(0...range[:start_byte]) +
+          operation.fetch(:replacement_source) +
+          source.byteslice(range[:end_byte]..)
+      end
       reparsed = parse_ruby_normalized(output, "ruby")
       return edit_projection_rejection(source, "operations[0].replacement_source", "edit_projection_reparse_failed", reparsed[:diagnostics].join("; ")) unless reparsed[:ok]
 
@@ -615,6 +620,15 @@ module Prism
           )
         ]
       ).to_h
+    end
+
+    def line_deletion_range(source, range)
+      start_byte = range.fetch(:start_byte)
+      end_byte = range.fetch(:end_byte)
+      line_start = source.rindex("\n", start_byte - 1)&.+(1) || 0
+      next_newline = source.index("\n", end_byte)
+      line_end = next_newline ? next_newline + 1 : end_byte
+      { start_byte: line_start, end_byte: line_end }
     end
 
     def ruby_normalized_backend_capability(dialect)
@@ -842,6 +856,7 @@ module Prism
       :ruby_delegated_child_operations,
       :unsupported_feature_result,
       :edit_projection_rejection,
+      :line_deletion_range,
       :ruby_normalized_backend_capability,
       :ruby_prism_parse_error_tolerance,
       :prism_normalized_metadata,
