@@ -354,6 +354,21 @@ RSpec.describe "Ruby::Merge" do
     expect(declaration_kind_result[:ok]).to eq(declaration_kind_fixture.dig(:expected, :ok))
     expect(declaration_kind_result[:output]).to eq(declaration_kind_fixture.dig(:expected, :output))
 
+    namespace_form_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-959-namespace-form-declaration-matching",
+        "namespace-form-declaration-matching.json"
+      )
+    )
+    namespace_form_result = RUBY_MERGE.merge_ruby(
+      namespace_form_fixture[:template],
+      namespace_form_fixture[:destination],
+      "ruby"
+    )
+    expect(namespace_form_result[:ok]).to eq(namespace_form_fixture.dig(:expected, :ok))
+    expect(namespace_form_result[:output]).to eq(namespace_form_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],

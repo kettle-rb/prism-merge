@@ -110,8 +110,9 @@ module Ruby
       template_requires = collect_ruby_require_entries(template.dig(:analysis, :source))
       destination_declarations = collect_ruby_declaration_entries(destination.dig(:analysis, :source))
       template_declarations = collect_ruby_declaration_entries(template.dig(:analysis, :source))
+      template_declaration_candidates = template_declarations + qualified_nested_declaration_entries(template_declarations)
       destination_paths = destination_declarations.to_h { |entry| [entry[:merge_key], true] }
-      template_declarations_by_path = template_declarations.to_h { |entry| [entry[:merge_key], entry] }
+      template_declarations_by_path = template_declaration_candidates.to_h { |entry| [entry[:merge_key], entry] }
       destination_dsl = collect_top_level_dsl_entries(destination.dig(:analysis, :source))
       template_dsl = collect_top_level_dsl_entries(template.dig(:analysis, :source))
       sections = []
@@ -121,12 +122,19 @@ module Ruby
       require_block = requires.map { |entry| entry[:text] }.join("\n").strip
       sections << require_block unless require_block.empty?
       sections.concat(merge_top_level_dsl_entries(destination_dsl, template_dsl).map { |entry| entry[:text] })
+      matched_template_declarations = {}
       sections.concat(
         destination_declarations.map do |entry|
-          merge_ruby_declaration_entry(template_declarations_by_path[entry[:merge_key]], entry)[:text]
+          template_entry = template_declarations_by_path[entry[:merge_key]]
+          matched_template_declarations[template_entry[:merge_key]] = true if template_entry
+          merge_ruby_declaration_entry(template_entry, entry)[:text]
         end
       )
-      sections.concat(template_declarations.reject { |entry| destination_paths[entry[:merge_key]] }.map { |entry| entry[:text] })
+      sections.concat(
+        template_declarations.reject do |entry|
+          destination_paths[entry[:merge_key]] || namespace_wrapper_matched?(entry, template_declaration_candidates, matched_template_declarations)
+        end.map { |entry| entry[:text] }
+      )
 
       output = "#{sections.join("\n\n").strip}\n"
 
@@ -525,6 +533,8 @@ module Ruby
 
         entries << {
           path: "/declarations/#{declaration[:name]}",
+          name: declaration[:name],
+          kind: declaration[:kind],
           merge_key: "#{declaration[:kind]}:#{declaration[:name]}",
           text: lines[start_index...cursor].join("\n").strip
         }
@@ -545,6 +555,41 @@ module Ruby
       destination_entry.merge(
         text: merged_text
       )
+    end
+
+    def qualified_nested_declaration_entries(entries)
+      entries.flat_map do |entry|
+        direct_body_declaration_entries(entry[:text]).map do |nested_entry|
+          root_name = entry[:name]
+          nested_name = nested_entry[:name]
+          qualified_name = nested_name.include?("::") ? nested_name : "#{root_name}::#{nested_name}"
+          nested_entry.merge(
+            name: qualified_name,
+            path: "/declarations/#{qualified_name}",
+            merge_key: "#{nested_entry[:kind]}:#{qualified_name}",
+            text: normalize_declaration_text_indent(nested_entry[:text]),
+            namespace_root_merge_key: entry[:merge_key]
+          )
+        end
+      end
+    end
+
+    def normalize_declaration_text_indent(text)
+      lines = text.to_s.split("\n")
+      base_indent = lines.first.to_s[/\A\s*/].to_s
+      return text if base_indent.empty?
+
+      lines.map do |line|
+        line.start_with?(base_indent) ? line[base_indent.length..].to_s : line
+      end.join("\n")
+    end
+
+    def namespace_wrapper_matched?(entry, candidates, matched)
+      children = candidates.select { |candidate| candidate[:namespace_root_merge_key] == entry[:merge_key] }
+      return false if children.empty?
+      return false unless direct_body_method_entries(entry[:text]).empty? && direct_body_constant_entries(entry[:text]).empty?
+
+      children.all? { |child| matched[child[:merge_key]] }
     end
 
     def merge_declaration_hash_constants(template_text, destination_text)
@@ -1078,6 +1123,8 @@ module Ruby
         finish_offset = line_start_offsets[finish_index] + lines[finish_index].length
         entries << {
           path: "/declarations/#{declaration[:name]}",
+          name: declaration[:name],
+          kind: declaration[:kind],
           merge_key: "#{declaration[:kind]}:#{declaration[:name]}",
           text: lines[index..finish_index].join("\n").rstrip,
           range: (start_offset...finish_offset)
