@@ -42,6 +42,12 @@
       "summary": "🍲 A kettle-rb meta tool",
       "description": "🍲 Kettle::Dev is a meta tool from kettle-rb to streamline development",
       "executable": "kettle-changelog"
+    },
+    "freeze_block_location": {
+      "package_name": "freeze-gem",
+      "open_marker": "# kettle-jem:freeze",
+      "close_marker": "# kettle-jem:unfreeze",
+      "custom_dependency": "custom-gem"
     }
   }
 }

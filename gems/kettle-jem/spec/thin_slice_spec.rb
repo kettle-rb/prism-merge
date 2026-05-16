@@ -1754,6 +1754,74 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "ports old gemspec freeze block location preservation" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    contract_case = old_spec_contract.fetch(:cases).fetch(:freeze_block_location)
+    package_name = contract_case.fetch(:package_name)
+
+    Dir.mktmpdir("kettle-jem-old-gemspec-freeze-block-policy", tmp_root) do |root|
+      write_tree(root, {
+        "#{package_name}.gemspec" => <<~RUBY,
+          # frozen_string_literal: true
+
+          gem_version = "1.0.0"
+
+          Gem::Specification.new do |spec|
+            spec.name = "#{package_name}"
+            spec.version = gem_version
+            spec.summary = "Freeze gem"
+            spec.bindir = "exe"
+
+            #{contract_case.fetch(:open_marker)}
+            # Custom dependencies
+            # spec.add_dependency("#{contract_case.fetch(:custom_dependency)}")
+            #{contract_case.fetch(:close_marker)}
+
+            spec.require_paths = ["lib"]
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: gem.gemspec
+                target: #{package_name}.gemspec
+        YAML
+        "template/gem.gemspec.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          Gem::Specification.new do |spec|
+            spec.name = "{KJ|GEM_NAME}"
+            spec.version = "2.0.0"
+            spec.summary = "Template summary"
+            spec.bindir = "exe"
+            spec.executables = []
+            spec.require_paths = ["lib"]
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+      report = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == "#{package_name}.gemspec" }
+      gemspec_content = report.fetch(:final_content)
+      lines = gemspec_content.lines
+      gemspec_line = lines.find_index { |line| line.include?("Gem::Specification.new") }
+      freeze_line = lines.find_index { |line| line.include?(contract_case.fetch(:open_marker)) }
+      close_line = lines.find_index { |line| line.include?(contract_case.fetch(:close_marker)) }
+      block_end_line = lines.each_index.select { |index| lines[index].strip == "end" }.last
+
+      expect { RubyVM::InstructionSequence.compile(gemspec_content) }.not_to raise_error
+      expect(freeze_line).to be > gemspec_line
+      expect(close_line).to be > freeze_line
+      expect(close_line).to be < block_end_line
+      expect(gemspec_content).to include(%(# spec.add_dependency("#{contract_case.fetch(:custom_dependency)}")))
+      expect(gemspec_content).not_to include("To retain during kettle-jem templating")
+      expect(File.read(File.join(root, "#{package_name}.gemspec"))).to eq(gemspec_content)
+    end
+  end
+
   it "ports old gemspec self-dependency removal while preserving project fields" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

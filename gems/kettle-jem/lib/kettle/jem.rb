@@ -2818,6 +2818,7 @@ module Kettle
         template_receiver: template_receiver,
         destination_receiver: destination_receiver
       )
+      merged = preserve_gemspec_freeze_blocks(merged, destination_content, receiver: template_receiver)
       remove_gemspec_self_dependency_lines(merged, package_name, receiver: template_receiver)
     end
 
@@ -2861,6 +2862,44 @@ module Kettle
 
       merged = replace_matching_gemspec_dependency_lines(template_content, destination_dependencies, receiver: template_receiver)
       append_missing_gemspec_dependency_lines(merged, destination_dependencies, receiver: template_receiver)
+    end
+
+    def preserve_gemspec_freeze_blocks(content, destination_content, receiver:)
+      blocks = freeze_marker_blocks(destination_content)
+      return content if blocks.empty?
+
+      merged = content.to_s
+      blocks.each do |block|
+        next if merged.include?(block.join)
+
+        insertion = "\n#{block.join}\n"
+        if merged.match?(/^\s*#{Regexp.escape(receiver)}\.require_paths\s*=/)
+          merged = merged.sub(/^(\s*#{Regexp.escape(receiver)}\.require_paths\s*=.*$)/, "#{insertion}\\1")
+        else
+          merged = merged.sub(/^end\s*\z/, "#{insertion}end")
+        end
+      end
+      ensure_trailing_newline(merged.gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def freeze_marker_blocks(content)
+      lines = content.to_s.lines
+      blocks = []
+      index = 0
+      while index < lines.length
+        unless lines[index].include?("# kettle-jem:freeze")
+          index += 1
+          next
+        end
+
+        start_index = index
+        while index < lines.length
+          index += 1
+          break if lines[index - 1].include?("# kettle-jem:unfreeze")
+        end
+        blocks << lines[start_index...index]
+      end
+      blocks
     end
 
     def replace_matching_gemspec_dependency_lines(content, destination_dependencies, receiver:)
