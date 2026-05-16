@@ -136,7 +136,7 @@ module Kettle
       TRUE_VALUES = %w[1 true y yes on].freeze
       FALSE_VALUES = %w[0 false n no off].freeze
 
-      attr_reader :mode, :failure_mode, :require_clean, :input_source
+      attr_reader :mode, :failure_mode, :require_clean, :input_source, :prompt_answers
 
       def self.from_env(env = {}, **options)
         env_hash = env || {}
@@ -150,7 +150,8 @@ module Kettle
           mode: interactive ? :interactive : :accept,
           failure_mode: option_hash.fetch(:failure_mode, env_hash["FAILURE_MODE"] || env_hash["failure_mode"] || "error"),
           require_clean: option_hash.fetch(:require_clean, value_to_boolean(env_hash["KETTLE_JEM_REQUIRE_CLEAN"])),
-          input_source: option_hash.fetch(:input_source, "default")
+          input_source: option_hash.fetch(:input_source, "default"),
+          prompt_answers: option_hash.fetch(:prompt_answers, parse_prompt_answers(env_hash["KETTLE_JEM_PROMPT_ANSWERS"]))
         )
       end
 
@@ -175,11 +176,23 @@ module Kettle
         nil
       end
 
-      def initialize(mode: :accept, failure_mode: "error", require_clean: nil, input_source: "default")
+      def self.parse_prompt_answers(value)
+        return {} if value.nil? || value.to_s.strip.empty?
+
+        parsed = JSON.parse(value.to_s)
+        raise ArgumentError, "KETTLE_JEM_PROMPT_ANSWERS must be a JSON object" unless parsed.is_a?(Hash)
+
+        parsed
+      rescue JSON::ParserError => error
+        raise ArgumentError, "KETTLE_JEM_PROMPT_ANSWERS must be valid JSON: #{error.message}"
+      end
+
+      def initialize(mode: :accept, failure_mode: "error", require_clean: nil, input_source: "default", prompt_answers: {})
         @mode = normalize_mode(mode)
         @failure_mode = failure_mode.to_s.empty? ? "error" : failure_mode.to_s
         @require_clean = require_clean
         @input_source = input_source.to_s
+        @prompt_answers = normalize_prompt_answers(prompt_answers)
       end
 
       def accept?
@@ -199,7 +212,15 @@ module Kettle
         severity_value = normalize_severity(severity)
         raise Error, "No safe default decision for #{id}" if action.nil? && severity_value == "fatal"
         promptable = interactive? && !action.nil? && severity_value != "fatal"
-        selected_source = promptable ? "interactive_default" : "default"
+        answer = promptable ? prompt_answers[id.to_s] : nil
+        selected_action = answer || action
+        selected_source = if answer
+          "interactive_answer"
+        elsif promptable
+          "interactive_default"
+        else
+          "default"
+        end
         decision_diagnostics = Array(diagnostics).compact.map(&:to_s)
         prompt = nil
         if promptable
@@ -211,7 +232,11 @@ module Kettle
             default_action: action,
             choices: DECISION_ACTIONS,
           }.compact
-          decision_diagnostics << "Interactive prompt transport is active; selected the configured default pending an external response."
+          decision_diagnostics << if answer
+            "Interactive prompt answer supplied through the shared decision policy input contract."
+          else
+            "Interactive prompt transport is active; selected the configured default pending an external response."
+          end
         end
 
         DecisionEvaluation.new(
@@ -219,7 +244,7 @@ module Kettle
           category: category.to_s,
           file: file&.to_s,
           default_action: action,
-          selected_action: action,
+          selected_action: selected_action,
           source: selected_source,
           severity: severity_value,
           blocking: severity_value == "fatal",
@@ -238,10 +263,17 @@ module Kettle
           failure_mode: failure_mode,
           require_clean: require_clean,
           input_source: input_source,
+          prompt_answers: prompt_answers.empty? ? nil : prompt_answers,
         }.compact
       end
 
       private
+
+      def normalize_prompt_answers(value)
+        Hash(value || {}).each_with_object({}) do |(key, answer), acc|
+          acc[key.to_s] = normalize_action(answer)
+        end
+      end
 
       def normalize_mode(value)
         normalized = value.to_s.strip.downcase.tr("-", "_")
@@ -2492,7 +2524,6 @@ module Kettle
         metadata: { packaging_recipe: recipe.fetch(:name), project_root: project_root.to_s },
       )
       changed = delete_file_recipe?(recipe) || final != original
-      step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
       metadata = recipe_report_metadata(recipe).merge(destination_existed: destination_existed)
       decision_evaluation = recipe_decision_evaluation(
         decision_policy: decision_policy,
@@ -2500,6 +2531,12 @@ module Kettle
         changed: changed,
         destination_existed: destination_existed
       )
+      if %w[keep skip].include?(decision_evaluation.fetch(:selected_action))
+        final = original
+        changed = false
+        deletion = nil
+      end
+      step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
       metadata[:decision_evaluation] = decision_evaluation
       report = content_recipe_execution_report(
         request: request,

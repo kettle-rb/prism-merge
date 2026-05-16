@@ -74,7 +74,7 @@
         "plugin hook lifecycle",
         "per-file recipe overrides parity",
         "generated runtime artifact filtering",
-        "interactive prompt transport",
+        "interactive prompt transport and answer input contract",
         "legacy Markdown README H1, nested subsection, and fenced-code preservation"
       ]
     },

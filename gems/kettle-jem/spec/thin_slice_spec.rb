@@ -3838,6 +3838,39 @@ RSpec.describe Kettle::Jem do
       expect(interactive_readme_decision.fetch(:diagnostics)).to include(
         "Interactive prompt transport is active; selected the configured default pending an external response."
       )
+
+      File.write(File.join(root, "README.md"), "# Example\n\nDestination README.\n")
+      answered_apply = described_class.apply_project(
+        root,
+        env: {},
+        run_options: {
+          interactive: true,
+          prompt_answers: {
+            "recipe:readme_metadata" => "keep",
+            "recipe:template_source_application_README_md" => "keep",
+          },
+        }
+      )
+      answered_decision = answered_apply.fetch(:decision_evaluations).find do |decision|
+        decision.fetch(:id) == "recipe:template_source_application_README_md"
+      end
+      expect(answered_apply.fetch(:decision_policy)).to include(
+        mode: "interactive",
+        prompt_answers: {
+          "recipe:readme_metadata" => "keep",
+          "recipe:template_source_application_README_md" => "keep",
+        }
+      )
+      expect(answered_decision).to include(
+        selected_action: "keep",
+        source: "interactive_answer",
+        prompt_required: true
+      )
+      expect(answered_decision.fetch(:diagnostics)).to include(
+        "Interactive prompt answer supplied through the shared decision policy input contract."
+      )
+      expect(answered_apply.fetch(:changed_files)).not_to include("README.md")
+      expect(File.read(File.join(root, "README.md"))).to eq("# Example\n\nDestination README.\n")
     end
   end
 

@@ -11,10 +11,10 @@ module Kettle
         Usage:
           kettle-jem [PROJECT_ROOT] [--accept-config] [--bootstrap-mode] [--quiet|--verbose]
           kettle-jem setup [PROJECT_ROOT] [--accept-config] [--bootstrap-mode] [--quiet|--verbose]
-          kettle-jem plan [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
-          kettle-jem apply [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
-          kettle-jem template [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
-          kettle-jem install [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE]
+          kettle-jem plan [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE] [--prompt-answer ID=ACTION]
+          kettle-jem apply [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE] [--prompt-answer ID=ACTION]
+          kettle-jem template [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE] [--prompt-answer ID=ACTION]
+          kettle-jem install [PROJECT_ROOT] [--json] [--report PATH] [--accept|--force|--interactive] [--failure-mode MODE] [--prompt-answer ID=ACTION]
           kettle-jem manifest [PROJECT_ROOT] [--json]
           kettle-jem selftest [PROJECT_ROOT] [--json] [--report PATH] [--destination PATH] [--template-root PATH] [--selftest-output PATH]
           kettle-jem version
@@ -88,6 +88,13 @@ module Kettle
           end
           opts.on("--failure-mode MODE", "Set the template failure mode.") do |mode|
             options[:run_options][:failure_mode] = mode
+          end
+          opts.on("--prompt-answer ID=ACTION", "Answer an interactive decision prompt.") do |value|
+            id, action = value.to_s.split("=", 2)
+            raise OptionParser::InvalidArgument, "--prompt-answer must use ID=ACTION" if id.to_s.empty? || action.to_s.empty?
+
+            (options[:run_options][:prompt_answers] ||= {})[id] = action
+            options[:run_options][:interactive] = true
           end
           opts.on("--allowed VALUE", "Set the env-file change policy.") do |value|
             options[:run_options][:allowed] = value

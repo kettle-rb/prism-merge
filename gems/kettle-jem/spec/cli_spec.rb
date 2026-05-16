@@ -197,6 +197,52 @@ RSpec.describe Kettle::Jem::CLI do
     end
   end
 
+  it "accepts interactive prompt answers through the shared report contract" do
+    Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: templates
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "templates/README.md.example" => "# Example\n\nTemplate README.\n",
+        "README.md" => "# Example\n\nDestination README.\n",
+      })
+
+      status, out, err = run_cli([
+        "apply",
+        root,
+        "--json",
+        "--prompt-answer",
+        "recipe:readme_metadata=keep",
+        "--prompt-answer",
+        "recipe:template_source_application_README_md=keep",
+      ])
+
+      expect(status).to eq(0)
+      expect(err).to eq("")
+      payload = JSON.parse(out, symbolize_names: true)
+      expect(payload.fetch(:decision_policy)).to include(
+        mode: "interactive",
+        prompt_answers: {
+          :"recipe:readme_metadata" => "keep",
+          :"recipe:template_source_application_README_md" => "keep",
+        }
+      )
+      expect(payload.fetch(:changed_files)).not_to include("README.md")
+      expect(File.read(File.join(root, "README.md"))).to eq("# Example\n\nDestination README.\n")
+    end
+  end
+
   it "prints old debug diagnostics without changing normal output" do
     Dir.mktmpdir("kettle-jem-cli", tmp_root) do |root|
       allow(Kettle::Jem).to receive(:plan_project).and_raise(Kettle::Jem::Error, "debug failure")
