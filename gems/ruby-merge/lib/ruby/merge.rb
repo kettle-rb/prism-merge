@@ -374,7 +374,9 @@ module Ruby
         root_kind: "document",
         source: normalize_source(source),
         owners: (requires + declarations).sort_by { |owner| owner[:path] },
-        discovered_surfaces: discovered_surfaces
+        discovered_surfaces: discovered_surfaces,
+        method_shadowing: ruby_method_shadowing(source),
+        diagnostics: ruby_method_shadowing_diagnostics(source)
       }
     end
 
@@ -555,6 +557,41 @@ module Ruby
       destination_entry.merge(
         text: merged_text
       )
+    end
+
+    def ruby_method_shadowing(source)
+      collect_ruby_declaration_entries(source).flat_map do |entry|
+        direct_method_shadowing(entry)
+      end
+    end
+
+    def ruby_method_shadowing_diagnostics(source)
+      ruby_method_shadowing(source).map do |entry|
+        {
+          severity: "warning",
+          category: "ruby_method_shadowing",
+          path: "#{entry[:owner_path]}/methods/#{entry[:method_signature]}",
+          message: "Ruby method #{entry[:method_signature]} is defined #{entry[:shadowed_count] + 1} times in #{entry[:owner_path]}; the last definition shadows earlier definitions."
+        }
+      end
+    end
+
+    def direct_method_shadowing(declaration_entry)
+      grouped = direct_body_method_entries(declaration_entry[:text]).each_with_index.group_by do |(method_entry, _index)|
+        method_entry[:signature]
+      end
+
+      grouped.filter_map do |signature, entries|
+        next if entries.length < 2
+
+        {
+          owner_path: declaration_entry[:path],
+          method_signature: signature,
+          effective_index: entries.last[1],
+          shadowed_indices: entries[0...-1].map { |_method_entry, index| index },
+          shadowed_count: entries.length - 1
+        }
+      end
     end
 
     def qualified_nested_declaration_entries(entries)

@@ -65,6 +65,22 @@ RSpec.describe "Ruby::Merge" do
     expect(analysis[:ok]).to be(true)
     expect(json_ready(analysis.dig(:analysis, :owners))).to eq(json_ready(analysis_fixture.dig(:expected, :owners)))
 
+    shadowing_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-960-duplicate-method-shadowing-projection",
+        "duplicate-method-shadowing.json"
+      )
+    )
+    shadowing_analysis = RUBY_MERGE.parse_ruby(shadowing_fixture[:source], shadowing_fixture[:dialect])
+    expect(shadowing_analysis[:ok]).to be(true)
+    expect(json_ready(shadowing_analysis.dig(:analysis, :method_shadowing))).to eq(
+      json_ready(shadowing_fixture.dig(:expected, :method_shadowing))
+    )
+    expect(json_ready(shadowing_analysis.dig(:analysis, :diagnostics))).to eq(
+      json_ready(shadowing_fixture.dig(:expected, :diagnostics))
+    )
+
     template = RUBY_MERGE.parse_ruby(matching_fixture[:template], matching_fixture[:dialect])
     destination = RUBY_MERGE.parse_ruby(matching_fixture[:destination], matching_fixture[:dialect])
     matching = RUBY_MERGE.match_ruby_owners(template[:analysis], destination[:analysis])
