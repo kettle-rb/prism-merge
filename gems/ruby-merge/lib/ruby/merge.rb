@@ -540,6 +540,7 @@ module Ruby
 
       merged_text = merge_declaration_hash_constants(template_entry[:text], destination_entry[:text])
       merged_text = merge_declaration_body_methods(template_entry[:text], merged_text)
+      merged_text = merge_nested_body_declarations(template_entry[:text], merged_text)
       destination_entry.merge(
         text: merged_text
       )
@@ -586,6 +587,22 @@ module Ruby
       insertion << "" if insertion_index != closing_index && !lines[insertion_index].to_s.strip.empty?
       lines.insert(insertion_index, *insertion)
       "#{lines.join("\n").sub(/\n+\z/, "")}\n".chomp
+    end
+
+    def merge_nested_body_declarations(template_text, destination_text)
+      template_entries = direct_body_declaration_entries(template_text)
+      destination_entries = direct_body_declaration_entries(destination_text)
+      return destination_text if template_entries.empty? || destination_entries.empty?
+
+      template_by_path = template_entries.to_h { |entry| [entry[:path], entry] }
+      output = destination_text.dup
+      destination_entries.reverse_each do |destination_entry|
+        template_entry = template_by_path[destination_entry[:path]]
+        next unless template_entry
+
+        output[destination_entry[:range]] = merge_ruby_declaration_entry(template_entry, destination_entry)[:text]
+      end
+      output
     end
 
     def unsupported_feature_result(message)
@@ -792,6 +809,13 @@ module Ruby
           next
         end
 
+        nested_declaration = declaration_for_line(line)
+        if nested_declaration && %w[class module].include?(nested_declaration[:kind])
+          pending_comments = []
+          index = ruby_block_finish_index(lines, index) + 1
+          next
+        end
+
         match = DEF_PATTERN.match(line)
         unless match
           pending_comments = []
@@ -806,6 +830,39 @@ module Ruby
           text: lines[start_index..finish_index].join("\n").rstrip
         }
         pending_comments = []
+        index = finish_index + 1
+      end
+      entries
+    end
+
+    def direct_body_declaration_entries(text)
+      lines = text.to_s.split("\n")
+      return [] if lines.length < 3
+
+      line_start_offsets = []
+      offset = 0
+      lines.each do |line|
+        line_start_offsets << offset
+        offset += line.length + 1
+      end
+
+      entries = []
+      index = 1
+      while index < lines.length - 1
+        declaration = declaration_for_line(lines[index].strip)
+        unless declaration && %w[class module].include?(declaration[:kind])
+          index += 1
+          next
+        end
+
+        finish_index = ruby_block_finish_index(lines, index)
+        start_offset = line_start_offsets[index]
+        finish_offset = line_start_offsets[finish_index] + lines[finish_index].length
+        entries << {
+          path: "/declarations/#{declaration[:name]}",
+          text: lines[index..finish_index].join("\n").rstrip,
+          range: (start_offset...finish_offset)
+        }
         index = finish_index + 1
       end
       entries

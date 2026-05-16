@@ -118,6 +118,17 @@ RSpec.describe "Ruby::Merge" do
     expect(method_visibility_result[:ok]).to eq(method_visibility_fixture.dig(:expected, :ok))
     expect(method_visibility_result[:output]).to eq(method_visibility_fixture.dig(:expected, :output))
 
+    nested_class_fixture = read_json(
+      fixtures_root.join("ruby", "slice-943-nested-class-method-merge", "nested-class-method-merge.json")
+    )
+    nested_class_result = RUBY_MERGE.merge_ruby(
+      nested_class_fixture[:template],
+      nested_class_fixture[:destination],
+      "ruby"
+    )
+    expect(nested_class_result[:ok]).to eq(nested_class_fixture.dig(:expected, :ok))
+    expect(nested_class_result[:output]).to eq(nested_class_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
