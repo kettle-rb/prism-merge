@@ -181,6 +181,30 @@ RSpec.describe Ast::Merge do
     expect(fixture.fetch(:decision)).to include("do not port old fuzzy refiners")
   end
 
+  it "conforms to the freeze block directive vocabulary fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-843-freeze-block-directive-vocabulary",
+        "freeze-block-directive-vocabulary.json"
+      )
+    )
+
+    freeze = fixture.fetch(:directive_kinds).find { |entry| entry.fetch(:kind) == "freeze" }
+    node_freeze = fixture.fetch(:directive_kinds).find { |entry| entry.fetch(:kind) == "node_freeze" }
+    expect(freeze).to include(open: "freeze", close: "unfreeze", merge_policy: "destination")
+    expect(node_freeze).to include(merge_policy: "destination_for_attached_node")
+    expect(fixture.fetch(:marker_styles).map { |style| style.fetch(:style) }).to eq(
+      %w[hash_comment html_comment c_style_line c_style_block]
+    )
+    expect(fixture.fetch(:validity_rules)).to include(
+      "crossing_or_offset_overlapping_spans_are_invalid",
+      "unmatched_close_marker_reports_diagnostic",
+      "unclosed_open_marker_reports_diagnostic"
+    )
+    expect(fixture.fetch(:decision)).to include("Do not port old FreezeNodeBase")
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
