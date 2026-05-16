@@ -508,6 +508,21 @@ RSpec.describe "Ruby::Merge" do
     expect(multiline_hash_trailing_comma_result[:ok]).to eq(multiline_hash_trailing_comma_fixture.dig(:expected, :ok))
     expect(multiline_hash_trailing_comma_result[:output]).to eq(multiline_hash_trailing_comma_fixture.dig(:expected, :output))
 
+    hash_predicate_bang_key_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-974-hash-predicate-bang-key-merge",
+        "hash-predicate-bang-key-merge.json"
+      )
+    )
+    hash_predicate_bang_key_result = RUBY_MERGE.merge_ruby(
+      hash_predicate_bang_key_fixture[:template],
+      hash_predicate_bang_key_fixture[:destination],
+      "ruby"
+    )
+    expect(hash_predicate_bang_key_result[:ok]).to eq(hash_predicate_bang_key_fixture.dig(:expected, :ok))
+    expect(hash_predicate_bang_key_result[:output]).to eq(hash_predicate_bang_key_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",

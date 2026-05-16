@@ -953,12 +953,12 @@ module Ruby
 
       def parse_hash_key
         remaining = source[@index..].to_s
-        if (match = remaining.match(/\A([a-zA-Z_]\w*):/))
+        if (match = remaining.match(/\A([a-zA-Z_]\w*[!?]?):/))
           @index += match[0].length
           return { key: match[1], key_source: match[1], delimiter: ":" }
         end
 
-        if (match = remaining.match(/\A(:[a-zA-Z_]\w*)\s*=>/))
+        if (match = remaining.match(/\A(:[a-zA-Z_]\w*[!?]?)\s*=>/))
           @index += match[0].length
           return { key: match[1].delete_prefix(":"), key_source: match[1], delimiter: "=>" }
         end
