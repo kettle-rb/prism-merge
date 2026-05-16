@@ -110,6 +110,38 @@ RSpec.describe TreeHaver do
     expect(fixture.fetch(:decision)).to include("Port the old position and capability ideas")
   end
 
+  it "conforms to the tree_haver old backend implementation inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-848-tree-haver-old-backend-implementation-inventory",
+        "tree-haver-old-backend-implementation-inventory.json"
+      )
+    )
+    classifications = fixture.fetch(:classifications).to_h do |entry|
+      [entry.fetch(:old_surface), entry]
+    end
+
+    expect(classifications.fetch("Backends::MRI").fetch(:classification)).to eq("retired_shared_backend")
+    expect(classifications.fetch("Backends::FFI").fetch(:replacement)).to eq("tree-sitter-language-pack")
+    expect(classifications.fetch("Backends::Prism").fetch(:classification)).to eq("provider_local")
+    expect(classifications.fetch("Backends::Psych").fetch(:classification)).to eq("provider_local")
+    expect(classifications.fetch("Backends::Citrus").fetch(:classification)).to eq("survives_as_peg_primitive")
+    expect(classifications.fetch("Backends::Parslet").fetch(:classification)).to eq("survives_as_peg_primitive")
+    expect(classifications.fetch("PathValidator").fetch(:classification)).to eq("defer_to_security_slice")
+    expect(fixture.fetch(:active_backend_requirements)).to include(
+      "backend_reference",
+      "capability_or_feature_profile_fixture",
+      "conformance_path_using_backend"
+    )
+    expect(fixture.fetch(:current_active_backends).map { |backend| backend.fetch(:backend) }).to include(
+      "kreuzberg-language-pack",
+      "citrus",
+      "parslet",
+      "kaitai-struct"
+    )
+  end
+
   it "exposes PEG backend references for parser-plurality slices" do
     expect(json_ready(described_class::CITRUS_BACKEND.to_h)).to eq(
       json_ready({ id: "citrus", family: "peg" })
