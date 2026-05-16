@@ -256,6 +256,139 @@ module Kettle
       end
     end
 
+    module ReadmePostProcessor
+      module_function
+
+      ENGINE_COMPATIBILITY_MRI_VERSION = {
+        "jruby" => {
+          "9.1" => Gem::Version.new("2.3"),
+          "9.2" => Gem::Version.new("2.5"),
+          "9.3" => Gem::Version.new("2.6"),
+          "9.4" => Gem::Version.new("3.1"),
+          "10.0" => Gem::Version.new("3.4"),
+        }.freeze,
+        "truby" => {
+          "22.3" => Gem::Version.new("3.0"),
+          "23.0" => Gem::Version.new("3.0"),
+          "23.1" => Gem::Version.new("3.1"),
+          "24.2" => Gem::Version.new("3.3"),
+          "25.0" => Gem::Version.new("3.3"),
+          "33.0" => Gem::Version.new("3.3"),
+        }.freeze,
+      }.freeze
+      COMPATIBILITY_ROW_PREFIX_RE = /\A\| Works with (?:MRI Ruby|JRuby|Truffle Ruby)/
+      COMPATIBILITY_REFERENCE_LABEL_RE = /\A(?:💎(?:ruby|jruby|truby)-|🚎)/
+      ENGINE_ROW_PATTERNS = {
+        "jruby" => {
+          row_re: /\A\| Works with JRuby/,
+          badge_prefixes: %w[💎jruby-],
+          ref_prefixes: [/\A🚎jruby-/, /\A🚎\d+-j-/],
+        }.freeze,
+        "truffleruby" => {
+          row_re: /\A\| Works with Truffle Ruby/,
+          badge_prefixes: %w[💎truby-],
+          ref_prefixes: [/\A🚎truby-/, /\A🚎\d+-t-/],
+        }.freeze,
+      }.freeze
+
+      def process(content:, min_ruby:, engines: nil)
+        processed = content.to_s
+        processed = remove_disabled_engine_content(processed, engines) if engines
+        return processed if min_ruby.to_s.empty?
+
+        processed = remove_incompatible_compatibility_badges(processed, Gem::Version.new(min_ruby.to_s))
+        processed = normalize_compatibility_rows(processed)
+        prune_unused_compatibility_reference_definitions(processed)
+      end
+
+      def remove_disabled_engine_content(content, engines)
+        enabled = Array(engines).map { |engine| engine.to_s.strip.downcase }
+        processed = content.to_s
+
+        ENGINE_ROW_PATTERNS.each do |engine, patterns|
+          next if enabled.include?(engine)
+
+          processed = processed.lines.reject { |line| patterns.fetch(:row_re).match?(line) }.join
+          labels = processed.scan(/\[(💎(?:ruby|jruby|truby)-[^\]]+)\]/).flatten.uniq
+          labels.each do |label|
+            next unless patterns.fetch(:badge_prefixes).any? { |prefix| label.start_with?(prefix) }
+
+            processed = remove_badge_occurrences(processed, label)
+          end
+          processed = processed.lines.reject do |line|
+            ref_label = line[/^\[([^\]]+)\]:/, 1]
+            ref_label && patterns.fetch(:ref_prefixes).any? { |pattern| pattern.match?(ref_label) }
+          end.join
+        end
+
+        processed
+      end
+
+      def remove_incompatible_compatibility_badges(content, min_ruby)
+        content.scan(/\[(💎(?:ruby|jruby|truby)-[^\]]+)\]/).flatten.uniq.each do |label|
+          badge_min_mri = compatibility_badge_min_mri(label)
+          next unless badge_min_mri && badge_min_mri < min_ruby
+
+          content = remove_badge_occurrences(content, label)
+        end
+
+        content
+      end
+
+      def compatibility_badge_min_mri(label)
+        if (match = label.match(/\A💎ruby-(?<version>\d+\.\d+)i\z/))
+          Gem::Version.new(match[:version])
+        elsif (match = label.match(/\A💎(?<engine>jruby|truby)-(?<version>\d+\.\d+)i\z/))
+          ENGINE_COMPATIBILITY_MRI_VERSION.dig(match[:engine], match[:version])
+        end
+      rescue StandardError
+        nil
+      end
+
+      def remove_badge_occurrences(content, label)
+        label_re = Regexp.escape(label)
+        content = content.gsub(/\s*\[!\[[^\]]*?\]\s*\[#{label_re}\]\s*\]\s*\[[^\]]+\]\s*/, " ")
+        content.gsub(/\s*!\[[^\]]*?\]\s*\[#{label_re}\]\s*/, " ")
+      end
+
+      def normalize_compatibility_rows(content)
+        content.lines.filter_map do |line|
+          next line unless COMPATIBILITY_ROW_PREFIX_RE.match?(line)
+
+          cells = line.split("|", -1)
+          badge_cell = normalize_compatibility_badge_cell(cells[2])
+          next if badge_cell.empty?
+
+          cells[2] = " #{badge_cell}"
+          cells.join("|")
+        end.join
+      end
+
+      def normalize_compatibility_badge_cell(cell)
+        cell.to_s
+          .split(/<br\/>/i)
+          .filter_map do |segment|
+            normalized = segment.gsub(/[ \t]+/, " ").strip
+            normalized unless normalized.empty?
+          end
+          .join(" <br/> ")
+      end
+
+      def prune_unused_compatibility_reference_definitions(content)
+        referenced_labels = {}
+        content.lines.each do |line|
+          next if line.match?(/^\[[^\]]+\]:/)
+
+          line.scan(/\]\[([^\]]+)\]/) { |match| referenced_labels[match.first] = true }
+        end
+
+        content.lines.reject do |line|
+          label = line[/^\[([^\]]+)\]:/, 1]
+          label && COMPATIBILITY_REFERENCE_LABEL_RE.match?(label) && !referenced_labels[label]
+        end.join
+      end
+    end
+
     class RubyGemsResolver
       RUBYGEMS_V1_API_BASE = "https://rubygems.org/api/v1"
       RUBYGEMS_V2_API_BASE = "https://rubygems.org/api/v2/rubygems"
@@ -1821,6 +1954,7 @@ module Kettle
           gemspec_path: File.basename(gemspec_path),
           namespace: classify_namespace(name),
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
+          engines: ruby_engines_config(kettle_config),
         ),
       }
       bootstrap = kettle_config_bootstrap_facts(project_root, env)
@@ -2250,7 +2384,10 @@ module Kettle
       unless h1_index
         lines.unshift(heading, "")
       end
-      replace_markdown_managed_block(lines.join("\n"), "kettle-jem:metadata", readme_metadata_block(facts))
+      postprocess_readme_content(
+        replace_markdown_managed_block(lines.join("\n"), "kettle-jem:metadata", readme_metadata_block(facts)),
+        facts
+      )
     end
 
     def normalize_changelog(content, facts)
@@ -2620,15 +2757,28 @@ module Kettle
     else
       resolved = prepare_readme_template(resolved, recipe[:readme_style]) if recipe.fetch(:target_path) == "README.md"
       if recipe.fetch(:target_path) == "README.md" && (strategy.empty? || strategy == "merge")
-        return merge_readme_template(
-          template_content: resolved,
-          destination_content: original,
-          preserve_config: recipe.dig(:template_preference, :readme_preserve_config) || {}
+        return postprocess_readme_content(
+          merge_readme_template(
+            template_content: resolved,
+            destination_content: original,
+            preserve_config: recipe.dig(:template_preference, :readme_preserve_config) || {}
+          ),
+          facts
         )
       end
       return merge_config_template_source(recipe, resolved, original, facts: facts) if strategy.empty? || strategy == "merge"
 
-      resolved
+      recipe.fetch(:target_path) == "README.md" ? postprocess_readme_content(resolved, facts) : resolved
+    end
+
+    def postprocess_readme_content(content, facts)
+      return content unless facts
+
+      ReadmePostProcessor.process(
+        content: content,
+        min_ruby: minimum_ruby_token(facts.dig(:rubygems, :min_ruby)),
+        engines: facts.dig(:rubygems, :engines)
+      )
     end
 
     def prepare_readme_template(content, readme_style)
@@ -3288,6 +3438,13 @@ module Kettle
       return [] unless match
 
       match[1].scan(/["']([^"']+)["']/).flatten
+    end
+
+    def ruby_engines_config(config)
+      engines = config["engines"]
+      return nil unless engines.is_a?(Array)
+
+      engines.map { |engine| engine.to_s.strip.downcase }.reject(&:empty?).uniq
     end
 
     def extract_metadata_value(source, key)

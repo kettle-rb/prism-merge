@@ -709,6 +709,68 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "trims README compatibility badges from minimum Ruby and engine config" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-compatibility-badge-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          engines:
+            - ruby
+          files:
+            README.md:
+              strategy: accept_template
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          # Example
+
+          | Works with MRI Ruby 3 | [![Ruby 3.0 Compat][💎ruby-3.0i]][🚎4-lg-wf] [![Ruby 3.2 Compat][💎ruby-3.2i]][🚎6-s-wf] [![Ruby current Compat][💎ruby-c-i]][🚎11-c-wf] |
+          | Works with JRuby | [![JRuby 10.0 Compat][💎jruby-10.0i]][🚎11-j-wf] |
+
+          [💎ruby-3.0i]: https://example/ruby-30
+          [💎ruby-3.2i]: https://example/ruby-32
+          [💎ruby-c-i]: https://example/ruby-current
+          [💎jruby-10.0i]: https://example/jruby-100
+          [🚎4-lg-wf]: https://example/legacy
+          [🚎6-s-wf]: https://example/supported
+          [🚎11-c-wf]: https://example/current
+          [🚎11-j-wf]: https://example/jruby
+        MARKDOWN
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      final_content = report.fetch(:final_content)
+      mri_line = final_content.lines.find { |line| line.start_with?("| Works with MRI Ruby 3") }
+
+      expect(mri_line).not_to include("ruby-3.0i")
+      expect(mri_line).to include("ruby-3.2i")
+      expect(mri_line).to include("ruby-c-i")
+      expect(final_content).not_to include("Works with JRuby")
+      expect(final_content).not_to match(/^\[💎ruby-3\.0i\]:/)
+      expect(final_content).not_to match(/^\[💎jruby-10\.0i\]:/)
+      expect(final_content).not_to match(/^\[🚎4-lg-wf\]:/)
+      expect(final_content).not_to match(/^\[🚎11-j-wf\]:/)
+      expect(final_content).to match(/^\[💎ruby-3\.2i\]:/)
+      expect(final_content).to match(/^\[🚎6-s-wf\]:/)
+      expect(final_content).to match(/^\[🚎11-c-wf\]:/)
+    end
+  end
+
   it "filters template recipes with old only/include semantics" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
