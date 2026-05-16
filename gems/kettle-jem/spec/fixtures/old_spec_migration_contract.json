@@ -15,6 +15,20 @@
     "appraisals_custom_blocks": {
       "template_appraisal": "ruby-4-0",
       "destination_appraisal": "custom-local"
+    },
+    "modular_gemfile_ruby_bucket": {
+      "path": "gemfiles/modular/x_std_libs/r4/libs.gemfile",
+      "template_eval_paths": [
+        "../../erb/r4/v5.0.gemfile",
+        "../../mutex_m/r4/v0.3.gemfile",
+        "../../stringio/r4/v3.0.gemfile",
+        "../../benchmark/r4/v0.5.gemfile"
+      ],
+      "obsolete_eval_paths": [
+        "../../erb/r3/v5.0.gemfile",
+        "../../mutex_m/r3/v0.3.gemfile",
+        "../../stringio/r3/v3.0.gemfile"
+      ]
     }
   }
 }

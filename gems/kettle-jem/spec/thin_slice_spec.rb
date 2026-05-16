@@ -1488,6 +1488,49 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "ports old modular Gemfile ruby-bucket eval_gemfile replacement" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    contract_case = old_spec_contract.fetch(:cases).fetch(:modular_gemfile_ruby_bucket)
+    relative_path = contract_case.fetch(:path)
+
+    Dir.mktmpdir("kettle-jem-old-modular-gemfile-policy", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - #{relative_path}
+        YAML
+        relative_path => contract_case.fetch(:obsolete_eval_paths).map { |path| %(eval_gemfile "#{path}") }.join("\n") +
+          "\n" + %(eval_gemfile "../../benchmark/r4/v0.5.gemfile"\n),
+        "template/#{relative_path}.example" => contract_case.fetch(:template_eval_paths).map do |path|
+          %(eval_gemfile "#{path}")
+        end.join("\n") + "\n"
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+      report = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == relative_path }
+      content = report.fetch(:final_content)
+
+      contract_case.fetch(:template_eval_paths).each do |path|
+        expect(content.scan(%(eval_gemfile "#{path}")).size).to eq(1)
+      end
+      contract_case.fetch(:obsolete_eval_paths).each do |path|
+        expect(content).not_to include(%(eval_gemfile "#{path}"))
+      end
+      expect(File.read(File.join(root, relative_path))).to eq(content)
+    end
+  end
+
   it "normalizes preserved gemspec lines to the template block receiver" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

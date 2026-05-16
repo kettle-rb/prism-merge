@@ -2595,7 +2595,10 @@ module Kettle
       end
       if merge_result[:ok]
         output = merge_result.fetch(:output)
-        return merge_gemfile_template_policy(output, facts: facts) if file_type == :gemfile
+        if file_type == :gemfile
+          output = merge_gemfile_eval_bucket_entries(template_content, output)
+          return merge_gemfile_template_policy(output, facts: facts)
+        end
         return merge_appraisals_template_policy(output, facts: facts) if file_type == :appraisals
 
         return output
@@ -2626,6 +2629,52 @@ module Kettle
         match && names.include?(match[1])
       end
       ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def merge_gemfile_eval_bucket_entries(template_content, merged_content)
+      template_entries = gemfile_eval_bucket_entries(template_content)
+      return merged_content if template_entries.empty?
+
+      template_by_key = template_entries.to_h { |entry| [entry.fetch(:key), entry] }
+      emitted_paths = Set.new
+      insert_at = nil
+      lines = []
+      merged_content.to_s.lines.each do |line|
+        entry = gemfile_eval_bucket_entry(line)
+        unless entry && template_by_key.key?(entry.fetch(:key))
+          lines << line
+          next
+        end
+
+        template_entry = template_by_key.fetch(entry.fetch(:key))
+        if entry.fetch(:path) == template_entry.fetch(:path)
+          lines << line unless emitted_paths.include?(entry.fetch(:path))
+          emitted_paths << entry.fetch(:path)
+        else
+          insert_at ||= lines.length
+        end
+      end
+
+      missing_lines = template_entries.reject { |entry| emitted_paths.include?(entry.fetch(:path)) }.map { |entry| entry.fetch(:line) }
+      return ensure_trailing_newline(lines.join) if missing_lines.empty?
+
+      insert_at ||= lines.length
+      lines[insert_at, 0] = missing_lines
+      ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def gemfile_eval_bucket_entries(content)
+      content.to_s.lines.filter_map { |line| gemfile_eval_bucket_entry(line) }
+    end
+
+    def gemfile_eval_bucket_entry(line)
+      path = line[/^\s*eval_gemfile\s+["']([^"']+)["']/, 1]
+      return unless path
+
+      key = path.sub(%r{/r\d+(?:\.\d+)?/}, "/{ruby}/")
+      return if key == path
+
+      { path: path, key: key, line: line }
     end
 
     def merge_appraisals_template_policy(content, facts:)
