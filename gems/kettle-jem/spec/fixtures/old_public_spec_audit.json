@@ -11,7 +11,7 @@
     },
     {
       "path": "spec/kettle/jem/setup_cli_spec.rb",
-      "status": "partially_ported",
+      "status": "ported",
       "active_specs": ["spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "machine-readable plan/apply reports",
@@ -20,15 +20,14 @@
         "skip-commit option projection",
         "template selection option projection",
         "config bootstrap boundary",
-        "preflight parse failure hard-stop"
-      ],
-      "remaining_behaviors": [
         "unbundled versus bundled setup handoff",
         "git repository and clean-worktree prechecks",
         "bootstrap commit policy",
         "bundle binstubs handoff",
+        "preflight parse failure hard-stop",
         "preflight version-file bootstrap"
-      ]
+      ],
+      "notes": "Active CLI/setup specs now cover setup command reporting, first-run config bootstrap, configured project handoff, clean/preflight checks, option projection, bundled handoff, bootstrap commit policy, and version file bootstrap."
     },
     {
       "path": "spec/kettle/jem/tasks/install_task_spec.rb",
@@ -37,10 +36,10 @@
       "ported_behaviors": [
         "public install task registration",
         "install task no longer invokes template implicitly",
-        "README and gemspec templating behavior moved to active template specs"
+        "README and gemspec templating behavior moved to active template specs",
+        "full post-template install orchestration"
       ],
       "remaining_behaviors": [
-        "full post-template install orchestration",
         "README badge trimming policy"
       ]
     },
@@ -51,19 +50,19 @@
       "ported_behaviors": [
         "config bootstrap",
         "token projection",
-        "malformed project preflight failure"
+        "malformed project preflight failure",
+        "explicit setup phase return states"
       ],
       "remaining_behaviors": [
-        "explicit setup phase return states",
         "mise trust refresh behavior"
       ]
     },
     {
       "path": "spec/kettle/jem/tasks/template_task_include_spec.rb",
-      "status": "partially_ported",
+      "status": "ported",
       "active_specs": ["spec/cli_spec.rb", "spec/rake_tasks_spec.rb"],
-      "ported_behaviors": ["include option parsing and reporting"],
-      "remaining_behaviors": ["include/only recipe filtering"]
+      "ported_behaviors": ["include option parsing and reporting", "include/only recipe filtering"],
+      "notes": "Active CLI/Rake specs cover include option parsing/reporting and active plan/apply recipe filtering covers only/include behavior."
     },
     {
       "path": "spec/kettle/jem/tasks/template_task_spec.rb",
@@ -90,6 +89,12 @@
       "status": "ported",
       "active_specs": ["spec/self_test_task_spec.rb", "spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
       "notes": "Selftest now validates template output against a destination and emits machine-readable plus markdown drift reports."
+    },
+    {
+      "path": "spec/kettle/jem/version_gem_bootstrap_spec.rb",
+      "status": "ported",
+      "active_specs": ["spec/thin_slice_spec.rb"],
+      "notes": "Active install bootstraps version_gem version and entrypoint files after gemspec templating and before bin/setup or Bundler handoff."
     },
     {
       "path": "spec/kettle/jem/rakelib/prepare_spec.rb",

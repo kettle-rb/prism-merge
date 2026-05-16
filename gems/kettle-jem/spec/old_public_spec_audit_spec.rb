@@ -21,6 +21,7 @@ RSpec.describe "old Kettle/Jem public spec audit" do
       "spec/kettle/jem/tasks/self_test_task_spec.rb",
       "spec/kettle/jem/tasks/template_task_include_spec.rb",
       "spec/kettle/jem/tasks/template_task_spec.rb",
+      "spec/kettle/jem/version_gem_bootstrap_spec.rb",
       "spec/kettle/jem/rakelib/prepare_spec.rb",
       "spec/kettle/jem/rakelib/selftest_spec.rb",
       "spec/kettle/jem/rakelib/tasks_spec.rb",
@@ -33,8 +34,8 @@ RSpec.describe "old Kettle/Jem public spec audit" do
     pending = files.select { |entry| entry.fetch(:status) == "partially_ported" }
     expect(pending).to all(include(:ported_behaviors, :remaining_behaviors))
     expect(pending.flat_map { |entry| entry.fetch(:remaining_behaviors) }).to include(
-      "unbundled versus bundled setup handoff",
-      "include/only recipe filtering",
+      "README badge trimming policy",
+      "mise trust refresh behavior",
       "per-file recipe overrides parity"
     )
   end
