@@ -243,6 +243,43 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  it "conforms to the comment layout structural edit helper inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-845-comment-layout-structural-edit-helper-inventory",
+        "comment-layout-structural-edit-helper-inventory.json"
+      )
+    )
+
+    expect(fixture.fetch(:portable_comment_contracts).map { |contract| contract.fetch(:id) }).to include(
+      "comment-region-kinds",
+      "comment-style-identifiers",
+      "freeze-directive-integration",
+      "region-text-submerge-gate"
+    )
+    expect(fixture.fetch(:portable_layout_contracts).map { |contract| contract.fetch(:id) }).to eq(
+      [
+        "gap-kinds",
+        "single-output-controller",
+        "controller-fallback",
+        "layout-render-reporting"
+      ]
+    )
+    expect(fixture.fetch(:portable_structural_edit_contracts).map { |contract| contract.fetch(:id) }).to include(
+      "exact-splice",
+      "remove-with-rehome-report",
+      "passive-rehome-plan",
+      "selector-to-destination-profile"
+    )
+    expect(fixture.dig(:renderer_ownership, :shared_contract_owns)).to include("remove/rehome transfer records")
+    expect(fixture.dig(:renderer_ownership, :provider_renderer_owns)).to include("render and reparse verification")
+    expect(fixture.fetch(:retired_public_surfaces).map { |surface| surface.fetch(:old_surface) }).to include(
+      "Text::* SmartMerger stack"
+    )
+    expect(fixture.fetch(:decision)).to include("Do not copy the old public helper class hierarchy")
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
