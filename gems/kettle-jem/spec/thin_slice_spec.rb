@@ -28,6 +28,8 @@ RSpec.describe Kettle::Jem do
     Pathname(__dir__).join("../../../../fixtures/packaging/thin-slice-contract.json").expand_path
   end
   let(:contract) { JSON.parse(contract_path.read, symbolize_names: true) }
+  let(:bootstrap_contract_path) { Pathname(__dir__).join("fixtures/bootstrap_contract.json").expand_path }
+  let(:bootstrap_contract) { JSON.parse(bootstrap_contract_path.read, symbolize_names: true) }
 
   it "plans and applies the RubyGems thin vertical slice" do
     expected_recipe_names = contract.fetch(:canonical_recipes).map { |recipe| recipe.fetch(:name).to_s }
@@ -736,6 +738,70 @@ RSpec.describe Kettle::Jem do
 
       described_class.apply_project(root, env: { "KJ_MIN_DIVERGENCE_THRESHOLD" => "7" })
       expect(File.read(File.join(root, ".kettle-jem.yml"))).to eq(bootstrap_report.fetch(:final_content))
+    end
+  end
+
+  it "applies bootstrap with non-interactive defaults and converges on the next run" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-bootstrap-contract", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+      bootstrap_target = bootstrap_contract.fetch(:expected).fetch(:bootstrap_target)
+
+      expect(apply.fetch(:decision_policy).fetch(:mode)).to eq(
+        bootstrap_contract.fetch(:expected).fetch(:non_interactive_mode)
+      )
+      expect(apply.fetch(:changed_files)).to include(bootstrap_target)
+      expect(File).to exist(File.join(root, bootstrap_target))
+
+      selected = bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths).to_h do |relative_path|
+        [relative_path, File.exist?(File.join(root, relative_path)) ? File.read(File.join(root, relative_path)) : nil]
+      end
+      second_apply = described_class.apply_project(root, env: {}, run_options: { accept: true })
+
+      expect(second_apply.fetch(:decision_policy).fetch(:mode)).to eq(
+        bootstrap_contract.fetch(:expected).fetch(:non_interactive_mode)
+      )
+      expect(bootstrap_contract.fetch(:expected).fetch(:idempotent_selected_paths).to_h { |relative_path|
+        [relative_path, File.exist?(File.join(root, relative_path)) ? File.read(File.join(root, relative_path)) : nil]
+      }).to eq(selected)
+    end
+  end
+
+  it "hard-fails malformed Ruby project entrypoints during preflight" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    parser_error_paths = bootstrap_contract.fetch(:expected).fetch(:parser_error_paths)
+
+    parser_error_paths.each do |relative_path|
+      Dir.mktmpdir("kettle-jem-bootstrap-preflight", tmp_root) do |root|
+        files = {
+          "example.gemspec" => <<~RUBY,
+            Gem::Specification.new do |spec|
+              spec.name = "example"
+              spec.summary = "Example gem"
+              spec.required_ruby_version = ">= 4.0"
+            end
+          RUBY
+        }
+        files["Gemfile"] = "source \"https://gem.coop\"\n" if relative_path == "example.gemspec"
+        files[relative_path] = "if true\n"
+        write_tree(root, files)
+
+        expect {
+          described_class.plan_project(root, env: {}, run_options: { accept: true })
+        }.to raise_error(Kettle::Jem::Error, /Preflight failed for #{Regexp.escape(relative_path)}/)
+      end
     end
   end
 

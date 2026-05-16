@@ -7,6 +7,7 @@ require "digest"
 require "json"
 require "net/http"
 require "open3"
+require "rbconfig"
 require "set"
 require "time"
 require "uri"
@@ -1962,6 +1963,7 @@ module Kettle
     end
 
     def plan_project(project_root, env: ENV, run_options: {})
+      preflight_project!(project_root)
       decision_policy = decision_policy_for(env, run_options)
       facts = discover_facts(project_root, env: env)
       pack = recipe_pack(facts)
@@ -3068,6 +3070,25 @@ module Kettle
 
     def opencollective_disabled_file?(relative_path)
       OPENCOLLECTIVE_DISABLED_FILES.include?(relative_path.to_s)
+    end
+
+    def preflight_project!(project_root)
+      paths = Dir.glob(File.join(project_root, "*.gemspec")).sort
+      gemfile_path = File.join(project_root, "Gemfile")
+      paths << gemfile_path if File.exist?(gemfile_path)
+      paths.each { |path| preflight_ruby_syntax!(project_root, path) }
+    end
+
+    def preflight_ruby_syntax!(project_root, path)
+      if defined?(RubyVM::InstructionSequence)
+        RubyVM::InstructionSequence.compile_file(path)
+      else
+        _stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-c", path)
+        raise SyntaxError, stderr unless status.success?
+      end
+    rescue SyntaxError => e
+      relative_path = path.delete_prefix("#{project_root}/")
+      raise Error, "Preflight failed for #{relative_path}: #{e.message}"
     end
 
     def delete_file_recipe?(recipe)
