@@ -17,6 +17,7 @@ module Kettle
           install_steps.concat(run_bundle_setup_commands(project_root, env: env, run_options: run_options, command_runner: command_runner))
           install_steps << bundled_handoff_step(env: env, run_options: run_options)
           install_steps << bootstrap_commit_step(project_root, run_options: run_options)
+          install_steps = execute_orchestration_steps(install_steps, project_root: project_root, env: env, run_options: run_options, command_runner: command_runner)
 
           report.merge(
             mode: "install",
@@ -25,7 +26,7 @@ module Kettle
             install_phase_reports: install_phase_reports(install_steps),
             diagnostics: report.fetch(:diagnostics) + [{
               severity: "advisory",
-              message: "kettle:jem:install applied templates, completed local post-template checks, and reported the bundled handoff contract.",
+              message: "kettle:jem:install applied templates, completed local post-template checks, and executed available orchestration steps.",
             }]
           )
         end
@@ -106,6 +107,20 @@ module Kettle
           ]
         end
 
+        def execute_orchestration_steps(install_steps, project_root:, env:, run_options:, command_runner:)
+          quiet = Kettle::Jem::DecisionPolicy.value_to_boolean(run_options[:quiet])
+          install_steps.map do |step|
+            case step.fetch(:name)
+            when "bundled_handoff"
+              execute_ready_command_step(step, project_root: project_root, env: env, quiet: quiet, command_runner: command_runner)
+            when "bootstrap_commit"
+              execute_ready_commands_step(step, project_root: project_root, env: env, quiet: quiet, command_runner: command_runner)
+            else
+              step
+            end
+          end
+        end
+
         def bundled_handoff_step(env:, run_options:)
           if Kettle::Jem::DecisionPolicy.value_to_boolean((run_options || {})[:bootstrap_mode])
             return {
@@ -128,7 +143,7 @@ module Kettle
             name: "bundled_handoff",
             command: ["bundle", "exec", "kettle-jem"] + handoff_argv(run_options),
             status: "ready",
-            reason: "reported_for_orchestration",
+            reason: "ready_for_orchestration",
           }
         end
 
@@ -166,7 +181,7 @@ module Kettle
             status: "ready",
             dirty_entries: dirty_entries,
             commands: commands,
-            reason: "reported_for_orchestration",
+            reason: "ready_for_orchestration",
           }
         end
 
@@ -233,6 +248,39 @@ module Kettle
           } if success
 
           raise Kettle::Jem::Error, "#{name} failed: #{command.join(" ")}\n#{result[:stderr]}"
+        end
+
+        def execute_ready_command_step(step, project_root:, env:, quiet:, command_runner:)
+          return step unless step.fetch(:status) == "ready"
+
+          result = command_runner.call(step.fetch(:command), chdir: project_root, env: env, quiet: quiet)
+          return step.merge(
+            status: "succeeded",
+            exitstatus: result[:exitstatus],
+            reason: "executed"
+          ) if result.fetch(:success)
+
+          raise Kettle::Jem::Error, "#{step.fetch(:name)} failed: #{step.fetch(:command).join(" ")}\n#{result[:stderr]}"
+        end
+
+        def execute_ready_commands_step(step, project_root:, env:, quiet:, command_runner:)
+          return step unless step.fetch(:status) == "ready"
+
+          results = step.fetch(:commands).map do |command|
+            result = command_runner.call(command, chdir: project_root, env: env, quiet: quiet)
+            unless result.fetch(:success)
+              raise Kettle::Jem::Error, "#{step.fetch(:name)} failed: #{command.join(" ")}\n#{result[:stderr]}"
+            end
+            {
+              command: command,
+              exitstatus: result[:exitstatus],
+            }
+          end
+          step.merge(
+            status: "succeeded",
+            command_results: results,
+            reason: "executed"
+          )
         end
 
         def run_system_command(command, chdir:, env:, quiet:)

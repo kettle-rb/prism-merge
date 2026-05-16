@@ -1077,8 +1077,9 @@ RSpec.describe Kettle::Jem do
       expect(install.fetch(:install_steps)).to include(
         name: "bundled_handoff",
         command: ["bundle", "exec", "kettle-jem", "--skip-commit", "--quiet", "--only", "bin/setup"],
-        status: "ready",
-        reason: "reported_for_orchestration"
+        status: "succeeded",
+        exitstatus: 0,
+        reason: "executed"
       )
       expect(install.fetch(:install_steps)).to include(
         name: "bootstrap_commit",
@@ -1098,13 +1099,14 @@ RSpec.describe Kettle::Jem do
         phase: "orchestration",
         steps: %w[bundled_handoff bootstrap_commit],
         statuses: {
-          "bundled_handoff" => "ready",
+          "bundled_handoff" => "succeeded",
           "bootstrap_commit" => "skipped"
         }
       )
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
+        ["bundle", "exec", "kettle-jem", "--skip-commit", "--quiet", "--only", "bin/setup"],
       ])
       expect(commands).to all(include(chdir: root, env: {}, quiet: true))
       expect(File).to exist(setup_path)
@@ -1126,8 +1128,9 @@ RSpec.describe Kettle::Jem do
       expect(second.fetch(:install_steps)).to include(
         name: "bundled_handoff",
         command: ["bundle", "exec", "kettle-jem", "--quiet", "--only", "bin/setup"],
-        status: "ready",
-        reason: "reported_for_orchestration"
+        status: "succeeded",
+        exitstatus: 0,
+        reason: "executed"
       )
       expect(second.fetch(:install_steps)).to include(
         name: "bootstrap_commit",
@@ -1137,6 +1140,7 @@ RSpec.describe Kettle::Jem do
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
+        ["bundle", "exec", "kettle-jem", "--quiet", "--only", "bin/setup"],
       ])
 
       bootstrap_install = Kettle::Jem::Tasks::InstallTask.run(
@@ -1160,12 +1164,16 @@ RSpec.describe Kettle::Jem do
       )
       expect(git_ready.fetch(:install_steps)).to include(hash_including(
         name: "bootstrap_commit",
-        status: "ready",
+        status: "succeeded",
         commands: [
           %w[git add -A],
           ["git", "commit", "-m", "🎨 Template bootstrap by kettle-jem v#{Kettle::Jem::Version::VERSION}"],
         ],
-        reason: "reported_for_orchestration"
+        command_results: [
+          {command: %w[git add -A], exitstatus: 0},
+          {command: ["git", "commit", "-m", "🎨 Template bootstrap by kettle-jem v#{Kettle::Jem::Version::VERSION}"], exitstatus: 0},
+        ],
+        reason: "executed"
       ))
       expect(git_ready.fetch(:install_steps).find { |step| step.fetch(:name) == "bootstrap_commit" }.fetch(:dirty_entries)).not_to be_empty
     end
