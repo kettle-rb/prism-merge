@@ -77,6 +77,39 @@ RSpec.describe TreeHaver do
     expect(json_ready(profile.to_h[:backend_ref])).to eq(json_ready(fixture[:backends][1]))
   end
 
+  it "conforms to the tree_haver backend architecture doc inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-847-tree-haver-backend-architecture-doc-inventory",
+        "tree-haver-backend-architecture-doc-inventory.json"
+      )
+    )
+
+    expect(fixture.fetch(:kept_contracts).map { |contract| contract.fetch(:id) }).to eq(
+      [
+        "normalized-position-api",
+        "capability-reporting",
+        "explicit-backend-context",
+        "scoped-context-restoration",
+        "single-normalized-tree-shape"
+      ]
+    )
+    expect(fixture.fetch(:retired_or_downgraded_claims).map { |claim| claim.fetch(:id) }).to include(
+      "universal-ruby-backend-adapter",
+      "raw-object-wrapping-as-api",
+      "thread-local-backend-switching",
+      "backend-availability-as-rspec-tags"
+    )
+    expect(fixture.dig(:provider_guidance, :native_object_retention)).to eq("allowed_internal_only")
+    expect(fixture.dig(:provider_guidance, :downstream_tree_shape)).to eq("normalized_tree")
+    expect(fixture.dig(:provider_guidance, :project_parser_specific_value_into)).to include(
+      "node metadata",
+      "semantic sidecars"
+    )
+    expect(fixture.fetch(:decision)).to include("Port the old position and capability ideas")
+  end
+
   it "exposes PEG backend references for parser-plurality slices" do
     expect(json_ready(described_class::CITRUS_BACKEND.to_h)).to eq(
       json_ready({ id: "citrus", family: "peg" })
