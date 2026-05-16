@@ -107,6 +107,28 @@ RSpec.describe "Ruby::Merge" do
     expect(method_move_report.dig(:matches, 0, :from_index)).to eq(method_move_fixture.dig(:expected, :first_moved_from_index))
     expect(method_move_report.dig(:matches, 0, :to_index)).to eq(method_move_fixture.dig(:expected, :first_moved_to_index))
 
+    merge_move_report_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-968-merge-move-detection-report",
+        "merge-move-detection-report.json"
+      )
+    )
+    merge_move_result = RUBY_MERGE.merge_ruby(
+      merge_move_report_fixture[:template],
+      merge_move_report_fixture[:destination],
+      "ruby"
+    )
+    merge_matching_report = merge_move_result.fetch(:matching_reports).first
+    merge_move_count = merge_matching_report.fetch(:matches).count { |entry| entry.fetch(:moved) }
+    expect(merge_move_result[:ok]).to eq(merge_move_report_fixture.dig(:expected, :ok))
+    expect(merge_move_result[:output]).to eq(merge_move_report_fixture.dig(:expected, :output))
+    expect(merge_move_result.fetch(:matching_reports).length).to eq(merge_move_report_fixture.dig(:expected, :matching_report_count))
+    expect(merge_matching_report[:matching_id]).to eq(merge_move_report_fixture.dig(:expected, :matching_id))
+    expect(merge_matching_report[:strategy]).to eq(merge_move_report_fixture.dig(:expected, :strategy))
+    expect(merge_move_count).to eq(merge_move_report_fixture.dig(:expected, :move_count))
+    expect(merge_matching_report.dig(:capability, :default_enabled)).to be(false)
+
     template = RUBY_MERGE.parse_ruby(matching_fixture[:template], matching_fixture[:dialect])
     destination = RUBY_MERGE.parse_ruby(matching_fixture[:destination], matching_fixture[:dialect])
     matching = RUBY_MERGE.match_ruby_owners(template[:analysis], destination[:analysis])

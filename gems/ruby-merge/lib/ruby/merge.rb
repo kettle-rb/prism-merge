@@ -185,12 +185,14 @@ module Ruby
       )
 
       output = "#{sections.join("\n\n").strip}\n"
+      matching_reports = [ruby_method_move_detection(template_source, destination_source, dialect)]
 
       {
         ok: true,
         diagnostics: [],
         output: normalize_rakefile_default_task_scaffold(output),
-        policies: [DESTINATION_WINS_ARRAY_POLICY]
+        policies: [DESTINATION_WINS_ARRAY_POLICY],
+        matching_reports: matching_reports
       }
     end
 
