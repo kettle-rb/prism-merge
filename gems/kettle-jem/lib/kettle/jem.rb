@@ -111,6 +111,7 @@ module Kettle
       :severity,
       :blocking,
       :diagnostics,
+      :prompt_required,
       keyword_init: true
     ) do
       def to_h
@@ -124,6 +125,7 @@ module Kettle
           severity: severity,
           blocking: blocking,
           diagnostics: diagnostics,
+          prompt_required: prompt_required,
         }.compact
       end
     end
@@ -194,6 +196,12 @@ module Kettle
         action = normalize_action(default_action)
         severity_value = normalize_severity(severity)
         raise Error, "No safe default decision for #{id}" if action.nil? && severity_value == "fatal"
+        promptable = interactive? && !action.nil? && severity_value != "fatal"
+        selected_source = promptable ? "interactive_default" : "default"
+        decision_diagnostics = Array(diagnostics).compact.map(&:to_s)
+        if promptable
+          decision_diagnostics << "Interactive prompt transport is not active; selected the configured default."
+        end
 
         DecisionEvaluation.new(
           id: id.to_s,
@@ -201,10 +209,11 @@ module Kettle
           file: file&.to_s,
           default_action: action,
           selected_action: action,
-          source: "default",
+          source: selected_source,
           severity: severity_value,
           blocking: severity_value == "fatal",
-          diagnostics: Array(diagnostics).compact.map(&:to_s)
+          diagnostics: decision_diagnostics,
+          prompt_required: promptable
         )
       end
 
