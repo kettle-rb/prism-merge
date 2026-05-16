@@ -134,6 +134,53 @@ RSpec.describe Ast::Merge do
     expect(fixture.dig(:portable_language, :template_only_policy)).to eq("anchor-aware insertion")
   end
 
+  it "conforms to the ast-merge base class inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-841-ast-merge-base-class-inventory",
+        "ast-merge-base-class-inventory.json"
+      )
+    )
+    classifications = fixture.fetch(:classifications).to_h do |entry|
+      [entry.fetch(:old_surface), entry]
+    end
+
+    expect(classifications.fetch("SmartMergerBase").fetch(:classification)).to eq("ruby_adapter_convenience_only")
+    expect(classifications.fetch("FileAnalyzable").fetch(:classification)).to eq("replaced_by_normalized_tree_contract")
+    expect(classifications.fetch("MergeResultBase").fetch(:classification)).to eq("replaced_by_execution_reports")
+    expect(classifications.fetch("DebugLogger").fetch(:classification)).to eq("replaced_by_structured_diagnostics")
+    expect(classifications.fetch("Runtime Ruleset unresolved review-state support").fetch(:action)).to eq(
+      "keep_active_contracts"
+    )
+    expect(fixture.fetch(:surviving_ruby_adapter_conveniences)).to eq([])
+    expect(fixture.fetch(:decision)).to include("No old ast-merge base class should be copied")
+  end
+
+  it "conforms to the match refiner utility inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-842-match-refiner-utility-inventory",
+        "match-refiner-utility-inventory.json"
+      )
+    )
+
+    expect(fixture.fetch(:generic_patterns).map { |pattern| pattern.fetch(:id) }).to include(
+      "greedy-one-to-one",
+      "scored-match-result",
+      "content-weighted-score",
+      "token-jaccard-score",
+      "composite-refiner-pipeline"
+    )
+    expect(fixture.dig(:default_policy, :fuzzy_matching_default)).to eq("disabled")
+    ruby_method = fixture.fetch(:format_specific_patterns).find { |pattern| pattern.fetch(:id) == "ruby-method-refiner" }
+    expect(ruby_method.fetch(:decision)).to include("do_not_enable_by_default")
+    json_object = fixture.fetch(:format_specific_patterns).find { |pattern| pattern.fetch(:id) == "json-object-refiner" }
+    expect(json_object.fetch(:decision)).to eq("preserved_by_slice_745_as_future_fuzzy_owner_matching")
+    expect(fixture.fetch(:decision)).to include("do not port old fuzzy refiners")
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
