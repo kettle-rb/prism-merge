@@ -1023,7 +1023,7 @@ RSpec.describe Kettle::Jem do
       install = Kettle::Jem::Tasks::InstallTask.run(
         project_root: root,
         env: {},
-        run_options: {only: "bin/setup", quiet: true},
+        run_options: {only: "bin/setup", quiet: true, skip_commit: true},
         command_runner: command_runner
       )
       setup_path = File.join(root, "bin", "setup")
@@ -1048,6 +1048,12 @@ RSpec.describe Kettle::Jem do
         status: "succeeded",
         exitstatus: 0
       )
+      expect(install.fetch(:install_steps)).to include(
+        name: "bundled_handoff",
+        command: ["bundle", "exec", "kettle-jem", "--skip-commit", "--quiet", "--only", "bin/setup"],
+        status: "ready",
+        reason: "reported_for_orchestration"
+      )
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
@@ -1069,10 +1075,28 @@ RSpec.describe Kettle::Jem do
         path: "bin/setup",
         status: "already_executable"
       )
+      expect(second.fetch(:install_steps)).to include(
+        name: "bundled_handoff",
+        command: ["bundle", "exec", "kettle-jem", "--quiet", "--only", "bin/setup"],
+        status: "ready",
+        reason: "reported_for_orchestration"
+      )
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
       ])
+
+      bootstrap_install = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {},
+        run_options: {only: "bin/setup", bootstrap_mode: true},
+        command_runner: command_runner
+      )
+      expect(bootstrap_install.fetch(:install_steps)).to include(
+        name: "bundled_handoff",
+        status: "skipped",
+        reason: "bootstrap_mode"
+      )
     end
   end
 
@@ -1111,6 +1135,11 @@ RSpec.describe Kettle::Jem do
       expect(bundled.fetch(:setup_execution_context)).to eq(
         bundled: true,
         source: "BUNDLE_GEMFILE",
+        bundle_gemfile: File.join(root, "Gemfile")
+      )
+      expect(bundled.fetch(:install_steps)).to include(
+        name: "bundled_handoff",
+        status: "already_bundled",
         bundle_gemfile: File.join(root, "Gemfile")
       )
 
