@@ -13,6 +13,7 @@ RSpec.describe "kettle-jem release packaging" do
 
   it "packages runtime template assets used by packaged template application" do
     spec = load_gemspec(gem_root)
+    gemspec_source = File.read(gem_root.join("kettle-jem.gemspec"))
     files = spec.files
     expected_template_files = Dir.chdir(gem_root) do
       Dir.glob("lib/kettle/jem/templates/**/*", File::FNM_DOTMATCH).select do |path|
@@ -20,6 +21,12 @@ RSpec.describe "kettle-jem release packaging" do
       end
     end
 
+    expect(gemspec_source).to include("Module.new.tap")
+    expect(gemspec_source).to include("spec.metadata[\"news_uri\"]")
+    expect(gemspec_source).to include("spec.rdoc_options +=")
+    expect(spec.summary).to eq("🍲 Gem templating engine using AST-based merging and configurable token resolution.")
+    expect(spec.homepage).to eq("https://github.com/kettle-rb/kettle-jem")
+    expect(spec.metadata["homepage_uri"]).to eq("https://kettle-jem.galtzo.com/")
     expect(expected_template_files).not_to be_empty
     expect(files).to include(*expected_template_files)
     expect(files).to include("certs/pboling.pem")

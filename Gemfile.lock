@@ -55,9 +55,17 @@ PATH
   specs:
     kettle-jem (7.0.0)
       ast-merge (= 7.0.0)
+      commonmarker-merge (= 7.0.0)
+      json-merge (= 7.0.0)
+      kramdown-merge (= 7.0.0)
+      markdown-merge (= 7.0.0)
+      markly-merge (= 7.0.0)
+      prism-merge (= 7.0.0)
+      psych-merge (= 7.0.0)
       ruby-merge (= 7.0.0)
       token-resolver (~> 1.0, >= 1.0.2)
       toml-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
       yaml-merge (= 7.0.0)
 
 PATH
@@ -169,21 +177,51 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    appraisal2 (3.0.6)
+      bundler (>= 1.17.3)
+      rake (>= 10)
+      thor (>= 0.14)
+    backports (3.25.3)
+    bundler-audit (0.9.3)
+      bundler (>= 1.2.0)
+      thor (~> 1.0)
     citrus (3.0.2)
     commonmarker (2.8.1-x86_64-linux)
+    delegate (0.6.1)
     diff-lcs (1.6.2)
+    gitmoji-regex (1.0.3)
+      version_gem (~> 1.1, >= 1.1.8)
+    kettle-test (2.0.0)
+      appraisal2 (~> 3.0, >= 3.0.2)
+      backports (~> 3.0)
+      rspec (~> 3.0)
+      rspec-block_is_expected (~> 1.0, >= 1.0.6)
+      rspec-pending_for (~> 0.1, >= 0.1.19)
+      rspec-stubbed_env (~> 1.0, >= 1.0.4)
+      rspec_junit_formatter (~> 0.6)
+      silent_stream (~> 1.0, >= 1.0.12)
+      timecop-rspec (~> 1.0, >= 1.0.3)
+      turbo_tests2 (~> 3.0)
+      version_gem (~> 1.1, >= 1.1.9)
     kramdown (2.5.2)
       rexml (>= 3.4.4)
+    logger (1.7.0)
     markly (0.16.0)
+    parallel (2.0.1)
+    parallel_tests (5.7.0)
+      parallel
     parslet (2.0.0)
     prism (1.9.0)
     racc (1.8.1)
     rake (13.4.2)
+    require_bench (1.0.4)
+      version_gem (>= 1.1.3, < 4)
     rexml (3.4.4)
     rspec (3.13.2)
       rspec-core (~> 3.13.0)
       rspec-expectations (~> 3.13.0)
       rspec-mocks (~> 3.13.0)
+    rspec-block_is_expected (1.0.6)
     rspec-core (3.13.6)
       rspec-support (~> 3.13.0)
     rspec-expectations (3.13.5)
@@ -192,7 +230,29 @@ GEM
     rspec-mocks (3.13.8)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
+    rspec-pending_for (0.1.20)
+      rspec-core (~> 3.0)
+      ruby_engine (~> 2.0)
+      ruby_version (~> 1.0)
+      version_gem (~> 1.1, >= 1.1.8)
+    rspec-stubbed_env (1.0.4)
     rspec-support (3.13.7)
+    rspec_junit_formatter (0.6.0)
+      rspec-core (>= 2, < 4, != 2.12.0)
+    ruby-progressbar (1.13.0)
+    ruby_engine (2.0.3)
+    ruby_version (1.0.3)
+    silent_stream (1.0.12)
+      logger (~> 1.2)
+      version_gem (>= 1.1.8, < 3)
+    stone_checksums (1.0.3)
+      version_gem (~> 1.1, >= 1.1.9)
+    thor (1.5.0)
+    timecop (0.9.11)
+    timecop-rspec (1.0.3)
+      delegate (~> 0.1)
+      rspec (~> 3.0)
+      timecop (>= 0.7, < 1)
     token-resolver (1.0.2)
       parslet (~> 2.0)
       version_gem (~> 1.1, >= 1.1.9)
@@ -202,21 +262,29 @@ GEM
       citrus (~> 3.0, > 3.0)
       racc (~> 1.7)
     tree_sitter_language_pack (1.6.2-x86_64-linux)
+    turbo_tests2 (3.0.0)
+      parallel_tests (>= 3.3.0, < 6)
+      rspec (>= 3.10)
+      version_gem (~> 1.1, >= 1.1.9)
     version_gem (1.1.9)
 
 PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  appraisal2 (~> 3.0, >= 3.0.6)
   ast-crispr!
   ast-merge!
   ast-template!
   binary-merge!
+  bundler-audit (~> 0.9.3)
   citrus-toml-merge!
   commonmarker-merge!
+  gitmoji-regex (~> 1.0, >= 1.0.3)
   go-merge!
   json-merge!
   kettle-jem!
+  kettle-test (~> 2.0, >= 2.0.0)
   kramdown-merge!
   markdown-merge!
   markly-merge!
@@ -224,11 +292,14 @@ DEPENDENCIES
   plain-merge!
   prism-merge!
   psych-merge!
-  rake
+  rake (~> 13.0, >= 0)
+  require_bench (~> 1.0, >= 1.0.4)
   rspec
   ruby-merge!
+  ruby-progressbar (~> 1.13)
   rust-merge!
   smorg-rb!
+  stone_checksums (~> 1.0, >= 1.0.3)
   token-resolver (~> 1.0, >= 1.0.2)
   toml-merge!
   tree_haver!
@@ -237,24 +308,33 @@ DEPENDENCIES
   zip-merge!
 
 CHECKSUMS
+  appraisal2 (3.0.6)
   ast-crispr (7.0.0)
   ast-merge (7.0.0)
   ast-template (7.0.0)
+  backports (3.25.3)
   binary-merge (7.0.0)
   bundler (4.0.11) sha256=5bcec0fb78302e48d02ee46f10ee6e6942be647ba5b44a6d1ddfda9a240ce785
+  bundler-audit (0.9.3)
   citrus (3.0.2) sha256=4ec2412fc389ad186735f4baee1460f7900a8e130ffe3f216b30d4f9c684f650
   citrus-toml-merge (7.0.0)
   commonmarker (2.8.1-x86_64-linux) sha256=c8f2e903c6ee4e2c7e280aa8b49ef37c53202d388e3a2ee06dfdccc8c6fb634f
   commonmarker-merge (7.0.0)
+  delegate (0.6.1)
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
+  gitmoji-regex (1.0.3)
   go-merge (7.0.0)
   json-merge (7.0.0)
   kettle-jem (7.0.0)
+  kettle-test (2.0.0)
   kramdown (2.5.2) sha256=1ba542204c66b6f9111ff00dcc26075b95b220b07f2905d8261740c82f7f02fa
   kramdown-merge (7.0.0)
+  logger (1.7.0)
   markdown-merge (7.0.0)
   markly (0.16.0) sha256=6f70d79e385b1efc9e171f74c81628826259039fe6c778e03c3924c71dac5511
   markly-merge (7.0.0)
+  parallel (2.0.1)
+  parallel_tests (5.7.0)
   parslet (2.0.0) sha256=d45130695d39b43d7e6a91f4d2ec66b388a8d822bae38de9b4de9a5fbde1f606
   parslet-toml-merge (7.0.0)
   plain-merge (7.0.0)
@@ -263,21 +343,35 @@ CHECKSUMS
   psych-merge (7.0.0)
   racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
   rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
+  require_bench (1.0.4)
   rexml (3.4.4) sha256=19e0a2c3425dfbf2d4fc1189747bdb2f849b6c5e74180401b15734bc97b5d142
   rspec (3.13.2) sha256=206284a08ad798e61f86d7ca3e376718d52c0bc944626b2349266f239f820587
+  rspec-block_is_expected (1.0.6)
   rspec-core (3.13.6) sha256=a8823c6411667b60a8bca135364351dda34cd55e44ff94c4be4633b37d828b2d
   rspec-expectations (3.13.5) sha256=33a4d3a1d95060aea4c94e9f237030a8f9eae5615e9bd85718fe3a09e4b58836
   rspec-mocks (3.13.8) sha256=086ad3d3d17533f4237643de0b5c42f04b66348c28bf6b9c2d3f4a3b01af1d47
+  rspec-pending_for (0.1.20)
+  rspec-stubbed_env (1.0.4)
   rspec-support (3.13.7) sha256=0640e5570872aafefd79867901deeeeb40b0c9875a36b983d85f54fb7381c47c
+  rspec_junit_formatter (0.6.0)
   ruby-merge (7.0.0)
+  ruby-progressbar (1.13.0)
+  ruby_engine (2.0.3)
+  ruby_version (1.0.3)
   rust-merge (7.0.0)
+  silent_stream (1.0.12)
   smorg-rb (7.0.0)
+  stone_checksums (1.0.3)
+  thor (1.5.0)
+  timecop (0.9.11)
+  timecop-rspec (1.0.3)
   token-resolver (1.0.2) sha256=bb7d1623f7552487f0880d3f64c2fc5c3de5bf838d78434c05ee0d6f2a37f721
   toml (0.3.0) sha256=0a91d0f76a9036e84e44f95693b12f58d358c1df3ac8e3b5271f2056ecc6e4b9
   toml-merge (7.0.0)
   toml-rb (4.1.0) sha256=14456ec4549e4703881bf04b83a56f3264ef99884880092d83c98a2058d95846
   tree_haver (7.0.0)
   tree_sitter_language_pack (1.6.2-x86_64-linux) sha256=eeeebb26902af7930838fb9817ca79182b3d80ecadf4b197b65bb290de9b95cc
+  turbo_tests2 (3.0.0)
   typescript-merge (7.0.0)
   version_gem (1.1.9) sha256=0c1a0962ae543c84a00889bb018d9f14d8f8af6029d26b295d98774e3d2eb9a4
   yaml-merge (7.0.0)
