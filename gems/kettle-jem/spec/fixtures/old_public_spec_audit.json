@@ -62,7 +62,7 @@
     },
     {
       "path": "spec/kettle/jem/tasks/template_task_spec.rb",
-      "status": "partially_ported",
+      "status": "ported",
       "active_specs": ["spec/thin_slice_spec.rb", "spec/system/bundle_gem_scaffold_spec.rb"],
       "ported_behaviors": [
         "file type classification",
@@ -74,10 +74,8 @@
         "plugin hook lifecycle",
         "per-file recipe overrides parity",
         "generated runtime artifact filtering",
-        "interactive prompt transport"
-      ],
-      "remaining_behaviors": [
-        "legacy markdown fine-tuning cases not yet represented by active fixtures"
+        "interactive prompt transport",
+        "legacy Markdown README H1, nested subsection, and fenced-code preservation"
       ]
     },
     {

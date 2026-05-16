@@ -5012,7 +5012,7 @@ module Kettle
       return template_content if destination_content.to_s.strip.empty?
 
       preserved = preserve_readme_sections(template_content, destination_content, preserve_config)
-      preserve_readme_h1(preserved, destination_content)
+      preserve_readme_h1(preserved, destination_content, preserve_config)
     end
 
     def preserve_readme_sections(template_content, destination_content, preserve_config)
@@ -5036,11 +5036,12 @@ module Kettle
       lines.join("\n")
     end
 
-    def preserve_readme_h1(merged_content, destination_content)
+    def preserve_readme_h1(merged_content, destination_content, preserve_config)
+      return merged_content if preserve_config.empty?
+
       merged_h1 = markdown_sections(merged_content).find { |section| section.fetch(:level) == 1 }
       destination_h1 = markdown_sections(destination_content).find { |section| section.fetch(:level) == 1 }
       return merged_content unless merged_h1 && destination_h1
-      return merged_content if semantic_readme_heading(destination_h1.fetch(:heading_text)) == semantic_readme_heading(merged_h1.fetch(:heading_text))
 
       lines = merged_content.split("\n", -1)
       lines[merged_h1.fetch(:start)] = destination_h1.fetch(:heading)

@@ -1563,6 +1563,15 @@ RSpec.describe Kettle::Jem do
 
           Destination synopsis.
 
+          ### Details
+
+          Destination nested detail.
+
+          ```console
+          # DANGER: keep this code comment inside the Synopsis branch.
+          bundle exec rake kettle:jem:install allowed=true force=true
+          ```
+
           ## Usage
 
           Destination usage.
@@ -1609,8 +1618,11 @@ RSpec.describe Kettle::Jem do
         report.fetch(:recipe_name) == "template_source_application_README_md"
       end
       final_content = readme_report.fetch(:final_content)
-      expect(final_content).to include("# 💎 Example")
+      expect(final_content).to include("# 1️⃣ Example")
       expect(final_content).to include("## 🌻 Synopsis\n\nDestination synopsis.")
+      expect(final_content).to include("### Details\n\nDestination nested detail.")
+      expect(final_content).to include("# DANGER: keep this code comment inside the Synopsis branch.")
+      expect(final_content).to include("bundle exec rake kettle:jem:install allowed=true force=true")
       expect(final_content).to include("## 🔧 Basic Usage\n\nDestination usage.")
       expect(final_content).to include("## Custom Section\n\nDestination custom.")
       expect(final_content).to include("## Note: Local\n\nDestination note.")

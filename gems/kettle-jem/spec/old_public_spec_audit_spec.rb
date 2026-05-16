@@ -29,12 +29,12 @@ RSpec.describe "old Kettle/Jem public spec audit" do
       "spec/kettle/jem/self_test/reporter_spec.rb"
     )
     expect(files).to all(include(:status, :active_specs))
-    expect(files.map { |entry| entry.fetch(:status) }).to include("partially_ported")
+    expect(files.map { |entry| entry.fetch(:status) }).to all(eq("ported"))
+    expect(files.flat_map { |entry| entry.fetch(:remaining_behaviors, []) }).to be_empty
 
-    pending = files.select { |entry| entry.fetch(:status) == "partially_ported" }
-    expect(pending).to all(include(:ported_behaviors, :remaining_behaviors))
-    expect(pending.flat_map { |entry| entry.fetch(:remaining_behaviors) }).to include(
-      "legacy markdown fine-tuning cases not yet represented by active fixtures"
+    template_task = files.find { |entry| entry.fetch(:path) == "spec/kettle/jem/tasks/template_task_spec.rb" }
+    expect(template_task.fetch(:ported_behaviors)).to include(
+      "legacy Markdown README H1, nested subsection, and fenced-code preservation"
     )
   end
 end
