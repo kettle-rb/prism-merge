@@ -579,10 +579,12 @@ module Ruby
       closing_index = declaration_closing_end_index(lines)
       return destination_text unless closing_index
 
+      insertion_index = direct_visibility_section_index(lines, closing_index) || closing_index
       insertion = []
-      insertion << "" unless lines[closing_index - 1].to_s.strip.empty?
+      insertion << "" unless insertion_index == 1 || lines[insertion_index - 1].to_s.strip.empty?
       insertion.concat(missing_methods.map { |entry| entry[:text] }.join("\n\n").split("\n"))
-      lines.insert(closing_index, *insertion)
+      insertion << "" if insertion_index != closing_index && !lines[insertion_index].to_s.strip.empty?
+      lines.insert(insertion_index, *insertion)
       "#{lines.join("\n").sub(/\n+\z/, "")}\n".chomp
     end
 
@@ -816,6 +818,18 @@ module Ruby
         depth += 1 if declaration_for_line(stripped)
         depth -= 1 if stripped == "end"
         return index if depth.zero? && index.positive?
+      end
+      nil
+    end
+
+    def direct_visibility_section_index(lines, closing_index)
+      depth = 1
+      1.upto(closing_index - 1) do |index|
+        stripped = lines[index].strip
+        return index if depth == 1 && %w[private protected].include?(stripped)
+
+        depth += 1 if declaration_for_line(stripped)
+        depth -= 1 if stripped == "end"
       end
       nil
     end

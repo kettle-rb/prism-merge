@@ -103,6 +103,21 @@ RSpec.describe "Ruby::Merge" do
     expect(class_method_result[:ok]).to eq(class_method_fixture.dig(:expected, :ok))
     expect(class_method_result[:output]).to eq(class_method_fixture.dig(:expected, :output))
 
+    method_visibility_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-942-template-only-method-visibility-ordering",
+        "public-method-before-private-section.json"
+      )
+    )
+    method_visibility_result = RUBY_MERGE.merge_ruby(
+      method_visibility_fixture[:template],
+      method_visibility_fixture[:destination],
+      "ruby"
+    )
+    expect(method_visibility_result[:ok]).to eq(method_visibility_fixture.dig(:expected, :ok))
+    expect(method_visibility_result[:output]).to eq(method_visibility_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
