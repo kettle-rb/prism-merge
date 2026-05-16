@@ -29,6 +29,7 @@ module Kettle
 
         options = parse_options(args)
         project_root = File.expand_path(options.fetch(:project_root) || Dir.pwd)
+        print_debug_snapshot(command, project_root: project_root, env: env, err: err) if debug_enabled?(env)
         result = execute(command, project_root: project_root, env: env, options: options)
         write_report(options[:report_path], result) if options[:report_path]
         print_result(command, result, options: options, out: out)
@@ -39,6 +40,7 @@ module Kettle
         2
       rescue StandardError => error
         err.puts("#{error.class}: #{error.message}")
+        err.puts(error.backtrace.join("\n")) if debug_enabled?(env)
         1
       end
 
@@ -192,6 +194,29 @@ module Kettle
       def write_report(path, result)
         FileUtils.mkdir_p(File.dirname(File.expand_path(path)))
         File.write(path, "#{JSON.pretty_generate(result)}\n")
+      end
+
+      def print_debug_snapshot(command, project_root:, env:, err:)
+        err.puts("[kettle-jem] DEBUG: early environment snapshot")
+        err.puts("  command=#{command.inspect}")
+        err.puts("  project_root=#{project_root.inspect}")
+        %w[DEBUG KETTLE_JEM_DEBUG KETTLE_DEV_DEBUG KETTLE_RB_DEV BUNDLE_GEMFILE BUNDLE_PATH GEM_HOME GEM_PATH RUBYOPT RUBYLIB PWD].each do |key|
+          err.puts("  #{key}=#{env_value(env, key).inspect}")
+        end
+      end
+
+      def debug_enabled?(env)
+        %w[DEBUG KETTLE_JEM_DEBUG KETTLE_DEV_DEBUG].any? { |key| env_true?(env_value(env, key)) }
+      end
+
+      def env_true?(value)
+        /\A(?:true|t|yes|y|on|1)\z/i.match?(value.to_s.strip)
+      end
+
+      def env_value(env, key)
+        env.fetch(key, nil)
+      rescue KeyError
+        nil
       end
 
       def print_help(out)
