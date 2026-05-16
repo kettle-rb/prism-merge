@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "spec_helper"
+require "open3"
+require "rubygems/package"
 
 RSpec.describe "kettle-jem release packaging" do
   let(:gem_root) { Pathname(__dir__).join("..").expand_path }
@@ -33,5 +35,47 @@ RSpec.describe "kettle-jem release packaging" do
     expect(files).to include(*expected_template_files)
     expect(files).to include("certs/pboling.pem")
     expect(spec.extra_rdoc_files).to include("README.md")
+  end
+
+  it "builds an artifact that can run kettle-jem from unpacked package files" do
+    tmp_root = gem_root.join("spec/tmp/release-packaging")
+    FileUtils.rm_rf(tmp_root)
+    FileUtils.mkdir_p(tmp_root)
+    gem_path = tmp_root.join("kettle-jem.gem")
+
+    stdout, stderr, status = Open3.capture3(
+      {"SKIP_GEM_SIGNING" => "1"},
+      Gem.ruby,
+      "-S",
+      "gem",
+      "build",
+      "kettle-jem.gemspec",
+      "--output",
+      gem_path.to_s,
+      chdir: gem_root.to_s
+    )
+    expect(status.success?).to be(true), "gem build failed\nstdout=#{stdout}\nstderr=#{stderr}"
+
+    package = Gem::Package.new(gem_path.to_s)
+    package_spec = package.spec
+    expected_template = "lib/kettle/jem/templates/.kettle-jem.yml.example"
+    expect(package_spec.executables).to include("kettle-jem")
+    expect(package_spec.files).to include(expected_template)
+
+    unpack_root = tmp_root.join("unpacked")
+    FileUtils.mkdir_p(unpack_root)
+    package.extract_files(unpack_root.to_s)
+    exe = unpack_root.join("exe/kettle-jem")
+    expect(File).to exist(exe)
+    expect(File).to exist(unpack_root.join(expected_template))
+
+    run_stdout, run_stderr, run_status = Open3.capture3(
+      {"RUBYLIB" => unpack_root.join("lib").to_s},
+      Gem.ruby,
+      exe.to_s,
+      "version"
+    )
+    expect(run_status.success?).to be(true), "artifact executable failed\nstdout=#{run_stdout}\nstderr=#{run_stderr}"
+    expect(run_stdout).to eq("#{Kettle::Jem::Version::VERSION}\n")
   end
 end
