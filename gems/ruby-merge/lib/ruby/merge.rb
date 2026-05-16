@@ -110,8 +110,8 @@ module Ruby
       template_requires = collect_ruby_require_entries(template.dig(:analysis, :source))
       destination_declarations = collect_ruby_declaration_entries(destination.dig(:analysis, :source))
       template_declarations = collect_ruby_declaration_entries(template.dig(:analysis, :source))
-      destination_paths = destination_declarations.to_h { |entry| [entry[:path], true] }
-      template_declarations_by_path = template_declarations.to_h { |entry| [entry[:path], entry] }
+      destination_paths = destination_declarations.to_h { |entry| [entry[:merge_key], true] }
+      template_declarations_by_path = template_declarations.to_h { |entry| [entry[:merge_key], entry] }
       destination_dsl = collect_top_level_dsl_entries(destination.dig(:analysis, :source))
       template_dsl = collect_top_level_dsl_entries(template.dig(:analysis, :source))
       sections = []
@@ -123,12 +123,10 @@ module Ruby
       sections.concat(merge_top_level_dsl_entries(destination_dsl, template_dsl).map { |entry| entry[:text] })
       sections.concat(
         destination_declarations.map do |entry|
-          merge_ruby_declaration_entry(template_declarations_by_path[entry[:path]], entry)[:text]
+          merge_ruby_declaration_entry(template_declarations_by_path[entry[:merge_key]], entry)[:text]
         end
       )
-      sections.concat(
-        template_declarations.reject { |entry| destination_paths[entry[:path]] }.map { |entry| entry[:text] }
-      )
+      sections.concat(template_declarations.reject { |entry| destination_paths[entry[:merge_key]] }.map { |entry| entry[:text] })
 
       output = "#{sections.join("\n\n").strip}\n"
 
@@ -527,6 +525,7 @@ module Ruby
 
         entries << {
           path: "/declarations/#{declaration[:name]}",
+          merge_key: "#{declaration[:kind]}:#{declaration[:name]}",
           text: lines[start_index...cursor].join("\n").strip
         }
         pending_comments = []
@@ -662,17 +661,17 @@ module Ruby
       destination_entries = direct_body_declaration_entries(destination_text)
       return destination_text if template_entries.empty? || destination_entries.empty?
 
-      template_by_path = template_entries.to_h { |entry| [entry[:path], entry] }
+      template_by_path = template_entries.to_h { |entry| [entry[:merge_key], entry] }
       output = destination_text.dup
       destination_entries.reverse_each do |destination_entry|
-        template_entry = template_by_path[destination_entry[:path]]
+        template_entry = template_by_path[destination_entry[:merge_key]]
         next unless template_entry
 
         output[destination_entry[:range]] = merge_ruby_declaration_entry(template_entry, destination_entry)[:text]
       end
 
-      destination_paths = destination_entries.map { |entry| entry[:path] }.to_h { |path| [path, true] }
-      missing_entries = template_entries.reject { |entry| destination_paths[entry[:path]] }
+      destination_paths = destination_entries.map { |entry| entry[:merge_key] }.to_h { |path| [path, true] }
+      missing_entries = template_entries.reject { |entry| destination_paths[entry[:merge_key]] }
       return output if missing_entries.empty?
 
       insert_declaration_body_blocks(output, missing_entries.map { |entry| entry[:text] })
@@ -1079,6 +1078,7 @@ module Ruby
         finish_offset = line_start_offsets[finish_index] + lines[finish_index].length
         entries << {
           path: "/declarations/#{declaration[:name]}",
+          merge_key: "#{declaration[:kind]}:#{declaration[:name]}",
           text: lines[index..finish_index].join("\n").rstrip,
           range: (start_offset...finish_offset)
         }

@@ -339,6 +339,21 @@ RSpec.describe "Ruby::Merge" do
     expect(visibility_moved_method_result[:ok]).to eq(visibility_moved_method_fixture.dig(:expected, :ok))
     expect(visibility_moved_method_result[:output]).to eq(visibility_moved_method_fixture.dig(:expected, :output))
 
+    declaration_kind_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-958-declaration-kind-aware-matching",
+        "declaration-kind-aware-matching.json"
+      )
+    )
+    declaration_kind_result = RUBY_MERGE.merge_ruby(
+      declaration_kind_fixture[:template],
+      declaration_kind_fixture[:destination],
+      "ruby"
+    )
+    expect(declaration_kind_result[:ok]).to eq(declaration_kind_fixture.dig(:expected, :ok))
+    expect(declaration_kind_result[:output]).to eq(declaration_kind_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
