@@ -15,6 +15,7 @@ module Kettle
           install_steps << ensure_bin_setup_executable(project_root)
           install_steps.concat(run_bundle_setup_commands(project_root, env: env, run_options: run_options, command_runner: command_runner))
           install_steps << bundled_handoff_step(env: env, run_options: run_options)
+          install_steps << bootstrap_commit_step(project_root, run_options: run_options)
 
           report.merge(
             mode: "install",
@@ -87,6 +88,54 @@ module Kettle
             status: "ready",
             reason: "reported_for_orchestration",
           }
+        end
+
+        def bootstrap_commit_step(project_root, run_options:)
+          if Kettle::Jem::DecisionPolicy.value_to_boolean((run_options || {})[:skip_commit])
+            return {
+              name: "bootstrap_commit",
+              status: "skipped",
+              reason: "skip_commit",
+            }
+          end
+
+          unless File.directory?(File.join(project_root, ".git")) &&
+              git_success?(project_root, "rev-parse", "--is-inside-work-tree")
+            return {
+              name: "bootstrap_commit",
+              status: "unavailable",
+              reason: "not_git_repository",
+            }
+          end
+
+          dirty_entries = git_output(project_root, "status", "--porcelain").lines.map(&:chomp).reject(&:empty?)
+          return {
+            name: "bootstrap_commit",
+            status: "clean_noop",
+            dirty_entries: [],
+          } if dirty_entries.empty?
+
+          commands = []
+          commands << %w[bundle lock] if File.exist?(File.join(project_root, "Gemfile.lock"))
+          commands << %w[git add -A]
+          commands << ["git", "commit", "-m", "🎨 Template bootstrap by kettle-jem v#{Kettle::Jem::Version::VERSION}"]
+          {
+            name: "bootstrap_commit",
+            status: "ready",
+            dirty_entries: dirty_entries,
+            commands: commands,
+            reason: "reported_for_orchestration",
+          }
+        end
+
+        def git_success?(project_root, *args)
+          _stdout, _stderr, status = Open3.capture3("git", "-C", project_root.to_s, *args)
+          status.success?
+        end
+
+        def git_output(project_root, *args)
+          stdout, _stderr, status = Open3.capture3("git", "-C", project_root.to_s, *args)
+          status.success? ? stdout : ""
         end
 
         def handoff_argv(run_options)

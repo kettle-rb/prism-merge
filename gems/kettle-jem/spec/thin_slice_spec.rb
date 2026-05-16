@@ -1054,6 +1054,11 @@ RSpec.describe Kettle::Jem do
         status: "ready",
         reason: "reported_for_orchestration"
       )
+      expect(install.fetch(:install_steps)).to include(
+        name: "bootstrap_commit",
+        status: "skipped",
+        reason: "skip_commit"
+      )
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
@@ -1081,6 +1086,11 @@ RSpec.describe Kettle::Jem do
         status: "ready",
         reason: "reported_for_orchestration"
       )
+      expect(second.fetch(:install_steps)).to include(
+        name: "bootstrap_commit",
+        status: "unavailable",
+        reason: "not_git_repository"
+      )
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
@@ -1097,6 +1107,24 @@ RSpec.describe Kettle::Jem do
         status: "skipped",
         reason: "bootstrap_mode"
       )
+
+      expect(system("git", "init", root, out: File::NULL, err: File::NULL)).to be(true)
+      git_ready = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {},
+        run_options: {only: "bin/setup"},
+        command_runner: command_runner
+      )
+      expect(git_ready.fetch(:install_steps)).to include(hash_including(
+        name: "bootstrap_commit",
+        status: "ready",
+        commands: [
+          %w[git add -A],
+          ["git", "commit", "-m", "🎨 Template bootstrap by kettle-jem v#{Kettle::Jem::Version::VERSION}"],
+        ],
+        reason: "reported_for_orchestration"
+      ))
+      expect(git_ready.fetch(:install_steps).find { |step| step.fetch(:name) == "bootstrap_commit" }.fetch(:dirty_entries)).not_to be_empty
     end
   end
 
