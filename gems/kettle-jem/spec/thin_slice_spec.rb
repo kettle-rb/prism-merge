@@ -3094,6 +3094,46 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "derives source and forge tokens from git origin when gemspec metadata is absent" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-git-origin-token-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          Source: {KJ|GH_ORG}
+          GitHub user: {KJ|GH:USER}
+        MARKDOWN
+      })
+      expect(system("git", "-C", root, "init", "-q")).to be(true)
+      expect(system("git", "-C", root, "remote", "add", "origin", "git@github.com:acme/example.git")).to be(true)
+
+      plan = described_class.plan_project(root, env: {})
+      template_report = plan[:recipe_reports].find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      expect(plan.dig(:facts, :package, :source_url)).to eq("https://github.com/acme/example")
+      expect(template_report.fetch(:final_content)).to include("Source: acme")
+      expect(template_report.fetch(:final_content)).to include("GitHub user: acme")
+      expect(template_report.dig(:metadata, :template_tokens)).to include(
+        "KJ|GH_ORG" => "acme",
+        "KJ|GH:USER" => "acme"
+      )
+    end
+  end
+
   it "projects README top logo template tokens" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

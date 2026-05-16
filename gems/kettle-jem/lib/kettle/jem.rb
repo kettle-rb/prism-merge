@@ -1775,7 +1775,17 @@ module Kettle
       name = extract_gemspec_assignment(gemspec, "spec.name") || File.basename(gemspec_path, ".gemspec")
       homepage_url = extract_gemspec_assignment(gemspec, "spec.homepage")
       metadata_source_url = extract_metadata_value(gemspec, "source_code_uri")
-      source_url = concrete_github_url(metadata_source_url) || concrete_github_url(homepage_url) || metadata_source_url || homepage_url
+      metadata_github_url = concrete_github_url(metadata_source_url)
+      homepage_github_url = concrete_github_url(homepage_url)
+      git_source_url = git_remote_source_url(project_root)
+      git_github_url = concrete_github_url(git_source_url)
+      source_url = metadata_github_url ||
+        homepage_github_url ||
+        git_github_url ||
+        metadata_source_url ||
+        homepage_url ||
+        git_source_url
+      derived_github_user = git_github_url && source_url == git_github_url ? github_org_from_url(git_github_url) : nil
 
       kettle_config = kettle_jem_config(project_root)
       author = author_facts(gemspec, kettle_config, env)
@@ -1817,7 +1827,7 @@ module Kettle
       facts[:kettle_config_bootstrap] = bootstrap if bootstrap
       facts[:author] = author unless author.empty?
       facts[:copyright] = copyright unless copyright.empty?
-      forge = forge_facts(kettle_config, env)
+      forge = forge_facts(kettle_config, env, derived_github_user: derived_github_user)
       facts[:forge] = forge unless forge.empty?
       social = social_facts(kettle_config, env)
       facts[:social] = social unless social.empty?
@@ -4008,19 +4018,19 @@ module Kettle
       runs.map { |span| span.one? ? span.first.to_s : "#{span.first}-#{span.last}" }.join(", ")
     end
 
-    def forge_facts(config, env)
+    def forge_facts(config, env, derived_github_user: nil)
       token_config = token_config_values(config)
       forge_config = token_config["forge"].is_a?(Hash) ? token_config["forge"] : {}
       compact_hash(
-        gh_user: forge_user_value(forge_config, env, :gh_user).to_s,
+        gh_user: forge_user_value(forge_config, env, :gh_user, derived_value: derived_github_user).to_s,
         gl_user: forge_user_value(forge_config, env, :gl_user).to_s,
         cb_user: forge_user_value(forge_config, env, :cb_user).to_s,
         sh_user: forge_user_value(forge_config, env, :sh_user).to_s
       )
     end
 
-    def forge_user_value(forge_config, env, key)
-      preferred_template_token_value(nil, forge_config[key.to_s], env, FORGE_USER_ENV_KEYS.fetch(key))
+    def forge_user_value(forge_config, env, key, derived_value: nil)
+      preferred_template_token_value(derived_value, forge_config[key.to_s], env, FORGE_USER_ENV_KEYS.fetch(key))
     end
 
     def forge_template_tokens(forge)
@@ -4128,6 +4138,26 @@ module Kettle
 
     def concrete_github_url(url)
       github_org_from_url(url) ? url.to_s : nil
+    end
+
+    def git_remote_source_url(project_root)
+      normalize_git_source_url(git_capture(project_root, "config", "--get", "remote.origin.url").strip)
+    rescue ArgumentError
+      nil
+    end
+
+    def normalize_git_source_url(url)
+      value = url.to_s.strip
+      return nil if value.empty?
+
+      if (match = value.match(/\Agit@github\.com:([^\/]+)\/(.+?)(?:\.git)?\z/))
+        return "https://github.com/#{match[1]}/#{match[2]}"
+      end
+      if (match = value.match(%r{\Ahttps?://github\.com/([^/]+)/(.+?)(?:\.git)?\z}))
+        return "https://github.com/#{match[1]}/#{match[2]}"
+      end
+
+      value
     end
 
     def readme_logo_facts(config, package_name:, github_org:)
