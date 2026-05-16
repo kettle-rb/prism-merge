@@ -847,7 +847,7 @@ module Ruby
     private
 
     RubyHashNode = Struct.new(:pairs, :inline, keyword_init: true)
-    RubyHashPair = Struct.new(:key, :value, keyword_init: true)
+    RubyHashPair = Struct.new(:key, :key_source, :delimiter, :value, keyword_init: true)
     RubyScalarNode = Struct.new(:source, keyword_init: true)
 
     class RubyHashLiteralParser
@@ -875,10 +875,15 @@ module Ruby
           skip_whitespace
           break if peek == "}"
 
-          key = parse_symbol_key
+          key = parse_hash_key
           skip_whitespace
           value = parse_value
-          pairs << RubyHashPair.new(key: key, value: value)
+          pairs << RubyHashPair.new(
+            key: key.fetch(:key),
+            key_source: key.fetch(:key_source),
+            delimiter: key.fetch(:delimiter),
+            value: value
+          )
           skip_whitespace
           break if peek == "}"
 
@@ -895,12 +900,19 @@ module Ruby
         RubyScalarNode.new(source: parse_scalar_source)
       end
 
-      def parse_symbol_key
-        match = source[@index..].to_s.match(/\A([a-zA-Z_]\w*):/)
-        raise ArgumentError, "expected symbol hash key" unless match
+      def parse_hash_key
+        remaining = source[@index..].to_s
+        if (match = remaining.match(/\A([a-zA-Z_]\w*):/))
+          @index += match[0].length
+          return { key: match[1], key_source: match[1], delimiter: ":" }
+        end
 
-        @index += match[0].length
-        match[1]
+        if (match = remaining.match(/\A(:[a-zA-Z_]\w*)\s*=>/))
+          @index += match[0].length
+          return { key: match[1].delete_prefix(":"), key_source: match[1], delimiter: "=>" }
+        end
+
+        raise ArgumentError, "expected symbol hash key"
       end
 
       def parse_scalar_source
@@ -1334,6 +1346,8 @@ module Ruby
         elsif template_pair.value.is_a?(RubyHashNode) && destination_pair.value.is_a?(RubyHashNode)
           RubyHashPair.new(
             key: template_pair.key,
+            key_source: destination_pair.key_source,
+            delimiter: destination_pair.delimiter,
             value: merge_ruby_hash_literals(template_pair.value, destination_pair.value)
           )
         else
@@ -1352,16 +1366,21 @@ module Ruby
       child_indent = base_indent + 2
       lines = node.pairs.each_with_index.map do |pair, index|
         suffix = index == node.pairs.length - 1 ? "" : ","
-        "#{" " * child_indent}#{pair.key}: #{render_ruby_hash_literal(pair.value, child_indent)}#{suffix}"
+        "#{" " * child_indent}#{render_ruby_hash_key(pair)} #{render_ruby_hash_literal(pair.value, child_indent)}#{suffix}"
       end
       "{\n#{lines.join("\n")}\n#{" " * base_indent}}"
     end
 
     def render_inline_ruby_hash_literal(node)
       inner = node.pairs.map do |pair|
-        "#{pair.key}: #{render_ruby_hash_literal(pair.value, 0)}"
+        "#{render_ruby_hash_key(pair)} #{render_ruby_hash_literal(pair.value, 0)}"
       end.join(", ")
       "{#{inner}}"
+    end
+
+    def render_ruby_hash_key(pair)
+      delimiter = pair.delimiter == "=>" ? "=>" : ":"
+      delimiter == "=>" ? "#{pair.key_source} =>" : "#{pair.key_source}:"
     end
 
     def comment_line?(line)

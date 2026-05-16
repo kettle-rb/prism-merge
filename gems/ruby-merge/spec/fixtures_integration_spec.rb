@@ -366,6 +366,21 @@ RSpec.describe "Ruby::Merge" do
     expect(hash_destination_style_result[:ok]).to eq(hash_destination_style_fixture.dig(:expected, :ok))
     expect(hash_destination_style_result[:output]).to eq(hash_destination_style_fixture.dig(:expected, :output))
 
+    hash_rocket_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-965-hash-rocket-constant-merge",
+        "hash-rocket-constant-merge.json"
+      )
+    )
+    hash_rocket_result = RUBY_MERGE.merge_ruby(
+      hash_rocket_fixture[:template],
+      hash_rocket_fixture[:destination],
+      "ruby"
+    )
+    expect(hash_rocket_result[:ok]).to eq(hash_rocket_fixture.dig(:expected, :ok))
+    expect(hash_rocket_result[:output]).to eq(hash_rocket_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",
