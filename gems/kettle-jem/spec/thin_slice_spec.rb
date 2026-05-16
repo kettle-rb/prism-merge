@@ -1014,7 +1014,18 @@ RSpec.describe Kettle::Jem do
         YAML
       })
 
-      install = Kettle::Jem::Tasks::InstallTask.run(project_root: root, env: {}, run_options: {only: "bin/setup"})
+      commands = []
+      command_runner = lambda do |command, chdir:, env:, quiet:|
+        commands << {command: command, chdir: chdir, env: env, quiet: quiet}
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+
+      install = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {},
+        run_options: {only: "bin/setup", quiet: true},
+        command_runner: command_runner
+      )
       setup_path = File.join(root, "bin", "setup")
 
       expect(install.fetch(:mode)).to eq("install")
@@ -1025,16 +1036,43 @@ RSpec.describe Kettle::Jem do
         path: "bin/setup",
         status: "updated"
       )
+      expect(install.fetch(:install_steps)).to include(
+        name: "bin_setup",
+        command: ["bin/setup", "--quiet"],
+        status: "succeeded",
+        exitstatus: 0
+      )
+      expect(install.fetch(:install_steps)).to include(
+        name: "bundle_binstubs",
+        command: %w[bundle binstubs --all],
+        status: "succeeded",
+        exitstatus: 0
+      )
+      expect(commands.map { |entry| entry.fetch(:command) }).to eq([
+        ["bin/setup", "--quiet"],
+        %w[bundle binstubs --all],
+      ])
+      expect(commands).to all(include(chdir: root, env: {}, quiet: true))
       expect(File).to exist(setup_path)
       expect(File.executable?(setup_path)).to be(true)
 
-      second = Kettle::Jem::Tasks::InstallTask.run(project_root: root, env: {}, run_options: {only: "bin/setup"})
+      commands.clear
+      second = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {},
+        run_options: {only: "bin/setup", quiet: true},
+        command_runner: command_runner
+      )
       expect(second.fetch(:changed_files)).to eq([])
       expect(second.fetch(:install_steps)).to include(
         name: "bin_setup_executable",
         path: "bin/setup",
         status: "already_executable"
       )
+      expect(commands.map { |entry| entry.fetch(:command) }).to eq([
+        ["bin/setup", "--quiet"],
+        %w[bundle binstubs --all],
+      ])
     end
   end
 
