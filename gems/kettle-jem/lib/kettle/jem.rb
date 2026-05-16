@@ -112,6 +112,7 @@ module Kettle
       :blocking,
       :diagnostics,
       :prompt_required,
+      :prompt,
       keyword_init: true
     ) do
       def to_h
@@ -126,6 +127,7 @@ module Kettle
           blocking: blocking,
           diagnostics: diagnostics,
           prompt_required: prompt_required,
+          prompt: prompt,
         }.compact
       end
     end
@@ -199,8 +201,17 @@ module Kettle
         promptable = interactive? && !action.nil? && severity_value != "fatal"
         selected_source = promptable ? "interactive_default" : "default"
         decision_diagnostics = Array(diagnostics).compact.map(&:to_s)
+        prompt = nil
         if promptable
-          decision_diagnostics << "Interactive prompt transport is not active; selected the configured default."
+          prompt = {
+            id: id.to_s,
+            category: category.to_s,
+            file: file&.to_s,
+            message: "Apply #{category.to_s.tr("_", " ")} for #{file || id}?",
+            default_action: action,
+            choices: DECISION_ACTIONS,
+          }.compact
+          decision_diagnostics << "Interactive prompt transport is active; selected the configured default pending an external response."
         end
 
         DecisionEvaluation.new(
@@ -213,7 +224,8 @@ module Kettle
           severity: severity_value,
           blocking: severity_value == "fatal",
           diagnostics: decision_diagnostics,
-          prompt_required: promptable
+          prompt_required: promptable,
+          prompt: prompt
         )
       end
 
@@ -2145,6 +2157,7 @@ module Kettle
       diagnostics = recipe_reports.flat_map { |report| report[:diagnostics] }
       phase_reports = phase_reports_for(recipe_reports)
       decision_evaluations = recipe_reports.map { |report| report.fetch(:decision_evaluation) }
+      prompt_requests = decision_evaluations.filter_map { |decision| decision[:prompt] if decision[:prompt_required] }
       unless plugin_registry.configured_plugins.empty?
         diagnostics << plugin_lifecycle_diagnostic(
           plugin_registry,
@@ -2165,6 +2178,7 @@ module Kettle
         template_selection: template_selection,
         git_preflight: git_preflight,
         decision_evaluations: decision_evaluations,
+        prompt_requests: prompt_requests,
         changed_files: changed_files,
         diagnostics: diagnostics,
         run_stats: run_stats,

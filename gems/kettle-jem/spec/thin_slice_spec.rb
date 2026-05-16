@@ -3815,8 +3815,16 @@ RSpec.describe Kettle::Jem do
         source: "interactive_default",
         prompt_required: true
       )
+      expect(interactive_readme_decision.fetch(:prompt)).to include(
+        id: "recipe:template_source_application_README_md",
+        category: "apply_template_source",
+        file: "README.md",
+        default_action: "replace",
+        choices: include("create", "replace", "keep", "skip")
+      )
+      expect(apply.fetch(:prompt_requests)).to include(interactive_readme_decision.fetch(:prompt))
       expect(interactive_readme_decision.fetch(:diagnostics)).to include(
-        "Interactive prompt transport is not active; selected the configured default."
+        "Interactive prompt transport is active; selected the configured default pending an external response."
       )
     end
   end

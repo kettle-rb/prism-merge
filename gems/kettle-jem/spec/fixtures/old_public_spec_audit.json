@@ -73,10 +73,10 @@
         "non-interactive default decision policy",
         "plugin hook lifecycle",
         "per-file recipe overrides parity",
-        "generated runtime artifact filtering"
+        "generated runtime artifact filtering",
+        "interactive prompt transport"
       ],
       "remaining_behaviors": [
-        "interactive prompt surface",
         "legacy markdown fine-tuning cases not yet represented by active fixtures"
       ]
     },
