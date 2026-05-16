@@ -463,6 +463,21 @@ RSpec.describe "Ruby::Merge" do
     expect(string_hash_rocket_result[:ok]).to eq(string_hash_rocket_fixture.dig(:expected, :ok))
     expect(string_hash_rocket_result[:output]).to eq(string_hash_rocket_fixture.dig(:expected, :output))
 
+    multiline_hash_trailing_comma_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-971-multiline-hash-trailing-comma-merge",
+        "multiline-hash-trailing-comma-merge.json"
+      )
+    )
+    multiline_hash_trailing_comma_result = RUBY_MERGE.merge_ruby(
+      multiline_hash_trailing_comma_fixture[:template],
+      multiline_hash_trailing_comma_fixture[:destination],
+      "ruby"
+    )
+    expect(multiline_hash_trailing_comma_result[:ok]).to eq(multiline_hash_trailing_comma_fixture.dig(:expected, :ok))
+    expect(multiline_hash_trailing_comma_result[:output]).to eq(multiline_hash_trailing_comma_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",

@@ -870,7 +870,7 @@ module Ruby
 
     private
 
-    RubyHashNode = Struct.new(:pairs, :inline, keyword_init: true)
+    RubyHashNode = Struct.new(:pairs, :inline, :trailing_comma, keyword_init: true)
     RubyHashPair = Struct.new(:key, :key_source, :delimiter, :value, keyword_init: true)
     RubyScalarNode = Struct.new(:source, keyword_init: true)
 
@@ -895,6 +895,7 @@ module Ruby
         start_index = @index
         consume("{")
         pairs = []
+        trailing_comma = false
         loop do
           skip_whitespace
           break if peek == "}"
@@ -912,9 +913,14 @@ module Ruby
           break if peek == "}"
 
           consume(",")
+          skip_whitespace
+          if peek == "}"
+            trailing_comma = true
+            break
+          end
         end
         consume("}")
-        RubyHashNode.new(pairs: pairs, inline: !source[start_index...@index].include?("\n"))
+        RubyHashNode.new(pairs: pairs, inline: !source[start_index...@index].include?("\n"), trailing_comma: trailing_comma)
       end
 
       def parse_value
@@ -1385,7 +1391,7 @@ module Ruby
       end
       template_keys = template.pairs.map(&:key).to_h { |key| [key, true] }
       merged_pairs.concat(destination.pairs.reject { |pair| template_keys[pair.key] })
-      RubyHashNode.new(pairs: merged_pairs, inline: destination.inline)
+      RubyHashNode.new(pairs: merged_pairs, inline: destination.inline, trailing_comma: destination.trailing_comma)
     end
 
     def render_ruby_hash_literal(node, base_indent)
@@ -1394,7 +1400,7 @@ module Ruby
 
       child_indent = base_indent + 2
       lines = node.pairs.each_with_index.map do |pair, index|
-        suffix = index == node.pairs.length - 1 ? "" : ","
+        suffix = index == node.pairs.length - 1 && !node.trailing_comma ? "" : ","
         "#{" " * child_indent}#{render_ruby_hash_key(pair)} #{render_ruby_hash_literal(pair.value, child_indent)}#{suffix}"
       end
       "{\n#{lines.join("\n")}\n#{" " * base_indent}}"
@@ -1404,6 +1410,7 @@ module Ruby
       inner = node.pairs.map do |pair|
         "#{render_ruby_hash_key(pair)} #{render_ruby_hash_literal(pair.value, 0)}"
       end.join(", ")
+      inner = "#{inner}," if node.trailing_comma && !inner.empty?
       "{#{inner}}"
     end
 
