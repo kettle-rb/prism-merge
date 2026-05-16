@@ -433,6 +433,21 @@ RSpec.describe "Ruby::Merge" do
     expect(alternate_percent_array_result[:ok]).to eq(alternate_percent_array_fixture.dig(:expected, :ok))
     expect(alternate_percent_array_result[:output]).to eq(alternate_percent_array_fixture.dig(:expected, :output))
 
+    custom_percent_array_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-973-percent-array-custom-delimiter-merge",
+        "percent-array-custom-delimiter-merge.json"
+      )
+    )
+    custom_percent_array_result = RUBY_MERGE.merge_ruby(
+      custom_percent_array_fixture[:template],
+      custom_percent_array_fixture[:destination],
+      "ruby"
+    )
+    expect(custom_percent_array_result[:ok]).to eq(custom_percent_array_fixture.dig(:expected, :ok))
+    expect(custom_percent_array_result[:output]).to eq(custom_percent_array_fixture.dig(:expected, :output))
+
     hash_destination_style_fixture = read_json(
       fixtures_root.join(
         "ruby",

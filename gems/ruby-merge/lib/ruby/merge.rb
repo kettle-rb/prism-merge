@@ -792,16 +792,17 @@ module Ruby
     end
 
     def parse_percent_array_constant_text(text)
-      match = text.match(/\A(?<head>\s*[A-Z]\w*\s*=\s*%[wWiI])(?<opening>[\[\(\{<])(?<body>.*)(?<closing>[\]\)\}>])\z/)
+      match = text.match(/\A(?<head>\s*[A-Z]\w*\s*=\s*%[wWiI])(?<opening>[^\s[:alnum:]])(?<content>.*)\z/)
       return unless match
 
-      closing = PERCENT_ARRAY_DELIMITER_PAIRS[match[:opening]]
-      return unless closing == match[:closing]
+      closing = PERCENT_ARRAY_DELIMITER_PAIRS.fetch(match[:opening], match[:opening])
+      content = match[:content]
+      return unless content.end_with?(closing)
 
       {
         prefix: "#{match[:head]}#{match[:opening]}",
-        body: match[:body],
-        closing: match[:closing]
+        body: content[0...-closing.length],
+        closing: closing
       }
     end
 
