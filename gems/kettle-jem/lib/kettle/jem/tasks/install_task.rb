@@ -205,8 +205,7 @@ module Kettle
             }
           end
 
-          unless File.directory?(File.join(project_root, ".git")) &&
-              git_success?(project_root, "rev-parse", "--is-inside-work-tree")
+          unless git_success?(project_root, "rev-parse", "--is-inside-work-tree")
             return {
               name: "bootstrap_commit",
               status: "unavailable",

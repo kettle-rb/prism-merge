@@ -1251,15 +1251,17 @@ RSpec.describe Kettle::Jem do
         exitstatus: 0,
         reason: "executed"
       )
-      expect(second.fetch(:install_steps)).to include(
+      expect(second.fetch(:install_steps)).to include(hash_including(
         name: "bootstrap_commit",
-        status: "unavailable",
-        reason: "not_git_repository"
-      )
+        status: "succeeded",
+        reason: "executed"
+      ))
       expect(commands.map { |entry| entry.fetch(:command) }).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
         ["bundle", "exec", "kettle-jem", "--quiet", "--only", "bin/setup"],
+        %w[git add -A],
+        ["git", "commit", "-m", "🎨 Template bootstrap by kettle-jem v#{Kettle::Jem::Version::VERSION}"],
       ])
 
       bootstrap_install = Kettle::Jem::Tasks::InstallTask.run(
@@ -1295,6 +1297,39 @@ RSpec.describe Kettle::Jem do
         reason: "executed"
       ))
       expect(git_ready.fetch(:install_steps).find { |step| step.fetch(:name) == "bootstrap_commit" }.fetch(:dirty_entries)).not_to be_empty
+
+      Dir.mktmpdir("kettle-jem-install-monorepo", tmp_root) do |repo_root|
+        expect(system("git", "init", repo_root, out: File::NULL, err: File::NULL)).to be(true)
+        gem_root = File.join(repo_root, "gems", "example")
+        write_tree(gem_root, {
+          "example.gemspec" => <<~RUBY,
+            Gem::Specification.new do |spec|
+              spec.name = "example"
+              spec.summary = "Example gem"
+            end
+          RUBY
+          ".kettle-jem.yml" => <<~YAML,
+            templates:
+              root: packaged
+              apply: true
+              entries:
+                - bin/setup
+          YAML
+        })
+
+        monorepo_install = Kettle::Jem::Tasks::InstallTask.run(
+          project_root: gem_root,
+          env: {},
+          run_options: {only: "bin/setup"},
+          command_runner: command_runner
+        )
+        expect(monorepo_install.fetch(:git_preflight)).to include(git_repository: true)
+        expect(monorepo_install.fetch(:install_steps)).to include(hash_including(
+          name: "bootstrap_commit",
+          status: "succeeded",
+          reason: "executed"
+        ))
+      end
     end
   end
 
