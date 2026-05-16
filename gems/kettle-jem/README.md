@@ -81,3 +81,14 @@ This project is made available under the following license expression: AGPL-3.0-
 ## 🤑 A request for help
 
 Please support the project by using it, reporting issues, and contributing improvements.
+
+<!-- kettle-jem:metadata:start -->
+| Field | Value |
+|---|---|
+| Package | kettle-jem |
+| Description | 🍲 Kettle::Jem provides gem scaffolding, templating, and setup automation using the *-merge gem family for AST-based file merging and token-resolver for template token resolution. Includes MergerConfig presets, YAML recipes, and a complete gem template scaffold. |
+| Homepage | https://github.com/kettle-rb/kettle-jem |
+| Source | https://github.com/kettle-rb/kettle-jem |
+| License | AGPL-3.0-only OR PolyForm-Small-Business-1.0.0 |
+| Funding | https://github.com/sponsors/pboling, https://tidelift.com/funding/github/rubygems/kettle-jem |
+<!-- kettle-jem:metadata:end -->
