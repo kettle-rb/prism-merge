@@ -142,6 +142,43 @@ RSpec.describe TreeHaver do
     )
   end
 
+  it "conforms to the tree_haver grammar library path security model fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-849-tree-haver-grammar-library-path-security-model",
+        "tree-haver-grammar-library-path-security-model.json"
+      )
+    )
+
+    expect(fixture.fetch(:active_security_checks).map { |check| check.fetch(:id) }).to eq(
+      [
+        "library-path-shape",
+        "versioned-shared-object",
+        "name-validation",
+        "registry-backed-backend-names",
+        "stable-error-list"
+      ]
+    )
+    expect(fixture.fetch(:retired_or_inactive_old_behavior).map { |entry| entry.fetch(:id) }).to include(
+      "manual-tree-sitter-env-paths",
+      "trusted-directory-allowlist",
+      "safe-library-search-order"
+    )
+    expect(fixture.fetch(:current_environment_vocabulary).map { |entry| entry.fetch(:name) }).to include(
+      "TREE_HAVER_BACKEND",
+      "KETTLE_DEV_DEBUG"
+    )
+    expect(fixture.fetch(:current_environment_vocabulary).map { |entry| entry.fetch(:loads_native_code) }.uniq).to eq(
+      [false]
+    )
+    expect(fixture.fetch(:future_manual_path_requirements)).to include(
+      "trusted_directory_fixture",
+      "no_silent_fallback_after_invalid_explicit_path"
+    )
+    expect(fixture.fetch(:decision)).to include("Do not reintroduce manual grammar shared-library search")
+  end
+
   it "exposes PEG backend references for parser-plurality slices" do
     expect(json_ready(described_class::CITRUS_BACKEND.to_h)).to eq(
       json_ready({ id: "citrus", family: "peg" })
