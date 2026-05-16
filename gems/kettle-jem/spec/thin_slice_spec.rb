@@ -1346,6 +1346,65 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "refreshes mise trust after templating mise.toml when mise is available" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-install-mise-trust", tmp_root) do |root|
+      fake_bin = File.join(root, "fake-bin")
+      FileUtils.mkdir_p(fake_bin)
+      fake_mise = File.join(fake_bin, "mise")
+      File.write(fake_mise, "#!/usr/bin/env sh\nexit 0\n")
+      FileUtils.chmod(0o755, fake_mise)
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - mise.toml
+        YAML
+        "template/mise.toml.example" => <<~TOML,
+          [tools]
+          ruby = "3.4.1"
+        TOML
+      })
+
+      commands = []
+      command_runner = lambda do |command, **|
+        commands << command
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+      env = {"PATH" => "#{fake_bin}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH", "")}"}
+
+      install = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: env,
+        run_options: {only: "mise.toml", bootstrap_mode: true, skip_commit: true},
+        command_runner: command_runner
+      )
+
+      expect(install.fetch(:install_steps)).to include(
+        name: "mise_trust",
+        path: "mise.toml",
+        command: ["mise", "trust", "-C", root],
+        status: "succeeded",
+        reason: "executed",
+        exitstatus: 0
+      )
+      expect(install.fetch(:install_phase_reports)).to include(hash_including(
+        phase: "post_template",
+        statuses: hash_including("mise_trust" => "succeeded")
+      ))
+      expect(commands).to include(["mise", "trust", "-C", root])
+    end
+  end
+
   it "bootstraps version_gem touchpoints before bundled setup" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

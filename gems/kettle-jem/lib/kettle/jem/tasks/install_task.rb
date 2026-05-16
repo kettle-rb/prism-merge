@@ -15,6 +15,8 @@ module Kettle
           install_steps << gemspec_dependency_sync_step(report)
           version_step = version_gem_bootstrap_step(project_root, report)
           install_steps << version_step if version_step
+          mise_step = mise_trust_step(project_root, report, env: env)
+          install_steps << mise_step if mise_step
           install_steps << ensure_bin_setup_executable(project_root)
           install_steps.concat(run_bundle_setup_commands(project_root, env: env, run_options: run_options, command_runner: command_runner))
           install_steps << bundled_handoff_step(env: env, run_options: run_options)
@@ -69,7 +71,7 @@ module Kettle
         def install_phase_reports(install_steps)
           phases = {
             "template_apply" => %w[gemspec_dependency_sync],
-            "post_template" => %w[version_gem_bootstrap bin_setup_executable bin_setup bundle_binstubs],
+            "post_template" => %w[version_gem_bootstrap mise_trust bin_setup_executable bin_setup bundle_binstubs],
             "orchestration" => %w[bundled_handoff bootstrap_commit],
           }
           phases.map do |phase, names|
@@ -94,6 +96,40 @@ module Kettle
             path: "bin/setup",
             status: (before == after ? "already_executable" : "updated"),
           }
+        end
+
+        def mise_trust_step(project_root, report, env:)
+          mise_report = report.fetch(:recipe_reports, []).find do |recipe_report|
+            recipe_report.fetch(:relative_path, "") == "mise.toml"
+          end
+          return nil unless mise_report&.fetch(:changed, false)
+
+          command = ["mise", "trust", "-C", project_root.to_s]
+          return {
+            name: "mise_trust",
+            path: "mise.toml",
+            command: command,
+            status: "ready",
+            reason: "mise_toml_changed",
+          } if mise_installed?(env)
+
+          {
+            name: "mise_trust",
+            path: "mise.toml",
+            command: command,
+            status: "unavailable",
+            reason: "mise_not_installed",
+            install_url: "https://mise.jdx.dev/getting-started.html",
+          }
+        end
+
+        def mise_installed?(env)
+          path = (env || {})["PATH"].to_s
+          path = ENV["PATH"].to_s if path.empty?
+          path.split(File::PATH_SEPARATOR).any? do |dir|
+            candidate = File.join(dir, "mise")
+            File.file?(candidate) && File.executable?(candidate)
+          end
         end
 
         def run_bundle_setup_commands(project_root, env:, run_options:, command_runner:)
@@ -122,6 +158,8 @@ module Kettle
           quiet = Kettle::Jem::DecisionPolicy.value_to_boolean(run_options[:quiet])
           install_steps.map do |step|
             case step.fetch(:name)
+            when "mise_trust"
+              execute_ready_command_step(step, project_root: project_root, env: env, quiet: quiet, command_runner: command_runner)
             when "bundled_handoff"
               execute_ready_command_step(step, project_root: project_root, env: env, quiet: quiet, command_runner: command_runner)
             when "bootstrap_commit"
