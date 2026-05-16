@@ -72,6 +72,13 @@ RSpec.describe Kettle::Jem::CLI do
           end
         RUBY
       })
+      allow(Kettle::Jem::Tasks::InstallTask).to receive(:run) do |project_root:, env:, run_options:|
+        Kettle::Jem.apply_project(project_root, env: env, run_options: run_options).merge(
+          mode: "install",
+          installed: true,
+          install_steps: []
+        )
+      end
 
       status, out, err = run_cli(["setup", root, "--accept-config"])
 
@@ -80,6 +87,11 @@ RSpec.describe Kettle::Jem::CLI do
       expect(out).to include("setup: accepted_config_applied")
       expect(File).to exist(File.join(root, ".kettle-jem.yml"))
       expect(File).to exist(File.join(root, ".github", "FUNDING.yml"))
+      expect(Kettle::Jem::Tasks::InstallTask).to have_received(:run).with(
+        project_root: root,
+        env: {},
+        run_options: include(accept_config: true)
+      )
     end
   end
 

@@ -2024,7 +2024,7 @@ module Kettle
       report
     end
 
-    def setup_project(project_root, env: ENV, run_options: {})
+    def setup_project(project_root, env: ENV, run_options: {}, command_runner: nil)
       root = File.expand_path(project_root.to_s)
       config_path = File.join(root, ".kettle-jem.yml")
       config_existed = File.exist?(config_path)
@@ -2045,7 +2045,9 @@ module Kettle
         )
       end
 
-      apply_project(root, env: env, run_options: run_options).merge(
+      install_kwargs = {project_root: root, env: env, run_options: run_options}
+      install_kwargs[:command_runner] = command_runner if command_runner
+      Tasks::InstallTask.run(**install_kwargs).merge(
         mode: "setup",
         setup_status: config_existed ? "configured_project_applied" : "accepted_config_applied",
       )
