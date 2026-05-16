@@ -321,6 +321,21 @@ RSpec.describe "Ruby::Merge" do
     expect(multiline_array_constant_result[:ok]).to eq(multiline_array_constant_fixture.dig(:expected, :ok))
     expect(multiline_array_constant_result[:output]).to eq(multiline_array_constant_fixture.dig(:expected, :output))
 
+    no_trailing_comma_array_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-962-multiline-array-no-trailing-comma-merge",
+        "multiline-array-no-trailing-comma-merge.json"
+      )
+    )
+    no_trailing_comma_array_result = RUBY_MERGE.merge_ruby(
+      no_trailing_comma_array_fixture[:template],
+      no_trailing_comma_array_fixture[:destination],
+      "ruby"
+    )
+    expect(no_trailing_comma_array_result[:ok]).to eq(no_trailing_comma_array_fixture.dig(:expected, :ok))
+    expect(no_trailing_comma_array_result[:output]).to eq(no_trailing_comma_array_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",

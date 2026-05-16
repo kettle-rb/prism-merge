@@ -767,8 +767,8 @@ module Ruby
       return destination_text if appended.empty?
 
       insertion_prefix = destination_elements.last&.dig(:indent) || template_elements.first&.dig(:indent) || "  "
-      insertion_lines = appended.map { |element| "#{insertion_prefix}#{element[:value]}," }
-      "#{destination_match[1]}#{destination_match[2].rstrip}\n#{insertion_lines.join("\n")}#{destination_match[3]}"
+      body = append_multiline_array_elements(destination_match[2], appended, insertion_prefix)
+      "#{destination_match[1]}#{body}#{destination_match[3]}"
     end
 
     def merge_declaration_body_methods(template_text, destination_text)
@@ -1153,6 +1153,27 @@ module Ruby
           value: stripped.sub(/,\z/, "")
         }
       end
+    end
+
+    def append_multiline_array_elements(destination_body, appended, insertion_prefix)
+      body_lines = destination_body.to_s.lines.map(&:chomp)
+      element_indexes = body_lines.each_index.select do |index|
+        stripped = body_lines[index].strip
+        !stripped.empty? && !stripped.start_with?("#")
+      end
+      trailing_comma = element_indexes.empty? || body_lines[element_indexes.last].strip.end_with?(",")
+
+      if trailing_comma
+        insertion_lines = appended.map { |element| "#{insertion_prefix}#{element[:value]}," }
+        return "#{destination_body.rstrip}\n#{insertion_lines.join("\n")}"
+      end
+
+      body_lines[element_indexes.last] = "#{body_lines[element_indexes.last]},"
+      insertion_lines = appended.each_with_index.map do |element, index|
+        suffix = index == appended.length - 1 ? "" : ","
+        "#{insertion_prefix}#{element[:value]}#{suffix}"
+      end
+      "#{body_lines.join("\n").rstrip}\n#{insertion_lines.join("\n")}"
     end
 
     def constant_assignment_finish_index(lines, index)
