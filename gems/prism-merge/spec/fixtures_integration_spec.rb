@@ -150,6 +150,29 @@ RSpec.describe "Prism::Merge" do
     expect(json_ready(result)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "projects Prism comments and Ruby directives into normalized metadata" do
+    fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-936-prism-comment-directive-metadata",
+        "comment-directives-normalized-tree.json"
+      )
+    )
+
+    result = PRISM_MERGE.parse_ruby_normalized(fixture[:source], fixture[:dialect])
+    comment_nodes = result[:nodes].select { |node| node[:role] == "comment" }
+    child_ids_by_id = result[:nodes].to_h { |node| [node[:id], node[:child_ids]] }
+
+    expect(json_ready(comment_nodes)).to eq(json_ready(fixture[:expected_comment_nodes]))
+    expected_parent_links = fixture[:expected_parent_links]
+    selected_parent_links = expected_parent_links.to_h do |id, _child_ids|
+      [id, child_ids_by_id.fetch(id.to_s)]
+    end
+    expect(json_ready(selected_parent_links)).to eq(
+      json_ready(fixture[:expected_parent_links])
+    )
+  end
+
   it "conforms to the shared Ruby family fixtures" do
     analysis_fixture = read_json(fixtures_root.join("ruby", "slice-218-analysis", "module-owners.json"))
     matching_fixture = read_json(fixtures_root.join("ruby", "slice-219-matching", "path-equality.json"))

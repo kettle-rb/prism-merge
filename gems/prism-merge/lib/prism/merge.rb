@@ -410,11 +410,6 @@ module Prism
 
       root_node = result.value
       body = root_node.statements&.body || []
-      class_nodes = body.each_with_index.filter_map do |node, index|
-        next unless node.is_a?(::Prism::ClassNode)
-
-        prism_class_node(source, node, index)
-      end
       method_nodes = body.each_with_index.flat_map do |node, class_index|
         next [] unless node.is_a?(::Prism::ClassNode)
 
@@ -424,13 +419,22 @@ module Prism
           prism_method_node(source, child, class_index, method_index)
         end
       end
+      comment_nodes = prism_comment_nodes(source, result.comments, result.magic_comments, body)
+      class_nodes = body.each_with_index.filter_map do |node, index|
+        next unless node.is_a?(::Prism::ClassNode)
+
+        child_ids = comment_nodes.filter_map { |comment| comment.id if comment.parent_id == "prism:class:#{index}" }
+        child_ids.concat(method_nodes.filter_map { |method| method.id if method.parent_id == "prism:class:#{index}" })
+        prism_class_node(source, node, index, child_ids: child_ids)
+      end
+      top_comment_nodes = comment_nodes.filter { |comment| comment.parent_id == "prism:program:0" }
 
       root = TreeHaver::NormalizedTreeNode.new(
         id: "prism:program:0",
         kind: "program",
         role: "structural",
         parent_id: nil,
-        child_ids: class_nodes.map(&:id),
+        child_ids: top_comment_nodes.map(&:id) + class_nodes.map(&:id),
         span: full_source_span(source),
         field_name: nil,
         named: true,
@@ -453,7 +457,7 @@ module Prism
         ok: true,
         backend_capability: ruby_normalized_backend_capability(dialect),
         root_id: root.id,
-        nodes: [root] + class_nodes + method_nodes,
+        nodes: [root] + top_comment_nodes + class_nodes + comment_nodes.reject { |comment| comment.parent_id == "prism:program:0" } + method_nodes,
         parse_error_tolerance: ruby_prism_parse_error_tolerance,
         source_fragments_available: true,
         diagnostics: [],
@@ -586,15 +590,13 @@ module Prism
       }
     end
 
-    def prism_class_node(source, node, index)
+    def prism_class_node(source, node, index, child_ids:)
       TreeHaver::NormalizedTreeNode.new(
         id: "prism:class:#{index}",
         kind: "class_declaration",
         role: "structural",
         parent_id: "prism:program:0",
-        child_ids: Array(node.body&.body).each_with_index.filter_map do |child, child_index|
-          "prism:def:#{child_index}" if child.is_a?(::Prism::DefNode)
-        end,
+        child_ids: child_ids,
         span: source_span_for_location(node.location),
         field_name: "declaration",
         named: true,
@@ -612,6 +614,95 @@ module Prism
           }
         }
       )
+    end
+
+    def prism_comment_nodes(source, comments, magic_comments, body)
+      comments.each_with_index.map do |comment, index|
+        prism_comment_node(
+          source,
+          comment,
+          index,
+          magic_comment_for(comment, magic_comments),
+          parent_id: comment_parent_id(comment, body)
+        )
+      end
+    end
+
+    def prism_comment_node(source, comment, index, magic_comment, parent_id:)
+      directive = prism_comment_directive(source.byteslice(comment.location.start_offset...comment.location.end_offset), magic_comment)
+      TreeHaver::NormalizedTreeNode.new(
+        id: "prism:comment:#{index}",
+        kind: directive.fetch(:kind),
+        role: "comment",
+        parent_id: parent_id,
+        child_ids: [],
+        span: source_span_for_location(comment.location),
+        field_name: "comment",
+        named: false,
+        anonymous: false,
+        has_source_text: true,
+        source_fragment: source.byteslice(comment.location.start_offset...comment.location.end_offset),
+        backend_kind: comment.class.name,
+        semantic_roles: directive.fetch(:semantic_roles),
+        backend_roles: ["prism.Comment"],
+        unsupported_features: [],
+        metadata: {
+          prism: {
+            node_path: "comments[#{index}]",
+            directive_kind: directive.fetch(:directive_kind),
+            magic_key: directive[:magic_key],
+            magic_value: directive[:magic_value]
+          }.compact
+        }
+      )
+    end
+
+    def prism_comment_directive(comment_text, magic_comment)
+      if comment_text.strip.match?(/\A#\s*smorg:freeze\b/)
+        {
+          kind: "freeze_directive",
+          directive_kind: "freeze",
+          semantic_roles: ["comment", "directive", "freeze"]
+        }
+      elsif magic_comment
+        {
+          kind: "magic_comment",
+          directive_kind: "magic_comment",
+          semantic_roles: ["comment", "directive", "magic_comment"],
+          magic_key: magic_comment.key,
+          magic_value: magic_comment.value
+        }
+      elsif comment_text.strip == "# :nocov:"
+        {
+          kind: "coverage_directive",
+          directive_kind: "coverage",
+          semantic_roles: ["comment", "directive", "coverage"]
+        }
+      else
+        {
+          kind: "comment",
+          directive_kind: "comment",
+          semantic_roles: ["comment"]
+        }
+      end
+    end
+
+    def magic_comment_for(comment, magic_comments)
+      magic_comments.find do |magic_comment|
+        comment.location.start_offset <= magic_comment.key_loc.start_offset &&
+          magic_comment.key_loc.start_offset < comment.location.end_offset
+      end
+    end
+
+    def comment_parent_id(comment, body)
+      body.each_with_index do |node, index|
+        next unless node.is_a?(::Prism::ClassNode)
+        next unless comment.location.start_offset > node.location.start_offset &&
+          comment.location.end_offset < node.location.end_offset
+
+        return "prism:class:#{index}"
+      end
+      "prism:program:0"
     end
 
     def prism_method_node(source, node, class_index, method_index)
@@ -685,6 +776,11 @@ module Prism
       :ruby_prism_parse_error_tolerance,
       :prism_normalized_metadata,
       :prism_class_node,
+      :prism_comment_nodes,
+      :prism_comment_node,
+      :prism_comment_directive,
+      :magic_comment_for,
+      :comment_parent_id,
       :prism_method_node,
       :full_source_span,
       :source_span_for_location
