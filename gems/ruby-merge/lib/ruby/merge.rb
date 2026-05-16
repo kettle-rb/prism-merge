@@ -538,8 +538,10 @@ module Ruby
     def merge_ruby_declaration_entry(template_entry, destination_entry)
       return destination_entry unless template_entry
 
+      merged_text = merge_declaration_hash_constants(template_entry[:text], destination_entry[:text])
+      merged_text = merge_declaration_body_methods(template_entry[:text], merged_text)
       destination_entry.merge(
-        text: merge_declaration_hash_constants(template_entry[:text], destination_entry[:text])
+        text: merged_text
       )
     end
 
@@ -562,6 +564,26 @@ module Ruby
         next
       end
       output
+    end
+
+    def merge_declaration_body_methods(template_text, destination_text)
+      template_methods = direct_body_method_entries(template_text)
+      destination_methods = direct_body_method_entries(destination_text)
+      return destination_text if template_methods.empty?
+
+      destination_method_names = destination_methods.map { |entry| entry[:name] }.to_h { |name| [name, true] }
+      missing_methods = template_methods.reject { |entry| destination_method_names[entry[:name]] }
+      return destination_text if missing_methods.empty?
+
+      lines = destination_text.to_s.split("\n")
+      closing_index = declaration_closing_end_index(lines)
+      return destination_text unless closing_index
+
+      insertion = []
+      insertion << "" unless lines[closing_index - 1].to_s.strip.empty?
+      insertion.concat(missing_methods.map { |entry| entry[:text] }.join("\n\n").split("\n"))
+      lines.insert(closing_index, *insertion)
+      "#{lines.join("\n").sub(/\n+\z/, "")}\n".chomp
     end
 
     def unsupported_feature_result(message)
@@ -742,6 +764,58 @@ module Ruby
             return line_index if depth.zero?
           end
         end
+      end
+      nil
+    end
+
+    def direct_body_method_entries(text)
+      lines = text.to_s.split("\n")
+      return [] if lines.length < 3
+
+      entries = []
+      pending_comments = []
+      index = 1
+      while index < lines.length - 1
+        line = lines[index]
+        stripped = line.strip
+        if comment_line?(line)
+          pending_comments << index
+          index += 1
+          next
+        end
+
+        if stripped.empty?
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        match = DEF_PATTERN.match(line)
+        unless match
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        start_index = pending_comments.first || index
+        finish_index = ruby_block_finish_index(lines, index)
+        entries << {
+          name: match[1],
+          text: lines[start_index..finish_index].join("\n").rstrip
+        }
+        pending_comments = []
+        index = finish_index + 1
+      end
+      entries
+    end
+
+    def declaration_closing_end_index(lines)
+      depth = 0
+      lines.each_with_index do |line, index|
+        stripped = line.strip
+        depth += 1 if declaration_for_line(stripped)
+        depth -= 1 if stripped == "end"
+        return index if depth.zero? && index.positive?
       end
       nil
     end
