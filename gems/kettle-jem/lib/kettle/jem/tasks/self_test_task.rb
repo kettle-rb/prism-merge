@@ -19,6 +19,12 @@ module Kettle
           .rubocop_gradual.lock
           Gemfile.lock
         ].freeze
+        GENERATED_RUNTIME_PREFIXES = %w[
+          tmp/kettle-jem/templating-report-
+        ].freeze
+        SELFTEST_IGNORED_FILES = %w[
+          gemfiles/modular/shunted.gemfile
+        ].freeze
 
         module_function
 
@@ -117,8 +123,12 @@ module Kettle
         end
 
         def classify_comparison(comparison)
-          skipped, removed = comparison.fetch(:removed, []).partition { |relative| expected_non_templated_path?(relative) }
-          comparison.merge(removed: removed, skipped: skipped)
+          changed = comparison.fetch(:changed, []).reject { |relative| ignored_selftest_artifact?(relative) }
+          added = comparison.fetch(:added, []).reject { |relative| ignored_selftest_artifact?(relative) }
+          skipped, removed = comparison.fetch(:removed, []).partition do |relative|
+            ignored_selftest_artifact?(relative) || expected_non_templated_path?(relative)
+          end
+          comparison.merge(changed: changed, added: added, removed: removed, skipped: skipped)
         end
 
         def expected_non_templated_path?(relative_path)
@@ -126,6 +136,14 @@ module Kettle
             SKIPPED_PREFIXES.any? { |prefix| relative_path.start_with?(prefix) } ||
             relative_path.match?(%r{\Agemfiles/[^/]+\.gemfile\z}) ||
             relative_path.end_with?(".gemspec")
+        end
+
+        def ignored_selftest_artifact?(relative_path)
+          generated_runtime_artifact?(relative_path) || SELFTEST_IGNORED_FILES.include?(relative_path)
+        end
+
+        def generated_runtime_artifact?(relative_path)
+          GENERATED_RUNTIME_PREFIXES.any? { |prefix| relative_path.start_with?(prefix.to_s) }
         end
 
         def score_and_divergence(comparison)

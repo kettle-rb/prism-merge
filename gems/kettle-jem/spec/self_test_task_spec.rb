@@ -45,4 +45,21 @@ RSpec.describe Kettle::Jem::Tasks::SelfTestTask do
       expect(File).to exist(File.join(root, "tmp", "template_test", "report", "summary.md"))
     end
   end
+
+  it "filters generated runtime artifacts from selftest comparisons" do
+    tmp_root = File.join(__dir__, "tmp").tap { |path| FileUtils.mkdir_p(path) }
+    Dir.mktmpdir("kettle-jem-selftest-artifacts", tmp_root) do |root|
+      write_file(root, "README.md", "stable\n")
+      allow(Kettle::Jem).to receive(:apply_project) do |project_root, **|
+        write_file(project_root, "tmp/kettle-jem/templating-report-20260516-120000-000000-1234.md", "run report\n")
+        write_file(project_root, "gemfiles/modular/shunted.gemfile", "# generated shunt\n")
+        write_file(project_root, "unexpected.txt", "real addition\n")
+        {mode: "apply"}
+      end
+
+      result = described_class.run(project_root: root, min_divergence_threshold: 100)
+
+      expect(result.fetch(:comparison).fetch(:added)).to eq(["unexpected.txt"])
+    end
+  end
 end
