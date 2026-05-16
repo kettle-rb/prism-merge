@@ -91,6 +91,54 @@ module Ruby
       }
     end
 
+    def ruby_method_move_detection(template_source, destination_source, dialect)
+      return unsupported_feature_result("Unsupported Ruby dialect #{dialect}.") unless dialect == "ruby"
+
+      template_methods = ruby_method_projection(template_source, revision: "template")
+      destination_methods = ruby_method_projection(destination_source, revision: "destination")
+      destination_by_signature = destination_methods.to_h { |entry| [entry[:signature], entry] }
+      template_signatures = template_methods.map { |entry| entry[:signature] }.to_h { |signature| [signature, true] }
+
+      matches = template_methods.filter_map do |template_entry|
+        destination_entry = destination_by_signature[template_entry[:signature]]
+        next unless destination_entry
+
+        moved = template_entry[:index] != destination_entry[:index] || template_entry[:parent_path] != destination_entry[:parent_path]
+        Ast::Merge::MoveDetectionMatch.new(
+          from_path: template_entry[:path],
+          to_path: destination_entry[:path],
+          from_node_id: template_entry[:node_id],
+          to_node_id: destination_entry[:node_id],
+          signature: template_entry[:signature],
+          moved: moved,
+          from_parent_path: template_entry[:parent_path],
+          to_parent_path: destination_entry[:parent_path],
+          from_index: template_entry[:index],
+          to_index: destination_entry[:index],
+          confidence: moved ? 0.98 : 0.9,
+          diagnostics: [moved ? "same Ruby method signature observed at a different sibling position" : "same Ruby method signature observed at the same sibling position"]
+        )
+      end
+
+      matched_template_signatures = matches.map(&:signature).to_h { |signature| [signature, true] }
+      Ast::Merge::MoveDetectionMatchingReport.new(
+        matching_id: "ruby-method-move-detection",
+        strategy: "move_detection",
+        from_revision: "template",
+        to_revision: "destination",
+        capability: Ast::Merge::MoveDetectionCapability.new(
+          name: "move_detection",
+          enabled: true,
+          default_enabled: false,
+          requires_stable_node_identity: true
+        ),
+        matches: matches,
+        unmatched_from: template_methods.reject { |entry| matched_template_signatures[entry[:signature]] }.map { |entry| entry[:path] },
+        unmatched_to: destination_methods.reject { |entry| template_signatures[entry[:signature]] }.map { |entry| entry[:path] },
+        diagnostics: ["Ruby method move detection uses generic move-detection matching over receiver-aware method projections"]
+      ).to_h
+    end
+
     def merge_ruby(template_source, destination_source, dialect, merge_template_requires: false)
       template = parse_ruby(template_source, dialect)
       return template unless template[:ok]
@@ -591,6 +639,21 @@ module Ruby
           shadowed_indices: entries[0...-1].map { |_method_entry, index| index },
           shadowed_count: entries.length - 1
         }
+      end
+    end
+
+    def ruby_method_projection(source, revision:)
+      collect_ruby_declaration_entries(source).flat_map do |declaration_entry|
+        direct_body_method_entries(declaration_entry[:text]).each_with_index.map do |method_entry, index|
+          signature = "method:#{declaration_entry[:path]}:#{method_entry[:signature]}"
+          {
+            path: "#{declaration_entry[:path]}/methods/#{index}",
+            parent_path: "#{declaration_entry[:path]}/methods",
+            node_id: "#{revision}:#{signature}",
+            signature: signature,
+            index: index
+          }
+        end
       end
     end
 
@@ -1487,6 +1550,7 @@ module Ruby
       :ruby_plan_context,
       :parse_ruby,
       :match_ruby_owners,
+      :ruby_method_move_detection,
       :merge_ruby,
       :ruby_discovered_surfaces,
       :ruby_delegated_child_operations,

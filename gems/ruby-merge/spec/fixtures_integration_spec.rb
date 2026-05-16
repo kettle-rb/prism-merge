@@ -81,6 +81,32 @@ RSpec.describe "Ruby::Merge" do
       json_ready(shadowing_fixture.dig(:expected, :diagnostics))
     )
 
+    method_move_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-961-method-move-detection-projection",
+        "method-move-detection-projection.json"
+      )
+    )
+    method_move_report = RUBY_MERGE.ruby_method_move_detection(
+      method_move_fixture[:template],
+      method_move_fixture[:destination],
+      method_move_fixture[:dialect]
+    )
+    method_move_count = method_move_report[:matches].count { |entry| entry[:moved] }
+    expect(method_move_report[:strategy]).to eq(method_move_fixture.dig(:expected, :strategy))
+    expect(method_move_report.dig(:capability, :name)).to eq(method_move_fixture.dig(:expected, :capability))
+    expect(method_move_report.dig(:capability, :enabled)).to eq(method_move_fixture.dig(:expected, :enabled))
+    expect(method_move_report.dig(:capability, :default_enabled)).to eq(method_move_fixture.dig(:expected, :default_enabled))
+    expect(method_move_report.dig(:capability, :requires_stable_node_identity)).to eq(
+      method_move_fixture.dig(:expected, :requires_stable_node_identity)
+    )
+    expect(method_move_report[:matches].length).to eq(method_move_fixture.dig(:expected, :match_count))
+    expect(method_move_count).to eq(method_move_fixture.dig(:expected, :move_count))
+    expect(method_move_report.dig(:matches, 0, :signature)).to eq(method_move_fixture.dig(:expected, :first_moved_signature))
+    expect(method_move_report.dig(:matches, 0, :from_index)).to eq(method_move_fixture.dig(:expected, :first_moved_from_index))
+    expect(method_move_report.dig(:matches, 0, :to_index)).to eq(method_move_fixture.dig(:expected, :first_moved_to_index))
+
     template = RUBY_MERGE.parse_ruby(matching_fixture[:template], matching_fixture[:dialect])
     destination = RUBY_MERGE.parse_ruby(matching_fixture[:destination], matching_fixture[:dialect])
     matching = RUBY_MERGE.match_ruby_owners(template[:analysis], destination[:analysis])
