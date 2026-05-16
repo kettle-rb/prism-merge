@@ -465,6 +465,57 @@ module Prism
       ).to_h
     end
 
+    def apply_edit_projection(request)
+      source = request.fetch(:source)
+      provider_id = request.fetch(:provider_id)
+      backend_id = request.fetch(:backend_ref).fetch(:id)
+      language = request.fetch(:language)
+      operations = request.fetch(:operations)
+
+      unless provider_id == BACKEND_REFERENCE.id && backend_id == BACKEND_REFERENCE.id
+        return edit_projection_rejection(source, "provider_id", "provider_edit_projection_unsupported", "provider #{provider_id} does not support Prism edit projection")
+      end
+      unless language == "ruby"
+        return edit_projection_rejection(source, "language", "edit_projection_language_unsupported", "language #{language} is not supported by Prism edit projection")
+      end
+      unless operations.length == 1
+        return edit_projection_rejection(source, "operations", "edit_projection_batch_unsupported", "Prism edit projection currently supports exactly one operation")
+      end
+
+      operation = operations.first
+      unless operation.fetch(:operation) == "replace_node"
+        return edit_projection_rejection(source, "operations[0].operation", "edit_projection_operation_unsupported", "Prism edit projection does not support #{operation.fetch(:operation)}")
+      end
+
+      normalized = parse_ruby_normalized(source, "ruby")
+      return edit_projection_rejection(source, "source", "edit_projection_parse_failed", normalized[:diagnostics].join("; ")) unless normalized[:ok]
+
+      target = normalized[:nodes].find do |node|
+        node.dig(:metadata, :prism, :node_path) == operation.fetch(:target_node_path)
+      end
+      return edit_projection_rejection(source, "operations[0].target_node_path", "edit_projection_target_not_found", "Prism node path #{operation.fetch(:target_node_path)} was not found") unless target
+
+      range = target.dig(:span, :range)
+      output = source.byteslice(0...range[:start_byte]) +
+        operation.fetch(:replacement_source) +
+        source.byteslice(range[:end_byte]..)
+      reparsed = parse_ruby_normalized(output, "ruby")
+      return edit_projection_rejection(source, "operations[0].replacement_source", "edit_projection_reparse_failed", reparsed[:diagnostics].join("; ")) unless reparsed[:ok]
+
+      TreeHaver.build_edit_projection_execution_result(
+        output,
+        [
+          TreeHaver::AppliedEditProjectionOperation.new(
+            operation: operation.fetch(:operation),
+            target_node_id: operation.fetch(:target_node_id),
+            correlation_key: "metadata.prism.node_path",
+            correlation_value: operation.fetch(:target_node_path)
+          )
+        ],
+        []
+      ).to_h
+    end
+
     def match_ruby_owners(template, destination)
       Ruby::Merge.match_ruby_owners(template, destination)
     end
@@ -547,6 +598,23 @@ module Prism
 
     def unsupported_feature_result(message)
       Ruby::Merge.unsupported_feature_result(message)
+    end
+
+    def edit_projection_rejection(source, path, code, message)
+      TreeHaver.build_edit_projection_execution_result(
+        source,
+        [],
+        [
+          TreeHaver::ProviderDiagnostic.new(
+            severity: "error",
+            category: "unsupported_feature",
+            code: code,
+            message: message,
+            path: path,
+            blocking: true
+          )
+        ]
+      ).to_h
     end
 
     def ruby_normalized_backend_capability(dialect)
@@ -762,6 +830,7 @@ module Prism
       :ruby_structured_edit_batch_report_projection,
       :parse_ruby,
       :parse_ruby_normalized,
+      :apply_edit_projection,
       :match_ruby_owners,
       :merge_ruby,
       :merge_ruby_with_reviewed_nested_outputs,
@@ -772,6 +841,7 @@ module Prism
       :ruby_discovered_surfaces,
       :ruby_delegated_child_operations,
       :unsupported_feature_result,
+      :edit_projection_rejection,
       :ruby_normalized_backend_capability,
       :ruby_prism_parse_error_tolerance,
       :prism_normalized_metadata,
