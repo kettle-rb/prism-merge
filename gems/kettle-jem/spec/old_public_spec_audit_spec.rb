@@ -11,6 +11,16 @@ RSpec.describe "old Kettle/Jem public spec audit" do
 
     expect(audit.fetch(:case_id)).to eq("kettle-jem-old-public-spec-audit")
     expect(audit.fetch(:policy)).to include("Port public behavior")
+    superseded_decisions = audit.fetch(:superseded_decisions)
+    expect(superseded_decisions.map { |entry| entry.fetch(:id) }).to include(
+      "old-task-object-boundaries",
+      "old-prompt-adapters",
+      "old-parser-specific-helper-classes",
+      "old-phase-class-internals",
+      "old-template-helper-micro-apis"
+    )
+    expect(superseded_decisions).to all(include(:source_paths, :decision, :rationale, :active_contract))
+    expect(superseded_decisions.map { |entry| entry.fetch(:decision) }).to all(eq("superseded"))
 
     files = audit.fetch(:files)
     expect(files.map { |entry| entry.fetch(:path) }).to contain_exactly(
