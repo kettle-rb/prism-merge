@@ -578,7 +578,7 @@ module Ruby
 
       public_methods, visibility_methods = missing_methods.partition { |entry| entry[:visibility] == "public" }
       merged_text = destination_text
-      merged_text = insert_declaration_body_blocks(merged_text, public_methods.map { |entry| entry[:text] }) unless public_methods.empty?
+      merged_text = insert_declaration_body_blocks(merged_text, public_methods.map { |entry| entry[:body_text] }) unless public_methods.empty?
       visibility_methods.group_by { |entry| entry[:visibility] }.each do |visibility, entries|
         blocks = if direct_visibility_section_present?(merged_text, visibility)
           merged_text = insert_declaration_body_blocks(merged_text, entries.map { |entry| entry[:body_text] }, before_visibility: false)
