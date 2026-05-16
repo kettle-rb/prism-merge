@@ -280,6 +280,38 @@ RSpec.describe Ast::Merge do
     expect(fixture.fetch(:decision)).to include("Do not copy the old public helper class hierarchy")
   end
 
+  it "conforms to the RSpec shared examples dependency tag inventory fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-846-rspec-shared-examples-dependency-tag-inventory",
+        "rspec-shared-examples-dependency-tag-inventory.json"
+      )
+    )
+
+    expect(fixture.fetch(:portable_replacements).map { |replacement| replacement.fetch(:id) }).to include(
+      "reproducible-merge-fixtures",
+      "partial-merge-fixtures",
+      "dependency-tags-to-requirements",
+      "skipped-results",
+      "unresolved-contract-fixtures",
+      "comment-layout-fixtures"
+    )
+    expect(fixture.fetch(:ruby_local_helpers).map { |helper| helper.fetch(:id) }).to eq(
+      [
+        "testable-node-builder",
+        "fixture-assertion-wrappers"
+      ]
+    )
+    expect(fixture.fetch(:ruby_local_helpers).map { |helper| helper.fetch(:allowed) }.uniq).to eq([true])
+    expect(fixture.fetch(:retired_public_surfaces).map { |surface| surface.fetch(:old_surface) }).to include(
+      "MergeGemRegistry",
+      "positive/negative dependency tags",
+      "base-class shared examples"
+    )
+    expect(fixture.fetch(:decision)).to include("Do not port old RSpec shared examples or dependency tags")
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
