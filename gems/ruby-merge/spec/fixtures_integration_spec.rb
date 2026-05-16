@@ -523,6 +523,21 @@ RSpec.describe "Ruby::Merge" do
     expect(hash_predicate_bang_key_result[:ok]).to eq(hash_predicate_bang_key_fixture.dig(:expected, :ok))
     expect(hash_predicate_bang_key_result[:output]).to eq(hash_predicate_bang_key_fixture.dig(:expected, :output))
 
+    hash_quoted_label_key_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-975-hash-quoted-label-key-merge",
+        "hash-quoted-label-key-merge.json"
+      )
+    )
+    hash_quoted_label_key_result = RUBY_MERGE.merge_ruby(
+      hash_quoted_label_key_fixture[:template],
+      hash_quoted_label_key_fixture[:destination],
+      "ruby"
+    )
+    expect(hash_quoted_label_key_result[:ok]).to eq(hash_quoted_label_key_fixture.dig(:expected, :ok))
+    expect(hash_quoted_label_key_result[:output]).to eq(hash_quoted_label_key_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",
