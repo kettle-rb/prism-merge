@@ -574,11 +574,41 @@ module Ruby
       destination_constants = direct_body_constant_entries(destination_text)
       return destination_text if template_constants.empty?
 
+      merged_text = merge_matched_array_constants(template_constants, destination_constants, destination_text)
       destination_names = destination_constants.map { |entry| entry[:name] }.to_h { |name| [name, true] }
       missing_constants = template_constants.reject { |entry| destination_names[entry[:name]] }
-      return destination_text if missing_constants.empty?
+      return merged_text if missing_constants.empty?
 
-      insert_declaration_body_blocks(destination_text, missing_constants.map { |entry| entry[:text] }, placement: :after_opening)
+      insert_declaration_body_blocks(merged_text, missing_constants.map { |entry| entry[:text] }, placement: :after_opening)
+    end
+
+    def merge_matched_array_constants(template_constants, destination_constants, destination_text)
+      template_by_name = template_constants.to_h { |entry| [entry[:name], entry] }
+      output = destination_text.dup
+      destination_constants.reverse_each do |destination_entry|
+        template_entry = template_by_name[destination_entry[:name]]
+        next unless template_entry
+
+        merged_text = merge_array_constant_text(template_entry[:text], destination_entry[:text])
+        next unless merged_text
+
+        output[destination_entry[:range]] = merged_text
+      end
+      output
+    end
+
+    def merge_array_constant_text(template_text, destination_text)
+      template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*)\[(.*)\]\z/)
+      destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*)\[(.*)\]\z/)
+      return unless template_match && destination_match
+
+      destination_elements = split_ruby_array_elements(destination_match[2])
+      template_elements = split_ruby_array_elements(template_match[2])
+      destination_keys = destination_elements.map { |element| normalize_array_element_key(element) }.to_h { |key| [key, true] }
+      appended = template_elements.reject { |element| destination_keys[normalize_array_element_key(element)] }
+      return destination_text if appended.empty?
+
+      "#{destination_match[1]}[#{(destination_elements + appended).join(", ")}]"
     end
 
     def merge_declaration_body_methods(template_text, destination_text)
@@ -881,6 +911,13 @@ module Ruby
       lines = text.to_s.split("\n")
       return [] if lines.length < 3
 
+      line_start_offsets = []
+      offset = 0
+      lines.each do |line|
+        line_start_offsets << offset
+        offset += line.length + 1
+      end
+
       entries = []
       index = 1
       while index < lines.length - 1
@@ -905,11 +942,44 @@ module Ruby
         finish_index = lines[index].include?("{") ? (hash_assignment_finish_line(lines, index) || index) : index
         entries << {
           name: match[2],
-          text: lines[index..finish_index].join("\n").rstrip
+          text: lines[index..finish_index].join("\n").rstrip,
+          range: (line_start_offsets[index]...(line_start_offsets[finish_index] + lines[finish_index].length))
         }
         index = finish_index + 1
       end
       entries
+    end
+
+    def split_ruby_array_elements(source)
+      elements = []
+      start_index = 0
+      string_quote = nil
+      escape = false
+      source.each_char.with_index do |char, index|
+        if string_quote
+          if escape
+            escape = false
+          elsif char == "\\"
+            escape = true
+          elsif char == string_quote
+            string_quote = nil
+          end
+          next
+        end
+
+        if char == "\"" || char == "'"
+          string_quote = char
+        elsif char == ","
+          elements << source[start_index...index].strip
+          start_index = index + 1
+        end
+      end
+      elements << source[start_index..].to_s.strip
+      elements.reject(&:empty?)
+    end
+
+    def normalize_array_element_key(element)
+      element.to_s.strip
     end
 
     def visibility_section_start_index(index, consumed)
