@@ -234,6 +234,21 @@ RSpec.describe "Ruby::Merge" do
     expect(existing_public_result[:ok]).to eq(existing_public_fixture.dig(:expected, :ok))
     expect(existing_public_result[:output]).to eq(existing_public_fixture.dig(:expected, :output))
 
+    template_constant_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-951-template-only-class-constant-merge",
+        "template-only-class-constant.json"
+      )
+    )
+    template_constant_result = RUBY_MERGE.merge_ruby(
+      template_constant_fixture[:template],
+      template_constant_fixture[:destination],
+      "ruby"
+    )
+    expect(template_constant_result[:ok]).to eq(template_constant_fixture.dig(:expected, :ok))
+    expect(template_constant_result[:output]).to eq(template_constant_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],

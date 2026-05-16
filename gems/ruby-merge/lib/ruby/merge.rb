@@ -19,6 +19,7 @@ module Ruby
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
     MODULE_PATTERN = /^\s*module\s+([A-Z]\w*(?:::\w+)*)/.freeze
     DEF_PATTERN = /^\s*def\s+(?:self\.)?([a-zA-Z_]\w*[!?=]?)/.freeze
+    CONSTANT_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=/.freeze
     CONSTANT_HASH_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=\s*\{/.freeze
     EXAMPLE_TAG = /\A@example\b(?<rest>.*)\z/.freeze
     TAG_PREFIX = /\A@[a-z_]+\b/.freeze
@@ -539,6 +540,7 @@ module Ruby
       return destination_entry unless template_entry
 
       merged_text = merge_declaration_hash_constants(template_entry[:text], destination_entry[:text])
+      merged_text = merge_declaration_body_constants(template_entry[:text], merged_text)
       merged_text = merge_declaration_body_methods(template_entry[:text], merged_text)
       merged_text = merge_nested_body_declarations(template_entry[:text], merged_text)
       destination_entry.merge(
@@ -565,6 +567,18 @@ module Ruby
         next
       end
       output
+    end
+
+    def merge_declaration_body_constants(template_text, destination_text)
+      template_constants = direct_body_constant_entries(template_text)
+      destination_constants = direct_body_constant_entries(destination_text)
+      return destination_text if template_constants.empty?
+
+      destination_names = destination_constants.map { |entry| entry[:name] }.to_h { |name| [name, true] }
+      missing_constants = template_constants.reject { |entry| destination_names[entry[:name]] }
+      return destination_text if missing_constants.empty?
+
+      insert_declaration_body_blocks(destination_text, missing_constants.map { |entry| entry[:text] }, placement: :after_opening)
     end
 
     def merge_declaration_body_methods(template_text, destination_text)
@@ -863,6 +877,41 @@ module Ruby
       entries
     end
 
+    def direct_body_constant_entries(text)
+      lines = text.to_s.split("\n")
+      return [] if lines.length < 3
+
+      entries = []
+      index = 1
+      while index < lines.length - 1
+        stripped = lines[index].strip
+        if stripped.empty? || comment_line?(lines[index])
+          index += 1
+          next
+        end
+
+        nested_declaration = declaration_for_line(lines[index])
+        if nested_declaration && %w[class module].include?(nested_declaration[:kind])
+          index = ruby_block_finish_index(lines, index) + 1
+          next
+        end
+
+        match = CONSTANT_ASSIGNMENT_PATTERN.match(lines[index])
+        unless match
+          index += 1
+          next
+        end
+
+        finish_index = lines[index].include?("{") ? (hash_assignment_finish_line(lines, index) || index) : index
+        entries << {
+          name: match[2],
+          text: lines[index..finish_index].join("\n").rstrip
+        }
+        index = finish_index + 1
+      end
+      entries
+    end
+
     def visibility_section_start_index(index, consumed)
       return if consumed
 
@@ -913,12 +962,18 @@ module Ruby
       nil
     end
 
-    def insert_declaration_body_blocks(destination_text, blocks, before_visibility: true)
+    def insert_declaration_body_blocks(destination_text, blocks, before_visibility: true, placement: :before_closing)
       lines = destination_text.to_s.split("\n")
       closing_index = declaration_closing_end_index(lines)
       return destination_text unless closing_index
 
-      insertion_index = before_visibility ? (direct_visibility_section_index(lines, closing_index) || closing_index) : closing_index
+      insertion_index = if placement == :after_opening
+        1
+      elsif before_visibility
+        direct_visibility_section_index(lines, closing_index) || closing_index
+      else
+        closing_index
+      end
       insertion = []
       insertion << "" unless insertion_index == 1 || lines[insertion_index - 1].to_s.strip.empty?
       insertion.concat(blocks.join("\n\n").split("\n"))
