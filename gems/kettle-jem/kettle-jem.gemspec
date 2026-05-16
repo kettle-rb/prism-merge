@@ -12,7 +12,6 @@ Gem::Specification.new do |spec|
   spec.description = "RubyGems-focused recipe-pack wrapper that shapes package facts into ast-merge transport."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"
   spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
-  spec.files = Dir["lib/**/*.rb"]
   spec.required_ruby_version = ">= 4.0.0"
 
   # Linux distros often package gems and securely certify them independent
@@ -42,6 +41,21 @@ Gem::Specification.new do |spec|
   spec.metadata["wiki_uri"] = "#{spec.homepage}/wiki"
   spec.metadata["discord_uri"] = "https://discord.gg/3qme4XHNKN"
   spec.metadata["rubygems_mfa_required"] = "true"
+
+  enumerate_package_files = lambda do |root|
+    Dir.glob(File.join(root, "**", "*"), File::FNM_DOTMATCH).select do |path|
+      File.file?(path) && ![".", ".."].include?(File.basename(path))
+    end
+  end
+
+  spec.files = [
+    *Dir["lib/**/*.rb"],
+    *Dir["lib/**/*.rake"],
+    *Dir["lib/**/*.yml"],
+    *enumerate_package_files.call("lib/kettle/jem/templates"),
+    *Dir["certs/*.pem"],
+  ]
+  spec.extra_rdoc_files = Dir["README.md"]
 
   spec.add_dependency "ast-merge", "= #{Kettle::Jem::VERSION}"
   spec.add_dependency "ruby-merge", "= #{Kettle::Jem::VERSION}"
