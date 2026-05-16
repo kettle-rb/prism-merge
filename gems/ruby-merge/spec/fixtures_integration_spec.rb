@@ -219,6 +219,21 @@ RSpec.describe "Ruby::Merge" do
     expect(public_method_result[:ok]).to eq(public_method_fixture.dig(:expected, :ok))
     expect(public_method_result[:output]).to eq(public_method_fixture.dig(:expected, :output))
 
+    existing_public_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-950-existing-public-section-method-merge",
+        "public-method-into-existing-section.json"
+      )
+    )
+    existing_public_result = RUBY_MERGE.merge_ruby(
+      existing_public_fixture[:template],
+      existing_public_fixture[:destination],
+      "ruby"
+    )
+    expect(existing_public_result[:ok]).to eq(existing_public_fixture.dig(:expected, :ok))
+    expect(existing_public_result[:output]).to eq(existing_public_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
