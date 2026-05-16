@@ -788,6 +788,8 @@ module Ruby
 
       entries = []
       pending_comments = []
+      visibility_start_index = nil
+      visibility_consumed = false
       index = 1
       while index < lines.length - 1
         line = lines[index]
@@ -799,6 +801,14 @@ module Ruby
         end
 
         if stripped.empty?
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        if %w[private protected public].include?(stripped)
+          visibility_start_index = index
+          visibility_consumed = false
           pending_comments = []
           index += 1
           next
@@ -818,16 +828,23 @@ module Ruby
           next
         end
 
-        start_index = pending_comments.first || index
+        start_index = pending_comments.first || visibility_section_start_index(visibility_start_index, visibility_consumed) || index
         finish_index = ruby_block_finish_index(lines, index)
         entries << {
           name: match[1],
           text: lines[start_index..finish_index].join("\n").rstrip
         }
         pending_comments = []
+        visibility_consumed = true
         index = finish_index + 1
       end
       entries
+    end
+
+    def visibility_section_start_index(index, consumed)
+      return if consumed
+
+      index
     end
 
     def direct_body_declaration_entries(text)
