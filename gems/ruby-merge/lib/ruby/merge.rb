@@ -11,6 +11,12 @@ module Ruby
     TREE_SITTER_BACKEND = TreeHaver::KREUZBERG_LANGUAGE_PACK_BACKEND
     DESTINATION_WINS_ARRAY_POLICY = { surface: "array", name: "destination_wins_array" }.freeze
     DEFAULT_METHOD_MOVE_POLICY = "destination_order"
+    PERCENT_ARRAY_DELIMITER_PAIRS = {
+      "[" => "]",
+      "(" => ")",
+      "{" => "}",
+      "<" => ">"
+    }.freeze
     DIRECTIVE_LINE = /\A(?::nocov:|[\w-]+:(?:freeze|unfreeze))\z/
     MAGIC_COMMENT_PREFIXES = %w[coding encoding frozen_string_literal shareable_constant_value typed warn_indent].freeze
     REQUIRE_PATTERN = /^\s*require(?:_relative)?\s+["']([^"']+)["']/.freeze
@@ -772,17 +778,31 @@ module Ruby
     end
 
     def merge_percent_array_constant_text(template_text, destination_text)
-      template_match = template_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wWiI]\[)(.*)(\])\z/)
-      destination_match = destination_text.match(/\A(\s*[A-Z]\w*\s*=\s*%[wWiI]\[)(.*)(\])\z/)
+      template_match = parse_percent_array_constant_text(template_text)
+      destination_match = parse_percent_array_constant_text(destination_text)
       return unless template_match && destination_match
 
-      destination_elements = destination_match[2].split(/\s+/).reject(&:empty?)
-      template_elements = template_match[2].split(/\s+/).reject(&:empty?)
+      destination_elements = destination_match[:body].split(/\s+/).reject(&:empty?)
+      template_elements = template_match[:body].split(/\s+/).reject(&:empty?)
       destination_keys = destination_elements.to_h { |element| [element, true] }
       appended = template_elements.reject { |element| destination_keys[element] }
       return destination_text if appended.empty?
 
-      "#{destination_match[1]}#{(destination_elements + appended).join(" ")}#{destination_match[3]}"
+      "#{destination_match[:prefix]}#{(destination_elements + appended).join(" ")}#{destination_match[:closing]}"
+    end
+
+    def parse_percent_array_constant_text(text)
+      match = text.match(/\A(?<head>\s*[A-Z]\w*\s*=\s*%[wWiI])(?<opening>[\[\(\{<])(?<body>.*)(?<closing>[\]\)\}>])\z/)
+      return unless match
+
+      closing = PERCENT_ARRAY_DELIMITER_PAIRS[match[:opening]]
+      return unless closing == match[:closing]
+
+      {
+        prefix: "#{match[:head]}#{match[:opening]}",
+        body: match[:body],
+        closing: match[:closing]
+      }
     end
 
     def merge_multiline_array_constant_text(template_text, destination_text)
