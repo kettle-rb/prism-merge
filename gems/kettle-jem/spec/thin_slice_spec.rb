@@ -1227,6 +1227,74 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "bootstraps version_gem touchpoints before bundled setup" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-version-gem-bootstrap", tmp_root) do |root|
+      write_tree(root, {
+        "example-gem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.version = "1.2.3"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: example-gem.gemspec
+                target: example-gem.gemspec
+        YAML
+        "template/example-gem.gemspec.example" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.version = "1.2.3"
+            spec.summary = "Example gem"
+            spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
+          end
+        RUBY
+      })
+      commands = []
+      command_runner = lambda do |command, **|
+        commands << command
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+
+      install = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {},
+        run_options: {only: "example-gem.gemspec", skip_commit: true},
+        command_runner: command_runner
+      )
+      version_path = File.join(root, "lib", "example/gem/version.rb")
+      entrypoint_path = File.join(root, "lib", "example/gem.rb")
+
+      expect(install.fetch(:install_steps)).to include(
+        name: "version_gem_bootstrap",
+        status: "applied",
+        changed_files: ["lib/example/gem/version.rb", "lib/example/gem.rb"],
+        version_path: "lib/example/gem/version.rb",
+        entrypoint_path: "lib/example/gem.rb"
+      )
+      expect(install.fetch(:install_phase_reports)).to include(hash_including(
+        phase: "post_template",
+        statuses: hash_including("version_gem_bootstrap" => "applied")
+      ))
+      expect(File.read(version_path)).to include("module Example")
+      expect(File.read(version_path)).to include("module Gem")
+      expect(File.read(version_path)).to include('VERSION = "1.2.3"')
+      expect(File.read(entrypoint_path)).to include('require "version_gem"')
+      expect(File.read(entrypoint_path)).to include('require_relative "gem/version"')
+      expect(File.read(entrypoint_path)).to include("Example::Gem::Version.class_eval do")
+      expect(commands).to eq([
+        %w[bundle binstubs --all],
+        ["bundle", "exec", "kettle-jem", "--skip-commit", "--only", "example-gem.gemspec"],
+      ])
+    end
+  end
+
   it "reports setup execution context without load-path inspection" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

@@ -4127,6 +4127,135 @@ module Kettle
       }
     end
 
+    def version_gem_bootstrap_step(project_root, facts)
+      package_name = facts.dig(:package, :name).to_s
+      namespace = facts.dig(:rubygems, :namespace).to_s
+      return {name: "version_gem_bootstrap", status: "unavailable", reason: "missing_package_facts"} if package_name.empty? || namespace.empty?
+
+      entrypoint_require = package_name.tr("-", "/")
+      version = facts.dig(:project_runtime, :version).to_s
+      version = "0.0.1.pre" if version.empty?
+      changes = []
+      version_path = File.join("lib", entrypoint_require, "version.rb")
+      entrypoint_path = File.join("lib", "#{entrypoint_require}.rb")
+
+      changes << write_if_changed(
+        project_root,
+        version_path,
+        version_gem_version_file_content(existing_version: existing_version_file_value(project_root, version_path), namespace: namespace, version: version)
+      )
+      current_entrypoint = read_project_file(project_root, entrypoint_path)
+      entrypoint_content = if current_entrypoint.empty?
+        version_gem_entrypoint_file_content(namespace: namespace, entrypoint_require: entrypoint_require)
+      else
+        version_gem_bootstrap_entrypoint_content(current_entrypoint, namespace: namespace, entrypoint_require: entrypoint_require)
+      end
+      changes << write_if_changed(project_root, entrypoint_path, entrypoint_content)
+      changed_files = changes.compact
+
+      {
+        name: "version_gem_bootstrap",
+        status: changed_files.empty? ? "already_current" : "applied",
+        changed_files: changed_files,
+        version_path: version_path,
+        entrypoint_path: entrypoint_path,
+      }
+    end
+
+    def version_gem_version_file_content(existing_version:, namespace:, version:)
+      resolved_version = existing_version.to_s.empty? ? version.to_s : existing_version.to_s
+      body = [
+        "module Version",
+        "  VERSION = #{resolved_version.dump}",
+        "end",
+        "VERSION = Version::VERSION # Traditional Constant Location",
+      ]
+
+      <<~RUBY
+        # frozen_string_literal: true
+
+        #{wrap_ruby_namespace(namespace, body).join("\n")}
+      RUBY
+    end
+
+    def version_gem_entrypoint_file_content(namespace:, entrypoint_require:)
+      sections = ["# frozen_string_literal: true"]
+      requires = []
+      requires << 'require "version_gem"' unless File.basename(entrypoint_require) == "version_gem"
+      requires << %(require_relative "#{File.join(File.basename(entrypoint_require), "version")}")
+      sections << requires.join("\n")
+      sections << wrap_ruby_namespace(namespace, []).join("\n")
+      sections << version_gem_class_eval_block(namespace).chomp
+      "#{sections.reject(&:empty?).join("\n\n")}\n"
+    end
+
+    def version_gem_bootstrap_entrypoint_content(content, namespace:, entrypoint_require:)
+      current = content.to_s
+      lines = current.lines
+      insert_lines = []
+      if File.basename(entrypoint_require) != "version_gem" && !current.match?(/^\s*require\s+["']version_gem["']\s*$/)
+        insert_lines << "require \"version_gem\"\n"
+      end
+      relative_path = File.join(File.basename(entrypoint_require), "version")
+      require_relative_pattern = /^\s*require_relative\s+["']#{Regexp.escape(relative_path)}["']\s*$/
+      insert_lines << %(require_relative "#{relative_path}"\n) unless current.match?(require_relative_pattern)
+      lines.insert(version_gem_require_insertion_index(lines), *insert_lines, "\n") if insert_lines.any?
+
+      updated = lines.join
+      unless updated.include?("#{namespace}::Version.class_eval do")
+        updated += "\n" unless updated.end_with?("\n")
+        updated += "\n#{version_gem_class_eval_block(namespace)}"
+      end
+      updated.gsub(/\n{3,}/, "\n\n")
+    end
+
+    def version_gem_require_insertion_index(lines)
+      index = 0
+      while index < lines.length && lines[index].match?(/\A#(?:!|\s*(?:frozen_string_literal|coding|encoding))/)
+        index += 1
+      end
+      index += 1 while index < lines.length && lines[index].strip.empty?
+      index
+    end
+
+    def version_gem_class_eval_block(namespace)
+      <<~RUBY
+        #{namespace}::Version.class_eval do
+          extend VersionGem::Basic
+        end
+      RUBY
+    end
+
+    def wrap_ruby_namespace(namespace, body_lines)
+      segments = namespace.to_s.split("::").reject(&:empty?)
+      return body_lines if segments.empty?
+
+      lines = []
+      segments.each_with_index { |segment, index| lines << ("  " * index) + "module #{segment}" }
+      body_lines.each { |line| lines << ("  " * segments.length) + line unless line.empty? }
+      (segments.length - 1).downto(0) { |index| lines << ("  " * index) + "end" }
+      lines
+    end
+
+    def existing_version_file_value(project_root, relative_path)
+      read_project_file(project_root, relative_path)[/^\s*VERSION\s*=\s*["']([^"']+)["']/, 1].to_s
+    end
+
+    def read_project_file(project_root, relative_path)
+      path = File.join(project_root, relative_path)
+      File.file?(path) ? File.read(path) : ""
+    end
+
+    def write_if_changed(project_root, relative_path, content)
+      path = File.join(project_root, relative_path)
+      current = File.file?(path) ? File.read(path) : ""
+      return nil if current == content
+
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, content)
+      relative_path
+    end
+
     def shield_token(value)
       value.to_s.gsub("-", "--").gsub("_", "__").gsub("::", "%3A%3A").tr(" ", "_")
     end

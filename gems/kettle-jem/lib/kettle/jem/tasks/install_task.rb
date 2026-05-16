@@ -13,6 +13,8 @@ module Kettle
           report = Kettle::Jem.apply_project(project_root, env: env, run_options: run_options)
           install_steps = []
           install_steps << gemspec_dependency_sync_step(report)
+          version_step = version_gem_bootstrap_step(project_root, report)
+          install_steps << version_step if version_step
           install_steps << ensure_bin_setup_executable(project_root)
           install_steps.concat(run_bundle_setup_commands(project_root, env: env, run_options: run_options, command_runner: command_runner))
           install_steps << bundled_handoff_step(env: env, run_options: run_options)
@@ -55,10 +57,19 @@ module Kettle
           end.uniq
         end
 
+        def version_gem_bootstrap_step(project_root, report)
+          gemspec_report = report.fetch(:recipe_reports, []).find do |recipe_report|
+            recipe_report.fetch(:relative_path, "").end_with?(".gemspec")
+          end
+          return nil unless gemspec_report&.fetch(:final_content, "").to_s.match?(/add_(?:runtime_)?dependency\s*(?:\(|\s)\s*["']version_gem["']/)
+
+          Kettle::Jem.version_gem_bootstrap_step(project_root, report.fetch(:facts))
+        end
+
         def install_phase_reports(install_steps)
           phases = {
             "template_apply" => %w[gemspec_dependency_sync],
-            "post_template" => %w[bin_setup_executable bin_setup bundle_binstubs],
+            "post_template" => %w[version_gem_bootstrap bin_setup_executable bin_setup bundle_binstubs],
             "orchestration" => %w[bundled_handoff bootstrap_commit],
           }
           phases.map do |phase, names|
