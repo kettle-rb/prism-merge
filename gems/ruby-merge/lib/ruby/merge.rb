@@ -18,7 +18,7 @@ module Ruby
     RAKEFILE_DEFAULT_TASK_DESC = 'desc "Default tasks aggregator"'
     CLASS_PATTERN = /^\s*class\s+([A-Z]\w*(?:::\w+)*)/.freeze
     MODULE_PATTERN = /^\s*module\s+([A-Z]\w*(?:::\w+)*)/.freeze
-    DEF_PATTERN = /^\s*def\s+((?:self\.)?)([a-zA-Z_]\w*[!?=]?)/.freeze
+    DEF_PATTERN = /^\s*def\s+((?:self\.)?)([a-zA-Z_]\w*[!?=]?|\[\]=?|\+@|-@|\*\*|<<|>>|<=>|===|==|=~|!~|!=|[+\-*\/%&|^<>]=?|[!~`])/.freeze
     CONSTANT_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=/.freeze
     CONSTANT_HASH_ASSIGNMENT_PATTERN = /^(\s*)([A-Z]\w*)\s*=\s*\{/.freeze
     EXAMPLE_TAG = /\A@example\b(?<rest>.*)\z/.freeze

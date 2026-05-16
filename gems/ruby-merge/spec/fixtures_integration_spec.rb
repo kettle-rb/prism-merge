@@ -309,6 +309,21 @@ RSpec.describe "Ruby::Merge" do
     expect(receiver_aware_method_result[:ok]).to eq(receiver_aware_method_fixture.dig(:expected, :ok))
     expect(receiver_aware_method_result[:output]).to eq(receiver_aware_method_fixture.dig(:expected, :output))
 
+    operator_method_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-956-operator-method-signature-merge",
+        "operator-method-signature-merge.json"
+      )
+    )
+    operator_method_result = RUBY_MERGE.merge_ruby(
+      operator_method_fixture[:template],
+      operator_method_fixture[:destination],
+      "ruby"
+    )
+    expect(operator_method_result[:ok]).to eq(operator_method_fixture.dig(:expected, :ok))
+    expect(operator_method_result[:output]).to eq(operator_method_fixture.dig(:expected, :output))
+
     invalid_template_fixture = read_json(fixtures_root.join("ruby", "slice-287-merge", "invalid-template.json"))
     invalid_template_result = RUBY_MERGE.merge_ruby(
       invalid_template_fixture[:template],
