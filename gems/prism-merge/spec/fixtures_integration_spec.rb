@@ -173,6 +173,19 @@ RSpec.describe "Prism::Merge" do
     )
   end
 
+  it "projects Prism parse errors into the normalized parse failure shape" do
+    fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-937-prism-parse-error-projection",
+        "missing-end-normalized-error.json"
+      )
+    )
+
+    result = PRISM_MERGE.parse_ruby_normalized(fixture[:source], fixture[:dialect])
+    expect(json_ready(result)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the shared Ruby family fixtures" do
     analysis_fixture = read_json(fixtures_root.join("ruby", "slice-218-analysis", "module-owners.json"))
     matching_fixture = read_json(fixtures_root.join("ruby", "slice-219-matching", "path-equality.json"))
