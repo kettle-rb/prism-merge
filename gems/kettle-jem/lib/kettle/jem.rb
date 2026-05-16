@@ -96,6 +96,154 @@ module Kettle
     APPRAISAL_VERSION_SELECTION_MODES = %w[major minor patch minor-minmax semver].freeze
     APPRAISAL_MINIMUM_RUBY_FLOOR = Gem::Version.new("2.3")
     APPRAISAL_DEFAULT_FRESHNESS_TTL = 604_800
+    DECISION_ACTIONS = %w[create merge replace keep delete skip].freeze
+    DECISION_SEVERITIES = %w[advisory warning fatal].freeze
+
+    DecisionEvaluation = Struct.new(
+      :id,
+      :category,
+      :file,
+      :default_action,
+      :selected_action,
+      :source,
+      :severity,
+      :blocking,
+      :diagnostics,
+      keyword_init: true
+    ) do
+      def to_h
+        {
+          id: id,
+          category: category,
+          file: file,
+          default_action: default_action,
+          selected_action: selected_action,
+          source: source,
+          severity: severity,
+          blocking: blocking,
+          diagnostics: diagnostics,
+        }.compact
+      end
+    end
+
+    class DecisionPolicy
+      TRUE_VALUES = %w[1 true y yes on].freeze
+      FALSE_VALUES = %w[0 false n no off].freeze
+
+      attr_reader :mode, :failure_mode, :require_clean, :input_source
+
+      def self.from_env(env = {}, **options)
+        env_hash = env || {}
+        option_hash = symbolize_keys(options)
+        interactive = option_hash.key?(:interactive) ? option_hash[:interactive] : truthy?(env_hash["interactive"])
+        force = option_hash.key?(:force) ? option_hash[:force] : value_to_boolean(env_hash["force"])
+        accept = option_hash.key?(:accept) ? option_hash[:accept] : value_to_boolean(env_hash["accept"])
+        interactive = false if accept == true || force == true
+        interactive = true if force == false && accept != true && !option_hash.key?(:interactive)
+        new(
+          mode: interactive ? :interactive : :accept,
+          failure_mode: option_hash.fetch(:failure_mode, env_hash["FAILURE_MODE"] || env_hash["failure_mode"] || "error"),
+          require_clean: option_hash.fetch(:require_clean, value_to_boolean(env_hash["KETTLE_JEM_REQUIRE_CLEAN"])),
+          input_source: option_hash.fetch(:input_source, "default")
+        )
+      end
+
+      def self.symbolize_keys(hash)
+        hash.each_with_object({}) { |(key, value), acc| acc[key.to_sym] = value }
+      end
+
+      def self.truthy?(value)
+        TRUE_VALUES.include?(value.to_s.strip.downcase)
+      end
+
+      def self.falsey?(value)
+        FALSE_VALUES.include?(value.to_s.strip.downcase)
+      end
+
+      def self.value_to_boolean(value)
+        return true if value == true
+        return false if value == false
+        return true if truthy?(value)
+        return false if falsey?(value)
+
+        nil
+      end
+
+      def initialize(mode: :accept, failure_mode: "error", require_clean: nil, input_source: "default")
+        @mode = normalize_mode(mode)
+        @failure_mode = failure_mode.to_s.empty? ? "error" : failure_mode.to_s
+        @require_clean = require_clean
+        @input_source = input_source.to_s
+      end
+
+      def accept?
+        mode == :accept
+      end
+
+      def interactive?
+        mode == :interactive
+      end
+
+      def non_interactive?
+        !interactive?
+      end
+
+      def resolve(id:, category:, default_action:, file: nil, severity: :advisory, diagnostics: [])
+        action = normalize_action(default_action)
+        severity_value = normalize_severity(severity)
+        raise Error, "No safe default decision for #{id}" if action.nil? && severity_value == "fatal"
+
+        DecisionEvaluation.new(
+          id: id.to_s,
+          category: category.to_s,
+          file: file&.to_s,
+          default_action: action,
+          selected_action: action,
+          source: "default",
+          severity: severity_value,
+          blocking: severity_value == "fatal",
+          diagnostics: Array(diagnostics).compact.map(&:to_s)
+        )
+      end
+
+      def to_h
+        {
+          mode: mode.to_s,
+          non_interactive: non_interactive?,
+          accept: accept?,
+          interactive: interactive?,
+          failure_mode: failure_mode,
+          require_clean: require_clean,
+          input_source: input_source,
+        }.compact
+      end
+
+      private
+
+      def normalize_mode(value)
+        normalized = value.to_s.strip.downcase.tr("-", "_")
+        return :interactive if normalized == "interactive"
+        return :accept if normalized.empty? || %w[accept force non_interactive default].include?(normalized)
+
+        raise ArgumentError, "Unsupported Kettle/Jem decision mode #{value.inspect}"
+      end
+
+      def normalize_action(value)
+        return if value.nil?
+
+        action = value.to_s.strip
+        raise ArgumentError, "Unsupported Kettle/Jem decision action #{value.inspect}" unless DECISION_ACTIONS.include?(action)
+
+        action
+      end
+
+      def normalize_severity(value)
+        severity_value = value.to_s.strip
+        raise ArgumentError, "Unsupported Kettle/Jem decision severity #{value.inspect}" unless DECISION_SEVERITIES.include?(severity_value)
+
+        severity_value
+      end
+    end
 
     class RubyGemsResolver
       RUBYGEMS_V1_API_BASE = "https://rubygems.org/api/v1"
@@ -1812,17 +1960,19 @@ module Kettle
       }
     end
 
-    def plan_project(project_root, env: ENV)
+    def plan_project(project_root, env: ENV, run_options: {})
+      decision_policy = decision_policy_for(env, run_options)
       facts = discover_facts(project_root, env: env)
       pack = recipe_pack(facts)
       files = read_project_files(project_root, pack)
       recipe_reports = pack.fetch(:recipes).map do |recipe|
-        execute_recipe(project_root: project_root, recipe: recipe, facts: facts, files: files)
+        execute_recipe(project_root: project_root, recipe: recipe, facts: facts, files: files, decision_policy: decision_policy)
       end
       plugin_registry = plugin_registry_for_project(project_root)
       changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.sort
       diagnostics = recipe_reports.flat_map { |report| report[:diagnostics] }
       phase_reports = phase_reports_for(recipe_reports)
+      decision_evaluations = recipe_reports.map { |report| report.fetch(:decision_evaluation) }
       unless plugin_registry.configured_plugins.empty?
         diagnostics << plugin_lifecycle_diagnostic(
           plugin_registry,
@@ -1839,14 +1989,16 @@ module Kettle
         recipe_pack: pack,
         recipe_reports: recipe_reports,
         phase_reports: phase_reports,
+        decision_policy: decision_policy.to_h,
+        decision_evaluations: decision_evaluations,
         changed_files: changed_files,
         diagnostics: diagnostics,
         run_stats: run_stats,
       }
     end
 
-    def apply_project(project_root, env: ENV)
-      report = plan_project(project_root, env: env).merge(mode: "apply")
+    def apply_project(project_root, env: ENV, run_options: {})
+      report = plan_project(project_root, env: env, run_options: run_options).merge(mode: "apply")
       run_apply_phases(project_root, report)
       report
     end
@@ -2062,7 +2214,7 @@ module Kettle
       replace_text_managed_block(content.to_s, replacement)
     end
 
-    def execute_recipe(project_root:, recipe:, facts:, files:)
+    def execute_recipe(project_root:, recipe:, facts:, files:, decision_policy:)
       relative_path = recipe.fetch(:target_path)
       destination_existed = File.exist?(File.join(project_root, relative_path))
       original = files.fetch(relative_path, "")
@@ -2118,6 +2270,13 @@ module Kettle
       changed = delete_file_recipe?(recipe) || final != original
       step_report = content_recipe_step_report(recipe: recipe, request: request, original: original, final: final, changed: changed, deletion: deletion)
       metadata = recipe_report_metadata(recipe).merge(destination_existed: destination_existed)
+      decision_evaluation = recipe_decision_evaluation(
+        decision_policy: decision_policy,
+        recipe: recipe,
+        changed: changed,
+        destination_existed: destination_existed
+      )
+      metadata[:decision_evaluation] = decision_evaluation
       report = content_recipe_execution_report(
         request: request,
         final_content: final,
@@ -2135,6 +2294,7 @@ module Kettle
         report_envelope: content_recipe_execution_report_envelope(report),
         final_content: final,
         metadata: metadata,
+        decision_evaluation: decision_evaluation,
         diagnostics: [],
       }
     end
@@ -2661,6 +2821,50 @@ module Kettle
       metadata[:readme_style] = deep_dup(recipe[:readme_style]) if recipe[:readme_style]
       metadata[:bootstrap_file] = true if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
       metadata
+    end
+
+    def decision_policy_for(env, run_options)
+      DecisionPolicy.from_env(env || {}, **(run_options || {}))
+    end
+
+    def recipe_decision_evaluation(decision_policy:, recipe:, changed:, destination_existed:)
+      decision_policy.resolve(
+        id: "recipe:#{recipe.fetch(:name)}",
+        category: recipe_decision_category(recipe),
+        file: recipe.fetch(:target_path),
+        default_action: recipe_default_action(recipe, changed: changed, destination_existed: destination_existed),
+        severity: :advisory,
+        diagnostics: recipe_decision_diagnostics(recipe)
+      ).to_h
+    end
+
+    def recipe_decision_category(recipe)
+      return "delete_file" if delete_file_recipe?(recipe)
+      return "select_template_source" if recipe.fetch(:primitive) == "supplied_template_source_preference"
+      return "bootstrap_config" if recipe.fetch(:primitive) == "supplied_kettle_config_bootstrap"
+      return "apply_template_source" if recipe.fetch(:primitive) == "supplied_template_source_application"
+
+      "merge_valid_document"
+    end
+
+    def recipe_default_action(recipe, changed:, destination_existed:)
+      return "delete" if delete_file_recipe?(recipe)
+      return "keep" unless changed
+      return "create" unless destination_existed
+      return "replace" if recipe.fetch(:primitive) == "supplied_template_source_application"
+
+      "merge"
+    end
+
+    def recipe_decision_diagnostics(recipe)
+      diagnostics = []
+      if recipe.fetch(:primitive) == "supplied_template_source_application"
+        diagnostics << "Non-interactive runs apply the configured template source default and report the decision."
+      end
+      if delete_file_recipe?(recipe)
+        diagnostics << "Deletion is allowed only for explicit Kettle/Jem cleanup primitives."
+      end
+      diagnostics
     end
 
     def recipe_entry(name, target_path, provider_family, primitive, facts:, provider_backend: nil, selectors: [])

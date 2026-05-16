@@ -2609,6 +2609,77 @@ RSpec.describe Kettle::Jem do
     )
   end
 
+  it "reports the Kettle/Jem non-interactive decision policy and recipe defaults" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-decision-policy", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: templates
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "templates/README.md.example" => "# Example\n\nTemplate README.\n",
+        "README.md" => "# Example\n\nDestination README.\n",
+      })
+
+      plan = described_class.plan_project(root, env: {"force" => "true"})
+      expect(plan.fetch(:decision_policy)).to include(
+        mode: "accept",
+        non_interactive: true,
+        accept: true,
+        interactive: false,
+        failure_mode: "error"
+      )
+      readme_decision = plan.fetch(:decision_evaluations).find do |decision|
+        decision.fetch(:id) == "recipe:template_source_application_README_md"
+      end
+      expect(readme_decision).to include(
+        category: "apply_template_source",
+        file: "README.md",
+        default_action: "replace",
+        selected_action: "replace",
+        source: "default",
+        severity: "advisory",
+        blocking: false
+      )
+      expect(readme_decision.fetch(:diagnostics)).to include(
+        "Non-interactive runs apply the configured template source default and report the decision."
+      )
+
+      apply = described_class.apply_project(root, env: {"force" => "false"})
+      expect(apply.fetch(:decision_policy)).to include(
+        mode: "interactive",
+        non_interactive: false,
+        accept: false,
+        interactive: true
+      )
+      expect(apply.fetch(:decision_evaluations).map { |decision| decision.fetch(:selected_action) }).to include("replace")
+    end
+  end
+
+  it "hard-fails decision evaluation only when no fatal default is available" do
+    policy = described_class::DecisionPolicy.from_env({"force" => "true"})
+    expect do
+      policy.resolve(
+        id: "parser:README.md",
+        category: "parse",
+        file: "README.md",
+        default_action: nil,
+        severity: :fatal
+      )
+    end.to raise_error(Kettle::Jem::Error, /No safe default decision/)
+  end
+
   it "loads configured plugins and runs apply-time phase hooks" do
     plugin_module = Module.new do
       class << self

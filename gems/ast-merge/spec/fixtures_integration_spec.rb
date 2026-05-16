@@ -78,6 +78,62 @@ RSpec.describe Ast::Merge do
     described_class::ProfileSelectionRequirement.new(**fixture)
   end
 
+  it "conforms to the merge-gem authoring guide contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-839-merge-gem-authoring-guide-contract",
+        "merge-gem-authoring-guide-contract.json"
+      )
+    )
+
+    expect(fixture.dig(:source, :old_document)).to eq("reference/ast-merge/BUILD_A_MERGE_GEM.md")
+    expect(fixture.fetch(:portable_contracts).map { |contract| contract.fetch(:id) }).to include(
+      "normalized-node-tree",
+      "cursor-duplicate-matching",
+      "recursive-scope",
+      "position-aware-template-only",
+      "shared-before-bespoke"
+    )
+    expect(fixture.fetch(:portable_contracts).map { |contract| contract.fetch(:status) }.uniq).to eq(["keep"])
+    expect(fixture.fetch(:retired_requirements).map { |requirement| requirement.fetch(:id) }).to include(
+      "mandatory-old-base-classes",
+      "merge-gem-registry",
+      "rspec-shared-examples-as-portable-conformance"
+    )
+    expect(fixture.dig(:contributor_guidance, :recommended_order).first).to eq("add or extend conformance fixtures")
+    expect(fixture.dig(:contributor_guidance, :ownership_routing, :multiple_unrelated_formats)).to eq(
+      "ast-merge or tree_haver"
+    )
+  end
+
+  it "conforms to the merge approach overview alignment fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-840-merge-approach-overview-alignment",
+        "merge-approach-overview-alignment.json"
+      )
+    )
+
+    expect(fixture.dig(:source, :old_document)).to eq("reference/ast-merge/MERGE_APPROACH.md")
+    expect(fixture.fetch(:kept_principles).map { |principle| principle.fetch(:id) }).to eq(
+      [
+        "signature-not-cardinality",
+        "cursor-duplicate-consumption",
+        "recursive-body-scope",
+        "anchor-aware-template-only"
+      ]
+    )
+    expect(fixture.fetch(:replaced_notes).map { |note| note.fetch(:decision) }.uniq).to eq(
+      ["discard_as_portable_architecture"]
+    )
+    expect(fixture.dig(:portable_language, :destination_only_policy)).to eq(
+      "preserve unless explicit removal policy applies"
+    )
+    expect(fixture.dig(:portable_language, :template_only_policy)).to eq("anchor-aware insertion")
+  end
+
   it "conforms to the slice-790 generic merge IR fixture" do
     fixture = read_json(fixtures_root.join("diagnostics", "slice-790-generic-merge-ir", "generic-merge-ir.json"))
     raw = fixture[:merge_ir]
