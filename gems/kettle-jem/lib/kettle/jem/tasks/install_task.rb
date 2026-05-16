@@ -12,6 +12,7 @@ module Kettle
         def run(project_root: Dir.pwd, env: ENV, run_options: {}, command_runner: method(:run_system_command))
           report = Kettle::Jem.apply_project(project_root, env: env, run_options: run_options)
           install_steps = []
+          install_steps << gemspec_dependency_sync_step(report)
           install_steps << ensure_bin_setup_executable(project_root)
           install_steps.concat(run_bundle_setup_commands(project_root, env: env, run_options: run_options, command_runner: command_runner))
           install_steps << bundled_handoff_step(env: env, run_options: run_options)
@@ -26,6 +27,30 @@ module Kettle
               message: "kettle:jem:install applied templates, completed local post-template checks, and reported the bundled handoff contract.",
             }]
           )
+        end
+
+        def gemspec_dependency_sync_step(report)
+          gemspec_report = report.fetch(:recipe_reports, []).find do |recipe_report|
+            recipe_report.fetch(:relative_path, "").end_with?(".gemspec")
+          end
+          return {
+            name: "gemspec_dependency_sync",
+            status: "unavailable",
+            reason: "no_gemspec_recipe",
+          } unless gemspec_report
+
+          {
+            name: "gemspec_dependency_sync",
+            path: gemspec_report.fetch(:relative_path),
+            status: gemspec_report.fetch(:changed, false) ? "applied" : "already_current",
+            development_dependencies: development_dependency_names(gemspec_report.fetch(:final_content, "")),
+          }
+        end
+
+        def development_dependency_names(content)
+          content.to_s.lines.filter_map do |line|
+            line[/^\s*\w+\.add_development_dependency\s*(?:\(|\s)\s*["']([^"']+)["']/, 1]
+          end.uniq
         end
 
         def ensure_bin_setup_executable(project_root)

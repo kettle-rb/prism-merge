@@ -1128,6 +1128,54 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "reports gemspec dependency sync through the install task" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-install-gemspec-sync", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: example.gemspec
+                target: example.gemspec
+        YAML
+        "template/example.gemspec.example" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "template"
+            spec.summary = "Template gem"
+            spec.add_development_dependency "rake", "~> 13.0"
+          end
+        RUBY
+      })
+      command_runner = lambda do |_command, **|
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+
+      install = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {},
+        run_options: {only: "example.gemspec", skip_commit: true},
+        command_runner: command_runner
+      )
+
+      expect(install.fetch(:install_steps)).to include(
+        name: "gemspec_dependency_sync",
+        path: "example.gemspec",
+        status: "applied",
+        development_dependencies: ["rake"]
+      )
+      expect(File.read(File.join(root, "example.gemspec"))).to include('spec.add_development_dependency "rake", "~> 13.0"')
+    end
+  end
+
   it "reports setup execution context without load-path inspection" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
