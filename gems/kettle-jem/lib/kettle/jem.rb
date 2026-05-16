@@ -2597,7 +2597,7 @@ module Kettle
         output = merge_result.fetch(:output)
         if file_type == :gemfile
           output = merge_gemfile_eval_bucket_entries(template_content, output)
-          return merge_gemfile_template_policy(output, facts: facts)
+          return merge_gemfile_template_policy(output, facts: facts, template_content: template_content)
         end
         return merge_appraisals_template_policy(output, facts: facts) if file_type == :appraisals
 
@@ -2613,11 +2613,46 @@ module Kettle
       recipe.dig(:template_preference, :method_move_policy) || Ruby::Merge::DEFAULT_METHOD_MOVE_POLICY
     end
 
-    def merge_gemfile_template_policy(content, facts:)
+    def merge_gemfile_template_policy(content, facts:, template_content: nil)
       package_name = facts.dig(:package, :name).to_s if facts
       removable_gems = ["appraisal"]
       removable_gems << package_name unless package_name.to_s.empty?
-      remove_gemfile_dependency_lines(content, removable_gems)
+      pruned = remove_gemfile_dependency_lines(content, removable_gems)
+      apply_commented_gem_dependency_policy(template_content, pruned)
+    end
+
+    def apply_commented_gem_dependency_policy(template_content, content)
+      commented_blocks = commented_gem_dependency_blocks(template_content)
+      return content if commented_blocks.empty?
+
+      inserted = Set.new
+      lines = content.to_s.lines.flat_map do |line|
+        gem_name = line[/^\s*gem\s+["']([^"']+)["']/, 1]
+        block = commented_blocks[gem_name]
+        unless block
+          line
+        else
+          next [] if inserted.include?(gem_name)
+
+          inserted << gem_name
+          block
+        end
+      end
+      ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def commented_gem_dependency_blocks(content)
+      lines = content.to_s.lines
+      lines.each_with_index.with_object({}) do |(line, index), blocks|
+        gem_name = line[/^\s*#\s*gem\s+["']([^"']+)["']/, 1]
+        next unless gem_name
+
+        start_index = index
+        while start_index.positive? && lines[start_index - 1].match?(/^\s*#/)
+          start_index -= 1
+        end
+        blocks[gem_name] ||= lines[start_index..index]
+      end
     end
 
     def remove_gemfile_dependency_lines(content, gem_names)

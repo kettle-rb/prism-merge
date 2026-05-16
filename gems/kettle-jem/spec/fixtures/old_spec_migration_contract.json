@@ -29,6 +29,13 @@
         "../../mutex_m/r3/v0.3.gemfile",
         "../../stringio/r3/v3.0.gemfile"
       ]
+    },
+    "gemfile_comment_and_token_policy": {
+      "important_phrase": "Gemfile is for local development ONLY",
+      "token": "{KJ|GEM_NAME}",
+      "resolved_gem_name": "example",
+      "commented_dependency": "irb",
+      "active_dependency": "debug"
     }
   }
 }

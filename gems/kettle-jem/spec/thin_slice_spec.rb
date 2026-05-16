@@ -1531,6 +1531,96 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "ports old Gemfile comment preservation, token resolution, and commented dependency policy" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    contract_case = old_spec_contract.fetch(:cases).fetch(:gemfile_comment_and_token_policy)
+    important_block = <<~COMMENT
+      #### IMPORTANT #######################################################
+      # #{contract_case.fetch(:important_phrase)}; Gemfile is NOT loaded in CI #
+      ####################################################### IMPORTANT ####
+    COMMENT
+
+    Dir.mktmpdir("kettle-jem-old-gemfile-comment-policy", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "#{contract_case.fetch(:resolved_gem_name)}"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - Gemfile
+              - gemfiles/modular/debug.gemfile
+        YAML
+        "Gemfile" => <<~RUBY,
+          # frozen_string_literal: true
+
+          source "https://gem.coop"
+
+          #{important_block}
+          # Include dependencies from #{contract_case.fetch(:resolved_gem_name)}.gemspec
+          gemspec
+        RUBY
+        "gemfiles/modular/debug.gemfile" => <<~RUBY,
+          # frozen_string_literal: true
+
+          # Ex-Standard Library gems
+          gem "#{contract_case.fetch(:commented_dependency)}", "~> 1.15", ">= 1.15.2" # removed from stdlib in 3.5
+
+          platform :mri do
+            gem "#{contract_case.fetch(:active_dependency)}", ">= 1.1"
+          end
+        RUBY
+        "template/Gemfile.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          source "https://gem.coop"
+
+          #{important_block}
+          # Include dependencies from #{contract_case.fetch(:token)}.gemspec
+          gemspec
+        RUBY
+        "template/gemfiles/modular/debug.gemfile.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          # Ex-Standard Library gems
+          # #{contract_case.fetch(:commented_dependency)} is included in main Gemfile (and unlocked_deps Appraisal), so it can't be included here.
+          # gem "#{contract_case.fetch(:commented_dependency)}", "~> 1.15", ">= 1.15.2" # removed from stdlib in 3.5
+
+          platform :mri do
+            gem "#{contract_case.fetch(:active_dependency)}", ">= 1.1"
+          end
+        RUBY
+      })
+
+      first_apply = described_class.apply_project(root, env: {})
+      second_apply = described_class.apply_project(root, env: {})
+      gemfile_report = first_apply.fetch(:recipe_reports).find { |report| report.fetch(:relative_path) == "Gemfile" }
+      debug_report = first_apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:relative_path) == "gemfiles/modular/debug.gemfile"
+      end
+      gemfile_content = gemfile_report.fetch(:final_content)
+      debug_content = debug_report.fetch(:final_content)
+
+      expect(gemfile_content).to include(contract_case.fetch(:important_phrase))
+      expect(gemfile_content).to include("dependencies from #{contract_case.fetch(:resolved_gem_name)}.gemspec")
+      expect(gemfile_content).not_to include(contract_case.fetch(:token))
+      expect(debug_content).to include("#{contract_case.fetch(:commented_dependency)} is included in main Gemfile")
+      expect(debug_content).to include(%(# gem "#{contract_case.fetch(:commented_dependency)}", "~> 1.15", ">= 1.15.2"))
+      expect(debug_content).not_to match(/^gem "#{Regexp.escape(contract_case.fetch(:commented_dependency))}"/)
+      expect(debug_content.scan(/^\s*# gem "#{Regexp.escape(contract_case.fetch(:commented_dependency))}"/).count).to eq(1)
+      expect(debug_content.scan(/^\s*gem "#{Regexp.escape(contract_case.fetch(:active_dependency))}"/).count).to eq(1)
+      expect(File.read(File.join(root, "Gemfile"))).to eq(gemfile_content)
+      expect(File.read(File.join(root, "gemfiles/modular/debug.gemfile"))).to eq(debug_content)
+      expect(second_apply.fetch(:changed_files)).not_to include("Gemfile", "gemfiles/modular/debug.gemfile")
+    end
+  end
+
   it "normalizes preserved gemspec lines to the template block receiver" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
