@@ -1982,12 +1982,13 @@ module Kettle
       enforce_git_preflight!(git_preflight, decision_policy: decision_policy, template_selection: template_selection)
       facts = discover_facts(project_root, env: env)
       pack = recipe_pack(facts)
+      pack = filter_recipe_pack(pack, template_selection)
       files = read_project_files(project_root, pack)
       recipe_reports = pack.fetch(:recipes).map do |recipe|
         execute_recipe(project_root: project_root, recipe: recipe, facts: facts, files: files, decision_policy: decision_policy)
       end
       plugin_registry = plugin_registry_for_project(project_root)
-      changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.sort
+      changed_files = recipe_reports.filter_map { |report| report[:relative_path] if report[:changed] }.uniq.sort
       diagnostics = recipe_reports.flat_map { |report| report[:diagnostics] }
       phase_reports = phase_reports_for(recipe_reports)
       decision_evaluations = recipe_reports.map { |report| report.fetch(:decision_evaluation) }
@@ -3084,6 +3085,31 @@ module Kettle
       values.empty? ? nil : values
     end
 
+    def filter_recipe_pack(pack, template_selection)
+      patterns = recipe_filter_patterns(template_selection)
+      return pack if patterns.empty?
+
+      pack.merge(
+        recipes: pack.fetch(:recipes).select { |recipe| selected_template_path?(recipe.fetch(:target_path), patterns) }
+      )
+    end
+
+    def recipe_filter_patterns(template_selection)
+      only = Array(template_selection[:only]).compact
+      include = Array(template_selection[:include]).compact
+      only.empty? ? [] : (only + include)
+    end
+
+    def selected_template_path?(relative_path, patterns)
+      path = relative_path.to_s.delete_prefix("./")
+      patterns.any? do |pattern|
+        normalized = pattern.to_s.delete_prefix("./")
+        path == normalized ||
+          File.fnmatch?(normalized, path, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB) ||
+          (normalized.end_with?("/**") && path.start_with?(normalized.delete_suffix("/**") + "/"))
+      end
+    end
+
     def recipe_decision_evaluation(decision_policy:, recipe:, changed:, destination_existed:)
       decision_policy.resolve(
         id: "recipe:#{recipe.fetch(:name)}",
@@ -3513,7 +3539,7 @@ module Kettle
         {
           phase: phase.to_s,
           recipes: reports.map { |recipe_report| recipe_report[:recipe_name] }.compact,
-          changed_files: changed_reports.map { |recipe_report| recipe_report[:relative_path] }.compact.sort,
+          changed_files: changed_reports.map { |recipe_report| recipe_report[:relative_path] }.compact.uniq.sort,
           stats: {
             recipe_count: reports.length,
             changed_count: changed_reports.length,

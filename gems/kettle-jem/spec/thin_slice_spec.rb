@@ -709,6 +709,47 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "filters template recipes with old only/include semantics" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-only-filter-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+            spec.metadata["source_code_uri"] = "https://github.com/acme/example"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "💎"
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => "# Example\n",
+      })
+
+      plan = described_class.plan_project(root, env: {}, run_options: {only: "README.md"})
+      paths = plan.fetch(:recipe_reports).map { |report| report.fetch(:relative_path) }
+      expect(paths.uniq).to eq(["README.md"])
+
+      apply = described_class.apply_project(root, env: {}, run_options: {only: "README.md"})
+      expect(apply.fetch(:changed_files)).to eq(["README.md"])
+      expect(File).to exist(File.join(root, "README.md"))
+      expect(File).not_to exist(File.join(root, ".github", "FUNDING.yml"))
+
+      expanded = described_class.plan_project(root, env: {}, run_options: {only: "README.md", include: ".github/**"})
+      expect(expanded.fetch(:recipe_reports).map { |report| report.fetch(:relative_path) }).to include(
+        "README.md",
+        ".github/FUNDING.yml"
+      )
+    end
+  end
+
   it "bootstraps kettle config from packaged reference template when missing" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
