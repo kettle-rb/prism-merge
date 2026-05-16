@@ -351,6 +351,21 @@ RSpec.describe "Ruby::Merge" do
     expect(percent_word_array_result[:ok]).to eq(percent_word_array_fixture.dig(:expected, :ok))
     expect(percent_word_array_result[:output]).to eq(percent_word_array_fixture.dig(:expected, :output))
 
+    hash_destination_style_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-964-hash-constant-destination-style-merge",
+        "hash-constant-destination-style-merge.json"
+      )
+    )
+    hash_destination_style_result = RUBY_MERGE.merge_ruby(
+      hash_destination_style_fixture[:template],
+      hash_destination_style_fixture[:destination],
+      "ruby"
+    )
+    expect(hash_destination_style_result[:ok]).to eq(hash_destination_style_fixture.dig(:expected, :ok))
+    expect(hash_destination_style_result[:output]).to eq(hash_destination_style_fixture.dig(:expected, :output))
+
     nested_constant_fixture = read_json(
       fixtures_root.join(
         "ruby",

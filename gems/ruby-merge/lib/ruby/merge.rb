@@ -1342,7 +1342,7 @@ module Ruby
       end
       template_keys = template.pairs.map(&:key).to_h { |key| [key, true] }
       merged_pairs.concat(destination.pairs.reject { |pair| template_keys[pair.key] })
-      RubyHashNode.new(pairs: merged_pairs, inline: template.inline)
+      RubyHashNode.new(pairs: merged_pairs, inline: destination.inline)
     end
 
     def render_ruby_hash_literal(node, base_indent)
