@@ -30,4 +30,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "go-merge", "= #{Smorg::RB::VERSION}"
   spec.add_dependency "json-merge", "= #{Smorg::RB::VERSION}"
   spec.add_dependency "plain-merge", "= #{Smorg::RB::VERSION}"
+  spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end

@@ -46,4 +46,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "citrus", "~> 3.0"
   spec.add_dependency "parslet", "~> 2.0"
   spec.add_dependency "tree_sitter_language_pack", "~> 1.6"
+  spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end

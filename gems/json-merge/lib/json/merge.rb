@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "json"
 require "tree_haver"
 
@@ -404,4 +406,8 @@ module Json
     end
     private_class_method :advance_scanner_state
   end
+end
+
+Json::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

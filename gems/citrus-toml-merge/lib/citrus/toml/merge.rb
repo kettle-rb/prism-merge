@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "toml-merge"
 require "toml-rb"
 
@@ -87,4 +89,8 @@ module Citrus
       )
     end
   end
+end
+
+Citrus::Toml::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

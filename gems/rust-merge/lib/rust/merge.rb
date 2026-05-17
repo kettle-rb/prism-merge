@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "tree_haver"
 
 module Rust
@@ -126,4 +128,8 @@ module Rust
     end
     private_class_method :import_text, :declaration_text, :slice_span, :line_anchored_slice
   end
+end
+
+Rust::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

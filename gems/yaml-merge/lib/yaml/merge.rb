@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "json"
 require "yaml"
 require "tree_haver"
@@ -304,4 +306,8 @@ module Yaml
     end
     private_class_method :unsupported_feature_result
   end
+end
+
+Yaml::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

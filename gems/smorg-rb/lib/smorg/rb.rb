@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "go-merge"
 require "ast/merge"
 require "json"
@@ -441,4 +443,8 @@ module Smorg
       end
     end
   end
+end
+
+Smorg::RB::Version.class_eval do
+  extend VersionGem::Basic
 end

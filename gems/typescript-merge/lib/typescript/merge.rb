@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "tree_haver"
 require "ast/merge"
 
@@ -142,4 +144,8 @@ module TypeScript
     end
     private_class_method :unsupported_feature_result
   end
+end
+
+TypeScript::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

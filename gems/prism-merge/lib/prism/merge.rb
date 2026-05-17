@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "prism"
 require "ruby-merge"
 
@@ -883,4 +885,8 @@ module Prism
       :source_span_for_location
     )
   end
+end
+
+Prism::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

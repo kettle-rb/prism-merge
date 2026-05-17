@@ -44,4 +44,5 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "ast-merge", "= #{TypeScript::Merge::VERSION}"
   spec.add_dependency "tree_haver", "= #{TypeScript::Merge::VERSION}"
+  spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end

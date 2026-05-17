@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "markdown-merge"
 require "commonmarker"
 
@@ -167,4 +169,8 @@ module Commonmarker
       :unsupported_feature_result
     )
   end
+end
+
+Commonmarker::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

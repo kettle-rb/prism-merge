@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "fileutils"
 require "ast/merge"
 require_relative "template/version"
@@ -1398,4 +1400,8 @@ module Ast
       end
     end
   end
+end
+
+Ast::Template::Version.class_eval do
+  extend VersionGem::Basic
 end

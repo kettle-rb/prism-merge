@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "tree_haver"
 require "ast/merge"
 
@@ -140,4 +142,8 @@ module Go
     end
     private_class_method :unsupported_feature_result
   end
+end
+
+Go::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

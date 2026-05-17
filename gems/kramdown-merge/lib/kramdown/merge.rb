@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "markdown-merge"
 require "kramdown"
 
@@ -169,4 +171,8 @@ module Kramdown
       :unsupported_feature_result
     )
   end
+end
+
+Kramdown::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

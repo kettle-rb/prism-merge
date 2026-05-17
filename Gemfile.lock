@@ -3,6 +3,7 @@ PATH
   specs:
     ast-crispr (7.0.0)
       ast-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/ast-merge
@@ -17,12 +18,14 @@ PATH
   specs:
     ast-template (7.0.0)
       ast-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/binary-merge
   specs:
     binary-merge (7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/citrus-toml-merge
@@ -30,6 +33,7 @@ PATH
     citrus-toml-merge (7.0.0)
       toml-merge (= 7.0.0)
       toml-rb (~> 4.1)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/commonmarker-merge
@@ -37,6 +41,7 @@ PATH
     commonmarker-merge (7.0.0)
       commonmarker (~> 2.2)
       markdown-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/go-merge
@@ -44,6 +49,7 @@ PATH
     go-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/json-merge
@@ -51,6 +57,7 @@ PATH
     json-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/kettle-jem
@@ -77,6 +84,7 @@ PATH
     kramdown-merge (7.0.0)
       kramdown (~> 2.5)
       markdown-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/markdown-merge
@@ -84,6 +92,7 @@ PATH
     markdown-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/markly-merge
@@ -91,6 +100,7 @@ PATH
     markly-merge (7.0.0)
       markdown-merge (= 7.0.0)
       markly (~> 0.9)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/parslet-toml-merge
@@ -98,6 +108,7 @@ PATH
     parslet-toml-merge (7.0.0)
       toml (~> 0.3)
       toml-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/plain-merge
@@ -105,6 +116,7 @@ PATH
     plain-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/prism-merge
@@ -112,6 +124,7 @@ PATH
     prism-merge (7.0.0)
       prism (~> 1.6)
       ruby-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/psych-merge
@@ -128,6 +141,7 @@ PATH
     ruby-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/rust-merge
@@ -135,6 +149,7 @@ PATH
     rust-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/smorg-rb
@@ -144,6 +159,7 @@ PATH
       go-merge (= 7.0.0)
       json-merge (= 7.0.0)
       plain-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/toml-merge
@@ -160,6 +176,7 @@ PATH
       citrus (~> 3.0)
       parslet (~> 2.0)
       tree_sitter_language_pack (~> 1.6)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/typescript-merge
@@ -167,6 +184,7 @@ PATH
     typescript-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/yaml-merge
@@ -174,12 +192,14 @@ PATH
     yaml-merge (7.0.0)
       ast-merge (= 7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 PATH
   remote: gems/zip-merge
   specs:
     zip-merge (7.0.0)
       tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
 
 GEM
   remote: https://rubygems.org/

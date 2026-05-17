@@ -44,4 +44,5 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "toml-merge", "= #{Citrus::Toml::Merge::VERSION}"
   spec.add_dependency "toml-rb", "~> 4.1"
+  spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end

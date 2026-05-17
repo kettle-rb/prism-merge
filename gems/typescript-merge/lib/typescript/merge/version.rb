@@ -6,6 +6,6 @@ module TypeScript
       VERSION = "7.0.0"
     end
 
-    VERSION = Version::VERSION
+    VERSION = Version::VERSION # Traditional Constant Location
   end
 end

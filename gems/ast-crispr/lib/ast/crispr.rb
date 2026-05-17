@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "ast/merge"
 require_relative "crispr/version"
 
@@ -500,4 +502,8 @@ module Ast
       end
     end
   end
+end
+
+Ast::Crispr::Version.class_eval do
+  extend VersionGem::Basic
 end

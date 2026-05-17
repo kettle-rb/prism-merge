@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "tree_haver"
 require "ast/merge"
 
@@ -1683,4 +1685,8 @@ module Ruby
       :unsupported_feature_result
     )
   end
+end
+
+Ruby::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

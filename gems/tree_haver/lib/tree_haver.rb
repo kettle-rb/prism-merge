@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require_relative "tree_haver/version"
 
 module TreeHaver
@@ -133,4 +135,8 @@ module TreeHaver
     raise NotAvailable, "Tree-sitter parser_for is not available without a registered native TreeHaver backend for #{name}: #{library_path} #{symbol}"
   end
   private_class_method :parser_for_tree_sitter
+end
+
+TreeHaver::Version.class_eval do
+  extend VersionGem::Basic
 end

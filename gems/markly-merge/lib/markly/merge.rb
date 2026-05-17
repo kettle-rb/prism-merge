@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "markdown-merge"
 require "markly"
 
@@ -493,4 +495,8 @@ module Markly
       :unsupported_feature_result
     )
   end
+end
+
+Markly::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

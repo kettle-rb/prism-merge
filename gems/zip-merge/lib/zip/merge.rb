@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "version_gem"
+
 require "stringio"
 require "zlib"
 require "tree_haver"
@@ -308,4 +310,8 @@ module Zip
       RenderError.new(diagnostic(category, schema_path, message))
     end
   end
+end
+
+Zip::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

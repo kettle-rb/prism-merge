@@ -45,4 +45,5 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "ast-merge", "= #{Yaml::Merge::VERSION}"
   spec.add_dependency "tree_haver", "= #{Yaml::Merge::VERSION}"
+  spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end
