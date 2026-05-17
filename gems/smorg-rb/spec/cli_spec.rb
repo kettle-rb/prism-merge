@@ -88,7 +88,10 @@ RSpec.describe Smorg::RB do
     exit_code = described_class.run(["merge-driver", "--strict", ancestor, current, other, "package.json"], stdout: stdout, stderr: stderr)
 
     expect(exit_code).to eq(described_class::EXIT_UNRESOLVED_CONFLICT)
-    expect(File.read(current)).to eq('{"name":"demo","enabled":false}')
+    expect(File.read(current)).to include("<<<<<<< ours")
+    expect(File.read(current)).to include("||||||| base")
+    expect(File.read(current)).to include("=======")
+    expect(File.read(current)).to include(">>>>>>> theirs")
     expect(stderr.string).to include("merge_conflict")
   end
 
@@ -121,6 +124,9 @@ RSpec.describe Smorg::RB do
           expect(JSON.parse(merged_source)).to eq(expected.fetch("merged_json")), test_case.fetch("case_id")
         elsif expected["merged_source"]
           expect(merged_source).to eq(expected.fetch("merged_source")), test_case.fetch("case_id")
+        end
+        expected.fetch("conflicted_source_contains", []).each do |needle|
+          expect(merged_source).to include(needle), test_case.fetch("case_id")
         end
       end
     end

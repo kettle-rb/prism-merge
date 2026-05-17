@@ -66,14 +66,18 @@ module Smorg
       profile_exit = report_and_enforce_profile(options, stdout, stderr)
       return profile_exit unless profile_exit == EXIT_SUCCESS
 
-      result = merge_by_path(effective_path, settings[:language], ancestor_source, current_source, other_source)
+      result = merge_by_path(effective_path, settings[:language], settings[:conflict_marker_size], ancestor_source, current_source, other_source)
       output = result[:output]
-      unless result[:ok] && output
-        if options[:strict] || options[:fallback] == "none"
-          print_diagnostics(stderr, result)
-          return EXIT_UNRESOLVED_CONFLICT
-        end
-        output = current_source
+      unless result[:ok]
+        print_diagnostics(stderr, result)
+        output ||= current_source unless options[:strict] || options[:fallback] == "none"
+        return EXIT_UNRESOLVED_CONFLICT if options[:check_only]
+        File.write(options[:output] || options[:current], output) if output
+        return EXIT_UNRESOLVED_CONFLICT
+      end
+      unless output
+        stderr.puts("merge completed without output")
+        return EXIT_INTERNAL_ERROR
       end
 
       if options[:check_only]
@@ -306,7 +310,7 @@ module Smorg
       EXIT_SUCCESS
     end
 
-    def merge_by_path(path_name, language, ancestor_source, current_source, other_source)
+    def merge_by_path(path_name, language, conflict_marker_size, ancestor_source, current_source, other_source)
       case normalize_language(language, path_name)
       when "go"
         Go::Merge.merge_go(other_source, current_source, "go")
@@ -321,6 +325,7 @@ module Smorg
             dialect: "json",
             profile_id: "json.keyed-object",
             fallback_policy: "none",
+            conflict_marker_size: conflict_marker_size,
             render_policy: "canonical"
           )
         )
@@ -337,6 +342,13 @@ module Smorg
           ok: true,
           diagnostics: result.fetch(:diagnostics),
           output: result.fetch(:merged_source),
+          policies: []
+        }
+      elsif !result[:ok] && result[:conflicted_source]
+        {
+          ok: false,
+          diagnostics: result.fetch(:diagnostics),
+          output: result.fetch(:conflicted_source),
           policies: []
         }
       else

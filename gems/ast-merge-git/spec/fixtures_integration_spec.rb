@@ -28,6 +28,9 @@ RSpec.describe Ast::Merge::Git do
       else
         expect(result.fetch(:conflicts).map { |conflict| conflict.fetch(:category) }).to eq(expected.fetch(:conflict_categories))
         expect(result.fetch(:conflicts).map { |conflict| conflict.fetch(:path) }).to eq(expected.fetch(:conflict_paths))
+        expected.fetch(:conflicted_source_contains, []).each do |needle|
+          expect(result.fetch(:conflicted_source)).to include(needle), test_case.fetch(:case_id)
+        end
       end
     end
   end

@@ -42,7 +42,9 @@ module Ast
           return response(
             ok: false,
             request: request,
+            conflicted_source: render_conflict_source(request, conflicts),
             conflicts: conflicts,
+            render_strategy: "full_file_conflict_markers",
             diagnostics: [{
               severity: "error",
               category: MERGE_CONFLICT_CATEGORY,
@@ -78,10 +80,11 @@ module Ast
         request.transform_keys(&:to_sym)
       end
 
-      def response(ok:, request:, merged_source: nil, conflicts: [], diagnostics: [], fallbacks: [], reparse_after_render: nil, formatting_preservation: {})
+      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], reparse_after_render: nil, formatting_preservation: {}, render_strategy: nil)
         {
           ok: ok,
           merged_source: merged_source,
+          conflicted_source: conflicted_source,
           conflicts: conflicts,
           diagnostics: diagnostics,
           fallbacks: fallbacks,
@@ -91,7 +94,7 @@ module Ast
             dialect: request[:dialect].to_s
           },
           render_report: {
-            strategy: request[:render_policy].to_s.empty? ? "canonical" : request[:render_policy].to_s
+            strategy: render_strategy || (request[:render_policy].to_s.empty? ? "canonical" : request[:render_policy].to_s)
           },
           formatting_preservation: {
             line_diff_score: 0.0,
@@ -99,6 +102,23 @@ module Ast
           }.merge(formatting_preservation),
           reparse_after_render: reparse_after_render
         }
+      end
+
+      def render_conflict_source(request, conflicts)
+        marker_size = request[:conflict_marker_size].to_i
+        marker_size = 7 unless marker_size.positive?
+        header = "/* smorg structured conflicts: #{conflicts.length} unresolved */"
+        [
+          header,
+          "#{"<" * marker_size} ours",
+          request.fetch(:ours_source),
+          "#{"|" * marker_size} base",
+          request.fetch(:base_source),
+          "=" * marker_size,
+          request.fetch(:theirs_source),
+          "#{">" * marker_size} theirs",
+          ""
+        ].join("\n")
       end
 
       def parse_json_role(role, source)
