@@ -4,6 +4,7 @@ require "version_gem"
 
 require "json"
 require "tree_haver"
+require "ast/merge"
 
 module Json
   module Merge
@@ -16,6 +17,44 @@ module Json
       surface: "fallback",
       name: "trailing_comma_destination_fallback"
     }.freeze
+    BACKEND_REGISTRY = Struct.new(:registered, :mutex).new(false, Mutex.new)
+
+    class Error < Ast::Merge::Error; end
+
+    class ParseError < Ast::Merge::ParseError
+      def initialize(message = nil, content: nil, errors: [])
+        super(message, errors: errors, content: content)
+      end
+    end
+
+    class TemplateParseError < ParseError; end
+    class DestinationParseError < ParseError; end
+    class CorruptionDetectedError < Error; end
+
+    autoload :CommentTracker, "json/merge/comment_tracker"
+    autoload :DebugLogger, "json/merge/debug_logger"
+    autoload :Emitter, "json/merge/emitter"
+    autoload :FileAnalysis, "json/merge/file_analysis"
+    autoload :FreezeNode, "json/merge/freeze_node"
+    autoload :MergeResult, "json/merge/merge_result"
+    autoload :NodeWrapper, "json/merge/node_wrapper"
+    autoload :ConflictResolver, "json/merge/conflict_resolver"
+    autoload :SmartMerger, "json/merge/smart_merger"
+    autoload :SyntheticParser, "json/merge/synthetic_parser"
+    autoload :ObjectMatchRefiner, "json/merge/object_match_refiner"
+
+    class << self
+      def register_backend!
+        BACKEND_REGISTRY.mutex.synchronize do
+          return if BACKEND_REGISTRY.registered
+
+          grammar_finder = TreeHaver::GrammarFinder.new(:json)
+          grammar_finder.register! if grammar_finder.available?
+
+          BACKEND_REGISTRY.registered = true
+        end
+      end
+    end
 
     module_function
 
@@ -407,6 +446,8 @@ module Json
     private_class_method :advance_scanner_state
   end
 end
+
+Json::Merge.register_backend!
 
 Json::Merge::Version.class_eval do
   extend VersionGem::Basic

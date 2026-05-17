@@ -1,0 +1,11 @@
+{
+  "name": "my-project",
+  "version": "1.0.0",
+  "dependencies": {
+    "lodash": "^4.17.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest"
+  }
+}

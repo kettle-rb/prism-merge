@@ -1,0 +1,9 @@
+{
+  "items": [
+    {
+      // Shared docs
+      "name": "shared",
+      "enabled": false // inline note
+    }
+  ]
+}

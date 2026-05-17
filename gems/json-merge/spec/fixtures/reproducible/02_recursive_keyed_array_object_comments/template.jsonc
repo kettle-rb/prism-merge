@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "name": "shared",
+      "enabled": true
+    },
+    {
+      "id": "added",
+      "enabled": true
+    }
+  ]
+}
