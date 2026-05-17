@@ -144,11 +144,12 @@
         "generated runtime artifact filtering",
         "interactive prompt transport and answer input contract",
         "legacy Markdown README H1, nested subsection, and fenced-code preservation",
-        "discord-notifier.yml include-only behavior"
+        "discord-notifier.yml include-only behavior",
+        "framework workflow generation parity",
+        "obsolete workflow cleanup"
       ],
       "remaining_behaviors": [
         "full workflow/appraisal matrix pruning parity against old generated workflow set",
-        "framework workflow generation parity",
         "RubyGems minimum-Ruby shunted.gemfile generation",
         "duplicate drift checks during template/install runs",
         "README badge alignment with actual generated workflow files"

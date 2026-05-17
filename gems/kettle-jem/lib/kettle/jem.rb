@@ -2870,6 +2870,7 @@ module Kettle
       raise ArgumentError, "#{recipe.fetch(:target_path)}: #{e.message}"
     else
       resolved = prepare_readme_template(resolved, recipe[:readme_style]) if recipe.fetch(:target_path) == "README.md"
+      resolved = prepare_github_workflow_template(resolved, recipe, facts)
       if recipe.fetch(:target_path) == "README.md" && (strategy.empty? || strategy == "merge")
         return postprocess_readme_content(
           merge_readme_template(
@@ -2883,6 +2884,13 @@ module Kettle
       return merge_config_template_source(recipe, resolved, original, facts: facts) if strategy.empty? || strategy == "merge"
 
       recipe.fetch(:target_path) == "README.md" ? postprocess_readme_content(resolved, facts) : resolved
+    end
+
+    def prepare_github_workflow_template(content, recipe, facts)
+      return content unless recipe.fetch(:target_path).to_s == ".github/workflows/framework-ci.yml"
+      return content if facts.to_h.dig(:ci, :framework_matrix).to_h.empty?
+
+      synchronize_github_actions_framework_ci(content, facts)
     end
 
     def postprocess_readme_content(content, facts)
@@ -5601,6 +5609,8 @@ module Kettle
       return true if OPT_IN_GITHUB_WORKFLOWS.include?(path) && !selected_template_path?(path, Array(include_patterns))
 
       basename = File.basename(path, ".yml")
+      return github_actions_framework_matrix(config).empty? if basename == "framework-ci"
+
       engine = ENGINE_WORKFLOW_MAP[basename]
       return true if engine && !enabled_ruby_engines(config).include?(engine)
 

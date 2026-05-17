@@ -169,6 +169,63 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "generates packaged framework workflow matrices only when configured" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-framework-workflow-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - .github/workflows/framework-ci.yml
+        YAML
+      })
+
+      unconfigured_plan = described_class.plan_project(root, env: {})
+      expect(unconfigured_plan.fetch(:changed_files)).not_to include(".github/workflows/framework-ci.yml")
+
+      File.write(File.join(root, ".kettle-jem.yml"), <<~YAML)
+        workflows:
+          preset: framework
+          framework_matrix:
+            dimension: rails
+            versions:
+              - "7.0"
+              - "7.1"
+            gemfile_pattern: rails_{version}
+        templates:
+          root: packaged
+          apply: true
+          entries:
+            - .github/workflows/framework-ci.yml
+      YAML
+
+      configured_plan = described_class.plan_project(root, env: {})
+      report = configured_plan.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == ".github/workflows/framework-ci.yml"
+      end
+      content = report.fetch(:final_content)
+
+      expect(configured_plan.fetch(:changed_files)).to include(".github/workflows/framework-ci.yml")
+      expect(content).to include("name: Rails CI")
+      expect(content).to include('          - "3.2"')
+      expect(content).to include('          - framework_version: "7.0"')
+      expect(content).to include('            gemfile: "gemfiles/rails_7_0"')
+      expect(content).to include('          - framework_version: "7.1"')
+      expect(content).not_to include("framework_version: []")
+      expect(content).not_to include("gemfile: []")
+    end
+  end
+
   it "applies README style conditionals and reports missing integrations" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
