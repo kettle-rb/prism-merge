@@ -13,6 +13,86 @@ module Ast
     MERGE_ENGINE_EXPERIMENTAL_MERGE_IR = "merge_ir_experimental"
     MERGE_ENGINE_ENVIRONMENT_VARIABLE = "SMORG_MERGE_ENGINE"
     TEMPLATE_TOKEN_CONFIG = Token::Resolver::Config.new(separators: ["|", ":"]).freeze
+
+    class Error < StandardError; end
+
+    class ParseError < Error
+      attr_reader :errors, :content
+
+      def initialize(message = nil, errors: [], content: nil)
+        @errors = Array(errors)
+        @content = content
+        super(message || build_message)
+      end
+
+      private
+
+      def build_message
+        if @errors.empty?
+          "Unknown #{self.class.name.split("::").map(&:downcase).join(" ")}"
+        else
+          error_messages = @errors.map { |error| error.respond_to?(:message) ? error.message : error.to_s }
+          "#{self.class.name.split("::").map(&:downcase).join(" ")}: #{error_messages.join(", ")}"
+        end
+      end
+    end
+
+    class TemplateParseError < ParseError; end
+    class DestinationParseError < ParseError; end
+    class CorruptionDetectedError < Error; end
+
+    class PlaceholderCollisionError < Error
+      attr_reader :placeholder
+
+      def initialize(placeholder)
+        @placeholder = placeholder
+        super(
+          "Document contains placeholder text '#{placeholder}'. " \
+          "Use the :region_placeholder option to specify a custom placeholder."
+        )
+      end
+    end
+
+    autoload :AstNode, "ast/merge/ast_node"
+    autoload :BlockDirective, "ast/merge/block_directive"
+    autoload :Comment, "ast/merge/comment"
+    autoload :ConflictResolverBase, "ast/merge/conflict_resolver_base"
+    autoload :CompositeMatchRefiner, "ast/merge/composite_match_refiner"
+    autoload :ContentMatchRefiner, "ast/merge/content_match_refiner"
+    autoload :DebugLogger, "ast/merge/debug_logger"
+    autoload :DiffMapperBase, "ast/merge/diff_mapper_base"
+    autoload :EmitterBase, "ast/merge/emitter_base"
+    autoload :EmitterLineMetadataSupport, "ast/merge/emitter_line_metadata_support"
+    autoload :FileAlignerBase, "ast/merge/file_aligner_base"
+    autoload :FileAnalyzable, "ast/merge/file_analyzable"
+    autoload :Freezable, "ast/merge/freezable"
+    autoload :FreezeNodeBase, "ast/merge/freeze_node_base"
+    autoload :Healer, "ast/merge/healer"
+    autoload :JaccardSimilarity, "ast/merge/jaccard_similarity"
+    autoload :Layout, "ast/merge/layout"
+    autoload :MatchRefinerBase, "ast/merge/match_refiner_base"
+    autoload :MatchScoreBase, "ast/merge/match_score_base"
+    autoload :MergeResultBase, "ast/merge/merge_result_base"
+    autoload :MergerConfig, "ast/merge/merger_config"
+    autoload :Navigable, "ast/merge/navigable"
+    autoload :NodeTyping, "ast/merge/node_typing"
+    autoload :NodeWrapperBase, "ast/merge/node_wrapper_base"
+    autoload :KeyPathPartialTemplateMergerBase, "ast/merge/key_path_partial_template_merger_base"
+    autoload :PartialTemplateMergerBase, "ast/merge/partial_template_merger_base"
+    autoload :SectionTyping, "ast/merge/section_typing"
+    autoload :SmartMergerBase, "ast/merge/smart_merger_base"
+    autoload :StructuralEdit, "ast/merge/structural_edit"
+    autoload :StructuredEmitterProvenanceSupport, "ast/merge/structured_emitter_provenance_support"
+    autoload :StructuredReviewApplySupport, "ast/merge/structured_review_apply_support"
+    autoload :Text, "ast/merge/text"
+    autoload :TokenMatchRefiner, "ast/merge/token_match_refiner"
+    autoload :TrailingGroups, "ast/merge/trailing_groups"
+    autoload :UnresolvedPolicy, "ast/merge/unresolved_policy"
+    autoload :UnresolvedReviewState, "ast/merge/unresolved_review_state"
+    autoload :Detector, "ast/merge/detector/base"
+    autoload :Recipe, "ast/merge/recipe"
+    autoload :Runtime, "ast/merge/runtime"
+    autoload :Ruleset, "ast/merge/ruleset"
     COMPACT_RULESET_REQUIRED_DIRECTIVES = %w[format owners match read attach].freeze
     COMPACT_RULESET_SINGLETON_DIRECTIVES = %w[
       format owners match read attach comment_style render render_strategy

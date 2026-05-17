@@ -16,8 +16,8 @@ require "uri"
 require "ruby/merge"
 require "token/resolver"
 require "toml-merge"
+require "psych-merge"
 require "yaml"
-require "yaml/merge"
 require "ast/merge"
 require_relative "jem/version"
 
@@ -3118,11 +3118,7 @@ module Kettle
           **ruby_merge_options(recipe, merge_template_requires: file_type == :rakefile)
         )
       when :yaml
-        begin
-          merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
-        rescue StandardError
-          return fallback_yaml_template_merge(template_content, destination_content)
-        end
+        merge_result = Psych::Merge.merge_yaml(template_content, destination_content, "yaml")
       when :toml
         merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
       else
@@ -3140,7 +3136,6 @@ module Kettle
         return output
       end
 
-      return fallback_yaml_template_merge(template_content, destination_content) if file_type == :yaml && yaml_process_result_adapter_failure?(merge_result)
       return fallback_adapter_failure_template_source(file_type, recipe, template_content, destination_content, facts) if process_result_adapter_failure?(merge_result)
       return template_content if github_workflow_template_recipe?(recipe)
 
@@ -3272,29 +3267,9 @@ module Kettle
       when :appraisals
         merge_appraisals_template_policy(template_content, facts: facts)
       when :yaml
-        fallback_yaml_template_merge(template_content, destination_content)
+        template_content
       else
         template_content
-      end
-    end
-
-    def fallback_yaml_template_merge(template_content, destination_content)
-      template = YAML.safe_load(template_content.to_s, permitted_classes: [], aliases: false)
-      destination = YAML.safe_load(destination_content.to_s, permitted_classes: [], aliases: false)
-      return template_content unless template.is_a?(Hash) && destination.is_a?(Hash)
-
-      YAML.dump(deep_merge_yaml_hashes(template, destination)).sub(/\A---\n?/, "")
-    rescue StandardError
-      template_content
-    end
-
-    def deep_merge_yaml_hashes(template, destination)
-      template.merge(destination) do |_key, template_value, destination_value|
-        if template_value.is_a?(Hash) && destination_value.is_a?(Hash)
-          deep_merge_yaml_hashes(template_value, destination_value)
-        else
-          destination_value
-        end
       end
     end
 
@@ -6095,16 +6070,30 @@ module Kettle
     end
 
     def synchronize_github_funding_yml(content, facts)
-      funding = YAML.safe_load(content.to_s, permitted_classes: [], aliases: false) || {}
-      funding = {} unless funding.is_a?(Hash)
-      funding = funding.each_with_object({}) do |(key, value), memo|
-        next if value.nil? || (value.respond_to?(:empty?) && value.empty?)
-
-        memo[key.to_s] = value
+      output = content.to_s.lines
+      output = remove_top_level_yaml_key_lines(output, "open_collective") if facts.fetch(:funding, {})[:open_collective_disabled]
+      tidelift_value = "rubygems/#{facts.fetch(:package).fetch(:name)}"
+      if output.none? { |line| line.match?(/\A\s*tidelift\s*:/) }
+        output << "\n" unless output.empty? || output.last.to_s.strip.empty?
+        output << "tidelift: #{tidelift_value}\n"
       end
-      funding.delete("open_collective") if facts.fetch(:funding, {})[:open_collective_disabled]
-      funding["tidelift"] ||= "rubygems/#{facts.fetch(:package).fetch(:name)}"
-      YAML.dump(funding).sub(/\A---\n?/, "")
+      ensure_trailing_newline(output.join)
+    end
+
+    def remove_top_level_yaml_key_lines(lines, key)
+      result = []
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        if line.match?(/\A#{Regexp.escape(key)}\s*:/)
+          index += 1
+          index += 1 while index < lines.length && lines[index].match?(/\A\s+/)
+          next
+        end
+        result << line
+        index += 1
+      end
+      result
     end
 
     def delete_rakefile_scaffold(content)

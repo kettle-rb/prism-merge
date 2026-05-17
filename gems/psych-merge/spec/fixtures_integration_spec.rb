@@ -79,6 +79,29 @@ RSpec.describe Psych::Merge do
     expect(merge_result[:output]).to eq(merge_fixture.dig(:expected, :output))
   end
 
+  it "preserves destination YAML comments and blank lines while adding template-only keys" do
+    template = <<~YAML
+      # project configuration
+      name: kettle-jem
+      generated: true
+    YAML
+    destination = <<~YAML
+      # project configuration
+      name: kettle-jem
+
+      # local operator notes
+      local: true
+    YAML
+
+    result = ::Psych::Merge.merge_yaml(template, destination, "yaml")
+
+    expect(result[:ok]).to be(true)
+    expect(result[:output]).to include("# project configuration")
+    expect(result[:output]).to include("\n\n# local operator notes\n")
+    expect(result[:output]).to include("local: true")
+    expect(result[:output]).to include("generated: true")
+  end
+
   it "rejects unsupported provider backend overrides" do
     result = ::Psych::Merge.parse_yaml("root: value\n", "yaml", backend: "kreuzberg-language-pack")
     expect(result[:ok]).to be(false)

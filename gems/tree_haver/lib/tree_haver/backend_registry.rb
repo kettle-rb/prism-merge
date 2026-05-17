@@ -22,8 +22,25 @@ module TreeHaver
       end
     end
 
+    def register_availability_checker(name, checker = nil, &block)
+      availability_checkers[name.to_sym] = checker || block
+      nil
+    end
+
+    def available?(name)
+      checker = availability_checkers[name.to_sym]
+      return false unless checker
+
+      !!checker.call
+    rescue StandardError
+      false
+    end
+
     def clear!
-      mutex.synchronize { backends.clear }
+      mutex.synchronize do
+        backends.clear
+        availability_checkers.clear
+      end
     end
 
     def deep_dup(value)
@@ -40,5 +57,10 @@ module TreeHaver
       @mutex ||= Mutex.new # rubocop:disable ThreadSafety/MutableClassInstanceVariable
     end
     private_class_method :mutex
+
+    def availability_checkers
+      @availability_checkers ||= {} # rubocop:disable ThreadSafety/MutableClassInstanceVariable
+    end
+    private_class_method :availability_checkers
   end
 end

@@ -1,91 +1,260 @@
 # frozen_string_literal: true
 
-require "yaml"
+# External gems
+require "psych"
 require "tree_haver"
+require "version_gem"
+require "set"
 require "yaml/merge"
 
+# Shared merge infrastructure
+require "ast/merge"
+
+# This gem
+require_relative "merge/version"
+
+# Psych::Merge provides a generic YAML file smart merge system using Psych AST analysis.
+# It intelligently merges template and destination YAML files by identifying matching
+# keys and resolving differences using structural signatures.
+#
+# @example Basic usage
+#   template = File.read("template.yml")
+#   destination = File.read("destination.yml")
+#   merger = Psych::Merge::SmartMerger.new(template, destination)
+#   result = merger.merge
+#
+# @example With debug information
+#   merger = Psych::Merge::SmartMerger.new(template, destination)
+#   debug_result = merger.merge_with_debug
+#   puts debug_result[:content]
+#   puts debug_result[:statistics]
 module Psych
+  # Smart merge system for YAML files using Psych AST analysis.
+  # Provides intelligent merging by understanding YAML structure
+  # rather than treating files as plain text.
+  #
+  # @see SmartMerger Main entry point for merge operations
+  # @see FileAnalysis Analyzes YAML structure
+  # @see ConflictResolver Resolves content conflicts
   module Merge
     PACKAGE_NAME = "psych-merge"
+    DESTINATION_WINS_ARRAY_POLICY = {
+      surface: "array",
+      name: "destination_wins_array"
+    }.freeze
     BACKEND_REFERENCE = TreeHaver::BackendReference.new(id: "psych", family: "native").freeze
-    TreeHaver::BackendRegistry.register(BACKEND_REFERENCE)
+    BACKEND_REGISTRY = Struct.new(:registered, :mutex).new(false, Mutex.new)
 
-    module_function
+    # Base error class for Psych::Merge
+    # Inherits from Ast::Merge::Error for consistency across merge gems.
+    class Error < Ast::Merge::Error; end
 
-    def yaml_feature_profile
-      Yaml::Merge.yaml_feature_profile
-    end
-
-    def available_yaml_backends
-      [BACKEND_REFERENCE]
-    end
-
-    def yaml_backend_feature_profile(backend: nil)
-      requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
-      return unsupported_feature_result("Unsupported YAML backend #{requested}.") unless requested == BACKEND_REFERENCE.id
-
-      yaml_feature_profile.merge(
-        backend: BACKEND_REFERENCE.id,
-        backend_ref: BACKEND_REFERENCE.to_h
-      )
-    end
-
-    def yaml_plan_context(backend: nil)
-      profile = yaml_backend_feature_profile(backend: backend)
-      return profile if profile[:ok] == false
-
-      {
-        family_profile: yaml_feature_profile,
-        feature_profile: {
-          backend: profile[:backend],
-          supports_dialects: true,
-          supported_policies: profile[:supported_policies]
-        }
-      }
-    end
-
-    def parse_yaml(source, dialect, backend: nil)
-      requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
-      return unsupported_feature_parse_result("Unsupported YAML backend #{requested}.") unless requested == BACKEND_REFERENCE.id
-      return unsupported_feature_parse_result("Unsupported YAML dialect #{dialect}.") unless dialect == "yaml"
-
-      parsed = YAML.safe_load(source, permitted_classes: [], aliases: false)
-      Yaml::Merge.analyze_yaml_document(parsed, dialect)
-    rescue StandardError => e
-      parse_error_result(e.message)
-    end
-
-    def match_yaml_owners(template, destination)
-      Yaml::Merge.match_yaml_owners(template, destination)
-    end
-
-    def merge_yaml(template_source, destination_source, dialect, backend: nil)
-      requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
-      return unsupported_feature_merge_result("Unsupported YAML backend #{requested}.") unless requested == BACKEND_REFERENCE.id
-
-      Yaml::Merge.merge_yaml_with_parser(template_source, destination_source, dialect) do |source, parse_dialect|
-        parse_yaml(source, parse_dialect, backend: requested)
+    # Raised when a YAML file has parsing errors.
+    # Inherits from Ast::Merge::ParseError for consistency across merge gems.
+    #
+    # @example Handling parse errors
+    #   begin
+    #     analysis = FileAnalysis.new(yaml_content)
+    #   rescue ParseError => e
+    #     puts "YAML syntax error: #{e.message}"
+    #     e.errors.each { |error| puts "  #{error}" }
+    #   end
+    class ParseError < Ast::Merge::ParseError
+      # @param message [String, nil] Error message (auto-generated if nil)
+      # @param content [String, nil] The YAML source that failed to parse
+      # @param errors [Array] Parse errors from Psych
+      def initialize(message = nil, content: nil, errors: [])
+        super(message, errors: errors, content: content)
       end
     end
 
-    def parse_error_result(message)
-      { ok: false, diagnostics: [{ severity: "error", category: "parse_error", message: message }], policies: [] }
-    end
-    private_class_method :parse_error_result
+    # Raised when the template file has syntax errors.
+    #
+    # @example Handling template parse errors
+    #   begin
+    #     merger = SmartMerger.new(template, destination)
+    #     result = merger.merge
+    #   rescue TemplateParseError => e
+    #     puts "Template syntax error: #{e.message}"
+    #     e.errors.each do |error|
+    #       puts "  #{error.message}"
+    #     end
+    #   end
+    class TemplateParseError < ParseError; end
 
-    def unsupported_feature_parse_result(message)
-      { ok: false, diagnostics: [{ severity: "error", category: "unsupported_feature", message: message }], policies: [] }
-    end
-    private_class_method :unsupported_feature_parse_result
+    # Raised when the destination file has syntax errors.
+    #
+    # @example Handling destination parse errors
+    #   begin
+    #     merger = SmartMerger.new(template, destination)
+    #     result = merger.merge
+    #   rescue DestinationParseError => e
+    #     puts "Destination syntax error: #{e.message}"
+    #     e.errors.each do |error|
+    #       puts "  #{error.message}"
+    #     end
+    #   end
+    class DestinationParseError < ParseError; end
 
-    def unsupported_feature_merge_result(message)
-      { ok: false, diagnostics: [{ severity: "error", category: "unsupported_feature", message: message }], policies: [] }
-    end
-    private_class_method :unsupported_feature_merge_result
+    class CorruptionDetectedError < Error; end
 
-    def unsupported_feature_result(message)
-      { ok: false, diagnostic: { severity: "error", category: "unsupported_feature", message: message } }
+    autoload :CommentTracker, "psych/merge/comment_tracker"
+    autoload :DebugLogger, "psych/merge/debug_logger"
+    autoload :DiffMapper, "psych/merge/diff_mapper"
+    autoload :Emitter, "psych/merge/emitter"
+    autoload :FreezeNode, "psych/merge/freeze_node"
+    autoload :FileAnalysis, "psych/merge/file_analysis"
+    autoload :MappingEntry, "psych/merge/file_analysis"
+    autoload :MergeResult, "psych/merge/merge_result"
+    autoload :NodeTypeNormalizer, "psych/merge/node_type_normalizer"
+    autoload :NodeWrapper, "psych/merge/node_wrapper"
+    autoload :ConflictResolver, "psych/merge/conflict_resolver"
+    autoload :PartialTemplateMerger, "psych/merge/partial_template_merger"
+    autoload :SmartMerger, "psych/merge/smart_merger"
+    autoload :MappingMatchRefiner, "psych/merge/mapping_match_refiner"
+
+    class << self
+      def yaml_feature_profile
+        {
+          family: "yaml",
+          supported_dialects: ["yaml"],
+          supported_policies: [DESTINATION_WINS_ARRAY_POLICY]
+        }
+      end
+
+      def available_yaml_backends
+        [BACKEND_REFERENCE]
+      end
+
+      def yaml_backend_feature_profile(backend: nil)
+        requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
+        return unsupported_feature_result("Unsupported YAML backend #{requested}.") unless requested == BACKEND_REFERENCE.id
+
+        yaml_feature_profile.merge(
+          backend: BACKEND_REFERENCE.id,
+          backend_ref: BACKEND_REFERENCE.to_h
+        )
+      end
+
+      def yaml_plan_context(backend: nil)
+        profile = yaml_backend_feature_profile(backend: backend)
+        return profile if profile[:ok] == false
+
+        {
+          family_profile: yaml_feature_profile,
+          feature_profile: {
+            backend: profile[:backend],
+            supports_dialects: true,
+            supported_policies: profile[:supported_policies]
+          }
+        }
+      end
+
+      def parse_yaml(source, dialect, backend: nil)
+        requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
+        return unsupported_feature_parse_result("Unsupported YAML backend #{requested}.") unless requested == BACKEND_REFERENCE.id
+        return unsupported_feature_parse_result("Unsupported YAML dialect #{dialect}.") unless dialect == "yaml"
+
+        parsed = YAML.safe_load(source, permitted_classes: [], aliases: false)
+        Yaml::Merge.analyze_yaml_document(parsed, dialect)
+      rescue StandardError => e
+        parse_error_result(e.message)
+      end
+
+      def match_yaml_owners(template, destination)
+        Yaml::Merge.match_yaml_owners(template, destination)
+      end
+
+      def merge_yaml(template_source, destination_source, dialect, backend: nil)
+        requested = backend.to_s.empty? ? BACKEND_REFERENCE.id : backend.to_s
+        return unsupported_feature_merge_result("Unsupported YAML backend #{requested}.") unless requested == BACKEND_REFERENCE.id
+        return unsupported_feature_merge_result("Unsupported YAML dialect #{dialect}.") unless dialect == "yaml"
+
+        unless template_source.match?(/^\s*#/) || destination_source.match?(/^\s*#/)
+          return Yaml::Merge.merge_yaml_with_parser(template_source, destination_source, dialect) do |source, parse_dialect|
+            parse_yaml(source, parse_dialect, backend: requested)
+          end
+        end
+
+        output = SmartMerger.new(
+          template_source,
+          destination_source,
+          preference: :destination,
+          add_template_only_nodes: true,
+          add_template_only_sequence_items: false,
+          recursive: true
+        ).merge
+
+        {
+          ok: true,
+          diagnostics: [],
+          output: output,
+          policies: [DESTINATION_WINS_ARRAY_POLICY]
+        }
+      rescue TemplateParseError => e
+        { ok: false, diagnostics: [diagnostic("error", "template_parse_error", e.message)], policies: [] }
+      rescue DestinationParseError => e
+        { ok: false, diagnostics: [diagnostic("error", "destination_parse_error", e.message)], policies: [] }
+      rescue StandardError => e
+        { ok: false, diagnostics: [diagnostic("error", "merge_error", e.message)], policies: [] }
+      end
+
+      def register_backend!
+        BACKEND_REGISTRY.mutex.synchronize do
+          return if BACKEND_REGISTRY.registered
+
+          TreeHaver::BackendRegistry.register(BACKEND_REFERENCE)
+
+          TreeHaver.register_language(
+            :yaml,
+            backend_module: TreeHaver::Backends::Psych,
+            backend_type: :psych,
+            gem_name: "psych",
+          )
+
+          BACKEND_REGISTRY.registered = true
+        end
+      end
+
+      private
+
+      def diagnostic(severity, category, message)
+        { severity: severity, category: category, message: message }
+      end
+
+      def parse_error_result(message)
+        { ok: false, diagnostics: [diagnostic("error", "parse_error", message)], policies: [] }
+      end
+
+      def unsupported_feature_parse_result(message)
+        { ok: false, diagnostics: [diagnostic("error", "unsupported_feature", message)], policies: [] }
+      end
+
+      def unsupported_feature_merge_result(message)
+        { ok: false, diagnostics: [diagnostic("error", "unsupported_feature", message)], policies: [] }
+      end
+
+      def unsupported_feature_result(message)
+        { ok: false, diagnostic: diagnostic("error", "unsupported_feature", message) }
+      end
     end
-    private_class_method :unsupported_feature_result
   end
+end
+
+Psych::Merge.register_backend!
+
+# Register with ast-merge's MergeGemRegistry for RSpec dependency tags
+# Only register if MergeGemRegistry is loaded (i.e., in test environment)
+if defined?(Ast::Merge::RSpec::MergeGemRegistry)
+  Ast::Merge::RSpec::MergeGemRegistry.register(
+    :psych_merge,
+    require_path: "psych/merge",
+    merger_class: "Psych::Merge::SmartMerger",
+    test_source: "key: value",
+    category: :config,
+  )
+end
+
+Psych::Merge::Version.class_eval do
+  extend VersionGem::Basic
 end

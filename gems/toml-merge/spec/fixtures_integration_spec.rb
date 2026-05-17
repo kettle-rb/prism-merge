@@ -56,7 +56,11 @@ RSpec.describe Toml::Merge do
   it "keeps the shared family feature fixture stable while exposing the substrate backend feature profile" do
     expect(json_ready(described_class.toml_feature_profile)).to eq(json_ready(family_profile_fixture[:feature_profile]))
     expect(json_ready(described_class.available_toml_backends.map(&:to_h))).to eq(
-      json_ready([{ id: "kreuzberg-language-pack", family: "tree-sitter" }])
+      json_ready([
+        { id: "kreuzberg-language-pack", family: "tree-sitter" },
+        { id: "citrus", family: "peg" },
+        { id: "parslet", family: "peg" }
+      ])
     )
     expect(json_ready(TreeHaver::BackendRegistry.fetch("kreuzberg-language-pack")&.to_h)).to eq(
       json_ready({ id: "kreuzberg-language-pack", family: "tree-sitter" })
@@ -122,11 +126,34 @@ RSpec.describe Toml::Merge do
   end
 
   it "rejects unsupported provider backend overrides" do
-    result = described_class.parse_toml("title = \"x\"\n", "toml", backend: "parslet")
+    result = described_class.parse_toml("title = \"x\"\n", "toml", backend: "bogus")
     expect(result[:ok]).to be(false)
     expect(result[:diagnostics]).to eq(
-      [{ severity: "error", category: "unsupported_feature", message: "Unsupported TOML backend parslet." }]
+      [{ severity: "error", category: "unsupported_feature", message: "Unsupported TOML backend bogus." }]
     )
+  end
+
+  it "preserves destination TOML comments and blank lines while adding template-only keys" do
+    template = <<~TOML
+      # project configuration
+      name = "kettle-jem"
+      generated = true
+    TOML
+    destination = <<~TOML
+      # project configuration
+      name = "kettle-jem"
+
+      # local operator notes
+      local = true
+    TOML
+
+    result = described_class.merge_toml(template, destination, "toml")
+
+    expect(result[:ok]).to be(true)
+    expect(result[:output]).to include("# project configuration")
+    expect(result[:output]).to include("\n\n# local operator notes\n")
+    expect(result[:output]).to include("local = true")
+    expect(result[:output]).to include("generated = true")
   end
 
   it "conforms to the slice-139 family named-suite plan fixture" do

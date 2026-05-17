@@ -175,11 +175,32 @@ module Kettle
 
         def write_template_root_override(root, template_root)
           config_path = File.join(root, ".kettle-jem.yml")
-          config = File.file?(config_path) ? YAML.load_file(config_path) : {}
-          config = {} unless config.is_a?(Hash)
-          config["templates"] = {} unless config["templates"].is_a?(Hash)
-          config["templates"]["root"] = File.expand_path(template_root)
-          File.write(config_path, config.to_yaml)
+          content = File.file?(config_path) ? File.read(config_path) : ""
+          File.write(config_path, upsert_template_root_override(content, File.expand_path(template_root)))
+        end
+
+        def upsert_template_root_override(content, template_root)
+          lines = content.to_s.lines
+          template_index = lines.index { |line| line.match?(/\Atemplates:\s*(?:#.*)?\n?\z/) }
+          if template_index
+            root_index = ((template_index + 1)...lines.length).find do |index|
+              line = lines[index]
+              break nil unless line.strip.empty? || line.start_with?(" ")
+
+              line.match?(/\A\s+root\s*:/)
+            end
+            if root_index
+              lines[root_index] = "  root: #{template_root}\n"
+            else
+              lines.insert(template_index + 1, "  root: #{template_root}\n")
+            end
+          else
+            lines << "\n" unless lines.empty? || lines.last.to_s.strip.empty?
+            lines << "templates:\n"
+            lines << "  root: #{template_root}\n"
+          end
+          output = lines.join
+          output.end_with?("\n") ? output : "#{output}\n"
         end
 
         def drift_report(after_dir:, template_root:)
