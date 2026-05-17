@@ -1,0 +1,7 @@
+Line one
+Line two
+# text-merge:freeze
+Frozen custom content
+# text-merge:unfreeze
+Line three
+Destination only line

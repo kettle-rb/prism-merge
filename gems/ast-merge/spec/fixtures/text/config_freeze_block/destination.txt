@@ -1,0 +1,6 @@
+Line one
+# text-merge:freeze
+Custom frozen content
+More frozen content
+# text-merge:unfreeze
+Line three
