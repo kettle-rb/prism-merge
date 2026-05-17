@@ -1,21 +1,21 @@
-project_emoji: "🍲"
+project_emoji: "\U0001F372"
 engines:
-  - ruby
-  - jruby
-  - truffleruby
+- ruby
+- jruby
+- truffleruby
 readme:
   top_logo_mode: org
 licenses:
-  - AGPL-3.0-only
-  - PolyForm-Small-Business-1.0.0
+- AGPL-3.0-only
+- PolyForm-Small-Business-1.0.0
 machine_users:
-  - autobolt
+- autobolt
 min_divergence_threshold: 5
 templates:
   root: packaged
   apply: true
 plugins:
-  - kettle-drift
+- kettle-drift
 defaults:
   preference: template
   add_template_only_nodes: true
@@ -27,12 +27,12 @@ tokens:
     cb_user: pboling
     sh_user: galtzo
   author:
-    name: "Peter H. Boling"
-    given_names: "Peter H."
+    name: Peter H. Boling
+    given_names: Peter H.
     family_names: Boling
-    email: "floss@galtzo.com"
+    email: floss@galtzo.com
     domain: galtzo.com
-    orcid: 0009-0008-8519-441X
+    orcid: '0009-0008-8519-441X'
   funding:
     patreon: galtzo
     kofi: pboling
@@ -47,13 +47,12 @@ tokens:
     linktree: galtzo
     devto: galtzo
 patterns:
-  -
-    path: "certs/**"
-    strategy: raw_copy
+- path: certs/**
+  strategy: raw_copy
 files:
   AGENTS.md:
     strategy: accept_template
-  .github:
+  ".github":
     copilot_instructions.md:
       strategy: accept_template
   gemfiles:

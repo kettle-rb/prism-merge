@@ -4,7 +4,6 @@
 # Loaded by the associated non-local gemfile when KETTLE_RB_DEV != "false".
 
 require "nomono/bundler" unless defined?(Nomono)
-
 local_gems = %w[
   tree_haver
   ast-merge
@@ -20,7 +19,7 @@ local_gems = %w[
   markly-merge
 ]
 
-# export VENDORED_GEMS=bash-merge,dotenv-merge,json-merge,jsonc-merge,kettle-drift,markdown-merge,prism-merge,psych-merge,rbs-merge,toml-merge,markly-merge
+# export VENDORED_GEMS=bash-merge,dotenv-merge,json-merge,jsonc-merge,kettle-drift,markdown-merge,prism-merge,psych-merge,rbs-merge,toml-merge,markly-merge,kettle-jem
 platform :mri do
   eval_nomono_gems(
     gems: local_gems,
