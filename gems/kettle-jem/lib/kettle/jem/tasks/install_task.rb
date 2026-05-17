@@ -518,7 +518,7 @@ module Kettle
         end
 
         def setup_command_env(project_root, env)
-          command_env = (env || {}).dup
+          command_env = (env || {}).to_h
           gemfile = File.join(project_root.to_s, "Gemfile")
           command_env["BUNDLE_GEMFILE"] = gemfile if File.file?(gemfile)
           command_env

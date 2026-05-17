@@ -1655,6 +1655,50 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "runs setup commands when the caller passes Ruby ENV" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-install-env-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        "Gemfile" => "source \"https://gem.coop\"\n",
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - bin/setup
+        YAML
+      })
+
+      command_envs = []
+      command_runner = lambda do |_command, chdir:, env:, quiet:|
+        expect(chdir).to eq(root)
+        expect(quiet).to be(true)
+        command_envs << env
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+
+      expect {
+        Kettle::Jem::Tasks::InstallTask.run(
+          project_root: root,
+          env: ENV,
+          run_options: {only: "bin/setup", quiet: true, skip_commit: true},
+          command_runner: command_runner
+        )
+      }.not_to raise_error
+
+      expect(command_envs).not_to be_empty
+      expect(command_envs).to all(be_a(Hash))
+      expect(command_envs).to all(include("BUNDLE_GEMFILE" => File.join(root, "Gemfile")))
+    end
+  end
+
   it "reports gemspec dependency sync through the install task" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
