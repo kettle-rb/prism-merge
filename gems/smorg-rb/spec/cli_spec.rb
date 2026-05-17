@@ -16,6 +16,11 @@ RSpec.describe Smorg::RB do
     JSON.parse(File.read(path))
   end
 
+  def git_driver_fallback_fixture
+    path = File.expand_path("../../../../fixtures/diagnostics/slice-954-git-driver-fallback/git-driver-fallback.json", __dir__)
+    JSON.parse(File.read(path))
+  end
+
   def run_git(dir, *args)
     return skip("git executable is required for repository integration fixture") unless system("git", "--version", out: File::NULL, err: File::NULL)
 
@@ -94,6 +99,35 @@ RSpec.describe Smorg::RB do
     expect(current_source).to include("=======")
     expect(current_source).to include(">>>>>>> theirs")
     expect(stderr.string).to include("parse_error")
+  end
+
+  it "conforms to the git-driver fallback fixture" do
+    git_driver_fallback_fixture.fetch("cases").each do |test_case|
+      Dir.mktmpdir("smorg-rb-fallback-") do |dir|
+        ancestor = write_file(dir, "ancestor.json", test_case.fetch("base_source"))
+        current = write_file(dir, "current.json", test_case.fetch("ours_source"))
+        other = write_file(dir, "other.json", test_case.fetch("theirs_source"))
+        args = ["merge-driver"]
+        args << "--strict" if test_case.dig("options", "strict")
+        fallback = test_case.dig("options", "fallback")
+        args.concat(["--fallback", fallback]) if fallback && fallback != "full-file"
+        args.concat([ancestor, current, other, test_case.fetch("path_name")])
+        stdout = StringIO.new
+        stderr = StringIO.new
+
+        exit_code = described_class.run(args, stdout: stdout, stderr: stderr)
+        expected = test_case.fetch("expected")
+        current_source = File.read(current)
+        expect(exit_code).to eq(expected.fetch("exit_code")), test_case.fetch("case_id")
+        expect(current_source).to eq(expected.fetch("merged_source")) if expected["merged_source"]
+        expected.fetch("source_contains", []).each do |needle|
+          expect(current_source).to include(needle), test_case.fetch("case_id")
+        end
+        expected.fetch("stderr_contains", []).each do |needle|
+          expect(stderr.string).to include(needle), test_case.fetch("case_id")
+        end
+      end
+    end
   end
 
   it "uses the ancestor for JSON same-key conflicts" do
