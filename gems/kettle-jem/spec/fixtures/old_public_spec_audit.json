@@ -161,17 +161,16 @@
     },
     {
       "path": "spec/kettle/jem/tasks/self_test_task_spec.rb",
-      "status": "partial",
+      "status": "ported",
       "active_specs": ["spec/self_test_task_spec.rb", "spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "selftest task entrypoint",
-        "machine-readable and markdown drift report shape"
-      ],
-      "remaining_behaviors": [
-        "default Kettle/Jem-against-itself validation parity",
+        "machine-readable and markdown drift report shape",
         "destination-gem drift scoring backed by kettle-drift semantics",
-        "real scaffold project selftest fixtures"
+        "real scaffold project selftest fixtures",
+        "default Kettle/Jem-against-itself validation parity"
       ],
+      "remaining_behaviors": [],
       "notes": "Selftest now validates template output against a destination and emits machine-readable plus markdown drift reports."
     },
     {

@@ -45,7 +45,7 @@ module Kettle
           File.write(File.join(report_dir, "before.json"), "#{JSON.pretty_generate(before)}\n")
 
           write_template_root_override(after_dir, template_root) if template_root
-          Kettle::Jem.apply_project(after_dir, env: ENV, run_options: {accept: true, force: true})
+          Kettle::Jem.apply_project(after_dir, env: ENV, run_options: {accept: true, force: true, skip_commit: true})
 
           after = Kettle::Jem::SelfTest::Manifest.generate(after_dir)
           File.write(File.join(report_dir, "after.json"), "#{JSON.pretty_generate(after)}\n")

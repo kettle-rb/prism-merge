@@ -62,4 +62,32 @@ RSpec.describe Kettle::Jem::Tasks::SelfTestTask do
       expect(result.fetch(:comparison).fetch(:added)).to eq(["unexpected.txt"])
     end
   end
+
+  it "runs a real scaffold selftest through the template apply path" do
+    tmp_root = File.join(__dir__, "tmp").tap { |path| FileUtils.mkdir_p(path) }
+    Dir.mktmpdir("kettle-jem-selftest-real-scaffold", tmp_root) do |root|
+      write_file(root, "example.gemspec", <<~RUBY)
+        Gem::Specification.new do |spec|
+          spec.name = "example"
+          spec.summary = "Example"
+        end
+      RUBY
+      write_file(root, ".kettle-jem.yml", <<~YAML)
+        templates:
+          root: template
+          apply: true
+          entries:
+            - README.md
+      YAML
+      write_file(root, "README.md", "# Before\n")
+      write_file(root, "template/README.md.example", "# Example\n")
+
+      result = described_class.run(project_root: root, min_divergence_threshold: 100)
+
+      expect(result.fetch(:comparison).fetch(:changed)).to include("README.md")
+      expect(result.fetch(:output_root)).to start_with(File.join(root, "tmp", "template_test", "output"))
+      expect(File.read(File.join(result.fetch(:output_root), "README.md"))).to include("# Example")
+      expect(File).to exist(result.fetch(:report_path))
+    end
+  end
 end
