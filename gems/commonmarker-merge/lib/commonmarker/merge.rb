@@ -12,6 +12,14 @@ module Commonmarker
     PACKAGE_NAME = "commonmarker-merge"
     BACKEND_REFERENCE = TreeHaver::BackendReference.new(id: "commonmarker", family: "native").freeze
     TreeHaver::BackendRegistry.register(BACKEND_REFERENCE)
+    Markdown::Merge::WrapperSupport.install!(
+      wrapper_module: self,
+      require_prefix: "commonmarker/merge",
+      default_freeze_token: "commonmarker-merge",
+      default_inner_merge_code_blocks: false,
+      registry_tag: :commonmarker_merge,
+      merger_class: "Commonmarker::Merge::SmartMerger",
+    )
 
     def markdown_feature_profile
       Markdown::Merge.markdown_feature_profile
@@ -170,6 +178,8 @@ module Commonmarker
     )
   end
 end
+
+Commonmarker::Merge.ensure_backend_loaded!
 
 Commonmarker::Merge::Version.class_eval do
   extend VersionGem::Basic

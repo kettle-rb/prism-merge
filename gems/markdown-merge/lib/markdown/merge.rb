@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
 require "version_gem"
+require "set"
 
+require "ast/merge"
 require "tree_haver"
+
+require_relative "merge/version"
 
 module Markdown
   module Merge
@@ -10,6 +14,52 @@ module Markdown
     BACKEND_REFERENCES = {
       "kreuzberg-language-pack" => TreeHaver::KREUZBERG_LANGUAGE_PACK_BACKEND
     }.freeze
+
+    class Error < Ast::Merge::Error; end
+
+    class ParseError < Ast::Merge::ParseError
+      def initialize(message = nil, content: nil, errors: [])
+        super(message, errors: errors, content: content)
+      end
+    end
+
+    class TemplateParseError < ParseError; end
+
+    class DestinationParseError < ParseError; end
+
+    class CorruptionDetectedError < Error; end
+
+    autoload :BackendSupport, "markdown/merge/backend_support"
+    autoload :Cleanse, "markdown/merge/cleanse"
+    autoload :CodeBlockMatchRefiner, "markdown/merge/code_block_match_refiner"
+    autoload :CodeBlockMerger, "markdown/merge/code_block_merger"
+    autoload :CommentTracker, "markdown/merge/comment_tracker"
+    autoload :ConflictResolver, "markdown/merge/conflict_resolver"
+    autoload :DebugLogger, "markdown/merge/debug_logger"
+    autoload :DocumentProblems, "markdown/merge/document_problems"
+    autoload :FileAligner, "markdown/merge/file_aligner"
+    autoload :FileAnalysis, "markdown/merge/file_analysis"
+    autoload :FileAnalysisBase, "markdown/merge/file_analysis_base"
+    autoload :FreezeNode, "markdown/merge/freeze_node"
+    autoload :GapLineNode, "markdown/merge/gap_line_node"
+    autoload :LinkDefinitionFormatter, "markdown/merge/link_definition_formatter"
+    autoload :LinkDefinitionNode, "markdown/merge/link_definition_node"
+    autoload :LinkParser, "markdown/merge/link_parser"
+    autoload :LinkReferenceRehydrator, "markdown/merge/link_reference_rehydrator"
+    autoload :ListMatchRefiner, "markdown/merge/list_match_refiner"
+    autoload :ListMerger, "markdown/merge/list_merger"
+    autoload :MarkdownStructure, "markdown/merge/markdown_structure"
+    autoload :MergeResult, "markdown/merge/merge_result"
+    autoload :NodeTypeNormalizer, "markdown/merge/node_type_normalizer"
+    autoload :OutputBuilder, "markdown/merge/output_builder"
+    autoload :PartialTemplateMerger, "markdown/merge/partial_template_merger"
+    autoload :PreservationSupport, "markdown/merge/preservation_support"
+    autoload :SmartMerger, "markdown/merge/smart_merger"
+    autoload :SmartMergerBase, "markdown/merge/smart_merger_base"
+    autoload :TableMatchAlgorithm, "markdown/merge/table_match_algorithm"
+    autoload :TableMatchRefiner, "markdown/merge/table_match_refiner"
+    autoload :WhitespaceNormalizer, "markdown/merge/whitespace_normalizer"
+    autoload :WrapperSupport, "markdown/merge/wrapper_support"
 
     def markdown_feature_profile
       {
@@ -549,6 +599,15 @@ module Markdown
       :unsupported_feature_result
     )
   end
+end
+
+%w[
+  commonmarker/merge/backend
+  markly/merge/backend
+].each do |feature|
+  require feature
+rescue LoadError
+  nil
 end
 
 Markdown::Merge::Version.class_eval do

@@ -12,6 +12,14 @@ module Markly
     PACKAGE_NAME = "markly-merge"
     BACKEND_REFERENCE = TreeHaver::BackendReference.new(id: "markly", family: "native").freeze
     TreeHaver::BackendRegistry.register(BACKEND_REFERENCE)
+    Markdown::Merge::WrapperSupport.install!(
+      wrapper_module: self,
+      require_prefix: "markly/merge",
+      default_freeze_token: "markly-merge",
+      default_inner_merge_code_blocks: true,
+      registry_tag: :markly_merge,
+      merger_class: "Markly::Merge::SmartMerger",
+    )
 
     def markdown_feature_profile
       Markdown::Merge.markdown_feature_profile
@@ -496,6 +504,8 @@ module Markly
     )
   end
 end
+
+Markly::Merge.ensure_backend_loaded!
 
 Markly::Merge::Version.class_eval do
   extend VersionGem::Basic

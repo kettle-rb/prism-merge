@@ -1,0 +1,26 @@
+--- /var/home/pboling/src/kettle-rb/ast-merge/vendor/markly-merge/spec/fixtures/reproducible/06_real_readme_merge/expected_result.md	2025-12-27 00:51:54.493775678 -0700
++++ /var/home/pboling/src/kettle-rb/ast-merge/vendor/markly-merge/spec/fixtures/reproducible/06_real_readme_merge/actual_result.md	2025-12-27 01:38:48.054403217 -0700
+@@ -407,9 +407,9 @@
+ 
+ NOTE: [kettle-readme-backers][kettle-readme-backers] updates this list every day, automatically.
+ 
+-<!-- OPENCOLLECTIVE-INDIVIDUALS:START -->
++
+ No backers yet. Be the first!
+-<!-- OPENCOLLECTIVE-INDIVIDUALS:END -->
++
+ 
+ ### Open Collective for Organizations
+ 
+@@ -417,9 +417,9 @@
+ 
+ NOTE: [kettle-readme-backers][kettle-readme-backers] updates this list every day, automatically.
+ 
+-<!-- OPENCOLLECTIVE-ORGANIZATIONS:START -->
++
+ No sponsors yet. Be the first!
+-<!-- OPENCOLLECTIVE-ORGANIZATIONS:END -->
++
+ 
+ [kettle-readme-backers]: https://github.com/kettle-rb/markly-merge/blob/main/exe/kettle-readme-backers
+ 
