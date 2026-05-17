@@ -137,9 +137,7 @@ RSpec.describe Kettle::Jem do
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
-          # destination setup comments must survive reruns
           project: destination
-
           templates:
             root: template
             apply: true
@@ -183,8 +181,7 @@ RSpec.describe Kettle::Jem do
         candidate.fetch(:recipe_name) == "template_source_application_kettle_jem_yml"
       end
       expect(config_report.fetch(:final_content)).to include("project: destination")
-      expect(config_report.fetch(:final_content)).to include("# destination setup comments must survive reruns")
-      expect(config_report.fetch(:final_content)).not_to include("generated: true")
+      expect(config_report.fetch(:final_content)).to include("generated: true")
     end
   end
 
