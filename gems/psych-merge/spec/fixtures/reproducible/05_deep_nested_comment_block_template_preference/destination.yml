@@ -1,0 +1,7 @@
+root:
+  parent:
+    child:
+      # Destination grandchild docs
+      # More destination docs
+
+      grandchild: dest_value

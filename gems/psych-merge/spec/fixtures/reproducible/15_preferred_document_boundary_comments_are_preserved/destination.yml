@@ -1,0 +1,8 @@
+defaults:
+  preference: destination
+
+patterns:
+  - path: certs/**
+    strategy: raw_copy
+
+files: {}

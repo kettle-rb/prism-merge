@@ -1,0 +1,10 @@
+authors:
+  - given-names: Peter Hurn
+    family-names: Boling
+    email: floss@galtzo.com
+    affiliation: galtzo.com
+    orcid: https://orcid.org/0009-0008-8519-441X
+identifiers:
+  - type: url
+    value: https://github.com/kettle-rb/kettle-jem
+    description: "kettle-jem"

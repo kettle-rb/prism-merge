@@ -1,0 +1,6 @@
+groups:
+  # Keep group docs
+  - - keep
+    - template_inner
+  - - added
+    - template_added

@@ -1,0 +1,11 @@
+settings:
+  # Keep docs
+  keep: template_value # keep inline
+
+  # Shared section docs
+  # More shared docs
+
+
+  # Remove docs
+  # remove inline
+  added: template_added

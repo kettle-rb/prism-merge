@@ -1,0 +1,10 @@
+jobs:
+  test:
+    steps:
+      - name: Install tree-sitter library
+        uses: kettle-rb/ts-grammar-action@main
+
+      - name: Setup Ruby & RubyGems
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true

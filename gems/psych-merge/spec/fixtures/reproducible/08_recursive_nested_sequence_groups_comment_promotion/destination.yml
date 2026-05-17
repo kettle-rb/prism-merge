@@ -1,0 +1,8 @@
+groups:
+  # Keep group docs
+  - - keep # keep inline
+    - dest_inner
+
+  # Remove group docs
+  - - remove
+    - dest_removed # remove inline

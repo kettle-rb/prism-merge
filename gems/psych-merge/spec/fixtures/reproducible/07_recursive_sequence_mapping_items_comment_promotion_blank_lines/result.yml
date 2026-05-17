@@ -1,0 +1,8 @@
+items:
+  # Keep item docs
+  - name: keep
+    value: template_value # keep inline
+  # Remove item docs
+    # remove inline
+  - name: added
+    value: template_added

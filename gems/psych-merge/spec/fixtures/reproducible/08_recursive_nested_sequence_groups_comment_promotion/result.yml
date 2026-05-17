@@ -1,0 +1,8 @@
+groups:
+  # Keep group docs
+  - - keep # keep inline
+    - template_inner
+  # Remove group docs
+    # remove inline
+  - - added
+    - template_added

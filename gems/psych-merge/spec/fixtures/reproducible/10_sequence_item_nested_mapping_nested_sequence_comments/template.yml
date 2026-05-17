@@ -1,0 +1,9 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - keep_rule
+        - add_rule
+  - name: untouched
+    config:
+      stable: template_stable

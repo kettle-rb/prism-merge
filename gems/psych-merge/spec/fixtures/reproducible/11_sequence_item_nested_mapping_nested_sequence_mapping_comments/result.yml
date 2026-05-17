@@ -1,0 +1,17 @@
+items:
+  - name: keep
+    config:
+      rules:
+        # Keep rule docs
+        - id: keep
+          value: template_value # keep inline
+        # Shared rule docs
+        # More shared rule docs
+
+        # Remove rule docs
+          # remove inline
+        - id: add
+          value: template_added
+  - name: untouched
+    config:
+      stable: template_stable

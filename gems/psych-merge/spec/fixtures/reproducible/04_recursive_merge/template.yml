@@ -1,0 +1,8 @@
+AllCops:
+  Exclude:
+    - examples/**/*
+    - vendor/**/*
+  NewCops: enable
+Style:
+  EnforcedStyle: double_quotes
+

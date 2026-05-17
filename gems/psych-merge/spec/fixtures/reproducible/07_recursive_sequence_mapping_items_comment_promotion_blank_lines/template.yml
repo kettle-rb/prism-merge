@@ -1,0 +1,5 @@
+items:
+  - name: keep
+    value: template_value
+  - name: added
+    value: template_added

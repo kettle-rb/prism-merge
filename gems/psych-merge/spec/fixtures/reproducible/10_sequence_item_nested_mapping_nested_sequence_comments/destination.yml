@@ -1,0 +1,15 @@
+items:
+  - name: keep
+    config:
+      rules:
+        # Keep docs
+        - keep_rule # keep inline
+
+        # Shared section docs
+        # More shared docs
+
+        # Remove docs
+        - remove_rule # remove inline
+  - name: untouched
+    config:
+      stable: dest_stable

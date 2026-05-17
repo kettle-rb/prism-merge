@@ -1,0 +1,13 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - id: alpha
+          scope: first
+          value: template_first
+        - id: alpha
+          scope: second
+          value: template_second
+        - id: alpha
+          scope: add
+          value: template_add

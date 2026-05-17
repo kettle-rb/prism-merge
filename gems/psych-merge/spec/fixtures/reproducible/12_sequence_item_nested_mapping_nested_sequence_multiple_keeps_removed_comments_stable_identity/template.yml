@@ -1,0 +1,10 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - id: alpha
+          value: template_alpha
+        - id: beta
+          value: template_beta
+        - id: add
+          value: template_add

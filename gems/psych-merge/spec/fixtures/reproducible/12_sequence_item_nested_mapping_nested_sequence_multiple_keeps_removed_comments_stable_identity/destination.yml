@@ -1,0 +1,13 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - id: beta
+          value: dest_beta # beta inline
+
+        # Removed rule docs
+        - id: remove
+          value: dest_remove # remove inline
+
+        - id: alpha
+          value: dest_alpha # alpha inline

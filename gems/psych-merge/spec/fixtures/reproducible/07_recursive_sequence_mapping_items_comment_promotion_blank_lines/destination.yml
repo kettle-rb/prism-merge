@@ -1,0 +1,8 @@
+items:
+  # Keep item docs
+  - name: keep
+    value: dest_value # keep inline
+
+  # Remove item docs
+  - name: remove
+    value: old_value # remove inline

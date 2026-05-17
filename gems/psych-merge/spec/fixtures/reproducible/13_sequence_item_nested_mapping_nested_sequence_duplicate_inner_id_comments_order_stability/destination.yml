@@ -1,0 +1,16 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - id: alpha
+          scope: second
+          value: dest_second # second inline
+
+        # Removed duplicate docs
+        - id: alpha
+          scope: remove
+          value: dest_remove # remove inline
+
+        - id: alpha
+          scope: first
+          value: dest_first # first inline

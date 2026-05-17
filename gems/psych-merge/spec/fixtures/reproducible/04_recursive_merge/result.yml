@@ -1,0 +1,13 @@
+AllCops:
+  Exclude:
+    - tmp/**/*
+    - coverage/**/*
+    - examples/**/*
+    - vendor/**/*
+  TargetRubyVersion: 3.2
+  NewCops: enable
+Metrics:
+  MaxLineLength: 120
+Style:
+  EnforcedStyle: double_quotes
+

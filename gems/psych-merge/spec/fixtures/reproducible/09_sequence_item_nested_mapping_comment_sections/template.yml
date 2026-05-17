@@ -1,0 +1,8 @@
+items:
+  - name: keep
+    config:
+      keep: template_value
+      add: template_added
+  - name: untouched
+    config:
+      stable: template_stable

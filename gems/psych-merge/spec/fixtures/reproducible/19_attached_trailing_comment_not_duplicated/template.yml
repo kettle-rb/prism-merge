@@ -1,0 +1,25 @@
+project_emoji: "\U0001F48E"
+engines:
+  ruby: 3.2
+defaults:
+  strategy: accept_destination
+tokens:
+  gem_name: my-gem
+patterns:
+  readme_sections:
+    - Installation
+    - Usage
+files:
+  AGENTS.md:
+    strategy: accept_template
+  gemfiles:
+    modular:
+      templating.gemfile:
+        strategy: accept_template
+      templating_local.gemfile:
+        strategy: accept_template
+# To override specific files, add entries like:
+#
+# files:
+#   README.md:
+#     strategy: accept_template

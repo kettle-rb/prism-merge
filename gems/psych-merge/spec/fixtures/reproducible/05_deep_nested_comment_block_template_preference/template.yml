@@ -1,0 +1,4 @@
+root:
+  parent:
+    child:
+      grandchild: template_value

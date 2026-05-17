@@ -1,0 +1,19 @@
+# kettle-jem configuration file
+#
+# top docs survive
+
+defaults:
+  preference: template
+
+patterns:
+  - path: certs/**
+    strategy: raw_copy
+  - path: workflows/**
+    strategy: merge
+
+files: {}
+
+# trailing example docs
+# files:
+#   README.md:
+#     strategy: accept_template

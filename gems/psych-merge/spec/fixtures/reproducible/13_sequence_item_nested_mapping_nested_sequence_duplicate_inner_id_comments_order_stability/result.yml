@@ -1,0 +1,15 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - id: alpha
+          scope: second
+          value: template_second # second inline
+        # Removed duplicate docs
+          # remove inline
+        - id: alpha
+          scope: first
+          value: template_first # first inline
+        - id: alpha
+          scope: add
+          value: template_add

@@ -1,0 +1,11 @@
+items:
+  - name: keep
+    config:
+      rules:
+        - id: keep
+          value: template_value
+        - id: add
+          value: template_added
+  - name: untouched
+    config:
+      stable: template_stable

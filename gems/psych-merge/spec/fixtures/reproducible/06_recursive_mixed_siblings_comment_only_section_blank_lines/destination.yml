@@ -1,0 +1,10 @@
+settings:
+  # Keep docs
+  keep: dest_value # keep inline
+
+  # Shared section docs
+  # More shared docs
+
+
+  # Remove docs
+  remove_me: old_value # remove inline

@@ -1,0 +1,6 @@
+name: my-project
+version: 1.0.0
+author: Template Author
+settings:
+  debug: false
+  log_level: info

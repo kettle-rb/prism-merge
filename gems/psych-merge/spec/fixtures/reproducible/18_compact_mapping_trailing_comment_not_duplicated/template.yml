@@ -1,0 +1,11 @@
+defaults:
+  preference: destination
+  add_template_only_nodes: true
+  freeze_token: kettle-jem
+files: {}
+
+# To override specific files:
+#
+# files:
+#   README.md:
+#     strategy: accept_template

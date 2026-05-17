@@ -1,0 +1,17 @@
+items:
+  - name: keep
+    config:
+      rules:
+        # Keep rule docs
+        - id: keep
+          value: dest_value # keep inline
+
+        # Shared rule docs
+        # More shared rule docs
+
+        # Remove rule docs
+        - id: remove
+          value: old_value # remove inline
+  - name: untouched
+    config:
+      stable: dest_stable

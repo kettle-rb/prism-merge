@@ -1,0 +1,13 @@
+defaults:
+  preference: destination
+  add_template_only_nodes: true
+  freeze_token: kettle-jem
+files:
+  AGENTS.md:
+    strategy: accept_template
+
+# To override specific files:
+#
+# files:
+#   README.md:
+#     strategy: accept_template

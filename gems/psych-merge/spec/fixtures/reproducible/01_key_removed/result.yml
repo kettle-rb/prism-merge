@@ -1,0 +1,6 @@
+name: my-project
+version: 1.0.0
+database:
+  host: localhost
+  port: 5432
+  name: production_db

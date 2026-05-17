@@ -1,0 +1,9 @@
+name: my-project
+version: 1.0.0
+database:
+  host: localhost
+  port: 5432
+  name: template_db
+redis:
+  host: localhost
+  port: 6379

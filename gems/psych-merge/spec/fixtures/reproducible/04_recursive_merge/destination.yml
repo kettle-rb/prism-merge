@@ -1,0 +1,8 @@
+AllCops:
+  Exclude:
+    - tmp/**/*
+    - coverage/**/*
+  TargetRubyVersion: 3.2
+Metrics:
+  MaxLineLength: 120
+
