@@ -149,10 +149,10 @@
         "obsolete workflow cleanup",
         "engine and minimum-Ruby packaged workflow pruning",
         "workflow YAML merge rules for custom workflow snippets",
-        "README badge alignment with actual generated workflow files"
+        "README badge alignment with actual generated workflow files",
+        "appraisal matrix pruning parity against old generated workflow set"
       ],
       "remaining_behaviors": [
-        "appraisal matrix pruning parity against old generated workflow set",
         "RubyGems minimum-Ruby shunted.gemfile generation",
         "duplicate drift checks during template/install runs"
       ]

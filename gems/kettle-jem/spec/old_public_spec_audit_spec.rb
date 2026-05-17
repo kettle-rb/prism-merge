@@ -48,10 +48,10 @@ RSpec.describe "old Kettle/Jem public spec audit" do
     template_task = files.find { |entry| entry.fetch(:path) == "spec/kettle/jem/tasks/template_task_spec.rb" }
     expect(template_task.fetch(:ported_behaviors)).to include(
       "legacy Markdown README H1, nested subsection, and fenced-code preservation",
-      "engine and minimum-Ruby packaged workflow pruning"
+      "appraisal matrix pruning parity against old generated workflow set"
     )
     expect(template_task.fetch(:remaining_behaviors)).to include(
-      "appraisal matrix pruning parity against old generated workflow set"
+      "RubyGems minimum-Ruby shunted.gemfile generation"
     )
   end
 end

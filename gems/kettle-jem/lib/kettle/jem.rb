@@ -2966,7 +2966,11 @@ module Kettle
 
     def merge_config_template_source(recipe, template_content, destination_content, facts: nil)
       file_type = template_file_type(recipe)
-      return template_content if destination_content.to_s.strip.empty?
+      if destination_content.to_s.strip.empty?
+        return prune_github_workflow_matrix_by_min_ruby(template_content, facts) if github_workflow_template_recipe?(recipe)
+
+        return template_content
+      end
       return destination_content if destination_content == template_content
 
       case file_type
@@ -3002,6 +3006,7 @@ module Kettle
         end
         return merge_appraisals_template_policy(output, facts: facts) if file_type == :appraisals
 
+        output = prune_github_workflow_matrix_by_min_ruby(output, facts) if github_workflow_template_recipe?(recipe)
         return output
       end
 
@@ -3010,6 +3015,60 @@ module Kettle
       diagnostics = merge_result.fetch(:diagnostics, [])
       message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
       raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def prune_github_workflow_matrix_by_min_ruby(content, facts)
+      min_ruby = minimum_ruby_token(facts.to_h.dig(:rubygems, :min_ruby))
+      return content if min_ruby.to_s.empty?
+
+      minimum = Gem::Version.new(min_ruby)
+      lines = content.to_s.lines
+      remove_indexes = Set.new
+      index = 0
+      while index < lines.length
+        line = lines[index]
+        match = line.match(/^(\s*)-\s+/)
+        unless match
+          index += 1
+          next
+        end
+
+        start_index = index
+        item_indent = match[1].length
+        index += 1
+        index += 1 while index < lines.length && !matrix_item_boundary?(lines[index], item_indent)
+        block = lines[start_index...index]
+        next unless prune_workflow_matrix_item?(block, minimum)
+
+        (start_index...index).each { |line_index| remove_indexes << line_index }
+      end
+
+      return content if remove_indexes.empty?
+
+      ensure_trailing_newline(lines.each_with_index.reject { |_line, line_index| remove_indexes.include?(line_index) }.map(&:first).join.gsub(/\n{3,}/, "\n\n"))
+    rescue StandardError
+      content
+    end
+
+    def matrix_item_boundary?(line, item_indent)
+      return false if line.strip.empty?
+
+      indent = line[/\A */].length
+      indent <= item_indent && line.match?(/^\s*-\s+/)
+    end
+
+    def prune_workflow_matrix_item?(lines, minimum)
+      lines.any? do |line|
+        ruby = line[/^\s*(?:-\s*)?ruby:\s*["']?([^"'\s]+)["']?/, 1]
+        ruby && Gem::Version.new(ruby) < minimum
+      rescue ArgumentError
+        false
+      end || lines.any? do |line|
+        match = line.match(/^\s*(?:-\s*)?appraisal:\s*["']?ruby-(\d+)-(\d+)["']?/)
+        match && Gem::Version.new("#{match[1]}.#{match[2]}") < minimum
+      rescue ArgumentError
+        false
+      end
     end
 
     def ruby_method_move_policy(recipe)

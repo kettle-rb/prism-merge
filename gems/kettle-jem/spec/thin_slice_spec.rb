@@ -2431,6 +2431,57 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "prunes GitHub workflow appraisal matrix entries below minimum Ruby" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-appraisal-workflow-prune", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - .github/workflows/appraisals.yml
+        YAML
+        "template/.github/workflows/appraisals.yml.example" => <<~YAML,
+          name: Appraisals
+          on:
+            pull_request:
+          jobs:
+            test:
+              strategy:
+                matrix:
+                  include:
+                    - ruby: "2.7"
+                      appraisal: "ruby-2-7"
+                      exec_cmd: "rake spec"
+                    - ruby: "3.2"
+                      appraisal: "ruby-3-2"
+                      exec_cmd: "rake spec"
+              steps:
+                - run: bundle exec appraisal ${{ matrix.appraisal }} bundle exec ${{ matrix.exec_cmd }}
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      workflow_report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == ".github/workflows/appraisals.yml"
+      end
+      workflow_content = workflow_report.fetch(:final_content)
+
+      expect(workflow_content).not_to include('ruby: "2.7"')
+      expect(workflow_content).not_to include('appraisal: "ruby-2-7"')
+      expect(workflow_content).to include('ruby: "3.2"')
+      expect(workflow_content).to include('appraisal: "ruby-3-2"')
+    end
+  end
+
   it "ports old modular Gemfile ruby-bucket eval_gemfile replacement" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
