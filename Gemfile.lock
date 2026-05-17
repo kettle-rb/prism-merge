@@ -163,6 +163,7 @@ PATH
   specs:
     smorg-rb (7.0.0)
       ast-merge (= 7.0.0)
+      ast-merge-git (= 7.0.0)
       go-merge (= 7.0.0)
       json-merge (= 7.0.0)
       plain-merge (= 7.0.0)

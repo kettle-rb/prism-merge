@@ -4,6 +4,7 @@ require "version_gem"
 
 require "go-merge"
 require "ast/merge"
+require "ast-merge-git"
 require "json"
 require "json-merge"
 require "pathname"
@@ -65,7 +66,7 @@ module Smorg
       profile_exit = report_and_enforce_profile(options, stdout, stderr)
       return profile_exit unless profile_exit == EXIT_SUCCESS
 
-      result = merge_by_path(effective_path, settings[:language], other_source, current_source)
+      result = merge_by_path(effective_path, settings[:language], ancestor_source, current_source, other_source)
       output = result[:output]
       unless result[:ok] && output
         if options[:strict] || options[:fallback] == "none"
@@ -305,16 +306,45 @@ module Smorg
       EXIT_SUCCESS
     end
 
-    def merge_by_path(path_name, language, other_source, current_source)
+    def merge_by_path(path_name, language, ancestor_source, current_source, other_source)
       case normalize_language(language, path_name)
       when "go"
         Go::Merge.merge_go(other_source, current_source, "go")
       when "json"
-        Json::Merge.merge_json(other_source, current_source, "json")
+        merge3_result(
+          Ast::Merge::Git.merge3(
+            base_source: ancestor_source,
+            ours_source: current_source,
+            theirs_source: other_source,
+            path_name: path_name,
+            language: "json",
+            dialect: "json",
+            profile_id: "json.keyed-object",
+            fallback_policy: "none",
+            render_policy: "canonical"
+          )
+        )
       when "jsonc"
         Json::Merge.merge_json(other_source, current_source, "jsonc")
       else
         Plain::Merge.merge_text(other_source, current_source)
+      end
+    end
+
+    def merge3_result(result)
+      if result[:ok] && result[:merged_source]
+        {
+          ok: true,
+          diagnostics: result.fetch(:diagnostics),
+          output: result.fetch(:merged_source),
+          policies: []
+        }
+      else
+        {
+          ok: false,
+          diagnostics: result.fetch(:diagnostics),
+          policies: []
+        }
       end
     end
 

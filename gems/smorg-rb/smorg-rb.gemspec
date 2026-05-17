@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.add_dependency "ast-merge", "= #{Smorg::RB::VERSION}"
+  spec.add_dependency "ast-merge-git", "= #{Smorg::RB::VERSION}"
   spec.add_dependency "go-merge", "= #{Smorg::RB::VERSION}"
   spec.add_dependency "json-merge", "= #{Smorg::RB::VERSION}"
   spec.add_dependency "plain-merge", "= #{Smorg::RB::VERSION}"

@@ -58,7 +58,22 @@ RSpec.describe Smorg::RB do
     exit_code = described_class.run(["merge-driver", "--strict", ancestor, current, other, "package.json"], stdout: stdout, stderr: stderr)
 
     expect(exit_code).to eq(described_class::EXIT_UNRESOLVED_CONFLICT)
-    expect(stderr.string).to include("destination_parse_error")
+    expect(stderr.string).to include("parse_error")
+    expect(stderr.string).to include("ours parse error")
+  end
+
+  it "uses the ancestor for JSON same-key conflicts" do
+    ancestor = write_file(@dir, "ancestor.json", '{"name":"demo","enabled":true}')
+    current = write_file(@dir, "current.json", '{"name":"demo","enabled":false}')
+    other = write_file(@dir, "other.json", '{"name":"demo","enabled":"yes"}')
+    stdout = StringIO.new
+    stderr = StringIO.new
+
+    exit_code = described_class.run(["merge-driver", "--strict", ancestor, current, other, "package.json"], stdout: stdout, stderr: stderr)
+
+    expect(exit_code).to eq(described_class::EXIT_UNRESOLVED_CONFLICT)
+    expect(File.read(current)).to eq('{"name":"demo","enabled":false}')
+    expect(stderr.string).to include("merge_conflict")
   end
 
   it "supports check-only exit-code without writing" do
