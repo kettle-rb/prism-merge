@@ -382,6 +382,47 @@ RSpec.describe Ast::Merge do
     expect(fixture.fetch(:contract_rules).first).to include("passive data")
   end
 
+  it "conforms to the slice-956 merge result decision contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-956-merge-result-decision-contract",
+        "merge-result-decision-contract.json"
+      )
+    )
+    result_class = Class.new(described_class::MergeResultBase) do
+      def add_fixture_line(content, decision:, source:, line:)
+        @lines << content
+        track_decision(decision.to_sym, source.to_sym, line: line)
+      end
+    end
+    result = result_class.new
+
+    fixture.fetch(:decisions).each do |decision|
+      result.add_fixture_line(
+        decision.fetch(:id),
+        decision: decision.fetch(:decision),
+        source: decision.fetch(:source),
+        line: decision.fetch(:line)
+      )
+    end
+
+    source_summary = result.decisions.each_with_object(Hash.new(0)) do |decision, summary|
+      summary[decision.fetch(:source)] += 1
+    end
+    unresolved_count = result.decisions.count { |decision| decision.fetch(:decision) == :unresolved }
+    ordered_ids = result.lines
+    expected = fixture.fetch(:expected)
+
+    expect(result.decisions.length).to eq(expected.fetch(:decision_count))
+    expect(ordered_ids).to eq(expected.fetch(:ordered_decision_ids))
+    expect(result.decision_summary.transform_keys(&:to_s)).to eq(expected.fetch(:decision_summary).transform_keys(&:to_s))
+    expect(source_summary.transform_keys(&:to_s)).to eq(expected.fetch(:source_summary).transform_keys(&:to_s))
+    expect(unresolved_count).to eq(expected.fetch(:unresolved_count))
+    expect(unresolved_count.positive?).to eq(expected.fetch(:review_required))
+    expect(result.line_count).to eq(expected.fetch(:line_count))
+  end
+
   it "conforms to the RSpec shared examples dependency tag inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
