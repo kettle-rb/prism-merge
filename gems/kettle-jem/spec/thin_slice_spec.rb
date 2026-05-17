@@ -1519,6 +1519,11 @@ RSpec.describe Kettle::Jem do
           "env_local_gitignore" => "applied"
         )
       ))
+      expect(install.fetch(:install_summary)).to include(
+        steps: install.fetch(:install_steps).length,
+        statuses: include("applied" => be >= 4),
+        summary: include("install steps")
+      )
     end
   end
 

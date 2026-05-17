@@ -31,6 +31,7 @@ module Kettle
             installed: true,
             install_steps: install_steps,
             install_phase_reports: install_phase_reports(install_steps),
+            install_summary: install_step_summary(install_steps),
             diagnostics: report.fetch(:diagnostics) + [{
               severity: "advisory",
               message: "kettle:jem:install applied templates, completed local post-template checks, and executed available orchestration steps.",
@@ -96,6 +97,17 @@ module Kettle
               statuses: steps.to_h { |step| [step.fetch(:name), step.fetch(:status)] },
             }
           end
+        end
+
+        def install_step_summary(install_steps)
+          statuses = install_steps.each_with_object(Hash.new(0)) do |step, counts|
+            counts[step.fetch(:status, "unknown").to_s] += 1
+          end.sort.to_h
+          {
+            steps: install_steps.length,
+            statuses: statuses,
+            summary: "install steps #{install_steps.length}; #{statuses.map { |status, count| "#{status} #{count}" }.join("; ")}",
+          }
         end
 
         def ensure_bin_setup_executable(project_root)

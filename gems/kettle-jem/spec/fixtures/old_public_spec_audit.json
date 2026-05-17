@@ -104,10 +104,10 @@
         "destination Gemfile owns setup commands in monorepos",
         "post-template mise cleanup, README compatibility badge trim, homepage repair, and .env.local gitignore safety",
         "README/gemspec grapheme synchronization from project_emoji",
+        "machine-readable install summary diagnostics",
         "README badge trimming policy"
       ],
       "remaining_behaviors": [
-        "summary diagnostics parity with old setup output",
         "template/setup binstub validation against real monorepo destination"
       ]
     },
