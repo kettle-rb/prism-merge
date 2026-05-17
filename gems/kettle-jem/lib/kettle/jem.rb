@@ -3103,6 +3103,7 @@ module Kettle
 
         return template_content
       end
+      return destination_content if kettle_config_template_recipe?(recipe)
       return destination_content if destination_content == template_content
 
       case file_type
@@ -3251,6 +3252,10 @@ module Kettle
 
     def github_workflow_template_recipe?(recipe)
       recipe.fetch(:target_path).to_s.start_with?(".github/workflows/")
+    end
+
+    def kettle_config_template_recipe?(recipe)
+      recipe.fetch(:target_path).to_s == ".kettle-jem.yml"
     end
 
     def yaml_process_result_adapter_failure?(merge_result)
