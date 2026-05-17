@@ -69,15 +69,15 @@ module Ast
         end
 
         def leading_region_layout_owned?(**options)
-          leading_region&.floating? &&
+          !!(leading_region&.floating? &&
             leading_gap&.leading_for?(owner) &&
-            leading_gap&.controls_output_for?(owner, **options)
+            leading_gap&.controls_output_for?(owner, **options))
         end
 
         def trailing_region_layout_owned?(**options)
-          trailing_region&.floating? &&
+          !!(trailing_region&.floating? &&
             trailing_gap&.trailing_for?(owner) &&
-            trailing_gap&.controls_output_for?(owner, **options)
+            trailing_gap&.controls_output_for?(owner, **options))
         end
 
         def layout_owned_regions(**options)

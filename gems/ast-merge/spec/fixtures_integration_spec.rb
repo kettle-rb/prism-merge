@@ -285,6 +285,103 @@ RSpec.describe Ast::Merge do
     expect(fixture.fetch(:decision)).to include("Do not copy the old public helper class hierarchy")
   end
 
+  it "conforms to the slice-955 comment trivia attachment contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-955-comment-trivia-attachment-contract",
+        "comment-trivia-attachment-contract.json"
+      )
+    )
+    owner_class = Struct.new(:id, :kind, :line_range, keyword_init: true)
+    owners = fixture.fetch(:owner_nodes).to_h do |node|
+      [node.fetch(:id), owner_class.new(id: node.fetch(:id), kind: node.fetch(:kind), line_range: node.fetch(:line_range))]
+    end
+
+    regions = fixture.fetch(:comment_regions).to_h do |region_fixture|
+      style = region_fixture.fetch(:style).to_sym
+      nodes = region_fixture.fetch(:nodes).map do |node_fixture|
+        described_class::Comment::Line.new(
+          text: node_fixture.fetch(:text),
+          line_number: node_fixture.fetch(:line_number),
+          style: style
+        )
+      end
+      region = described_class::Comment::Region.new(
+        kind: region_fixture.fetch(:kind),
+        nodes: nodes,
+        metadata: {floating: region_fixture.fetch(:floating)}
+      )
+      expected = region_fixture.fetch(:expected)
+
+      expect(region.start_line).to eq(expected.fetch(:start_line))
+      expect(region.end_line).to eq(expected.fetch(:end_line))
+      expect(region.text).to eq(expected.fetch(:text))
+      expect(region.normalized_content).to eq(expected.fetch(:normalized_content))
+      expect(region.signature.map(&:to_s)).to eq(expected.fetch(:signature))
+      expect(region.freeze_actions("smorg").map(&:to_s)).to eq(expected.fetch(:freeze_actions))
+
+      [region_fixture.fetch(:id), region]
+    end
+
+    gaps = fixture.fetch(:layout_gaps).to_h do |gap_fixture|
+      gap = described_class::Layout::Gap.new(
+        kind: gap_fixture.fetch(:kind),
+        start_line: gap_fixture.fetch(:start_line),
+        end_line: gap_fixture.fetch(:end_line),
+        lines: gap_fixture.fetch(:lines),
+        before_owner: owners[gap_fixture.fetch(:before_owner_id)],
+        after_owner: owners[gap_fixture.fetch(:after_owner_id)],
+        controller_side: gap_fixture.fetch(:controller_side)
+      )
+      expected = gap_fixture.fetch(:expected)
+
+      expect(gap.line_count).to eq(expected.fetch(:line_count))
+      expect(gap.blank_line_count).to eq(expected.fetch(:blank_line_count))
+      expect(gap.controller&.id).to eq(expected.fetch(:controller_owner_id))
+      expect(gap.fallback_controller&.id).to eq(expected.fetch(:fallback_owner_id))
+      if expected.key?(:effective_controller_with_after_removed)
+        expect(gap.effective_controller(removed_owners: [gap.after_owner])&.id).to eq(
+          expected.fetch(:effective_controller_with_after_removed)
+        )
+      end
+
+      [gap_fixture.fetch(:id), gap]
+    end
+
+    attachments = fixture.fetch(:attachments).map do |attachment_fixture|
+      owner = owners.fetch(attachment_fixture.fetch(:owner_id))
+      attachment = described_class::Comment::Attachment.new(
+        owner: owner,
+        leading_region: regions[attachment_fixture.fetch(:leading_region_id)],
+        inline_region: regions[attachment_fixture.fetch(:inline_region_id)],
+        trailing_region: regions[attachment_fixture.fetch(:trailing_region_id)],
+        orphan_regions: attachment_fixture.fetch(:orphan_region_ids).map { |id| regions.fetch(id) },
+        leading_gap: gaps[attachment_fixture.fetch(:leading_gap_id)],
+        trailing_gap: gaps[attachment_fixture.fetch(:trailing_gap_id)],
+        metadata: attachment_fixture.fetch(:metadata)
+      )
+      expected = attachment_fixture.fetch(:expected)
+
+      expect(attachment.regions.length).to eq(expected.fetch(:region_count))
+      expect(attachment.layout_gaps.length).to eq(expected.fetch(:layout_gap_count))
+      expect(attachment.empty?).to eq(expected.fetch(:empty))
+      expect(attachment.leading_region_layout_owned?).to eq(expected.fetch(:leading_region_layout_owned))
+      expect(attachment.trailing_region_layout_owned?).to eq(expected.fetch(:trailing_region_layout_owned))
+      expect(attachment.freeze_marker?("smorg")).to eq(expected.fetch(:freeze_marker))
+
+      attachment
+    end
+
+    expect(owners.length).to eq(fixture.dig(:expected, :owner_count))
+    expect(regions.length).to eq(fixture.dig(:expected, :comment_region_count))
+    expect(gaps.length).to eq(fixture.dig(:expected, :layout_gap_count))
+    expect(attachments.length).to eq(fixture.dig(:expected, :attachment_count))
+    expect(described_class::Comment::Region::KINDS.map(&:to_s)).to eq(fixture.dig(:expected, :portable_comment_region_kinds))
+    expect(described_class::Layout::Gap::KINDS.map(&:to_s)).to eq(fixture.dig(:expected, :portable_layout_gap_kinds))
+    expect(fixture.fetch(:contract_rules).first).to include("passive data")
+  end
+
   it "conforms to the RSpec shared examples dependency tag inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
