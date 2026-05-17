@@ -1373,6 +1373,34 @@ RSpec.describe Kettle::Jem do
           status: "succeeded",
           reason: "executed"
         ))
+
+        commands.clear
+        binstub_runner = lambda do |command, chdir:, env:, quiet:|
+          commands << {command: command, chdir: chdir, env: env, quiet: quiet}
+          if command == %w[bundle binstubs --all]
+            FileUtils.mkdir_p(File.join(chdir, "bin"))
+            File.write(File.join(chdir, "bin", "rake"), "#!/usr/bin/env ruby\nputs 'rake binstub'\n")
+            FileUtils.chmod("+x", File.join(chdir, "bin", "rake"))
+          end
+          {success: true, exitstatus: 0, stdout: "", stderr: ""}
+        end
+        validated_install = Kettle::Jem::Tasks::InstallTask.run(
+          project_root: gem_root,
+          env: inherited_env,
+          run_options: {only: "bin/setup", skip_commit: true},
+          command_runner: binstub_runner
+        )
+        expect(validated_install.fetch(:install_steps)).to include(hash_including(
+          name: "bundle_binstub_location_validation",
+          status: "succeeded",
+          reason: "destination_bin_has_binstubs",
+          destination_bin: "bin",
+          destination_binstubs: include("rake")
+        ))
+        expect(commands.find { |entry| entry.fetch(:command) == %w[bundle binstubs --all] }).to include(
+          chdir: gem_root,
+          env: include("BUNDLE_GEMFILE" => File.join(gem_root, "Gemfile"))
+        )
       end
     end
   end

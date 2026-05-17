@@ -95,7 +95,7 @@
     },
     {
       "path": "spec/kettle/jem/tasks/install_task_spec.rb",
-      "status": "partial",
+      "status": "ported",
       "active_specs": ["spec/rake_tasks_spec.rb", "spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "public install task registration",
@@ -105,10 +105,8 @@
         "post-template mise cleanup, README compatibility badge trim, homepage repair, and .env.local gitignore safety",
         "README/gemspec grapheme synchronization from project_emoji",
         "machine-readable install summary diagnostics",
+        "template/setup binstub validation against real monorepo destination",
         "README badge trimming policy"
-      ],
-      "remaining_behaviors": [
-        "template/setup binstub validation against real monorepo destination"
       ]
     },
     {

@@ -86,6 +86,7 @@ module Kettle
               bin_setup_executable
               bin_setup
               bundle_binstubs
+              bundle_binstub_location_validation
             ],
             "orchestration" => %w[bundled_handoff bootstrap_commit],
           }
@@ -407,7 +408,7 @@ module Kettle
 
         def run_bundle_setup_commands(project_root, env:, run_options:, command_runner:)
           quiet = Kettle::Jem::DecisionPolicy.value_to_boolean(run_options[:quiet])
-          [
+          steps = [
             run_command_step(
               "bin_setup",
               bin_setup_command(project_root, quiet: quiet),
@@ -425,6 +426,68 @@ module Kettle
               command_runner: command_runner
             ),
           ]
+          steps << validate_bundle_binstub_location(project_root) if steps.any? do |step|
+            step.fetch(:name) == "bundle_binstubs" && step.fetch(:status) == "succeeded"
+          end
+          steps
+        end
+
+        def validate_bundle_binstub_location(project_root)
+          destination_bin = File.join(project_root.to_s, "bin")
+          destination_binstubs = binstub_files(destination_bin)
+          parent_root = git_toplevel(project_root)
+          parent_binstubs = if parent_root && File.expand_path(parent_root) != File.expand_path(project_root.to_s)
+            binstub_files(File.join(parent_root, "bin"))
+          else
+            []
+          end
+
+          if destination_binstubs.empty? && parent_binstubs.any?
+            return {
+              name: "bundle_binstub_location_validation",
+              status: "warning",
+              reason: "parent_bin_has_binstubs_but_destination_bin_has_none",
+              destination_bin: relative_or_absolute_path(destination_bin, project_root),
+              parent_bin: relative_or_absolute_path(File.join(parent_root, "bin"), project_root),
+              parent_binstubs: parent_binstubs.map { |path| File.basename(path) }.sort,
+            }
+          end
+
+          {
+            name: "bundle_binstub_location_validation",
+            status: destination_binstubs.empty? ? "unverified" : "succeeded",
+            reason: destination_binstubs.empty? ? "no_destination_binstubs_found" : "destination_bin_has_binstubs",
+            destination_bin: relative_or_absolute_path(destination_bin, project_root),
+            destination_binstubs: destination_binstubs.map { |path| File.basename(path) }.sort,
+          }
+        end
+
+        def binstub_files(bin_dir)
+          return [] unless File.directory?(bin_dir)
+
+          Dir.glob(File.join(bin_dir, "*")).select do |path|
+            next false unless File.file?(path)
+            next false if File.basename(path) == "setup"
+
+            content = File.read(path, 256)
+            content.start_with?("#!") && content.include?("ruby")
+          rescue StandardError
+            false
+          end
+        end
+
+        def git_toplevel(project_root)
+          stdout, _stderr, status = Open3.capture3("git", "-C", project_root.to_s, "rev-parse", "--show-toplevel")
+          status.success? ? stdout.strip : nil
+        end
+
+        def relative_or_absolute_path(path, project_root)
+          expanded_path = File.expand_path(path.to_s)
+          expanded_root = File.expand_path(project_root.to_s)
+          return "." if expanded_path == expanded_root
+          return expanded_path.delete_prefix("#{expanded_root}/") if expanded_path.start_with?("#{expanded_root}/")
+
+          expanded_path
         end
 
         def execute_orchestration_steps(install_steps, project_root:, env:, run_options:, command_runner:)
