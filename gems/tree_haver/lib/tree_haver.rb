@@ -49,6 +49,7 @@ require_relative "tree_haver/peg_backends"
 require_relative "tree_haver/kaitai_backend"
 require_relative "tree_haver/language_pack"
 require_relative "tree_haver/backends/psych"
+require_relative "tree_haver/backends/prism"
 require_relative "tree_haver/backends/citrus"
 require_relative "tree_haver/backends/parslet"
 
@@ -86,6 +87,10 @@ module TreeHaver
     end
 
     if (config = registrations[:psych])
+      return parser_for_backend_module(config.fetch(:backend_module), name)
+    end
+
+    if (config = registrations[:prism])
       return parser_for_backend_module(config.fetch(:backend_module), name)
     end
 

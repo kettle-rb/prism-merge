@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
 require "version_gem"
+require "set"
 
 require "prism"
 require "ruby-merge"
+require "ast/merge"
+require "tree_haver"
 
 module Prism
   module Merge
@@ -11,7 +14,77 @@ module Prism
 
     PACKAGE_NAME = "prism-merge"
     BACKEND_REFERENCE = TreeHaver::BackendReference.new(id: "prism", family: "native").freeze
+    BACKEND_REGISTRY = Struct.new(:registered, :mutex).new(false, Mutex.new)
     TreeHaver::BackendRegistry.register(BACKEND_REFERENCE)
+
+    class Error < Ast::Merge::Error; end
+
+    class CorruptionDetectedError < Error; end
+
+    class ParseError < Ast::Merge::ParseError
+      attr_reader :parse_result
+
+      def initialize(message = nil, errors: [], content: nil, parse_result: nil)
+        @parse_result = parse_result
+        super(message, errors: parse_result&.errors || errors, content: content)
+      end
+    end
+
+    class TemplateParseError < ParseError; end
+
+    class DestinationParseError < ParseError; end
+
+    class MissingAnalyzedLineError < Error; end
+
+    autoload :BeginNodeClauseBodySupport, "prism/merge/begin_node_clause_body_support"
+    autoload :BeginNodeClauseBodyMerger, "prism/merge/begin_node_clause_body_merger"
+    autoload :BeginNodeClauseHeaderEmitter, "prism/merge/begin_node_clause_header_emitter"
+    autoload :BeginNodeMergePlanner, "prism/merge/begin_node_merge_planner"
+    autoload :BeginNodePlanEmitter, "prism/merge/begin_node_plan_emitter"
+    autoload :BeginNodeRescueSemantics, "prism/merge/begin_node_rescue_semantics"
+    autoload :BeginNodeStructure, "prism/merge/begin_node_structure"
+    autoload :BlockDirectiveDetector, "prism/merge/block_directive_detector"
+    autoload :Comment, "prism/merge/comment"
+    autoload :CommentOnlyFileMerger, "prism/merge/comment_only_file_merger"
+    autoload :DebugLogger, "prism/merge/debug_logger"
+    autoload :FileAnalysis, "prism/merge/file_analysis"
+    autoload :FreezeNode, "prism/merge/freeze_node"
+    autoload :GemspecVarRenamer, "prism/merge/gemspec_var_renamer"
+    autoload :MagicCommentSupport, "prism/merge/magic_comment_support"
+    autoload :MergeResult, "prism/merge/merge_result"
+    autoload :MethodMatchRefiner, "prism/merge/method_match_refiner"
+    autoload :NestedStatementWalker, "prism/merge/nested_statement_walker"
+    autoload :NocovNode, "prism/merge/nocov_node"
+    autoload :NoCovWrapper, "prism/merge/nocov_wrapper"
+    autoload :NodeBodyLayout, "prism/merge/node_body_layout"
+    autoload :NodeEmissionSupport, "prism/merge/node_emission_support"
+    autoload :NodeTypeNormalizer, "prism/merge/node_type_normalizer"
+    autoload :NodeWrapper, "prism/merge/node_wrapper"
+    autoload :PartialTemplateMerger, "prism/merge/partial_template_merger"
+    autoload :PartialTemplateNode, "prism/merge/partial_template_node"
+    autoload :RecursiveMergePolicy, "prism/merge/recursive_merge_policy"
+    autoload :RecursiveNodeBodyMerger, "prism/merge/recursive_node_body_merger"
+    autoload :RubyDocSurfaceAnalyzer, "prism/merge/ruby_doc_surface_analyzer"
+    autoload :ScaffoldChunkRemover, "prism/merge/scaffold_chunk_remover"
+    autoload :SmartMerger, "prism/merge/smart_merger"
+    autoload :SourceLineLookup, "prism/merge/source_line_lookup"
+    autoload :TopLevelMergeRunner, "prism/merge/top_level_merge_runner"
+    autoload :WrapperCommentSupport, "prism/merge/wrapper_comment_support"
+
+    def register_backend!
+      BACKEND_REGISTRY.mutex.synchronize do
+        return if BACKEND_REGISTRY.registered
+
+        TreeHaver.register_language(
+          :ruby,
+          backend_module: TreeHaver::Backends::Prism,
+          backend_type: :prism,
+          gem_name: "prism",
+        )
+
+        BACKEND_REGISTRY.registered = true
+      end
+    end
 
     def ruby_feature_profile
       Ruby::Merge.ruby_feature_profile
@@ -886,6 +959,8 @@ module Prism
     )
   end
 end
+
+Prism::Merge.register_backend!
 
 Prism::Merge::Version.class_eval do
   extend VersionGem::Basic
