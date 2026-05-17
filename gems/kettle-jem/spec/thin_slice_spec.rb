@@ -125,6 +125,119 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "falls back for GitHub YAML template merges when the YAML provider reports a ProcessResult adapter failure" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-github-yaml-provider-regression", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project: destination
+          templates:
+            root: template
+            apply: true
+            entries:
+              - .github/FUNDING.yml
+              - .kettle-jem.yml
+        YAML
+        ".github/FUNDING.yml" => <<~YAML,
+          github: [destination]
+          custom:
+            - https://destination.example/fund
+        YAML
+        "template/.github/FUNDING.yml.example" => <<~YAML,
+          github: [template]
+          tidelift: rubygems/example
+        YAML
+        "template/.kettle-jem.yml.example" => <<~YAML,
+          project: template
+          generated: true
+        YAML
+      })
+      allow(Yaml::Merge).to receive(:merge_yaml).and_return(
+        ok: false,
+        diagnostics: [{
+          severity: "error",
+          category: "unsupported_feature",
+          message: "undefined method '[]' for an instance of TreeSitterLanguagePack::ProcessResult",
+        }],
+        policies: []
+      )
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_github_FUNDING_yml"
+      end
+
+      expect(report.fetch(:final_content)).to include("github:\n- destination")
+      expect(report.fetch(:final_content)).to include("custom:\n- https://destination.example/fund")
+      expect(report.fetch(:final_content)).to include("tidelift: rubygems/example")
+      config_report = plan.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_kettle_jem_yml"
+      end
+      expect(config_report.fetch(:final_content)).to include("project: destination")
+      expect(config_report.fetch(:final_content)).to include("generated: true")
+    end
+  end
+
+  it "falls back for Gemfile template merges when the Ruby provider reports a ProcessResult adapter failure" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-gemfile-provider-regression", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - Gemfile
+        YAML
+        "Gemfile" => <<~RUBY,
+          source "https://rubygems.org"
+          gem "example", path: "."
+        RUBY
+        "template/Gemfile.example" => <<~RUBY,
+          source "https://gem.coop"
+          gemspec
+          gem "appraisal"
+          gem "rake"
+          gem "example", path: "."
+        RUBY
+      })
+      allow(Ruby::Merge).to receive(:merge_ruby).and_return(
+        ok: false,
+        diagnostics: [{
+          severity: "error",
+          category: "unsupported_feature",
+          message: "undefined method '[]' for an instance of TreeSitterLanguagePack::ProcessResult",
+        }],
+        policies: []
+      )
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_Gemfile"
+      end
+
+      expect(report.fetch(:final_content)).to include('source "https://gem.coop"')
+      expect(report.fetch(:final_content)).to include("gemspec")
+      expect(report.fetch(:final_content)).to include('gem "rake"')
+      expect(report.fetch(:final_content)).not_to include('gem "appraisal"')
+      expect(report.fetch(:final_content)).not_to include('gem "example"')
+    end
+  end
+
   it "merges custom workflow YAML snippets without replacing destination jobs" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

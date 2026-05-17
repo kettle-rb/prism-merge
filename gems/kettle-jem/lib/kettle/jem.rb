@@ -3105,9 +3105,7 @@ module Kettle
         begin
           merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
         rescue StandardError
-          return template_content if github_workflow_template_recipe?(recipe)
-
-          raise
+          return fallback_yaml_template_merge(template_content, destination_content)
         end
       when :toml
         merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
@@ -3126,6 +3124,8 @@ module Kettle
         return output
       end
 
+      return fallback_yaml_template_merge(template_content, destination_content) if file_type == :yaml && yaml_process_result_adapter_failure?(merge_result)
+      return fallback_adapter_failure_template_source(file_type, recipe, template_content, destination_content, facts) if process_result_adapter_failure?(merge_result)
       return template_content if github_workflow_template_recipe?(recipe)
 
       diagnostics = merge_result.fetch(:diagnostics, [])
@@ -3235,6 +3235,51 @@ module Kettle
 
     def github_workflow_template_recipe?(recipe)
       recipe.fetch(:target_path).to_s.start_with?(".github/workflows/")
+    end
+
+    def yaml_process_result_adapter_failure?(merge_result)
+      process_result_adapter_failure?(merge_result)
+    end
+
+    def process_result_adapter_failure?(merge_result)
+      diagnostics = merge_result.respond_to?(:fetch) ? merge_result.fetch(:diagnostics, []) : []
+      diagnostics.any? do |diagnostic|
+        message = diagnostic[:message] || diagnostic["message"]
+        message.to_s.include?("TreeSitterLanguagePack::ProcessResult") && message.to_s.include?("undefined method")
+      end
+    end
+
+    def fallback_adapter_failure_template_source(file_type, recipe, template_content, destination_content, facts)
+      case file_type
+      when :gemfile
+        finalize_gemfile_template_source(recipe, template_content, destination_content, facts: facts, template_content: template_content)
+      when :appraisals
+        merge_appraisals_template_policy(template_content, facts: facts)
+      when :yaml
+        fallback_yaml_template_merge(template_content, destination_content)
+      else
+        template_content
+      end
+    end
+
+    def fallback_yaml_template_merge(template_content, destination_content)
+      template = YAML.safe_load(template_content.to_s, permitted_classes: [], aliases: false)
+      destination = YAML.safe_load(destination_content.to_s, permitted_classes: [], aliases: false)
+      return template_content unless template.is_a?(Hash) && destination.is_a?(Hash)
+
+      YAML.dump(deep_merge_yaml_hashes(template, destination)).sub(/\A---\n?/, "")
+    rescue StandardError
+      template_content
+    end
+
+    def deep_merge_yaml_hashes(template, destination)
+      template.merge(destination) do |_key, template_value, destination_value|
+        if template_value.is_a?(Hash) && destination_value.is_a?(Hash)
+          deep_merge_yaml_hashes(template_value, destination_value)
+        else
+          destination_value
+        end
+      end
     end
 
     def ruby_merge_options(recipe, merge_template_requires:)
