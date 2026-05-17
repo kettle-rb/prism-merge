@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 require_relative "spec_helper"
 
 RSpec.describe Smorg::RB do
@@ -7,6 +9,20 @@ RSpec.describe Smorg::RB do
     path = File.join(dir, name)
     File.write(path, source)
     path
+  end
+
+  def git_driver_json_fixture
+    path = File.expand_path("../../../../fixtures/diagnostics/slice-951-git-driver-json-integration/git-driver-json-integration.json", __dir__)
+    JSON.parse(File.read(path))
+  end
+
+  def run_git(dir, *args)
+    return skip("git executable is required for repository integration fixture") unless system("git", "--version", out: File::NULL, err: File::NULL)
+
+    output = IO.popen([{"GIT_CONFIG_NOSYSTEM" => "1"}, "git", *args], chdir: dir, err: [:child, :out], &:read)
+    return if $?.success?
+
+    raise "git #{args.join(" ")} failed:\n#{output}"
   end
 
   around do |example|
@@ -74,6 +90,40 @@ RSpec.describe Smorg::RB do
     expect(exit_code).to eq(described_class::EXIT_UNRESOLVED_CONFLICT)
     expect(File.read(current)).to eq('{"name":"demo","enabled":false}')
     expect(stderr.string).to include("merge_conflict")
+  end
+
+  it "conforms to the git-driver JSON integration fixture in a repository" do
+    git_driver_json_fixture.fetch("cases").each do |test_case|
+      Dir.mktmpdir("smorg-rb-git-driver-") do |dir|
+        run_git(dir, "init")
+        run_git(dir, "config", "user.email", "smorg-rb@example.invalid")
+        run_git(dir, "config", "user.name", "smorg-rb test")
+        write_file(dir, ".gitattributes", "*.json merge=smorg-rb smorg.language=json\n")
+        write_file(dir, test_case.fetch("path_name"), test_case.fetch("base_source"))
+        run_git(dir, "add", ".")
+        run_git(dir, "commit", "-m", "base")
+
+        ancestor = write_file(dir, "ancestor.tmp", test_case.fetch("base_source"))
+        current = write_file(dir, test_case.fetch("path_name"), test_case.fetch("ours_source"))
+        other = write_file(dir, "other.tmp", test_case.fetch("theirs_source"))
+        stdout = StringIO.new
+        stderr = StringIO.new
+
+        exit_code = described_class.run(["merge-driver", "--strict", ancestor, current, other, test_case.fetch("path_name")], stdout: stdout, stderr: stderr)
+        expected = test_case.fetch("expected")
+        expect(exit_code).to eq(expected.fetch("exit_code")), "#{test_case.fetch("case_id")} stderr=#{stderr.string}"
+        expected.fetch("stderr_contains").each do |needle|
+          expect(stderr.string).to include(needle), test_case.fetch("case_id")
+        end
+
+        merged_source = File.read(current)
+        if expected["merged_json"]
+          expect(JSON.parse(merged_source)).to eq(expected.fetch("merged_json")), test_case.fetch("case_id")
+        elsif expected["merged_source"]
+          expect(merged_source).to eq(expected.fetch("merged_source")), test_case.fetch("case_id")
+        end
+      end
+    end
   end
 
   it "supports check-only exit-code without writing" do
