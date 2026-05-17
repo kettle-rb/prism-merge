@@ -85,10 +85,10 @@ module Toml
       # Get the canonical (normalized) type for this node
       # @return [Symbol]
       def canonical_type
-        canonical = NodeTypeNormalizer.canonical_type(@node.type, @backend)
-        return canonical unless @backend == :parslet && @node.type.to_sym == :element
+        return parslet_element_canonical_type if parslet_element_node?
 
-        parslet_element_canonical_type || canonical
+        canonical = NodeTypeNormalizer.canonical_type(@node.type, @backend)
+        canonical
       end
 
       # Check if this node has a specific type (checks both raw and canonical)
@@ -449,12 +449,16 @@ module Toml
       private
 
       def table_name_container
-        return @node unless @backend == :parslet && @node.type.to_sym == :element
+        return @node unless parslet_element_node?
 
         each_child(@node).find do |child|
           canonical = NodeTypeNormalizer.canonical_type(child.type, @backend)
           NodeTypeNormalizer.table_type?(canonical)
         end || @node
+      end
+
+      def parslet_element_node?
+        @backend == :parslet && @node.type.to_s.match?(/\Aelement(?:_\d+)?\z/)
       end
 
       def parslet_element_canonical_type
@@ -466,7 +470,7 @@ module Toml
         return :array_of_tables if child_canonicals.include?(:array_of_tables)
         return :pair if child_canonicals.any? { |type| NodeTypeNormalizer.key_type?(type) } && child_canonicals.include?(:value)
 
-        nil
+        :element
       end
 
       def each_child(node)

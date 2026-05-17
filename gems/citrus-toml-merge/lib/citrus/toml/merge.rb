@@ -87,6 +87,16 @@ module Citrus
         :merge_toml,
         :unsupported_feature_result
       )
+
+      class SmartMerger < ::Toml::Merge::SmartMerger
+        def initialize(...)
+          TreeHaver.with_backend(::Citrus::Toml::Merge::BACKEND.id) { super }
+        end
+
+        def merge_result
+          TreeHaver.with_backend(::Citrus::Toml::Merge::BACKEND.id) { super }
+        end
+      end
     end
   end
 end

@@ -972,6 +972,30 @@ RSpec.describe TreeHaver do
     expect(described_class.current_backend_id).to be_nil
   end
 
+  it "uses temporary backend context selection when resolving registered parsers" do
+    require "toml"
+    require "toml-rb"
+
+    described_class.register_language(
+      :backend_context_toml,
+      grammar_module: TomlRB::Document,
+      gem_name: "toml-rb",
+    )
+    described_class.register_language(
+      :backend_context_toml,
+      grammar_class: TOML::Parslet,
+      gem_name: "toml",
+    )
+
+    described_class.with_backend("citrus") do
+      expect(described_class.parser_for(:backend_context_toml).backend).to eq(:citrus)
+    end
+
+    described_class.with_backend("parslet") do
+      expect(described_class.parser_for(:backend_context_toml).backend).to eq(:parslet)
+    end
+  end
+
   it "provides PEG framework parsing helpers" do
     require "toml"
     require "toml-rb"

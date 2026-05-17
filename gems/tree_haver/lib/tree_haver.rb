@@ -81,6 +81,9 @@ module TreeHaver
     end
 
     registrations = LanguageRegistry.registered(name) || {}
+    if (backend_type = requested_backend_type(registrations))
+      return parser_for_registered_backend(name, backend_type, registrations)
+    end
 
     if (config = registrations[:psych])
       return parser_for_backend_module(config.fetch(:backend_module), name)
@@ -102,6 +105,45 @@ module TreeHaver
 
     raise NotAvailable, "No parser registered for #{name}"
   end
+
+  def requested_backend_type(registrations)
+    backend_id = current_backend_id || ENV["TREE_HAVER_BACKEND"]
+    return if backend_id.to_s.empty?
+
+    backend_ref = BackendRegistry.fetch(backend_id.to_s)
+    type = if registrations.key?(backend_id.to_s.to_sym)
+      backend_id.to_s.to_sym
+    elsif backend_ref&.family == "tree-sitter"
+      :tree_sitter
+    else
+      backend_id.to_s.to_sym
+    end
+    return type if registrations.key?(type)
+
+    raise NotAvailable, "No parser registered for backend #{backend_id}"
+  end
+  private_class_method :requested_backend_type
+
+  def parser_for_registered_backend(name, backend_type, registrations)
+    config = registrations.fetch(backend_type)
+    case backend_type
+    when :psych, :prism, :commonmarker, :markly, :rbs
+      parser_for_backend_module(config.fetch(:backend_module), name)
+    when :citrus
+      parser_for_citrus(config.fetch(:grammar_module))
+    when :parslet
+      parser_for_parslet(config.fetch(:grammar_class))
+    when :tree_sitter
+      parser_for_tree_sitter(name, config[:path], config[:symbol])
+    else
+      if config[:backend_module]
+        parser_for_backend_module(config.fetch(:backend_module), name)
+      else
+        raise NotAvailable, "No parser registered for backend #{backend_type}"
+      end
+    end
+  end
+  private_class_method :parser_for_registered_backend
 
   def parser_for_backend_module(backend_module, name)
     parser = backend_module::Parser.new

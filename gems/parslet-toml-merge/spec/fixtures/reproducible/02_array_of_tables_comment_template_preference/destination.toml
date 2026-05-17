@@ -1,0 +1,3 @@
+# keep plugin docs
+[[plugins]] # keep plugin inline
+name = "destination"

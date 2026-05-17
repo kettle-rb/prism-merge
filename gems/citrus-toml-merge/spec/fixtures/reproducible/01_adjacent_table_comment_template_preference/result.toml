@@ -1,0 +1,6 @@
+[one]
+a = 1
+
+# keep second table docs
+[two] # keep second inline
+b = 2
