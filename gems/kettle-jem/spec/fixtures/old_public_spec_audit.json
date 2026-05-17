@@ -71,7 +71,7 @@
     },
     {
       "path": "spec/kettle/jem/setup_cli_spec.rb",
-      "status": "ported",
+      "status": "partial",
       "active_specs": ["spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "machine-readable plan/apply reports",
@@ -87,18 +87,28 @@
         "preflight parse failure hard-stop",
         "preflight version-file bootstrap"
       ],
+      "remaining_behaviors": [
+        "full old executable option parity across bootstrap, template, install, prepare, and selftest commands",
+        "byte-level self-templating convergence for the default executable happy path"
+      ],
       "notes": "Active CLI/setup specs now cover setup command reporting, first-run config bootstrap, configured project handoff, clean/preflight checks, option projection, bundled handoff, bootstrap commit policy, and version file bootstrap."
     },
     {
       "path": "spec/kettle/jem/tasks/install_task_spec.rb",
-      "status": "ported",
+      "status": "partial",
       "active_specs": ["spec/rake_tasks_spec.rb", "spec/thin_slice_spec.rb"],
       "ported_behaviors": [
         "public install task registration",
         "install task no longer invokes template implicitly",
         "README and gemspec templating behavior moved to active template specs",
-        "full post-template install orchestration",
+        "destination Gemfile owns setup commands in monorepos",
+        "post-template mise cleanup, README compatibility badge trim, homepage repair, and .env.local gitignore safety",
         "README badge trimming policy"
+      ],
+      "remaining_behaviors": [
+        "README/gemspec grapheme synchronization parity",
+        "summary diagnostics parity with old setup output",
+        "template/setup binstub validation against real monorepo destination"
       ]
     },
     {
@@ -122,7 +132,7 @@
     },
     {
       "path": "spec/kettle/jem/tasks/template_task_spec.rb",
-      "status": "ported",
+      "status": "partial",
       "active_specs": ["spec/thin_slice_spec.rb", "spec/system/bundle_gem_scaffold_spec.rb"],
       "ported_behaviors": [
         "file type classification",
@@ -135,13 +145,30 @@
         "per-file recipe overrides parity",
         "generated runtime artifact filtering",
         "interactive prompt transport and answer input contract",
-        "legacy Markdown README H1, nested subsection, and fenced-code preservation"
+        "legacy Markdown README H1, nested subsection, and fenced-code preservation",
+        "discord-notifier.yml include-only behavior"
+      ],
+      "remaining_behaviors": [
+        "full workflow/appraisal matrix pruning parity against old generated workflow set",
+        "framework workflow generation parity",
+        "RubyGems minimum-Ruby shunted.gemfile generation",
+        "duplicate drift checks during template/install runs",
+        "README badge alignment with actual generated workflow files"
       ]
     },
     {
       "path": "spec/kettle/jem/tasks/self_test_task_spec.rb",
-      "status": "ported",
+      "status": "partial",
       "active_specs": ["spec/self_test_task_spec.rb", "spec/cli_spec.rb", "spec/thin_slice_spec.rb"],
+      "ported_behaviors": [
+        "selftest task entrypoint",
+        "machine-readable and markdown drift report shape"
+      ],
+      "remaining_behaviors": [
+        "default Kettle/Jem-against-itself validation parity",
+        "destination-gem drift scoring backed by kettle-drift semantics",
+        "real scaffold project selftest fixtures"
+      ],
       "notes": "Selftest now validates template output against a destination and emits machine-readable plus markdown drift reports."
     },
     {
@@ -158,8 +185,12 @@
     },
     {
       "path": "spec/kettle/jem/rakelib/selftest_spec.rb",
-      "status": "ported",
+      "status": "partial",
       "active_specs": ["spec/rake_tasks_spec.rb", "spec/self_test_task_spec.rb"],
+      "remaining_behaviors": [
+        "Rake selftest default destination behavior against Kettle/Jem itself",
+        "kettle-drift-backed report parity"
+      ],
       "notes": "Active Rake task surface registers selftest and delegates to the shared task implementation."
     },
     {

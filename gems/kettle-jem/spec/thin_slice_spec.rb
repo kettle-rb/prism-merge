@@ -125,6 +125,50 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "keeps the packaged Discord notifier workflow opt-in via include" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-discord-workflow-opt-in-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - .github/workflows/discord-notifier.yml
+        YAML
+        ".github/workflows/discord-notifier.yml" => "name: stale notifier\n",
+      })
+
+      default_plan = described_class.plan_project(root, env: {})
+      default_report = default_plan.fetch(:recipe_reports).find do |report|
+        report.fetch(:relative_path) == ".github/workflows/discord-notifier.yml"
+      end
+      expect(default_report.fetch(:recipe_name)).to start_with("github_actions_opt_in_workflow_cleanup_")
+      expect(default_report.fetch(:metadata)).to include(delete_file: true)
+      expect(default_plan.fetch(:changed_files)).to include(".github/workflows/discord-notifier.yml")
+
+      included_plan = described_class.plan_project(
+        root,
+        env: {},
+        run_options: { include: ".github/workflows/discord-notifier.yml" }
+      )
+      expect(included_plan.fetch(:changed_files)).to include(".github/workflows/discord-notifier.yml")
+      included_report = included_plan.fetch(:recipe_reports).find do |report|
+        report.fetch(:relative_path) == ".github/workflows/discord-notifier.yml"
+      end
+      expect(included_report.fetch(:recipe_name)).to start_with("template_source_application_")
+      expect(included_report.fetch(:metadata)).not_to include(delete_file: true)
+    end
+  end
+
   it "applies README style conditionals and reports missing integrations" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
@@ -1193,15 +1237,15 @@ RSpec.describe Kettle::Jem do
         status: "skipped",
         reason: "skip_commit"
       )
-      expect(install.fetch(:install_phase_reports)).to include(
+      expect(install.fetch(:install_phase_reports)).to include(hash_including(
         phase: "post_template",
-        steps: %w[bin_setup_executable bin_setup bundle_binstubs],
-        statuses: {
+        steps: include("bin_setup_executable", "bin_setup", "bundle_binstubs"),
+        statuses: hash_including(
           "bin_setup_executable" => "updated",
           "bin_setup" => "succeeded",
           "bundle_binstubs" => "succeeded"
-        }
-      )
+        )
+      ))
       expect(install.fetch(:install_phase_reports)).to include(
         phase: "orchestration",
         steps: %w[bundled_handoff bootstrap_commit],
@@ -1290,6 +1334,10 @@ RSpec.describe Kettle::Jem do
         expect(system("git", "init", repo_root, out: File::NULL, err: File::NULL)).to be(true)
         gem_root = File.join(repo_root, "gems", "example")
         write_tree(gem_root, {
+          "Gemfile" => <<~RUBY,
+            source "https://rubygems.org"
+            gemspec
+          RUBY
           "example.gemspec" => <<~RUBY,
             Gem::Specification.new do |spec|
               spec.name = "example"
@@ -1305,15 +1353,23 @@ RSpec.describe Kettle::Jem do
           YAML
         })
 
+        commands.clear
+        inherited_env = {"BUNDLE_GEMFILE" => File.join(repo_root, "Gemfile")}
         monorepo_install = Kettle::Jem::Tasks::InstallTask.run(
           project_root: gem_root,
-          env: {},
+          env: inherited_env,
           run_options: {only: "bin/setup"},
           command_runner: command_runner
         )
         expect(monorepo_install.fetch(:git_preflight)).to include(git_repository: true)
         expect(monorepo_install.fetch(:install_steps)).to include(hash_including(
           name: "bootstrap_commit",
+          status: "succeeded",
+          reason: "executed"
+        ))
+        expect(commands.map { |entry| entry.fetch(:env).fetch("BUNDLE_GEMFILE") }.uniq).to eq([File.join(gem_root, "Gemfile")])
+        expect(monorepo_install.fetch(:install_steps)).to include(hash_including(
+          name: "bundled_handoff",
           status: "succeeded",
           reason: "executed"
         ))
@@ -1366,6 +1422,90 @@ RSpec.describe Kettle::Jem do
         development_dependencies: ["rake"]
       )
       expect(File.read(File.join(root, "example.gemspec"))).to include('spec.add_development_dependency "rake", "~> 13.0"')
+    end
+  end
+
+  it "ports old install post-template project cleanup and safety checks" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-install-post-processing", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.homepage = "\#{homepage}"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "README.md" => <<~MARKDOWN,
+          # Example
+
+          | Runtime | Works |
+          | --- | --- |
+          | Works with MRI Ruby | [![ruby-2.7][💎ruby-2.7i]][🚎2.7] <br/> [![ruby-3.2][💎ruby-3.2i]][🚎3.2] |
+
+          [💎ruby-2.7i]: https://img.shields.io/badge/Ruby-2.7-red.svg
+          [💎ruby-3.2i]: https://img.shields.io/badge/Ruby-3.2-red.svg
+          [🚎2.7]: https://www.ruby-lang.org/
+          [🚎3.2]: https://www.ruby-lang.org/
+        MARKDOWN
+        "mise.toml" => "[tools]\nruby = \"3.4.1\"\n",
+        ".ruby-version" => "3.4.1\n",
+        ".tool-versions" => "ruby 3.4.1\n",
+        ".env.local.example" => "KETTLE_RB_DEV=false\n",
+        ".gitignore" => "tmp/\n",
+      })
+      command_runner = lambda do |_command, **|
+        {success: true, exitstatus: 0, stdout: "", stderr: ""}
+      end
+
+      install = Kettle::Jem::Tasks::InstallTask.run(
+        project_root: root,
+        env: {"FORGE_ORG" => "example-org"},
+        run_options: {only: "README.md", skip_commit: true},
+        command_runner: command_runner
+      )
+
+      expect(install.fetch(:install_steps)).to include(
+        name: "legacy_ruby_version_file_cleanup",
+        status: "applied",
+        removed_files: [".ruby-version", ".tool-versions"]
+      )
+      expect(install.fetch(:install_steps)).to include(
+        name: "gemspec_homepage_literal",
+        path: "example.gemspec",
+        status: "applied",
+        homepage: "https://github.com/example-org/example"
+      )
+      expect(install.fetch(:install_steps)).to include(
+        name: "env_local_gitignore",
+        path: ".gitignore",
+        status: "applied"
+      )
+      expect(File).not_to exist(File.join(root, ".ruby-version"))
+      expect(File).not_to exist(File.join(root, ".tool-versions"))
+      expect(File.read(File.join(root, "example.gemspec"))).to include('spec.homepage = "https://github.com/example-org/example"')
+      expect(File.read(File.join(root, ".gitignore"))).to include(".env.local")
+      readme = File.read(File.join(root, "README.md"))
+      expect(readme).not_to include("ruby-2.7")
+      expect(readme).to include("ruby-3.2")
+      expect(install.fetch(:install_phase_reports)).to include(hash_including(
+        phase: "post_template",
+        statuses: hash_including(
+          "legacy_ruby_version_file_cleanup" => "applied",
+          "readme_compatibility_badges" => satisfy { |status| %w[applied already_current].include?(status) },
+          "gemspec_homepage_literal" => "applied",
+          "env_local_gitignore" => "applied"
+        )
+      ))
     end
   end
 

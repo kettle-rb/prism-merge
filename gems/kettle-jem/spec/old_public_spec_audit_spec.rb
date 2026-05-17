@@ -39,12 +39,18 @@ RSpec.describe "old Kettle/Jem public spec audit" do
       "spec/kettle/jem/self_test/reporter_spec.rb"
     )
     expect(files).to all(include(:status, :active_specs))
-    expect(files.map { |entry| entry.fetch(:status) }).to all(eq("ported"))
-    expect(files.flat_map { |entry| entry.fetch(:remaining_behaviors, []) }).to be_empty
+    expect(files.map { |entry| entry.fetch(:status) }).to all(satisfy { |status| %w[ported partial superseded].include?(status) })
+    partial_files = files.select { |entry| entry.fetch(:status) == "partial" }
+    expect(partial_files).not_to be_empty
+    expect(partial_files).to all(include(:remaining_behaviors))
+    expect(partial_files.flat_map { |entry| entry.fetch(:remaining_behaviors) }).not_to be_empty
 
     template_task = files.find { |entry| entry.fetch(:path) == "spec/kettle/jem/tasks/template_task_spec.rb" }
     expect(template_task.fetch(:ported_behaviors)).to include(
       "legacy Markdown README H1, nested subsection, and fenced-code preservation"
+    )
+    expect(template_task.fetch(:remaining_behaviors)).to include(
+      "full workflow/appraisal matrix pruning parity against old generated workflow set"
     )
   end
 end

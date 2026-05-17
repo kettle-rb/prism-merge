@@ -31,6 +31,7 @@ module Kettle
     MANAGED_BLOCK_CLOSE = "# <</kettle-jem:generated>>"
     OBSOLETE_GITHUB_WORKFLOWS = %w[ancient.yml legacy.yml supported.yml unsupported.yml main.yml hoary.yml].freeze
     OPENCOLLECTIVE_DISABLED_FILES = %w[.opencollective.yml .github/workflows/opencollective.yml].freeze
+    OPT_IN_GITHUB_WORKFLOWS = %w[.github/workflows/discord-notifier.yml].freeze
     DEFAULT_ENGINES = %w[ruby jruby truffleruby].freeze
     ENGINE_WORKFLOW_MAP = {
       "jruby" => "jruby",
@@ -47,6 +48,7 @@ module Kettle
     }.freeze
     FILE_DELETION_PRIMITIVES = %w[
       supplied_obsolete_file_deletion
+      supplied_opt_in_workflow_deletion
       supplied_disabled_opencollective_file_deletion
       supplied_legacy_destination_file_deletion
       supplied_obsolete_license_file_deletion
@@ -83,6 +85,7 @@ module Kettle
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
     SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
     SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
+    DEFAULT_RUBY_METHOD_MOVE_POLICY = "destination_order"
     RUBY_TEMPLATE_BASENAMES = %w[Gemfile Rakefile Appraisals Appraisal.root.gemfile .simplecov].freeze
     RUBY_TEMPLATE_SUFFIXES = %w[.gemspec .gemfile].freeze
     RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
@@ -669,8 +672,6 @@ module Kettle
       [Gem::Version.new("3.0"), "~> 20.0"],
       [Gem::Version.new("3.1"), "~> 22.0"],
       [Gem::Version.new("3.2"), "~> 24.0"],
-      [Gem::Version.new("3.3"), "~> 26.0"],
-      [Gem::Version.new("3.4"), "~> 28.0"],
     ].freeze
     FORGE_USER_ENV_KEYS = {
       gh_user: "KJ_GH_USER",
@@ -1998,7 +1999,7 @@ module Kettle
       end
     end
 
-    def discover_facts(project_root, env: ENV)
+    def discover_facts(project_root, env: ENV, run_options: {})
       gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
       raise ArgumentError, "no gemspec found in #{project_root}" unless gemspec_path
 
@@ -2086,6 +2087,8 @@ module Kettle
       open_collective_files = opencollective_disabled ? opencollective_disabled_files(project_root) : []
       funding[:open_collective_files] = open_collective_files unless open_collective_files.empty?
       facts[:funding] = funding unless funding.empty?
+      template_selection = template_selection_for(env, run_options)
+      opt_in_workflows = opt_in_workflow_cleanup_files(project_root, template_selection)
       facts[:ci] = {
         provider: "github_actions",
         default_branch: "main",
@@ -2093,13 +2096,19 @@ module Kettle
         obsolete_workflows: github_actions_obsolete_workflows(project_root),
         custom_workflows: github_actions_custom_workflows(project_root, opencollective_disabled: opencollective_disabled),
       }
+      facts[:ci][:opt_in_workflow_cleanups] = opt_in_workflows unless opt_in_workflows.empty?
       coverage_config = github_actions_coverage_config(kettle_config)
       facts[:ci][:coverage] = coverage_config unless coverage_config.empty?
       framework_matrix = github_actions_framework_matrix(kettle_config)
       facts[:ci][:framework_matrix] = framework_matrix unless framework_matrix.empty?
       template_facts = {}
       template_config = template_runtime_config(kettle_config, facts, license: license)
-      template_preferences = template_source_preferences(project_root, template_config, opencollective_disabled: opencollective_disabled)
+      template_preferences = template_source_preferences(
+        project_root,
+        template_config,
+        opencollective_disabled: opencollective_disabled,
+        include_patterns: template_selection[:include]
+      )
       template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
       legacy_cleanups = template_legacy_destination_cleanups(project_root, template_preferences)
       template_facts[:legacy_destination_cleanups] = legacy_cleanups unless legacy_cleanups.empty?
@@ -2141,6 +2150,15 @@ module Kettle
           workflow_path,
           "file",
           "supplied_obsolete_file_deletion",
+          facts: %w[ci]
+        )
+      end
+      facts.dig(:ci, :opt_in_workflow_cleanups).to_a.each do |workflow_path|
+        recipes << recipe_entry(
+          "github_actions_opt_in_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
+          workflow_path,
+          "file",
+          "supplied_opt_in_workflow_deletion",
           facts: %w[ci]
         )
       end
@@ -2218,7 +2236,7 @@ module Kettle
       decision_policy = decision_policy_for(env, run_options)
       git_preflight = git_preflight_report(project_root, template_selection: template_selection)
       enforce_git_preflight!(git_preflight, decision_policy: decision_policy, template_selection: template_selection)
-      facts = discover_facts(project_root, env: env)
+      facts = discover_facts(project_root, env: env, run_options: run_options)
       pack = recipe_pack(facts)
       pack = filter_recipe_pack(pack, template_selection)
       files = read_project_files(project_root, pack)
@@ -2531,6 +2549,8 @@ module Kettle
       when "github_actions_coverage_ci"
         synchronize_github_actions_coverage_ci(original, facts)
       when /\Agithub_actions_obsolete_workflow_cleanup_/
+        ""
+      when /\Agithub_actions_opt_in_workflow_cleanup_/
         ""
       when /\Aopencollective_disabled_file_cleanup_/
         ""
@@ -2922,11 +2942,16 @@ module Kettle
           template_content,
           destination_content,
           "ruby",
-          merge_template_requires: file_type == :rakefile,
-          method_move_policy: ruby_method_move_policy(recipe)
+          **ruby_merge_options(recipe, merge_template_requires: file_type == :rakefile)
         )
       when :yaml
-        merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
+        begin
+          merge_result = Yaml::Merge.merge_yaml(template_content, destination_content, "yaml")
+        rescue StandardError
+          return template_content if github_workflow_template_recipe?(recipe)
+
+          raise
+        end
       when :toml
         merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
       else
@@ -2943,13 +2968,29 @@ module Kettle
         return output
       end
 
+      return template_content if github_workflow_template_recipe?(recipe)
+
       diagnostics = merge_result.fetch(:diagnostics, [])
       message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
       raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
     end
 
     def ruby_method_move_policy(recipe)
-      recipe.dig(:template_preference, :method_move_policy) || Ruby::Merge::DEFAULT_METHOD_MOVE_POLICY
+      recipe.dig(:template_preference, :method_move_policy) ||
+        (Ruby::Merge.const_defined?(:DEFAULT_METHOD_MOVE_POLICY) ? Ruby::Merge::DEFAULT_METHOD_MOVE_POLICY : DEFAULT_RUBY_METHOD_MOVE_POLICY)
+    end
+
+    def github_workflow_template_recipe?(recipe)
+      recipe.fetch(:target_path).to_s.start_with?(".github/workflows/")
+    end
+
+    def ruby_merge_options(recipe, merge_template_requires:)
+      options = { merge_template_requires: merge_template_requires }
+      parameters = Ruby::Merge.method(:merge_ruby).parameters
+      if parameters.include?([:key, :method_move_policy]) || parameters.any? { |kind, _name| kind == :keyrest }
+        options[:method_move_policy] = ruby_method_move_policy(recipe)
+      end
+      options
     end
 
     def merge_gemfile_template_policy(content, facts:, template_content: nil)
@@ -3633,6 +3674,14 @@ module Kettle
         path = File.join(workflow_root, workflow)
         relative_path if File.exist?(path)
       end.sort
+    end
+
+    def opt_in_workflow_cleanup_files(project_root, template_selection)
+      include_patterns = Array(template_selection[:include])
+      OPT_IN_GITHUB_WORKFLOWS.select do |relative_path|
+        File.exist?(File.join(project_root, relative_path)) &&
+          !selected_template_path?(relative_path, include_patterns)
+      end
     end
 
     def generated_or_obsolete_github_workflow?(relative_path)
@@ -5233,7 +5282,7 @@ module Kettle
       text.to_s.sub(/\A(?:\d\uFE0F?\u20E3|[^[:alnum:][:space:]])+[ \t]*/u, "")
     end
 
-    def template_source_preferences(project_root, config, opencollective_disabled: false)
+    def template_source_preferences(project_root, config, opencollective_disabled: false, include_patterns: nil)
       templates = template_activation_config(config)
       return [] unless templates.is_a?(Hash)
 
@@ -5249,6 +5298,7 @@ module Kettle
           entry,
           config,
           opencollective_disabled: opencollective_disabled,
+          include_patterns: include_patterns,
           apply_templates: apply_templates
         )
       end
@@ -5357,10 +5407,10 @@ module Kettle
       recipe
     end
 
-    def template_source_preference(project_root, template_root, entry, config, opencollective_disabled: false, apply_templates: false)
+    def template_source_preference(project_root, template_root, entry, config, opencollective_disabled: false, include_patterns: nil, apply_templates: false)
       source_path, target_path = template_entry_paths(entry)
       return nil if source_path.to_s.empty? || target_path.to_s.empty?
-      return nil if skip_packaged_workflow_template?(target_path, config)
+      return nil if skip_packaged_workflow_template?(target_path, config, include_patterns: include_patterns)
       return nil if skip_packaged_license_template?(target_path, config)
 
       selected_source = preferred_template_source(template_root.fetch(:path), source_path, opencollective_disabled: opencollective_disabled)
@@ -5545,9 +5595,10 @@ module Kettle
         .to_set
     end
 
-    def skip_packaged_workflow_template?(target_path, config)
+    def skip_packaged_workflow_template?(target_path, config, include_patterns: nil)
       path = target_path.to_s
       return false unless path.start_with?(".github/workflows/")
+      return true if OPT_IN_GITHUB_WORKFLOWS.include?(path) && !selected_template_path?(path, Array(include_patterns))
 
       basename = File.basename(path, ".yml")
       engine = ENGINE_WORKFLOW_MAP[basename]

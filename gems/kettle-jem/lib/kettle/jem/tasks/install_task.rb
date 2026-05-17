@@ -17,11 +17,13 @@ module Kettle
           install_steps << version_step if version_step
           mise_step = mise_trust_step(project_root, report, env: env)
           install_steps << mise_step if mise_step
+          install_steps.concat(post_template_project_fix_steps(project_root, report, env: env))
           install_steps << ensure_bin_setup_executable(project_root)
-          install_steps.concat(run_bundle_setup_commands(project_root, env: env, run_options: run_options, command_runner: command_runner))
-          install_steps << bundled_handoff_step(env: env, run_options: run_options)
+          setup_env = setup_command_env(project_root, env)
+          install_steps.concat(run_bundle_setup_commands(project_root, env: setup_env, run_options: run_options, command_runner: command_runner))
+          install_steps << bundled_handoff_step(project_root: project_root, env: env, run_options: run_options)
           install_steps << bootstrap_commit_step(project_root, run_options: run_options)
-          install_steps = execute_orchestration_steps(install_steps, project_root: project_root, env: env, run_options: run_options, command_runner: command_runner)
+          install_steps = execute_orchestration_steps(install_steps, project_root: project_root, env: setup_env, run_options: run_options, command_runner: command_runner)
 
           report.merge(
             mode: "install",
@@ -71,7 +73,17 @@ module Kettle
         def install_phase_reports(install_steps)
           phases = {
             "template_apply" => %w[gemspec_dependency_sync],
-            "post_template" => %w[version_gem_bootstrap mise_trust bin_setup_executable bin_setup bundle_binstubs],
+            "post_template" => %w[
+              version_gem_bootstrap
+              mise_trust
+              legacy_ruby_version_file_cleanup
+              readme_compatibility_badges
+              gemspec_homepage_literal
+              env_local_gitignore
+              bin_setup_executable
+              bin_setup
+              bundle_binstubs
+            ],
             "orchestration" => %w[bundled_handoff bootstrap_commit],
           }
           phases.map do |phase, names|
@@ -132,6 +144,158 @@ module Kettle
           end
         end
 
+        def post_template_project_fix_steps(project_root, report, env:)
+          [
+            cleanup_legacy_ruby_version_files(project_root),
+            trim_readme_compatibility_badges(project_root, report),
+            repair_gemspec_homepage(project_root, env),
+            ensure_env_local_gitignore(project_root),
+          ].compact
+        end
+
+        def cleanup_legacy_ruby_version_files(project_root)
+          return nil unless File.file?(File.join(project_root.to_s, "mise.toml"))
+
+          removed = %w[.ruby-version .ruby-gemset .tool-versions].filter_map do |relative_path|
+            path = File.join(project_root.to_s, relative_path)
+            next unless File.exist?(path)
+
+            FileUtils.rm_f(path)
+            relative_path
+          end
+          {
+            name: "legacy_ruby_version_file_cleanup",
+            status: removed.empty? ? "already_current" : "applied",
+            removed_files: removed,
+          }
+        end
+
+        def trim_readme_compatibility_badges(project_root, report)
+          readme_path = File.join(project_root.to_s, "README.md")
+          return nil unless File.file?(readme_path)
+
+          min_ruby = report.dig(:facts, :rubygems, :min_ruby)
+          return {
+            name: "readme_compatibility_badges",
+            status: "skipped",
+            reason: "missing_min_ruby",
+          } if min_ruby.to_s.empty?
+
+          before = File.read(readme_path)
+          after = Kettle::Jem::ReadmePostProcessor.process(
+            content: before,
+            min_ruby: Gem::Version.new(Kettle::Jem.minimum_ruby_token(min_ruby)),
+            engines: report.dig(:facts, :rubygems, :engines)
+          )
+          File.write(readme_path, after) if after != before
+          {
+            name: "readme_compatibility_badges",
+            path: "README.md",
+            status: after == before ? "already_current" : "applied",
+          }
+        rescue StandardError => error
+          {
+            name: "readme_compatibility_badges",
+            path: "README.md",
+            status: "skipped",
+            reason: error.message,
+          }
+        end
+
+        def repair_gemspec_homepage(project_root, env)
+          gemspec_path = Dir.glob(File.join(project_root.to_s, "*.gemspec")).sort.first
+          return nil unless gemspec_path
+
+          content = File.read(gemspec_path)
+          homepage_line = content.lines.find { |line| line.match?(/\bspec\.homepage\s*=/) }
+          return {
+            name: "gemspec_homepage_literal",
+            status: "skipped",
+            reason: "missing_homepage",
+          } unless homepage_line
+
+          assigned = homepage_line.split("=", 2).last.to_s.strip
+          return {
+            name: "gemspec_homepage_literal",
+            path: File.basename(gemspec_path),
+            status: "already_current",
+          } if literal_github_homepage?(assigned)
+
+          org = github_org_from_env(env) || github_org_from_origin(project_root)
+          gem_name = gemspec_name(content, gemspec_path)
+          return {
+            name: "gemspec_homepage_literal",
+            path: File.basename(gemspec_path),
+            status: "skipped",
+            reason: "missing_github_org",
+          } if org.to_s.empty? || gem_name.to_s.empty?
+
+          homepage = "https://github.com/#{org}/#{gem_name}"
+          updated = content.sub(homepage_line, homepage_line.sub(/=.*/, "= #{homepage.dump}\n"))
+          File.write(gemspec_path, updated) if updated != content
+          {
+            name: "gemspec_homepage_literal",
+            path: File.basename(gemspec_path),
+            status: updated == content ? "already_current" : "applied",
+            homepage: homepage,
+          }
+        end
+
+        def literal_github_homepage?(assigned)
+          value = assigned.to_s.strip
+          return false if value.include?('#{')
+
+          if (value.start_with?('"') && value.end_with?('"')) || (value.start_with?("'") && value.end_with?("'"))
+            value = value[1..-2]
+          end
+          !!value.match(%r{\Ahttps?://github\.com/[^/\s]+/[^/\s]+/?\z}i)
+        end
+
+        def github_org_from_env(env)
+          %w[FORGE_ORG KJ_GH_USER GITHUB_ORG].each do |key|
+            value = (env || {})[key].to_s.strip
+            return value unless value.empty? || Kettle::Jem::DecisionPolicy.falsey?(value)
+          end
+          nil
+        end
+
+        def github_org_from_origin(project_root)
+          stdout, _stderr, status = Open3.capture3("git", "-C", project_root.to_s, "remote", "get-url", "origin")
+          return nil unless status.success?
+
+          stdout[%r{github\.com[/:]([^/\s:]+)/}i, 1]
+        end
+
+        def gemspec_name(content, gemspec_path)
+          content[/\bspec\.name\s*=\s*["']([^"']+)["']/, 1] || File.basename(gemspec_path, ".gemspec")
+        end
+
+        def ensure_env_local_gitignore(project_root)
+          return nil unless File.file?(File.join(project_root.to_s, ".env.local.example"))
+
+          gitignore_path = File.join(project_root.to_s, ".gitignore")
+          content = File.file?(gitignore_path) ? File.read(gitignore_path) : ""
+          return {
+            name: "env_local_gitignore",
+            path: ".gitignore",
+            status: "already_current",
+          } if content.lines.any? { |line| line.strip == ".env.local" }
+
+          addition = [
+            "# Local environment overrides (KEY=value, loaded by mise via dotenvy)",
+            ".env.local",
+          ].join("\n")
+          updated = content.dup
+          updated << "\n" unless updated.empty? || updated.end_with?("\n")
+          updated << addition << "\n"
+          File.write(gitignore_path, updated)
+          {
+            name: "env_local_gitignore",
+            path: ".gitignore",
+            status: "applied",
+          }
+        end
+
         def run_bundle_setup_commands(project_root, env:, run_options:, command_runner:)
           quiet = Kettle::Jem::DecisionPolicy.value_to_boolean(run_options[:quiet])
           [
@@ -170,7 +334,14 @@ module Kettle
           end
         end
 
-        def bundled_handoff_step(env:, run_options:)
+        def setup_command_env(project_root, env)
+          command_env = (env || {}).dup
+          gemfile = File.join(project_root.to_s, "Gemfile")
+          command_env["BUNDLE_GEMFILE"] = gemfile if File.file?(gemfile)
+          command_env
+        end
+
+        def bundled_handoff_step(project_root:, env:, run_options:)
           if Kettle::Jem::DecisionPolicy.value_to_boolean((run_options || {})[:bootstrap_mode])
             return {
               name: "bundled_handoff",
@@ -180,7 +351,8 @@ module Kettle
           end
 
           bundle_gemfile = (env || {})["BUNDLE_GEMFILE"].to_s.strip
-          unless bundle_gemfile.empty?
+          project_gemfile = File.expand_path(File.join(project_root.to_s, "Gemfile"))
+          if !bundle_gemfile.empty? && File.expand_path(bundle_gemfile) == project_gemfile
             return {
               name: "bundled_handoff",
               status: "already_bundled",
