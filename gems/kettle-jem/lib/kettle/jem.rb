@@ -3296,6 +3296,7 @@ module Kettle
       removable_gems = ["appraisal"]
       removable_gems << package_name unless package_name.to_s.empty?
       pruned = remove_gemfile_dependency_lines(content, removable_gems)
+      pruned = remove_gemfile_percent_w_entries(pruned, [package_name])
       apply_commented_gem_dependency_policy(template_content, pruned)
     end
 
@@ -3342,6 +3343,21 @@ module Kettle
         match && names.include?(match[1])
       end
       ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
+    end
+
+    def remove_gemfile_percent_w_entries(content, gem_names)
+      names = gem_names.map(&:to_s).reject(&:empty?).uniq
+      return content if names.empty?
+
+      replaced = content.to_s.gsub(/%w\[(.*?)^\s*\]/m) do |block|
+        if block.lines.one?
+          words = block[/\A%w\[(.*)\]\z/, 1].to_s.split(/\s+/).reject { |word| names.include?(word) }
+          "%w[#{words.join(" ")}]"
+        else
+          block.lines.reject { |line| names.include?(line.strip) }.join
+        end
+      end
+      ensure_trailing_newline(replaced.gsub(/\n{3,}/, "\n\n"))
     end
 
     def merge_gemfile_eval_bucket_entries(template_content, merged_content)

@@ -2733,6 +2733,60 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "removes the project self-dependency from non-local templating Gemfiles" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-templating-gemfile-policy", tmp_root) do |root|
+      write_tree(root, {
+        "kettle-jem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "kettle-jem"
+            spec.summary = "Kettle Jem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - gemfiles/modular/templating.gemfile
+        YAML
+        "gemfiles/modular/templating.gemfile" => <<~RUBY,
+          # frozen_string_literal: true
+
+          gem "existing"
+        RUBY
+        "template/gemfiles/modular/templating.gemfile.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          structuredmerge_ruby_gems = ENV["STRUCTUREDMERGE_RUBY_GEMS"].to_s.strip
+
+          if !structuredmerge_ruby_gems.empty?
+            %w[
+              tree_haver
+              kettle-jem
+            ].each do |gem_name|
+              gem gem_name, path: File.join(structuredmerge_ruby_gems, gem_name)
+            end
+          else
+            gem "kettle-jem", ">= 7.0"
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == "gemfiles/modular/templating.gemfile"
+      end
+      content = report.fetch(:final_content)
+
+      expect(content).to include("tree_haver")
+      expect(content).not_to match(/^\s+kettle-jem$/)
+      expect(content).not_to match(/^\s*gem\s+["']kettle-jem["']/)
+      expect(File.read(File.join(root, "gemfiles/modular/templating.gemfile"))).to eq(content)
+    end
+  end
+
   it "generates shunted.gemfile entries from resolved development dependency Ruby floors" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

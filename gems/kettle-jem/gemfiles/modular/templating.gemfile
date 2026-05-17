@@ -40,4 +40,4 @@ end
 # Set KETTLE_RB_DEV=true (or path) for local development with path-based dependencies.
 # When false (default / CI), released gems are used and explicit parser pins are needed.
 # Local path overrides — merge gems bring their own parser dependencies
-eval_gemfile "templating_local.gemfile" unless remote
+eval_gemfile "templating_local.gemfile" if !remote && structuredmerge_ruby_gems.empty?
