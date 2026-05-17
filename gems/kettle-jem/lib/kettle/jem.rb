@@ -2377,7 +2377,51 @@ module Kettle
     def apply_project(project_root, env: ENV, run_options: {})
       report = plan_project(project_root, env: env, run_options: run_options).merge(mode: "apply")
       run_apply_phases(project_root, report)
+      report[:duplicate_drift] = duplicate_drift_report(
+        project_root: project_root,
+        template_root: template_root_path(project_root, config: kettle_jem_config(project_root)),
+        run_options: run_options
+      )
       report
+    end
+
+    def duplicate_drift_report(project_root:, template_root:, run_options: {})
+      runner = run_options[:duplicate_drift_runner] || run_options["duplicate_drift_runner"]
+      unless runner
+        begin
+          require "kettle/drift"
+          runner = Kettle::Drift
+        rescue LoadError
+          return {
+            available: false,
+            reason: "kettle-drift is not available",
+          }
+        end
+      end
+
+      outcome = if runner.respond_to?(:call)
+        runner.call(project_root: project_root, template_dir: template_root)
+      else
+        runner.run(
+          project_root: project_root,
+          template_dir: template_root,
+          lock_path: File.join(project_root.to_s, ".kettle-drift.lock"),
+          mode: :force_update,
+          printer_class: nil
+        )
+      end
+      {
+        available: true,
+        warning_count: outcome.respond_to?(:warning_count) ? outcome.warning_count : outcome.fetch(:warning_count),
+        json_path: outcome.respond_to?(:json_path) ? outcome.json_path : outcome[:json_path],
+        lock_path: outcome.respond_to?(:lock_path) ? outcome.lock_path : outcome[:lock_path],
+        exit_code: outcome.respond_to?(:exit_code) ? outcome.exit_code : outcome[:exit_code],
+      }.compact
+    rescue StandardError => error
+      {
+        available: false,
+        reason: "#{error.class}: #{error.message}",
+      }
     end
 
     def setup_project(project_root, env: ENV, run_options: {}, command_runner: nil)

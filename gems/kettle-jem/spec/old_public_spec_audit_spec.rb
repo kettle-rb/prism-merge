@@ -46,13 +46,13 @@ RSpec.describe "old Kettle/Jem public spec audit" do
     expect(partial_files.flat_map { |entry| entry.fetch(:remaining_behaviors) }).not_to be_empty
 
     template_task = files.find { |entry| entry.fetch(:path) == "spec/kettle/jem/tasks/template_task_spec.rb" }
+    expect(template_task.fetch(:status)).to eq("ported")
     expect(template_task.fetch(:ported_behaviors)).to include(
       "legacy Markdown README H1, nested subsection, and fenced-code preservation",
       "appraisal matrix pruning parity against old generated workflow set",
-      "RubyGems minimum-Ruby shunted.gemfile generation"
-    )
-    expect(template_task.fetch(:remaining_behaviors)).to include(
+      "RubyGems minimum-Ruby shunted.gemfile generation",
       "duplicate drift checks during template/install runs"
     )
+    expect(template_task.fetch(:remaining_behaviors)).to eq([])
   end
 end

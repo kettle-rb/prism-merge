@@ -4185,6 +4185,50 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "reports duplicate drift during template apply runs" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-duplicate-drift-apply", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "template/README.md.example" => "# Example\n",
+      })
+      calls = []
+      runner = lambda do |project_root:, template_dir:|
+        calls << { project_root: project_root, template_dir: template_dir }
+        {
+          warning_count: 1,
+          json_path: File.join(project_root, "tmp", "kettle-jem", "dup-check.json"),
+          lock_path: File.join(project_root, ".kettle-drift.lock"),
+          exit_code: 1,
+        }
+      end
+
+      apply = described_class.apply_project(root, env: {}, run_options: { duplicate_drift_runner: runner })
+
+      expect(calls).to eq([{ project_root: root, template_dir: File.join(root, "template") }])
+      expect(apply.fetch(:duplicate_drift)).to include(
+        available: true,
+        warning_count: 1,
+        json_path: File.join(root, "tmp", "kettle-jem", "dup-check.json"),
+        lock_path: File.join(root, ".kettle-drift.lock"),
+        exit_code: 1
+      )
+    end
+  end
+
   it "exposes template root and manifest metadata for adjacent tools" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

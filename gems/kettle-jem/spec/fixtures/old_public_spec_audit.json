@@ -130,7 +130,7 @@
     },
     {
       "path": "spec/kettle/jem/tasks/template_task_spec.rb",
-      "status": "partial",
+      "status": "ported",
       "active_specs": ["spec/thin_slice_spec.rb", "spec/system/bundle_gem_scaffold_spec.rb"],
       "ported_behaviors": [
         "file type classification",
@@ -154,11 +154,10 @@
         "modular Gemfile Ruby-bucket pruning",
         "modular Gemfile self-dependency removal",
         "modular Gemfile local override merge",
-        "RubyGems minimum-Ruby shunted.gemfile generation"
-      ],
-      "remaining_behaviors": [
+        "RubyGems minimum-Ruby shunted.gemfile generation",
         "duplicate drift checks during template/install runs"
-      ]
+      ],
+      "remaining_behaviors": []
     },
     {
       "path": "spec/kettle/jem/tasks/self_test_task_spec.rb",
