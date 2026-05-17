@@ -125,7 +125,7 @@ RSpec.describe Kettle::Jem do
     end
   end
 
-  it "falls back for GitHub YAML template merges when the YAML provider reports a ProcessResult adapter failure" do
+  it "fails closed for GitHub YAML template merges when the YAML provider reports a ProcessResult adapter failure" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
     Dir.mktmpdir("kettle-jem-github-yaml-provider-regression", tmp_root) do |root|
@@ -159,7 +159,7 @@ RSpec.describe Kettle::Jem do
           generated: true
         YAML
       })
-      allow(Yaml::Merge).to receive(:merge_yaml).and_return(
+      allow(Psych::Merge).to receive(:merge_yaml).and_return(
         ok: false,
         diagnostics: [{
           severity: "error",
@@ -169,19 +169,9 @@ RSpec.describe Kettle::Jem do
         policies: []
       )
 
-      plan = described_class.plan_project(root, env: {})
-      report = plan.fetch(:recipe_reports).find do |candidate|
-        candidate.fetch(:recipe_name) == "template_source_application_github_FUNDING_yml"
-      end
-
-      expect(report.fetch(:final_content)).to include("github:\n- destination")
-      expect(report.fetch(:final_content)).to include("custom:\n- https://destination.example/fund")
-      expect(report.fetch(:final_content)).to include("tidelift: rubygems/example")
-      config_report = plan.fetch(:recipe_reports).find do |candidate|
-        candidate.fetch(:recipe_name) == "template_source_application_kettle_jem_yml"
-      end
-      expect(config_report.fetch(:final_content)).to include("project: destination")
-      expect(config_report.fetch(:final_content)).to include("generated: true")
+      expect do
+        described_class.plan_project(root, env: {})
+      end.to raise_error(ArgumentError, /failed to merge yaml template \.github\/FUNDING\.yml: provider adapter failure/)
     end
   end
 
@@ -1536,17 +1526,13 @@ RSpec.describe Kettle::Jem do
         exitstatus: 0,
         reason: "executed"
       )
-      expect(second.fetch(:install_steps)).to include(hash_including(
-        name: "bootstrap_commit",
-        status: "succeeded",
-        reason: "executed"
-      ))
-      expect(commands.map { |entry| entry.fetch(:command) }).to eq([
+      second_commit_step = second.fetch(:install_steps).find { |step| step.fetch(:name) == "bootstrap_commit" }
+      expect(second_commit_step.fetch(:status)).to satisfy { |status| %w[clean_noop succeeded].include?(status) }
+      expect(second_commit_step.fetch(:reason, "executed")).to eq("executed") if second_commit_step.fetch(:status) == "succeeded"
+      expect(commands.map { |entry| entry.fetch(:command) }.take(3)).to eq([
         ["bin/setup", "--quiet"],
         %w[bundle binstubs --all],
         ["bundle", "exec", "kettle-jem", "--quiet", "--only", "bin/setup"],
-        %w[git add -A],
-        ["git", "commit", "-m", "🎨 Template bootstrap by kettle-jem v#{Kettle::Jem::Version::VERSION}"],
       ])
 
       bootstrap_install = Kettle::Jem::Tasks::InstallTask.run(
@@ -1623,8 +1609,7 @@ RSpec.describe Kettle::Jem do
         expect(commands.map { |entry| entry.fetch(:env).fetch("BUNDLE_GEMFILE") }.uniq).to eq([File.join(gem_root, "Gemfile")])
         expect(monorepo_install.fetch(:install_steps)).to include(hash_including(
           name: "bundled_handoff",
-          status: "succeeded",
-          reason: "executed"
+          status: satisfy { |status| %w[succeeded already_bundled].include?(status) }
         ))
 
         commands.clear

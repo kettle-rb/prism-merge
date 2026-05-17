@@ -3024,7 +3024,10 @@ module Kettle
         )
       end
       return merge_config_template_source(recipe, resolved, original, facts: facts) if strategy.empty? || strategy == "merge"
-      return finalize_accepted_template_source(recipe, resolved, original, facts: facts) if strategy == "accept_template"
+      if strategy == "accept_template"
+        accepted = finalize_accepted_template_source(recipe, resolved, original, facts: facts)
+        return recipe.fetch(:target_path) == "README.md" ? postprocess_readme_content(accepted, facts) : accepted
+      end
 
       recipe.fetch(:target_path) == "README.md" ? postprocess_readme_content(resolved, facts) : resolved
     end
@@ -3267,7 +3270,7 @@ module Kettle
       when :appraisals
         merge_appraisals_template_policy(template_content, facts: facts)
       when :yaml
-        template_content
+        raise ArgumentError, "failed to merge yaml template #{recipe.fetch(:target_path)}: provider adapter failure"
       else
         template_content
       end
@@ -3288,7 +3291,45 @@ module Kettle
       removable_gems << package_name unless package_name.to_s.empty?
       pruned = remove_gemfile_dependency_lines(content, removable_gems)
       pruned = remove_gemfile_percent_w_entries(pruned, [package_name])
+      pruned = merge_template_gemfile_dependency_blocks(template_content, pruned, removable_gems)
       apply_commented_gem_dependency_policy(template_content, pruned)
+    end
+
+    def merge_template_gemfile_dependency_blocks(template_content, content, removable_gems)
+      template = remove_gemfile_dependency_lines(template_content, removable_gems)
+      template = remove_gemfile_percent_w_entries(template, removable_gems)
+      existing = gemfile_dependency_names(content) + gemfile_percent_w_names(content)
+      additions = gemfile_paragraphs(template).filter_map do |paragraph|
+        names = gemfile_dependency_names(paragraph) + gemfile_percent_w_names(paragraph)
+        next if names.empty?
+        next if (names - existing).empty?
+
+        paragraph
+      end
+      return content if additions.empty?
+
+      insert_gemfile_dependency_blocks(content, additions)
+    end
+
+    def gemfile_paragraphs(content)
+      content.to_s.split(/\n{2,}/).map { |paragraph| ensure_trailing_newline(paragraph.strip) }.reject { |paragraph| paragraph.strip.empty? }
+    end
+
+    def gemfile_percent_w_names(content)
+      content.to_s.scan(/%w\[(.*?)^\s*\]/m).flat_map do |match|
+        match.first.split(/\s+/)
+      end.reject(&:empty?)
+    end
+
+    def insert_gemfile_dependency_blocks(content, blocks)
+      lines = content.to_s.lines
+      insert_at = lines.index { |line| line.match?(/^\s*(?:gem|group|platforms|if|unless)\b/) } || lines.length
+      while insert_at.positive? && lines[insert_at - 1].strip.empty?
+        insert_at -= 1
+      end
+      insertion = blocks.map { |block| block.strip }.join("\n\n")
+      lines.insert(insert_at, "#{insertion}\n\n")
+      ensure_trailing_newline(lines.join.gsub(/\n{3,}/, "\n\n"))
     end
 
     def apply_commented_gem_dependency_policy(template_content, content)
