@@ -1433,12 +1433,14 @@ RSpec.describe Kettle::Jem do
         "example.gemspec" => <<~RUBY,
           Gem::Specification.new do |spec|
             spec.name = "example"
-            spec.summary = "Example gem"
+            spec.summary = "🥘 Example gem"
+            spec.description = "Example description"
             spec.homepage = "\#{homepage}"
             spec.required_ruby_version = ">= 3.2"
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "🔧"
           templates:
             root: packaged
             apply: true
@@ -1446,7 +1448,7 @@ RSpec.describe Kettle::Jem do
               - README.md
         YAML
         "README.md" => <<~MARKDOWN,
-          # Example
+          # 🍲 Example
 
           | Runtime | Works |
           | --- | --- |
@@ -1490,11 +1492,21 @@ RSpec.describe Kettle::Jem do
         path: ".gitignore",
         status: "applied"
       )
+      expect(install.fetch(:install_steps)).to include(hash_including(
+        name: "readme_gemspec_grapheme_sync",
+        paths: ["README.md", "example.gemspec"],
+        status: "applied",
+        grapheme: "🔧"
+      ))
       expect(File).not_to exist(File.join(root, ".ruby-version"))
       expect(File).not_to exist(File.join(root, ".tool-versions"))
-      expect(File.read(File.join(root, "example.gemspec"))).to include('spec.homepage = "https://github.com/example-org/example"')
+      gemspec = File.read(File.join(root, "example.gemspec"))
+      expect(gemspec).to include('spec.homepage = "https://github.com/example-org/example"')
+      expect(gemspec).to include('spec.summary = "🔧 Example gem"')
+      expect(gemspec).to include('spec.description = "🔧 Example description"')
       expect(File.read(File.join(root, ".gitignore"))).to include(".env.local")
       readme = File.read(File.join(root, "README.md"))
+      expect(readme).to include("# 🔧 Example")
       expect(readme).not_to include("ruby-2.7")
       expect(readme).to include("ruby-3.2")
       expect(install.fetch(:install_phase_reports)).to include(hash_including(
@@ -1502,6 +1514,7 @@ RSpec.describe Kettle::Jem do
         statuses: hash_including(
           "legacy_ruby_version_file_cleanup" => "applied",
           "readme_compatibility_badges" => satisfy { |status| %w[applied already_current].include?(status) },
+          "readme_gemspec_grapheme_sync" => "applied",
           "gemspec_homepage_literal" => "applied",
           "env_local_gitignore" => "applied"
         )

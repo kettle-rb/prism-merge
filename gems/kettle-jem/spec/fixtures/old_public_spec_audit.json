@@ -103,10 +103,10 @@
         "README and gemspec templating behavior moved to active template specs",
         "destination Gemfile owns setup commands in monorepos",
         "post-template mise cleanup, README compatibility badge trim, homepage repair, and .env.local gitignore safety",
+        "README/gemspec grapheme synchronization from project_emoji",
         "README badge trimming policy"
       ],
       "remaining_behaviors": [
-        "README/gemspec grapheme synchronization parity",
         "summary diagnostics parity with old setup output",
         "template/setup binstub validation against real monorepo destination"
       ]

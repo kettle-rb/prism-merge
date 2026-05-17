@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "open3"
+require "yaml"
 
 module Kettle
   module Jem
@@ -78,6 +79,7 @@ module Kettle
               mise_trust
               legacy_ruby_version_file_cleanup
               readme_compatibility_badges
+              readme_gemspec_grapheme_sync
               gemspec_homepage_literal
               env_local_gitignore
               bin_setup_executable
@@ -148,6 +150,7 @@ module Kettle
           [
             cleanup_legacy_ruby_version_files(project_root),
             trim_readme_compatibility_badges(project_root, report),
+            sync_readme_gemspec_grapheme(project_root, env),
             repair_gemspec_homepage(project_root, env),
             ensure_env_local_gitignore(project_root),
           ].compact
@@ -200,6 +203,100 @@ module Kettle
             status: "skipped",
             reason: error.message,
           }
+        end
+
+        def sync_readme_gemspec_grapheme(project_root, env)
+          readme_path = File.join(project_root.to_s, "README.md")
+          gemspec_path = Dir.glob(File.join(project_root.to_s, "*.gemspec")).sort.first
+          return nil unless File.file?(readme_path) && gemspec_path
+
+          readme = File.read(readme_path)
+          gemspec = File.read(gemspec_path)
+          grapheme = configured_project_grapheme(project_root, env) || readme_h1_grapheme(readme)
+          return {
+            name: "readme_gemspec_grapheme_sync",
+            status: "skipped",
+            reason: "missing_grapheme",
+          } if grapheme.to_s.empty?
+
+          updated_readme = normalize_readme_h1_grapheme(readme, grapheme)
+          updated_gemspec = normalize_gemspec_grapheme(gemspec, grapheme)
+          File.write(readme_path, updated_readme) if updated_readme != readme
+          File.write(gemspec_path, updated_gemspec) if updated_gemspec != gemspec
+          {
+            name: "readme_gemspec_grapheme_sync",
+            paths: ["README.md", File.basename(gemspec_path)],
+            status: updated_readme == readme && updated_gemspec == gemspec ? "already_current" : "applied",
+            grapheme: grapheme,
+          }
+        rescue StandardError => error
+          {
+            name: "readme_gemspec_grapheme_sync",
+            status: "skipped",
+            reason: error.message,
+          }
+        end
+
+        def configured_project_grapheme(project_root, env)
+          env_value = (env || {})["KJ_PROJECT_EMOJI"].to_s.strip
+          return first_grapheme(env_value) unless env_value.empty? || Kettle::Jem::DecisionPolicy.falsey?(env_value)
+
+          config_path = File.join(project_root.to_s, ".kettle-jem.yml")
+          return nil unless File.file?(config_path)
+
+          config = YAML.safe_load(File.read(config_path), permitted_classes: [], aliases: false)
+          value = config["project_emoji"].to_s.strip if config.is_a?(Hash)
+          value.to_s.empty? ? nil : first_grapheme(value)
+        rescue StandardError
+          nil
+        end
+
+        def readme_h1_grapheme(content)
+          h1 = content.to_s.lines.find { |line| line.match?(/\A#\s+/) }
+          return nil unless h1
+
+          first = first_grapheme(h1.sub(/\A#\s+/, ""))
+          decorative_grapheme?(first) ? first : nil
+        end
+
+        def normalize_readme_h1_grapheme(content, grapheme)
+          lines = content.to_s.split("\n", -1)
+          index = lines.index { |line| line.match?(/\A#\s+/) }
+          return content unless index
+
+          rest = lines.fetch(index).sub(/\A#\s+/, "")
+          lines[index] = "# #{grapheme} #{strip_leading_decorative_graphemes(rest)}".rstrip
+          lines.join("\n")
+        end
+
+        def normalize_gemspec_grapheme(content, grapheme)
+          %w[spec.summary spec.description].reduce(content.to_s) do |text, field|
+            text.gsub(/(\b#{Regexp.escape(field)}\s*=\s*)(["'])([^"']*)(\2)/) do
+              "#{Regexp.last_match(1)}#{Regexp.last_match(2)}#{grapheme} #{strip_leading_decorative_graphemes(Regexp.last_match(3))}#{Regexp.last_match(4)}"
+            end
+          end
+        end
+
+        def strip_leading_decorative_graphemes(text)
+          remaining = text.to_s.sub(/\A\s+/, "")
+          loop do
+            first = first_grapheme(remaining)
+            break unless decorative_grapheme?(first)
+
+            remaining = remaining[first.length..].to_s.sub(/\A\s+/, "")
+          end
+          remaining
+        end
+
+        def first_grapheme(text)
+          text.to_s.strip[/\A\X/u].to_s
+        end
+
+        def decorative_grapheme?(grapheme)
+          value = grapheme.to_s
+          return false if value.empty?
+
+          !value.match?(/\A[[:alnum:][:space:]]\z/u)
         end
 
         def repair_gemspec_homepage(project_root, env)
