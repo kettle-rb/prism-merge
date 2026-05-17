@@ -6069,7 +6069,7 @@ module Kettle
         ["Description", package[:description]],
         ["Homepage", package[:homepage_url]],
         ["Source", package[:source_url]],
-        ["License", package[:license_expression]],
+        ["License", readme_metadata_license_expression(facts)],
         ["Funding", funding_urls.join(", ")],
       ].reject { |(_, value)| value.to_s.empty? }
 
@@ -6080,6 +6080,17 @@ module Kettle
         *rows.map { |field, value| "| #{field} | #{value} |" },
         "<!-- kettle-jem:metadata:end -->",
       ].join("\n")
+    end
+
+    def readme_metadata_license_expression(facts)
+      package = facts.fetch(:package)
+      expression = package[:license_expression].to_s
+      spdx_ids = Array(facts.dig(:license, :spdx)).map(&:to_s).reject(&:empty?)
+      return expression if expression.empty? || spdx_ids.empty?
+
+      spdx_ids.sort_by { |spdx_id| -spdx_id.length }.reduce(expression) do |formatted, spdx_id|
+        formatted.gsub(/\b#{Regexp.escape(spdx_id)}\b/, "`#{spdx_id}`")
+      end
     end
 
     def synchronize_github_funding_yml(content, facts)

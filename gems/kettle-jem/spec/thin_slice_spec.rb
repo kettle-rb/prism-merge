@@ -3973,6 +3973,26 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "formats README metadata SPDX license identifiers as code spans" do
+    block = described_class.readme_metadata_block(
+      package: {
+        name: "example",
+        description: "Example gem",
+        homepage_url: "https://example.test",
+        source_url: "https://example.test/source",
+        license_expression: "AGPL-3.0-only OR PolyForm-Small-Business-1.0.0",
+      },
+      license: {
+        spdx: ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"],
+      },
+      funding: {
+        urls: [],
+      }
+    )
+
+    expect(block).to include("| License | `AGPL-3.0-only` OR `PolyForm-Small-Business-1.0.0` |")
+  end
+
   it "applies and prunes root license files from configured licenses" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
