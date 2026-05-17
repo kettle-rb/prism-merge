@@ -541,7 +541,14 @@ module Psych
         provisional_winner = preference_for_pair(template_node, dest_node)
         record_unresolved_choice(template_node: template_node, dest_node: dest_node, provisional_winner: provisional_winner)
         if provisional_winner == :destination
-          emit_node(dest_node, @dest_analysis, next_node: next_dest_node)
+          emit_node(
+            dest_node,
+            @dest_analysis,
+            next_node: next_dest_node,
+            comment_source_node: template_node,
+            comment_analysis: @template_analysis,
+            comment_source_fallback: true,
+          )
         else
           trim_overpreserved_destination_gap_for(
             template_node,
@@ -795,8 +802,19 @@ module Psych
             # would produce invalid YAML.  Fall through to the template key line
             # so children are emitted as proper block entries.
             if preference_for_pair(template_node, dest_node) == :destination && !empty_flow_mapping?(dest_node)
-              emit_mapping_entry_prelude(dest_node, @dest_analysis)
-              emit_mapping_entry_key_line(dest_node, @dest_analysis)
+              emit_mapping_entry_prelude(
+                dest_node,
+                @dest_analysis,
+                comment_source_node: template_node,
+                comment_analysis: @template_analysis,
+                comment_source_fallback: true,
+              )
+              emit_mapping_entry_key_line(
+                dest_node,
+                @dest_analysis,
+                comment_source_node: template_node,
+                comment_analysis: @template_analysis,
+              )
             else
               emit_mapping_entry_prelude(
                 template_node,
@@ -992,7 +1010,14 @@ module Psych
                 next_dest_node: next_dest_node,
               )
             elsif preference_for_pair(template_item, item) == :destination
-              emit_sequence_item(item, @dest_analysis, next_node: next_dest_node)
+              emit_sequence_item(
+                item,
+                @dest_analysis,
+                next_node: next_dest_node,
+                comment_source_node: template_item,
+                comment_analysis: @template_analysis,
+                comment_source_fallback: true,
+              )
             else
               emit_sequence_item(
                 template_item,
@@ -1192,10 +1217,16 @@ module Psych
       #
       # @param item [NodeWrapper] Sequence item to emit
       # @param analysis [FileAnalysis] Analysis for accessing source
-      def emit_sequence_item(item, analysis, next_node: nil, comment_source_node: nil, comment_analysis: analysis)
+      def emit_sequence_item(item, analysis, next_node: nil, comment_source_node: nil, comment_analysis: analysis, comment_source_fallback: false)
         return unless item.start_line && item.end_line
 
-        emit_node_prelude(item, analysis, comment_source_node: comment_source_node, comment_analysis: comment_analysis)
+        emit_node_prelude(
+          item,
+          analysis,
+          comment_source_node: comment_source_node,
+          comment_analysis: comment_analysis,
+          comment_source_fallback: comment_source_fallback,
+        )
 
         lines = trimmed_sequence_item_lines(item, analysis, next_node: next_node)
         return if lines.empty?
@@ -1208,7 +1239,7 @@ module Psych
       # Emit a single node to the emitter
       # @param node [NodeWrapper, MappingEntry] Node to emit
       # @param analysis [FileAnalysis] Analysis for accessing source
-      def emit_node(node, analysis, next_node: nil, comment_source_node: nil, comment_analysis: analysis)
+      def emit_node(node, analysis, next_node: nil, comment_source_node: nil, comment_analysis: analysis, comment_source_fallback: false)
         return if freeze_node?(node)
 
         if node.is_a?(MappingEntry)
@@ -1218,11 +1249,18 @@ module Psych
             next_node: next_node,
             comment_source_node: comment_source_node,
             comment_analysis: comment_analysis,
+            comment_source_fallback: comment_source_fallback,
           )
           return
         end
 
-        emit_node_prelude(node, analysis, comment_source_node: comment_source_node, comment_analysis: comment_analysis)
+        emit_node_prelude(
+          node,
+          analysis,
+          comment_source_node: comment_source_node,
+          comment_analysis: comment_analysis,
+          comment_source_fallback: comment_source_fallback,
+        )
 
         # Emit the node content
         if node.respond_to?(:start_line) && node.respond_to?(:end_line)
@@ -1248,10 +1286,16 @@ module Psych
       # Emit a mapping entry
       # @param entry [MappingEntry] The mapping entry
       # @param analysis [FileAnalysis] Analysis for accessing source
-      def emit_mapping_entry(entry, analysis, next_node: nil, comment_source_node: nil, comment_analysis: analysis)
+      def emit_mapping_entry(entry, analysis, next_node: nil, comment_source_node: nil, comment_analysis: analysis, comment_source_fallback: false)
         return unless entry.respond_to?(:start_line) && entry.respond_to?(:end_line)
 
-        emit_mapping_entry_prelude(entry, analysis, comment_source_node: comment_source_node, comment_analysis: comment_analysis)
+        emit_mapping_entry_prelude(
+          entry,
+          analysis,
+          comment_source_node: comment_source_node,
+          comment_analysis: comment_analysis,
+          comment_source_fallback: comment_source_fallback,
+        )
 
         content_start_line = mapping_entry_content_start_line(entry)
         end_line = effective_end_line(entry, analysis, next_node: next_node)
@@ -1285,7 +1329,7 @@ module Psych
         @emitter.emit_raw_lines(freeze_node.lines, metadata: emitter_block_metadata(@dest_analysis, freeze_node.start_line))
       end
 
-      def emit_mapping_entry_prelude(entry, analysis, comment_source_node: nil, comment_analysis: analysis)
+      def emit_mapping_entry_prelude(entry, analysis, comment_source_node: nil, comment_analysis: analysis, comment_source_fallback: false)
         content_start_line = mapping_entry_content_start_line(entry)
         return unless content_start_line
 
@@ -1294,6 +1338,7 @@ module Psych
           comment_source_node,
           analysis: analysis,
           comment_analysis: comment_analysis,
+          source_fallback: comment_source_fallback,
         )
         if leading_region && !leading_region.empty?
           source_analysis = resolved_comment_analysis(analysis, comment_source_node, comment_analysis, leading_region)
@@ -1323,7 +1368,7 @@ module Psych
         @emitter.emit_raw_lines(lines) if lines.any?
       end
 
-      def emit_node_prelude(node, analysis, comment_source_node: nil, comment_analysis: analysis)
+      def emit_node_prelude(node, analysis, comment_source_node: nil, comment_analysis: analysis, comment_source_fallback: false)
         content_start_line = node_content_start_line(node)
         return unless content_start_line
 
@@ -1332,6 +1377,7 @@ module Psych
           comment_source_node,
           analysis: analysis,
           comment_analysis: comment_analysis,
+          source_fallback: comment_source_fallback,
         )
         if leading_region && !leading_region.empty?
           source_analysis = resolved_comment_analysis(analysis, comment_source_node, comment_analysis, leading_region)
@@ -2056,7 +2102,17 @@ module Psych
         nil
       end
 
-      def preferred_leading_comment_region(node, comment_source_node = nil, analysis: nil, comment_analysis: analysis)
+      def preferred_leading_comment_region(node, comment_source_node = nil, analysis: nil, comment_analysis: analysis, source_fallback: false)
+        if source_fallback
+          node_region = node_leading_comment_region(node, analysis)
+          return node_region if node_region && !node_region.empty?
+
+          source_region = node_leading_comment_region(comment_source_node, comment_analysis) if comment_source_node
+          return source_region if source_region && !source_region.empty?
+
+          return node_region
+        end
+
         source_region = node_leading_comment_region(comment_source_node, comment_analysis) if comment_source_node
         return source_region if source_region && !source_region.empty?
 

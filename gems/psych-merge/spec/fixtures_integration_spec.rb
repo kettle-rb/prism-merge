@@ -102,6 +102,27 @@ RSpec.describe Psych::Merge do
     expect(result[:output]).to include("generated: true")
   end
 
+  it "restores template YAML comments for matched keys when destination comments are missing" do
+    template = <<~YAML
+      # project configuration
+      templates:
+        # Template root directory.
+        root: template
+    YAML
+    destination = <<~YAML
+      templates:
+        root: template
+    YAML
+
+    result = ::Psych::Merge.merge_yaml(template, destination, "yaml")
+
+    expect(result[:ok]).to be(true)
+    expect(result[:output]).to include("# project configuration")
+    expect(result[:output]).to include("# Template root directory.")
+    expect(result[:output]).to include("templates:")
+    expect(result[:output]).to include("  root: template")
+  end
+
   it "rejects unsupported provider backend overrides" do
     result = ::Psych::Merge.parse_yaml("root: value\n", "yaml", backend: "kreuzberg-language-pack")
     expect(result[:ok]).to be(false)

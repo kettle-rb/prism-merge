@@ -2265,6 +2265,51 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "restores documentation comments from YAML templates when destination config stripped them" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-yaml-template-comment-restore", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - .kettle-jem.yml
+        YAML
+        "template/.kettle-jem.yml.example" => <<~YAML,
+          # kettle-jem configuration file
+          templates:
+            # Template root directory.
+            root: template
+            # Apply templates during setup.
+            apply: true
+            # Template entries to apply.
+            entries:
+              - .kettle-jem.yml
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_kettle_jem_yml"
+      end
+      final_content = report.fetch(:final_content)
+
+      expect(final_content).to include("# kettle-jem configuration file")
+      expect(final_content).to include("# Template root directory.")
+      expect(final_content).to include("# Apply templates during setup.")
+      expect(final_content).to include("# Template entries to apply.")
+      expect(File.read(File.join(root, ".kettle-jem.yml"))).to eq(final_content)
+    end
+  end
+
   it "merges Ruby-family template applications with destination declarations and DSL calls" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
