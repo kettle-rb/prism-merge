@@ -5121,9 +5121,9 @@ module Kettle
         primary_spdx: primary,
         license_md_content: license_md_content(licenses, author_email: author_email),
         readme_license_intro: readme_license_intro(licenses, author_email: author_email),
-        readme_license_badge: license_badge(primary),
+        readme_license_badge: license_badge(licenses.join(" OR "), ref: :license),
         readme_license_compat_badge: license_compat_badge(compat_category),
-        readme_license_refs: readme_license_refs(primary, compat_category),
+        readme_license_refs: readme_license_refs(licenses.join(" OR "), compat_category),
         license_copyright_notice: license_copyright_notice(copyright_lines, copyright_prefix, author),
         readme_copyright_notice: readme_copyright_notice(copyright_lines, copyright_prefix),
         copyright_prefix: copyright_prefix
@@ -5220,12 +5220,12 @@ module Kettle
       end
     end
 
-    def readme_license_refs(primary, compat_category)
+    def readme_license_refs(expression, compat_category)
       [
         "[#{paperclip_ref(:copyright_notice_explainer)}]: https://opensource.stackexchange.com/questions/5778/why-do-licenses-such-as-the-mit-license-specify-a-single-year",
         "[#{paperclip_ref(:license)}]: LICENSE.md",
-        "[#{paperclip_ref(:license_ref)}]: #{license_badge_ref(primary)}",
-        "[#{paperclip_ref(:license_img)}]: #{license_badge_img(primary)}",
+        "[#{paperclip_ref(:license_ref)}]: #{license_badge_ref(expression)}",
+        "[#{paperclip_ref(:license_img)}]: #{license_badge_img(expression)}",
         "[#{paperclip_ref(:license_compat)}]: #{license_compat_ref(compat_category)}",
         "[#{paperclip_ref(:license_compat_img)}]: #{license_compat_img(compat_category)}",
       ].join("\n")
@@ -5240,13 +5240,14 @@ module Kettle
       "[#{base}](#{base}.md)"
     end
 
-    def license_badge(spdx_id)
+    def license_badge(spdx_id, ref: :license_ref)
       base = spdx_basename(spdx_id)
-      "[![License: #{base}][#{paperclip_ref(:license_img)}]][#{paperclip_ref(:license_ref)}]"
+      "[![License: #{base}][#{paperclip_ref(:license_img)}]][#{paperclip_ref(ref)}]"
     end
 
     def license_badge_ref(spdx_id)
-      "#{spdx_basename(spdx_id)}.md"
+      base = spdx_basename(spdx_id)
+      base.include?(" OR ") ? "LICENSE.md" : "#{base}.md"
     end
 
     def license_badge_img(spdx_id)

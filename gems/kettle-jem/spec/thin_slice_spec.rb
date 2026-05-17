@@ -3958,8 +3958,14 @@ RSpec.describe Kettle::Jem do
       expect(template_report.dig(:metadata, :template_tokens, "KJ|LICENSE_MD_CONTENT")).to include(
         "This project is made available under the following licenses."
       )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|README:LICENSE_BADGE")).to eq(
+        "[![License: AGPL-3.0-only OR PolyForm-Small-Business-1.0.0 OR LicenseRef-Big-Time-Public-License][📄license-img]][📄license]"
+      )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:LICENSE_REFS")).to include(
-        "AGPL-3.0-only.md"
+        "[📄license-ref]: LICENSE.md"
+      )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|README:LICENSE_REFS")).to include(
+        "License-AGPL--3.0--only_OR_PolyForm--Small--Business--1.0.0_OR_LicenseRef--Big--Time--Public--License"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
         "tree-sitter-language-pack"
