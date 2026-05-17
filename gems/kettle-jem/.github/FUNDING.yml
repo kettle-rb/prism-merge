@@ -1,14 +1,12 @@
-# These are supported funding model platforms
-
 buy_me_a_coffee: pboling
 community_bridge:
 github:
-- pboling
+  - pboling
 issuehunt: pboling
 ko_fi: pboling
 liberapay: pboling
-open_collective: ''
+open_collective: ""
 patreon: galtzo
 polar: pboling
-thanks_dev: u/gh/pboling
-tidelift: rubygems/kettle-jem
+thanks_dev: "u/gh/pboling"
+tidelift: "rubygems/kettle-jem"
