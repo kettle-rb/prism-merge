@@ -3984,6 +3984,57 @@ RSpec.describe Kettle::Jem do
     expect(block).to include("| License | `AGPL-3.0-only` OR `PolyForm-Small-Business-1.0.0` |")
   end
 
+  it "preserves README metadata during template-source README application" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-readme-metadata-order", tmp_root) do |root|
+      metadata_block = described_class.readme_metadata_block(
+        package: {
+          name: "example",
+          description: "Example gem",
+          homepage_url: "https://example.test",
+          source_url: "https://github.com/structuredmerge/structuredmerge-ruby",
+          license_expression: "MIT",
+        },
+        license: {spdx: ["MIT"]},
+        funding: {urls: ["https://tidelift.com/funding/github/rubygems/example"]}
+      )
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.homepage = "https://example.test"
+            spec.license = "MIT"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - README.md
+        YAML
+        "README.md" => <<~MARKDOWN,
+          # Example
+
+          Destination body.
+
+          #{metadata_block}
+        MARKDOWN
+        "template/README.md.example" => "# {KJ|NAMESPACE}\n\nTemplate body.\n",
+      })
+
+      described_class.apply_project(root, env: {}, run_options: {accept: true, force: true})
+      first_readme = File.read(File.join(root, "README.md"))
+      described_class.apply_project(root, env: {}, run_options: {accept: true, force: true})
+
+      expect(first_readme).to include("<!-- kettle-jem:metadata:start -->")
+      expect(first_readme).to include("| Package | example |")
+      expect(File.read(File.join(root, "README.md"))).to eq(first_readme)
+    end
+  end
+
   it "applies and prunes root license files from configured licenses" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
@@ -4139,6 +4190,57 @@ RSpec.describe Kettle::Jem do
       expect(readme_report.fetch(:final_content)).to include("Copyright holders")
       expect(readme_report.fetch(:final_content)).to include("- #{expected_line}")
       expect(license_report.dig(:metadata, :template_tokens, "KJ|LICENSE_COPYRIGHT_NOTICE")).to include(expected_line)
+    end
+  end
+
+  it "falls back to configured author copyright sections when git blame is unavailable" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-copyright-author-fallback", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.authors = ["Peter H. Boling"]
+            spec.email = ["floss@galtzo.com"]
+            spec.licenses = ["AGPL-3.0-only"]
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          licenses:
+            - AGPL-3.0-only
+            - PolyForm-Small-Business-1.0.0
+          tokens:
+            author:
+              given_names: Peter H.
+              family_names: Boling
+              email: floss@galtzo.com
+          templates:
+            root: template
+            apply: true
+            entries:
+              - LICENSE.md
+              - README.md
+          files:
+            README.md:
+              strategy: accept_template
+        YAML
+        "README.md" => "# Example\n",
+        "template/LICENSE.md.example" => "{KJ|LICENSE_MD_CONTENT}\n\n{KJ|LICENSE_COPYRIGHT_NOTICE}\n",
+        "template/README.md.example" => "# Example\n\n## 📄 License\n\n{KJ|README:COPYRIGHT_NOTICE}\n",
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      license_report = plan[:recipe_reports].find { |report| report.fetch(:relative_path) == "LICENSE.md" }
+      readme_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "template_source_application_README_md" }
+      expected_line = "Required Notice: Copyright (c) #{Time.now.utc.year} Peter H. Boling"
+
+      expect(plan.fetch(:facts)).not_to have_key(:copyright)
+      expect(license_report.fetch(:final_content)).to include("## Copyright Notice")
+      expect(license_report.fetch(:final_content)).to include(expected_line)
+      expect(readme_report.fetch(:final_content)).to include("Copyright holders")
+      expect(readme_report.fetch(:final_content)).to include("- #{expected_line}")
     end
   end
 

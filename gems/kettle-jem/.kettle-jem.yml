@@ -1,3 +1,82 @@
+# kettle-jem configuration file
+#
+# This file is both configuration and field guide for templated gems.
+# In most projects this comment block is the first place to look when you
+# want to understand what kettle-jem will merge, what it will copy as-is,
+# and which values you may want to customize.
+#
+# High-level structure:
+#   defaults  - default merge behavior for files that use strategy: merge
+#   tokens    - values for {KJ|...} placeholders used across template files
+#   patterns  - glob-based overrides for files/directories
+#   files     - exact per-file overrides using a nested directory tree
+#
+# Default behavior:
+#   If a file is NOT mentioned under files: and does NOT match a patterns:
+#   entry, kettle-jem will merge it using the format-aware merge gem for that
+#   file type.
+#
+# Strategies:
+#   merge:
+#     Resolve tokens, then merge template + destination using the appropriate
+#     AST-aware/text-aware merger for the file type.
+#   accept_template:
+#     Resolve tokens, then write the template result without merging.
+#     If the file is missing in the destination, it will be created from the template.
+#   keep_destination:
+#     Ignore this file during templating.
+#     No merge. No replacement. No creation when the destination file is missing.
+#     Use this when you want to permanently exclude a file from the template.
+#   raw_copy:
+#     Copy bytes exactly as they appear in the template.
+#     No token resolution. No merge. Use for immutable/binary assets such as certs.
+#
+# Merge options (used only with strategy: merge):
+#   preference:
+#     template    - template wins when both sides define the same node/value
+#     destination - destination wins when both sides define the same node/value
+#   add_template_only_nodes:
+#     true  - add nodes/entries that exist only in the template
+#     false - do not add template-only nodes
+#   freeze_token:
+#     Marker name used for frozen sections (default: kettle-jem)
+#   file_type:
+#     Optional explicit merge-engine hint for extensionless or ambiguous files.
+#     Supported values: ruby, gemfile, appraisals, gemspec, rakefile,
+#     yaml, markdown, bash, tool_versions, text, json, jsonc, toml,
+#     dotenv, rbs
+#   max_recursion_depth:
+#     Limit for recursive merging when a merger supports it
+#
+# Other per-file options (apply to any strategy):
+#   skip_unresolved_scan:
+#     true  - do not scan this file for unresolved {KJ|...} tokens after writing.
+#             Use when a file legitimately contains {KJ|...} text as documentation
+#             or example content rather than as a template placeholder.
+#
+# Token values:
+#   Precedence is:
+#     1) ENV variables
+#     2) tokens: values in this file
+#     3) safe automatic derivation (author fields only, where possible)
+#
+# Important merge note for tokens in THIS file:
+#   Existing destination values are respected.
+#   That means:
+#     - a real value you already set here stays in place on future runs
+#     - an empty string also counts as an explicit destination value
+#   If you want kettle-jem to re-seed a missing value on a later run,
+#   delete that key instead of leaving it blank.
+#
+# Safe automatic derivations currently implemented:
+#   AUTHOR:NAME         <- first author from the gemspec
+#   AUTHOR:EMAIL        <- first email from the gemspec
+#   AUTHOR:DOMAIN       <- domain part of AUTHOR:EMAIL
+#   AUTHOR:GIVEN_NAMES  <- AUTHOR:NAME minus the last word
+#   AUTHOR:FAMILY_NAMES <- last word of AUTHOR:NAME
+#
+# Everything else should be set explicitly here or via ENV.
+
 project_emoji: "\U0001F372"
 engines:
 - ruby
@@ -61,3 +140,25 @@ files:
         strategy: accept_template
       templating_local.gemfile:
         strategy: accept_template
+# To override specific files, add entries like:
+#
+# files:
+#   README.md:
+#     strategy: accept_template
+#
+#   SECURITY.md:
+#     strategy: keep_destination
+#
+#   certs:
+#     pboling.pem:
+#       strategy: raw_copy
+#
+#   .git-hooks:
+#     commit-msg:
+#       strategy: merge
+#       file_type: ruby
+#
+#   Rakefile:
+#     strategy: merge
+#     preference: destination
+#     add_template_only_nodes: false

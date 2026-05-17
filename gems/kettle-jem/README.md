@@ -454,3 +454,14 @@ Thanks for RTFM. ☺️
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+<!-- kettle-jem:metadata:start -->
+| Field | Value |
+|---|---|
+| Package | kettle-jem |
+| Description | 🍲 Kettle::Jem provides gem scaffolding, templating, and setup automation using the *-merge gem family for AST-based file merging and token-resolver for template token resolution. Includes MergerConfig presets, YAML recipes, and a complete gem template scaffold. |
+| Homepage | https://github.com/kettle-rb/kettle-jem |
+| Source | https://github.com/kettle-rb/kettle-jem |
+| License | `AGPL-3.0-only` OR `PolyForm-Small-Business-1.0.0` |
+| Funding | https://github.com/sponsors/pboling, https://issuehunt.io/u/pboling, https://ko-fi.com/pboling, https://liberapay.com/pboling/donate, https://patreon.com/galtzo, https://polar.sh/pboling, https://thanks.dev/u/gh/pboling, https://tidelift.com/funding/github/rubygems/kettle-jem, https://www.buymeacoffee.com/pboling |
+<!-- kettle-jem:metadata:end -->

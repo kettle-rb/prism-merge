@@ -24,6 +24,8 @@ module Kettle
         ].freeze
         SELFTEST_IGNORED_FILES = %w[
           gemfiles/modular/shunted.gemfile
+          results/test_results.html
+          tmp/.gitignore
         ].freeze
 
         module_function

@@ -5141,7 +5141,7 @@ module Kettle
         readme_license_compat_badge: license_compat_badge(compat_category),
         readme_license_refs: readme_license_refs(licenses.join(" OR "), compat_category),
         license_copyright_notice: license_copyright_notice(copyright_lines, copyright_prefix, author),
-        readme_copyright_notice: readme_copyright_notice(copyright_lines, copyright_prefix),
+        readme_copyright_notice: readme_copyright_notice(copyright_lines, copyright_prefix, author),
         copyright_prefix: copyright_prefix
       )
     end
@@ -5170,16 +5170,12 @@ module Kettle
     end
 
     def license_copyright_notice(copyright_lines, copyright_prefix, author)
-      lines = Array(copyright_lines).map { |line| "#{copyright_prefix}#{line}" }
-      return "## Copyright Notice\n\n#{lines.join("\n")}" unless lines.empty?
-
-      "#{copyright_prefix}Copyright (c) #{Time.now.utc.year} #{[author[:given_names], author[:family_names]].compact.join(" ").strip}"
+      lines = copyright_notice_lines(copyright_lines, copyright_prefix, author)
+      "## Copyright Notice\n\n#{lines.join("\n")}"
     end
 
-    def readme_copyright_notice(copyright_lines, copyright_prefix)
-      lines = Array(copyright_lines).map { |line| "- #{copyright_prefix}#{line}" }
-      return "See [LICENSE.md][#{paperclip_ref(:license)}] for the official copyright notice." if lines.empty?
-
+    def readme_copyright_notice(copyright_lines, copyright_prefix, author)
+      lines = copyright_notice_lines(copyright_lines, copyright_prefix, author).map { |line| "- #{line}" }
       <<~MARKDOWN.chomp
         See [LICENSE.md][#{paperclip_ref(:license)}] for the official copyright notice.
 
@@ -5190,6 +5186,12 @@ module Kettle
 
         </details>
       MARKDOWN
+    end
+
+    def copyright_notice_lines(copyright_lines, copyright_prefix, author)
+      lines = Array(copyright_lines)
+      lines = ["Copyright (c) #{Time.now.utc.year} #{[author[:given_names], author[:family_names]].compact.join(" ").strip}"] if lines.empty?
+      lines.map { |line| "#{copyright_prefix}#{line}" }
     end
 
     def license_md_content(licenses, author_email: nil)
@@ -5497,7 +5499,8 @@ module Kettle
       return template_content if destination_content.to_s.strip.empty?
 
       preserved = preserve_readme_sections(template_content, destination_content, preserve_config)
-      preserve_readme_h1(preserved, destination_content, preserve_config)
+      with_h1 = preserve_readme_h1(preserved, destination_content, preserve_config)
+      preserve_readme_managed_block(with_h1, destination_content, "kettle-jem:metadata")
     end
 
     def preserve_readme_sections(template_content, destination_content, preserve_config)
@@ -5531,6 +5534,24 @@ module Kettle
       lines = merged_content.split("\n", -1)
       lines[merged_h1.fetch(:start)] = destination_h1.fetch(:heading)
       lines.join("\n")
+    end
+
+    def preserve_readme_managed_block(merged_content, destination_content, marker)
+      destination_block = markdown_managed_block(destination_content, marker)
+      return merged_content unless destination_block
+
+      replace_markdown_managed_block(merged_content, marker, destination_block)
+    end
+
+    def markdown_managed_block(content, marker)
+      open = "<!-- #{marker}:start -->"
+      close = "<!-- #{marker}:end -->"
+      open_index = content.to_s.index(open)
+      close_index = content.to_s.index(close)
+      return nil unless open_index && close_index && close_index >= open_index
+
+      close_end = close_index + close.length
+      content.to_s[open_index...close_end]
     end
 
     def markdown_sections(content)

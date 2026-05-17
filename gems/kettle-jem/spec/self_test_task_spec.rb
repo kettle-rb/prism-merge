@@ -52,7 +52,9 @@ RSpec.describe Kettle::Jem::Tasks::SelfTestTask do
       write_file(root, "README.md", "stable\n")
       allow(Kettle::Jem).to receive(:apply_project) do |project_root, **|
         write_file(project_root, "tmp/kettle-jem/templating-report-20260516-120000-000000-1234.md", "run report\n")
+        write_file(project_root, "tmp/.gitignore", "*\n!.gitignore\n")
         write_file(project_root, "gemfiles/modular/shunted.gemfile", "# generated shunt\n")
+        write_file(project_root, "results/test_results.html", "<html>runtime report</html>\n")
         write_file(project_root, "unexpected.txt", "real addition\n")
         {mode: "apply"}
       end
