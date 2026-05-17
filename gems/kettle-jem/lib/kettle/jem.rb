@@ -392,9 +392,10 @@ module Kettle
         }.freeze,
       }.freeze
 
-      def process(content:, min_ruby:, engines: nil)
+      def process(content:, min_ruby:, engines: nil, workflow_paths: nil)
         processed = content.to_s
         processed = remove_disabled_engine_content(processed, engines) if engines
+        processed = remove_missing_workflow_badges(processed, workflow_paths) if workflow_paths
         return processed if min_ruby.to_s.empty?
 
         processed = remove_incompatible_compatibility_badges(processed, Gem::Version.new(min_ruby.to_s))
@@ -423,6 +424,34 @@ module Kettle
         end
 
         processed
+      end
+
+      def remove_missing_workflow_badges(content, workflow_paths)
+        existing = Array(workflow_paths).map { |path| path.to_s.delete_prefix("./") }.to_set
+        workflow_references(content).each do |label, workflow_path|
+          next if existing.include?(workflow_path)
+
+          content = remove_workflow_badge_occurrences(content, label)
+        end
+
+        content
+      end
+
+      def workflow_references(content)
+        content.to_s.lines.each_with_object({}) do |line, references|
+          label, url = line.match(/^\[([^\]]+)\]:\s+(\S+)/)&.captures
+          next unless label && url
+
+          workflow = url[%r{/actions/workflows/([^/?#]+)}, 1]
+          next unless workflow
+
+          references[label] = ".github/workflows/#{workflow}"
+        end
+      end
+
+      def remove_workflow_badge_occurrences(content, workflow_label)
+        label_re = Regexp.escape(workflow_label)
+        content.gsub(/\s*\[!\[[^\]]*?\]\s*\[[^\]]+\]\]\s*\[#{label_re}\]\s*/, " ")
       end
 
       def remove_incompatible_compatibility_badges(content, min_ruby)

@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "open3"
+require "pathname"
 require "yaml"
 
 module Kettle
@@ -201,7 +202,8 @@ module Kettle
           after = Kettle::Jem::ReadmePostProcessor.process(
             content: before,
             min_ruby: Gem::Version.new(Kettle::Jem.minimum_ruby_token(min_ruby)),
-            engines: report.dig(:facts, :rubygems, :engines)
+            engines: report.dig(:facts, :rubygems, :engines),
+            workflow_paths: github_workflow_paths(project_root)
           )
           File.write(readme_path, after) if after != before
           {
@@ -216,6 +218,15 @@ module Kettle
             status: "skipped",
             reason: error.message,
           }
+        end
+
+        def github_workflow_paths(project_root)
+          workflow_root = File.join(project_root.to_s, ".github", "workflows")
+          return [] unless Dir.exist?(workflow_root)
+
+          Dir.glob(File.join(workflow_root, "*.{yml,yaml}")).map do |path|
+            Pathname(path).relative_path_from(Pathname(project_root.to_s)).to_s
+          end.sort
         end
 
         def sync_readme_gemspec_grapheme(project_root, env)

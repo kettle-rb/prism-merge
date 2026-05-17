@@ -1617,13 +1617,16 @@ RSpec.describe Kettle::Jem do
 
           | Runtime | Works |
           | --- | --- |
-          | Works with MRI Ruby | [![ruby-2.7][💎ruby-2.7i]][🚎2.7] <br/> [![ruby-3.2][💎ruby-3.2i]][🚎3.2] |
+          | Works with MRI Ruby | [![ruby-2.7][💎ruby-2.7i]][🚎2.7] <br/> [![ruby-3.2][💎ruby-3.2i]][🚎3.2] <br/> [![ruby-current][💎ruby-c-i]][🚎current] |
 
           [💎ruby-2.7i]: https://img.shields.io/badge/Ruby-2.7-red.svg
           [💎ruby-3.2i]: https://img.shields.io/badge/Ruby-3.2-red.svg
-          [🚎2.7]: https://www.ruby-lang.org/
-          [🚎3.2]: https://www.ruby-lang.org/
+          [💎ruby-c-i]: https://img.shields.io/badge/Ruby-current-red.svg
+          [🚎2.7]: https://github.com/example-org/example/actions/workflows/ruby-2.7.yml
+          [🚎3.2]: https://github.com/example-org/example/actions/workflows/ruby-3.2.yml
+          [🚎current]: https://github.com/example-org/example/actions/workflows/current.yml
         MARKDOWN
+        ".github/workflows/ruby-3.2.yml" => "name: Ruby 3.2\n",
         "mise.toml" => "[tools]\nruby = \"3.4.1\"\n",
         ".ruby-version" => "3.4.1\n",
         ".tool-versions" => "ruby 3.4.1\n",
@@ -1674,6 +1677,9 @@ RSpec.describe Kettle::Jem do
       expect(readme).to include("# 🔧 Example")
       expect(readme).not_to include("ruby-2.7")
       expect(readme).to include("ruby-3.2")
+      expect(readme).not_to include("ruby-current")
+      expect(readme).not_to include("[🚎current]:")
+      expect(readme).to include("[🚎ruby-3.2-wf]:")
       expect(install.fetch(:install_phase_reports)).to include(hash_including(
         phase: "post_template",
         statuses: hash_including(
