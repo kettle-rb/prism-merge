@@ -78,6 +78,24 @@ RSpec.describe Smorg::RB do
     expect(stderr.string).to include("ours parse error")
   end
 
+  it "writes full-file conflict markers for non-strict fallback failures" do
+    ancestor = write_file(@dir, "ancestor.json", '{"name":"structuredmerge"}')
+    current = write_file(@dir, "current.json", '{"name":')
+    other = write_file(@dir, "other.json", '{"other":true}')
+    stdout = StringIO.new
+    stderr = StringIO.new
+
+    exit_code = described_class.run(["merge-driver", ancestor, current, other, "package.json"], stdout: stdout, stderr: stderr)
+
+    expect(exit_code).to eq(described_class::EXIT_UNRESOLVED_CONFLICT)
+    current_source = File.read(current)
+    expect(current_source).to include("<<<<<<< ours")
+    expect(current_source).to include("||||||| base")
+    expect(current_source).to include("=======")
+    expect(current_source).to include(">>>>>>> theirs")
+    expect(stderr.string).to include("parse_error")
+  end
+
   it "uses the ancestor for JSON same-key conflicts" do
     ancestor = write_file(@dir, "ancestor.json", '{"name":"demo","enabled":true}')
     current = write_file(@dir, "current.json", '{"name":"demo","enabled":false}')

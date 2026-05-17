@@ -70,7 +70,7 @@ module Smorg
       output = result[:output]
       unless result[:ok]
         print_diagnostics(stderr, result)
-        output ||= current_source unless options[:strict] || options[:fallback] == "none"
+        output ||= full_file_conflict_output(settings[:conflict_marker_size], ancestor_source, current_source, other_source) unless options[:strict] || options[:fallback] == "none"
         return EXIT_UNRESOLVED_CONFLICT if options[:check_only]
         File.write(options[:output] || options[:current], output) if output
         return EXIT_UNRESOLVED_CONFLICT
@@ -92,6 +92,21 @@ module Smorg
     rescue StandardError => e
       stderr.puts("internal error: #{e.message}")
       EXIT_INTERNAL_ERROR
+    end
+
+    def full_file_conflict_output(marker_size, ancestor_source, current_source, other_source)
+      marker_size = marker_size.to_i
+      marker_size = 7 unless marker_size.positive?
+      [
+        "#{"<" * marker_size} ours",
+        current_source,
+        "#{"|" * marker_size} base",
+        ancestor_source,
+        "=" * marker_size,
+        other_source,
+        "#{">" * marker_size} theirs",
+        ""
+      ].join("\n")
     end
 
     def parse_merge_driver_options(args, stderr)
