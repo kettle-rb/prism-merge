@@ -146,15 +146,20 @@ RSpec.describe Ast::Merge do
       [entry.fetch(:old_surface), entry]
     end
 
-    expect(classifications.fetch("SmartMergerBase").fetch(:classification)).to eq("ruby_adapter_convenience_only")
-    expect(classifications.fetch("FileAnalyzable").fetch(:classification)).to eq("replaced_by_normalized_tree_contract")
-    expect(classifications.fetch("MergeResultBase").fetch(:classification)).to eq("replaced_by_execution_reports")
-    expect(classifications.fetch("DebugLogger").fetch(:classification)).to eq("replaced_by_structured_diagnostics")
+    expect(classifications.fetch("SmartMergerBase").fetch(:classification)).to eq("active_ruby_provider_substrate")
+    expect(classifications.fetch("FileAnalyzable").fetch(:classification)).to eq("active_ruby_provider_substrate")
+    expect(classifications.fetch("MergeResultBase").fetch(:classification)).to eq("active_ruby_provider_substrate")
+    expect(classifications.fetch("DebugLogger").fetch(:classification)).to eq("active_ruby_provider_substrate")
     expect(classifications.fetch("Runtime Ruleset unresolved review-state support").fetch(:action)).to eq(
       "keep_active_contracts"
     )
-    expect(fixture.fetch(:surviving_ruby_adapter_conveniences)).to eq([])
-    expect(fixture.fetch(:decision)).to include("No old ast-merge base class should be copied")
+    expect(fixture.fetch(:surviving_ruby_adapter_conveniences)).to include(
+      "SmartMergerBase",
+      "FileAnalyzable",
+      "MergeResultBase",
+      "DebugLogger"
+    )
+    expect(fixture.fetch(:decision)).to include("port format-neutral Ruby substrate")
   end
 
   it "conforms to the match refiner utility inventory fixture" do

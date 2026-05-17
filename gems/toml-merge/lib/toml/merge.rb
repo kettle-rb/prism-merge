@@ -233,6 +233,47 @@ module Toml
         { ok: false, diagnostics: [diagnostic("error", "merge_error", e.message)], policies: [] }
       end
 
+      def merge_toml_with_parser(template_source, destination_source, dialect)
+        return unsupported_feature_merge_result("Unsupported TOML dialect #{dialect}.") unless dialect == "toml"
+        raise ArgumentError, "merge_toml_with_parser requires a parser block" unless block_given?
+
+        template_parse = yield(template_source, dialect)
+        return provider_parse_failure(:template_parse_error, template_parse) unless template_parse[:ok]
+
+        destination_parse = yield(destination_source, dialect)
+        return provider_parse_failure(:destination_parse_error, destination_parse) unless destination_parse[:ok]
+
+        unless template_source.match?(/^\s*#/) || destination_source.match?(/^\s*#/)
+          merged = merge_toml_tables(parse_toml_document(template_source), parse_toml_document(destination_source))
+          return {
+            ok: true,
+            diagnostics: [],
+            output: canonical_toml(merged),
+            policies: [DESTINATION_WINS_ARRAY_POLICY]
+          }
+        end
+
+        output = SmartMerger.new(
+          template_source,
+          destination_source,
+          preference: :destination,
+          add_template_only_nodes: true
+        ).merge_result.to_toml
+
+        {
+          ok: true,
+          diagnostics: [],
+          output: output,
+          policies: [DESTINATION_WINS_ARRAY_POLICY]
+        }
+      rescue TemplateParseError => e
+        { ok: false, diagnostics: [diagnostic("error", "template_parse_error", e.message)], policies: [] }
+      rescue DestinationParseError => e
+        { ok: false, diagnostics: [diagnostic("error", "destination_parse_error", e.message)], policies: [] }
+      rescue StandardError => e
+        { ok: false, diagnostics: [diagnostic("error", "merge_error", e.message)], policies: [] }
+      end
+
       def register_backend!
         BACKEND_REGISTRY.mutex.synchronize do
           return if BACKEND_REGISTRY.registered
@@ -290,6 +331,13 @@ module Toml
 
       def parse_error_result(message)
         { ok: false, diagnostics: [diagnostic("error", "parse_error", message)], policies: [] }
+      end
+
+      def provider_parse_failure(category, parse_result)
+        diagnostics = Array(parse_result[:diagnostics])
+        message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
+        message = "provider parse failed" if message.empty?
+        { ok: false, diagnostics: [diagnostic("error", category.to_s, message)], policies: [] }
       end
 
       def normalize_toml_source(source)
