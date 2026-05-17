@@ -150,7 +150,10 @@
         "engine and minimum-Ruby packaged workflow pruning",
         "workflow YAML merge rules for custom workflow snippets",
         "README badge alignment with actual generated workflow files",
-        "appraisal matrix pruning parity against old generated workflow set"
+        "appraisal matrix pruning parity against old generated workflow set",
+        "modular Gemfile Ruby-bucket pruning",
+        "modular Gemfile self-dependency removal",
+        "modular Gemfile local override merge"
       ],
       "remaining_behaviors": [
         "RubyGems minimum-Ruby shunted.gemfile generation",

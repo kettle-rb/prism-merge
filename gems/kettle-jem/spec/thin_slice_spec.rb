@@ -2525,6 +2525,57 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "merges modular local Gemfile overrides while removing the project self-dependency" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-local-gemfile-policy", tmp_root) do |root|
+      write_tree(root, {
+        "kettle-jem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "kettle-jem"
+            spec.summary = "Kettle Jem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - gemfiles/modular/templating_local.gemfile
+        YAML
+        "gemfiles/modular/templating_local.gemfile" => <<~RUBY,
+          # frozen_string_literal: true
+
+          local_gems = %w[
+            local-only
+            kettle-jem
+          ]
+        RUBY
+        "template/gemfiles/modular/templating_local.gemfile.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          local_gems = %w[
+            tree_haver
+            ast-merge
+            kettle-jem
+          ]
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == "gemfiles/modular/templating_local.gemfile"
+      end
+      content = report.fetch(:final_content)
+
+      expect(content).to include("tree_haver")
+      expect(content).to include("ast-merge")
+      expect(content).to include("local-only")
+      expect(content).not_to include("kettle-jem")
+      expect(File.read(File.join(root, "gemfiles/modular/templating_local.gemfile"))).to eq(content)
+    end
+  end
+
   it "ports old Gemfile comment preservation, token resolution, and commented dependency policy" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

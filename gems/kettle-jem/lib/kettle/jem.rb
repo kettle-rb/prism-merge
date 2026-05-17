@@ -2967,6 +2967,9 @@ module Kettle
     def merge_config_template_source(recipe, template_content, destination_content, facts: nil)
       file_type = template_file_type(recipe)
       if destination_content.to_s.strip.empty?
+        if file_type == :gemfile
+          return finalize_gemfile_template_source(recipe, template_content, destination_content, facts: facts, template_content: template_content)
+        end
         return prune_github_workflow_matrix_by_min_ruby(template_content, facts) if github_workflow_template_recipe?(recipe)
 
         return template_content
@@ -3002,7 +3005,7 @@ module Kettle
         output = merge_result.fetch(:output)
         if file_type == :gemfile
           output = merge_gemfile_eval_bucket_entries(template_content, output)
-          return merge_gemfile_template_policy(output, facts: facts, template_content: template_content)
+          return finalize_gemfile_template_source(recipe, output, destination_content, facts: facts, template_content: template_content)
         end
         return merge_appraisals_template_policy(output, facts: facts) if file_type == :appraisals
 
@@ -3015,6 +3018,47 @@ module Kettle
       diagnostics = merge_result.fetch(:diagnostics, [])
       message = diagnostics.map { |diagnostic| diagnostic[:message] || diagnostic["message"] }.compact.join("; ")
       raise ArgumentError, "failed to merge #{file_type} template #{recipe.fetch(:target_path)}: #{message}"
+    end
+
+    def finalize_gemfile_template_source(recipe, content, destination_content, facts:, template_content:)
+      output = merge_gemfile_template_policy(content, facts: facts, template_content: template_content)
+      return output unless local_gemfile_template_recipe?(recipe)
+
+      merge_local_gem_overrides(output, destination_content, facts: facts, template_content: template_content)
+    end
+
+    def local_gemfile_template_recipe?(recipe)
+      recipe.fetch(:target_path).to_s.end_with?("_local.gemfile")
+    end
+
+    def merge_local_gem_overrides(content, destination_content, facts:, template_content: nil)
+      package_name = facts.to_h.dig(:package, :name).to_s
+      template_gems = local_gems_assignment(content)
+      template_gems = local_gems_assignment(template_content) if template_gems.empty?
+      destination_gems = local_gems_assignment(destination_content)
+      return content if template_gems.empty? && destination_gems.empty?
+
+      gems = (template_gems + destination_gems).map(&:to_s).reject(&:empty?).uniq
+      gems.delete(package_name) unless package_name.empty?
+      replace_local_gems_assignment(content, gems)
+    end
+
+    def local_gems_assignment(content)
+      match = content.to_s.match(/^\s*local_gems\s*=\s*%w\[(.*?)^\s*\]/m)
+      return [] unless match
+
+      match[1].split(/\s+/).reject(&:empty?)
+    end
+
+    def replace_local_gems_assignment(content, gems)
+      replacement = ["local_gems = %w["]
+      gems.each { |gem_name| replacement << "  #{gem_name}" }
+      replacement << "]"
+      if content.to_s.match?(/^\s*local_gems\s*=\s*%w\[.*?^\s*\]/m)
+        content.to_s.sub(/^\s*local_gems\s*=\s*%w\[.*?^\s*\]/m, replacement.join("\n"))
+      else
+        ensure_trailing_newline([content.to_s.rstrip, replacement.join("\n")].reject(&:empty?).join("\n\n"))
+      end
     end
 
     def prune_github_workflow_matrix_by_min_ruby(content, facts)
