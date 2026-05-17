@@ -2506,6 +2506,15 @@ RSpec.describe Kettle::Jem do
             eval_gemfile "gemfiles/modular/x_std_libs/r3/libs.gemfile"
           end
 
+          appraise "path-gems" do
+            %w[
+              example
+              support-gem
+            ].each do |gem_name|
+              gem gem_name, path: "../\#{gem_name}"
+            end
+          end
+
           appraise "style" do
             eval_gemfile "gemfiles/modular/style.gemfile"
           end
@@ -2524,6 +2533,9 @@ RSpec.describe Kettle::Jem do
       expect(appraisals_content).to include('eval_gemfile "gemfiles/modular/x_std_libs/r3/libs.gemfile"')
       expect(appraisals_content).to include('appraise "coverage"')
       expect(appraisals_content).to include('gem "simplecov"')
+      expect(appraisals_content).to include('appraise "path-gems"')
+      expect(appraisals_content).to include("support-gem")
+      expect(appraisals_content).not_to match(/^\s+example$/)
       expect(appraisals_content).to include('appraise "style"')
       expect(appraisals_report.dig(:report_envelope, :report, :step_reports, 0, :metadata, :ruby_template_policy)).to include(
         file_type: "appraisals",
@@ -2679,6 +2691,65 @@ RSpec.describe Kettle::Jem do
         expect(content).not_to include(%(eval_gemfile "#{path}"))
       end
       expect(File.read(File.join(root, relative_path))).to eq(content)
+    end
+  end
+
+  it "removes the destination package from the main Gemfile" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-main-gemfile-self-dependency", tmp_root) do |root|
+      write_tree(root, {
+        "example-gem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.summary = "Example Gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - Gemfile
+        YAML
+        "Gemfile" => <<~RUBY,
+          # frozen_string_literal: true
+
+          source "https://gem.coop"
+          gem "example-gem"
+          gem "destination-only"
+        RUBY
+        "template/Gemfile.example" => <<~RUBY,
+          # frozen_string_literal: true
+
+          source "https://gem.coop"
+
+          dependency_root = ENV["DEPENDENCY_ROOT"].to_s.strip
+
+          if !dependency_root.empty?
+            %w[
+              example-gem
+              helper-gem
+            ].each do |gem_name|
+              gem gem_name, path: File.join(dependency_root, gem_name)
+            end
+          else
+            gem "example-gem", ">= 1.0"
+          end
+
+          gem "shared-tool"
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == "Gemfile" }
+      content = report.fetch(:final_content)
+
+      expect(content).to include("helper-gem")
+      expect(content).to include('gem "shared-tool"')
+      expect(content).not_to match(/^\s+example-gem$/)
+      expect(content).not_to match(/^\s*gem\s+["']example-gem["']/)
+      expect(File.read(File.join(root, "Gemfile"))).to eq(content)
     end
   end
 

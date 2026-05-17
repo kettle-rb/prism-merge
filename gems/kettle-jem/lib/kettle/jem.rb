@@ -3410,7 +3410,8 @@ module Kettle
       package_name = facts.dig(:package, :name).to_s if facts
       min_ruby = minimum_ruby_token(facts.dig(:rubygems, :min_ruby)) if facts
       pruned = prune_appraisals_below_min_ruby(content, min_ruby)
-      remove_gemfile_dependency_lines(pruned, [package_name])
+      pruned = remove_gemfile_dependency_lines(pruned, [package_name])
+      remove_gemfile_percent_w_entries(pruned, [package_name])
     end
 
     def merge_appraisals_template_source(template_content, destination_content, facts:)
