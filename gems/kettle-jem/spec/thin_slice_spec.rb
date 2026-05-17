@@ -2682,7 +2682,7 @@ RSpec.describe Kettle::Jem do
     end
   end
 
-  it "merges modular local Gemfile overrides while removing the project self-dependency" do
+  it "merges modular local Gemfile dependency lists while removing the destination package" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
     Dir.mktmpdir("kettle-jem-local-gemfile-policy", tmp_root) do |root|
@@ -2733,15 +2733,15 @@ RSpec.describe Kettle::Jem do
     end
   end
 
-  it "removes the project self-dependency from non-local templating Gemfiles" do
+  it "removes the destination package from arbitrary modular Gemfile dependency lists" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
-    Dir.mktmpdir("kettle-jem-templating-gemfile-policy", tmp_root) do |root|
+    Dir.mktmpdir("kettle-jem-modular-gemfile-self-dependency", tmp_root) do |root|
       write_tree(root, {
-        "kettle-jem.gemspec" => <<~RUBY,
+        "example-gem.gemspec" => <<~RUBY,
           Gem::Specification.new do |spec|
-            spec.name = "kettle-jem"
-            spec.summary = "Kettle Jem"
+            spec.name = "example-gem"
+            spec.summary = "Example Gem"
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
@@ -2749,41 +2749,41 @@ RSpec.describe Kettle::Jem do
             root: template
             apply: true
             entries:
-              - gemfiles/modular/templating.gemfile
+              - gemfiles/modular/debug.gemfile
         YAML
-        "gemfiles/modular/templating.gemfile" => <<~RUBY,
+        "gemfiles/modular/debug.gemfile" => <<~RUBY,
           # frozen_string_literal: true
 
           gem "existing"
         RUBY
-        "template/gemfiles/modular/templating.gemfile.example" => <<~RUBY,
+        "template/gemfiles/modular/debug.gemfile.example" => <<~RUBY,
           # frozen_string_literal: true
 
-          structuredmerge_ruby_gems = ENV["STRUCTUREDMERGE_RUBY_GEMS"].to_s.strip
+          dependency_root = ENV["DEPENDENCY_ROOT"].to_s.strip
 
-          if !structuredmerge_ruby_gems.empty?
+          if !dependency_root.empty?
             %w[
-              tree_haver
-              kettle-jem
+              debug
+              example-gem
             ].each do |gem_name|
-              gem gem_name, path: File.join(structuredmerge_ruby_gems, gem_name)
+              gem gem_name, path: File.join(dependency_root, gem_name)
             end
           else
-            gem "kettle-jem", ">= 7.0"
+            gem "example-gem", ">= 1.0"
           end
         RUBY
       })
 
       apply = described_class.apply_project(root, env: {})
       report = apply.fetch(:recipe_reports).find do |candidate|
-        candidate.fetch(:relative_path) == "gemfiles/modular/templating.gemfile"
+        candidate.fetch(:relative_path) == "gemfiles/modular/debug.gemfile"
       end
       content = report.fetch(:final_content)
 
-      expect(content).to include("tree_haver")
-      expect(content).not_to match(/^\s+kettle-jem$/)
-      expect(content).not_to match(/^\s*gem\s+["']kettle-jem["']/)
-      expect(File.read(File.join(root, "gemfiles/modular/templating.gemfile"))).to eq(content)
+      expect(content).to include("debug")
+      expect(content).not_to match(/^\s+example-gem$/)
+      expect(content).not_to match(/^\s*gem\s+["']example-gem["']/)
+      expect(File.read(File.join(root, "gemfiles/modular/debug.gemfile"))).to eq(content)
     end
   end
 
