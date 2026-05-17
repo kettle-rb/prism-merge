@@ -3024,8 +3024,24 @@ module Kettle
         )
       end
       return merge_config_template_source(recipe, resolved, original, facts: facts) if strategy.empty? || strategy == "merge"
+      return finalize_accepted_template_source(recipe, resolved, original, facts: facts) if strategy == "accept_template"
 
       recipe.fetch(:target_path) == "README.md" ? postprocess_readme_content(resolved, facts) : resolved
+    end
+
+    def finalize_accepted_template_source(recipe, content, destination_content, facts:)
+      case template_file_type(recipe)
+      when :gemfile
+        finalize_gemfile_template_source(recipe, content, destination_content, facts: facts, template_content: content)
+      when :appraisals
+        merge_appraisals_template_policy(content, facts: facts)
+      when :gemspec
+        package_name = facts.dig(:package, :name).to_s if facts
+        receiver = gemspec_block_param(content) || "spec"
+        remove_gemspec_self_dependency_lines(content, package_name, receiver: receiver)
+      else
+        content
+      end
     end
 
     def prepare_github_workflow_template(content, recipe, facts)

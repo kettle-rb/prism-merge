@@ -202,6 +202,9 @@ RSpec.describe Kettle::Jem do
             apply: true
             entries:
               - Gemfile
+          files:
+            Gemfile:
+              strategy: accept_template
         YAML
         "Gemfile" => <<~RUBY,
           source "https://rubygems.org"
@@ -2821,6 +2824,11 @@ RSpec.describe Kettle::Jem do
             apply: true
             entries:
               - gemfiles/modular/debug.gemfile
+          files:
+            gemfiles:
+              modular:
+                debug.gemfile:
+                  strategy: accept_template
         YAML
         "gemfiles/modular/debug.gemfile" => <<~RUBY,
           # frozen_string_literal: true
