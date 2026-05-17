@@ -125,6 +125,48 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "merges custom workflow YAML snippets without replacing destination jobs" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-custom-workflow-yaml-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".github/workflows/custom-ci.yml" => <<~YAML,
+          name: Custom CI
+          on:
+            pull_request:
+          jobs:
+            spec:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: ruby/setup-ruby@v1
+                - name: Project-specific check
+                  run: bundle exec rake custom
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == ".github/workflows/custom-ci.yml"
+      end
+      content = report.fetch(:final_content)
+
+      expect(report.fetch(:recipe_name)).to start_with("github_actions_workflow_snippets_")
+      expect(content).to include("permissions:\n  contents: read")
+      expect(content).to include("concurrency:\n  group: \"${{ github.workflow }}-${{ github.ref }}\"")
+      expect(content).to include("actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2")
+      expect(content).to include("ruby/setup-ruby@e65c17d16e57e481586a6a5a0282698790062f92 # v1.300.0")
+      expect(content).to include("Project-specific check")
+      expect(content).to include("bundle exec rake custom")
+    end
+  end
+
   it "keeps the packaged Discord notifier workflow opt-in via include" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

@@ -147,7 +147,8 @@
         "discord-notifier.yml include-only behavior",
         "framework workflow generation parity",
         "obsolete workflow cleanup",
-        "engine and minimum-Ruby packaged workflow pruning"
+        "engine and minimum-Ruby packaged workflow pruning",
+        "workflow YAML merge rules for custom workflow snippets"
       ],
       "remaining_behaviors": [
         "appraisal matrix pruning parity against old generated workflow set",
