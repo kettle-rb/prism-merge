@@ -71,6 +71,10 @@ module Psych
       # @param region_placeholder [String, nil] Custom placeholder for regions
       # @param node_typing [Hash{Symbol,String => #call}, nil] Node typing configuration
       #   for per-node-type merge preferences
+      # @param comment_merge_policy [Symbol, String] How matched-node comments are
+      #   selected. `:preserve_destination` is conservative for git-style merges;
+      #   `:template_fallback_when_missing` restores template documentation comments
+      #   when the destination node has no comments.
       # @param options [Hash] Additional options for forward compatibility
       #
       # @raise [TemplateParseError] If template has syntax errors
@@ -90,12 +94,14 @@ module Psych
         regions: nil,
         region_placeholder: nil,
         node_typing: nil,
+        comment_merge_policy: :preserve_destination,
         **options
       )
         @remove_template_missing_nodes = remove_template_missing_nodes
         @corruption_handling = ::Ast::Merge::Healer.normalize_mode(corruption_handling)
         @recursive = recursive
         @add_template_only_sequence_items = add_template_only_sequence_items
+        @comment_merge_policy = comment_merge_policy
         super(
           template_content,
           dest_content,
@@ -116,6 +122,9 @@ module Psych
 
       # @return [Boolean, Integer] Whether to merge nested structures recursively
       attr_reader :recursive
+
+      # @return [Symbol, String] Matched-node comment selection policy
+      attr_reader :comment_merge_policy
 
       # Perform the merge and return the result as a YAML string.
       #
@@ -245,6 +254,7 @@ module Psych
           recursive: @recursive,
           match_refiner: @match_refiner,
           node_typing: @node_typing,
+          comment_merge_policy: @comment_merge_policy,
         )
       end
 

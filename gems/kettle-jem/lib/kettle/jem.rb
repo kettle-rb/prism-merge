@@ -86,6 +86,8 @@ module Kettle
     SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
     SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
     DEFAULT_RUBY_METHOD_MOVE_POLICY = "destination_order"
+    SUPPORTED_YAML_COMMENT_MERGE_POLICIES = %w[preserve_destination template_fallback_when_missing template_documentation].freeze
+    DEFAULT_TEMPLATE_YAML_COMMENT_MERGE_POLICY = "template_fallback_when_missing"
     RUBY_TEMPLATE_BASENAMES = %w[Gemfile Rakefile Appraisals Appraisal.root.gemfile .simplecov].freeze
     RUBY_TEMPLATE_SUFFIXES = %w[.gemspec .gemfile].freeze
     RUBY_TEMPLATE_EXTENSIONS = %w[.rb .rake].freeze
@@ -3121,7 +3123,12 @@ module Kettle
           **ruby_merge_options(recipe, merge_template_requires: file_type == :rakefile)
         )
       when :yaml
-        merge_result = Psych::Merge.merge_yaml(template_content, destination_content, "yaml")
+        merge_result = Psych::Merge.merge_yaml(
+          template_content,
+          destination_content,
+          "yaml",
+          **yaml_merge_options(recipe)
+        )
       when :toml
         merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
       else
@@ -3444,6 +3451,14 @@ module Kettle
       pruned = prune_appraisals_below_min_ruby(content, min_ruby)
       pruned = remove_gemfile_dependency_lines(pruned, [package_name])
       remove_gemfile_percent_w_entries(pruned, [package_name])
+    end
+
+    def yaml_merge_options(recipe)
+      policy = recipe.dig(:template_preference, :comment_merge_policy).to_s
+      policy = DEFAULT_TEMPLATE_YAML_COMMENT_MERGE_POLICY if policy.empty? && recipe.fetch(:primitive) == "supplied_template_source_application"
+      return {} if policy.empty?
+
+      { comment_merge_policy: policy.to_sym }
     end
 
     def merge_appraisals_template_source(template_content, destination_content, facts:)
@@ -5795,7 +5810,7 @@ module Kettle
       }
       preference[:strategy] = strategy_config.fetch(:strategy).to_s if strategy_config
       if strategy_config
-        %i[file_type preference freeze_token method_move_policy max_recursion_depth].each do |key|
+        %i[file_type preference freeze_token method_move_policy max_recursion_depth comment_merge_policy].each do |key|
           preference[key] = strategy_config.fetch(key).to_s if strategy_config.key?(key)
         end
         preference[:add_template_only_nodes] = strategy_config.fetch(:add_template_only_nodes) if strategy_config.key?(:add_template_only_nodes)
@@ -5903,6 +5918,12 @@ module Kettle
           raise ArgumentError, "unknown kettle-jem Ruby method_move_policy: #{policy}" unless SUPPORTED_RUBY_METHOD_MOVE_POLICIES.include?(policy)
 
           result[:method_move_policy] = policy
+        end
+        if entry.key?("comment_merge_policy") || defaults.key?("comment_merge_policy")
+          policy = (entry.key?("comment_merge_policy") ? entry["comment_merge_policy"] : defaults["comment_merge_policy"]).to_s.strip.downcase.tr("-", "_")
+          raise ArgumentError, "unknown kettle-jem YAML comment_merge_policy: #{policy}" unless SUPPORTED_YAML_COMMENT_MERGE_POLICIES.include?(policy)
+
+          result[:comment_merge_policy] = policy
         end
       end
       result

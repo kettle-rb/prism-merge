@@ -45,7 +45,7 @@ module Psych
       # @param options [Hash] Additional options for forward compatibility
       # @param node_typing [Hash{Symbol,String => #call}, nil] Node typing configuration
       #   for per-node-type preferences
-      def initialize(template_analysis, dest_analysis, preference: :destination, add_template_only_nodes: false, add_template_only_sequence_items: nil, remove_template_missing_nodes: false, resolution_mode: :eager, corruption_handling: :heal, recursive: true, match_refiner: nil, node_typing: nil, **options)
+      def initialize(template_analysis, dest_analysis, preference: :destination, add_template_only_nodes: false, add_template_only_sequence_items: nil, remove_template_missing_nodes: false, resolution_mode: :eager, corruption_handling: :heal, recursive: true, match_refiner: nil, node_typing: nil, comment_merge_policy: :preserve_destination, **options)
         super(
           strategy: :batch,
           preference: preference,
@@ -61,6 +61,7 @@ module Psych
         @corruption_handling = ::Ast::Merge::Healer.normalize_mode(corruption_handling)
         @add_template_only_sequence_items = add_template_only_sequence_items.nil? ? add_template_only_nodes : add_template_only_sequence_items
         @node_typing = node_typing
+        @comment_merge_policy = normalize_comment_merge_policy(comment_merge_policy)
         @emitter = Emitter.new
         @last_document_node_recursively_merged = false
       end
@@ -545,9 +546,9 @@ module Psych
             dest_node,
             @dest_analysis,
             next_node: next_dest_node,
-            comment_source_node: template_node,
+            comment_source_node: template_comment_fallback_source(template_node),
             comment_analysis: @template_analysis,
-            comment_source_fallback: true,
+            comment_source_fallback: template_comment_fallback?,
           )
         else
           trim_overpreserved_destination_gap_for(
@@ -805,14 +806,14 @@ module Psych
               emit_mapping_entry_prelude(
                 dest_node,
                 @dest_analysis,
-                comment_source_node: template_node,
+                comment_source_node: template_comment_fallback_source(template_node),
                 comment_analysis: @template_analysis,
-                comment_source_fallback: true,
+                comment_source_fallback: template_comment_fallback?,
               )
               emit_mapping_entry_key_line(
                 dest_node,
                 @dest_analysis,
-                comment_source_node: template_node,
+                comment_source_node: template_comment_fallback_source(template_node),
                 comment_analysis: @template_analysis,
               )
             else
@@ -1014,9 +1015,9 @@ module Psych
                 item,
                 @dest_analysis,
                 next_node: next_dest_node,
-                comment_source_node: template_item,
+                comment_source_node: template_comment_fallback_source(template_item),
                 comment_analysis: @template_analysis,
-                comment_source_fallback: true,
+                comment_source_fallback: template_comment_fallback?,
               )
             else
               emit_sequence_item(
@@ -2117,6 +2118,26 @@ module Psych
         return source_region if source_region && !source_region.empty?
 
         node_leading_comment_region(node, analysis)
+      end
+
+      def template_comment_fallback?
+        @comment_merge_policy == :template_fallback_when_missing
+      end
+
+      def template_comment_fallback_source(node)
+        template_comment_fallback? ? node : nil
+      end
+
+      def normalize_comment_merge_policy(policy)
+        normalized = policy.to_s.strip.downcase.tr("-", "_").to_sym
+        case normalized
+        when :preserve_destination, :destination, :git_merge
+          :preserve_destination
+        when :template_fallback, :template_fallback_when_missing, :template_documentation
+          :template_fallback_when_missing
+        else
+          raise ArgumentError, "unknown YAML comment_merge_policy: #{policy}"
+        end
       end
 
       def preferred_inline_comment_region(node, comment_source_node = nil, analysis: nil, comment_analysis: analysis)

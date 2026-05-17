@@ -2310,6 +2310,55 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "allows YAML template recipes to keep git-style destination comment policy" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-yaml-template-comment-policy", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - config/settings.yml
+          files:
+            config:
+              settings.yml:
+                strategy: merge
+                file_type: yaml
+                comment_merge_policy: preserve_destination
+        YAML
+        "config/settings.yml" => <<~YAML,
+          project:
+            name: example
+        YAML
+        "template/config/settings.yml.example" => <<~YAML,
+          # project settings
+          project:
+            # Project display name.
+            name: example
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:recipe_name) == "template_source_application_config_settings_yml"
+      end
+      final_content = report.fetch(:final_content)
+
+      expect(final_content).not_to include("# project settings")
+      expect(final_content).not_to include("# Project display name.")
+      expect(final_content).to include("project:")
+      expect(final_content).to include("  name: example")
+    end
+  end
+
   it "merges Ruby-family template applications with destination declarations and DSL calls" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

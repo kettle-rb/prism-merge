@@ -102,7 +102,7 @@ RSpec.describe Psych::Merge do
     expect(result[:output]).to include("generated: true")
   end
 
-  it "restores template YAML comments for matched keys when destination comments are missing" do
+  it "keeps matched destination YAML nodes from inheriting template comments by default" do
     template = <<~YAML
       # project configuration
       templates:
@@ -115,6 +115,32 @@ RSpec.describe Psych::Merge do
     YAML
 
     result = ::Psych::Merge.merge_yaml(template, destination, "yaml")
+
+    expect(result[:ok]).to be(true)
+    expect(result[:output]).not_to include("# project configuration")
+    expect(result[:output]).not_to include("# Template root directory.")
+    expect(result[:output]).to include("templates:")
+    expect(result[:output]).to include("  root: template")
+  end
+
+  it "restores template YAML comments for matched keys when template fallback mode is selected" do
+    template = <<~YAML
+      # project configuration
+      templates:
+        # Template root directory.
+        root: template
+    YAML
+    destination = <<~YAML
+      templates:
+        root: template
+    YAML
+
+    result = ::Psych::Merge.merge_yaml(
+      template,
+      destination,
+      "yaml",
+      comment_merge_policy: :template_fallback_when_missing
+    )
 
     expect(result[:ok]).to be(true)
     expect(result[:output]).to include("# project configuration")
