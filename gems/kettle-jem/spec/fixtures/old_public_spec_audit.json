@@ -153,10 +153,10 @@
         "appraisal matrix pruning parity against old generated workflow set",
         "modular Gemfile Ruby-bucket pruning",
         "modular Gemfile self-dependency removal",
-        "modular Gemfile local override merge"
+        "modular Gemfile local override merge",
+        "RubyGems minimum-Ruby shunted.gemfile generation"
       ],
       "remaining_behaviors": [
-        "RubyGems minimum-Ruby shunted.gemfile generation",
         "duplicate drift checks during template/install runs"
       ]
     },

@@ -2576,6 +2576,61 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "generates shunted.gemfile entries from resolved development dependency Ruby floors" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    resolver = Class.new do
+      def versions(gem_name, requirements: nil)
+        case gem_name
+        when "debug"
+          [{ number: "1.9.2", ruby_version: ">= 3.3" }]
+        when "rake"
+          [{ number: "13.2.1", ruby_version: ">= 2.6" }]
+        else
+          []
+        end
+      end
+
+      def min_ruby_version(gem_name, _version)
+        gem_name == "debug" ? Gem::Version.new("3.3") : Gem::Version.new("2.6")
+      end
+
+      def parse_min_ruby(requirement)
+        Kettle::Jem::RubyGemsResolver.new.parse_min_ruby(requirement)
+      end
+    end.new
+
+    Dir.mktmpdir("kettle-jem-shunted-gemfile", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example"
+            spec.required_ruby_version = ">= 3.2"
+            spec.add_development_dependency "debug", "~> 1.9"
+            spec.add_development_dependency "rake", "~> 13.0"
+          end
+        RUBY
+        "gemfiles/modular/shunted.gemfile" => <<~RUBY,
+          # frozen_string_literal: true
+
+          # local notes remain outside the generated block
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: { rubygems_resolver: resolver })
+      report = apply.fetch(:recipe_reports).find do |candidate|
+        candidate.fetch(:relative_path) == "gemfiles/modular/shunted.gemfile"
+      end
+      content = report.fetch(:final_content)
+
+      expect(content).to include("# local notes remain outside the generated block")
+      expect(content).to include('gem "debug", "~> 1.9" # ruby >= 3.3')
+      expect(content).not_to include('gem "rake"')
+      expect(File.read(File.join(root, "gemfiles/modular/shunted.gemfile"))).to eq(content)
+    end
+  end
+
   it "ports old Gemfile comment preservation, token resolution, and commented dependency policy" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
