@@ -226,6 +226,44 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "prunes packaged workflow files by configured engines and minimum Ruby" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-workflow-prune-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          engines:
+            - ruby
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - .github/workflows/ruby-2.7.yml
+              - .github/workflows/ruby-3.2.yml
+              - .github/workflows/jruby.yml
+              - .github/workflows/truffle.yml
+        YAML
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      paths = plan.fetch(:recipe_reports).map { |report| report.fetch(:relative_path) }
+
+      expect(paths).to include(".github/workflows/ruby-3.2.yml")
+      expect(paths).not_to include(".github/workflows/ruby-2.7.yml")
+      expect(paths).not_to include(".github/workflows/jruby.yml")
+      expect(paths).not_to include(".github/workflows/truffle.yml")
+      expect(plan.fetch(:changed_files)).to include(".github/workflows/ruby-3.2.yml")
+      expect(plan.fetch(:changed_files)).not_to include(".github/workflows/ruby-2.7.yml")
+    end
+  end
+
   it "applies README style conditionals and reports missing integrations" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

@@ -146,10 +146,11 @@
         "legacy Markdown README H1, nested subsection, and fenced-code preservation",
         "discord-notifier.yml include-only behavior",
         "framework workflow generation parity",
-        "obsolete workflow cleanup"
+        "obsolete workflow cleanup",
+        "engine and minimum-Ruby packaged workflow pruning"
       ],
       "remaining_behaviors": [
-        "full workflow/appraisal matrix pruning parity against old generated workflow set",
+        "appraisal matrix pruning parity against old generated workflow set",
         "RubyGems minimum-Ruby shunted.gemfile generation",
         "duplicate drift checks during template/install runs",
         "README badge alignment with actual generated workflow files"
