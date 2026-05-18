@@ -121,7 +121,8 @@ module Ast
             dialect: request[:dialect].to_s
           },
           render_report: {
-            strategy: render_strategy || (request[:render_policy].to_s.empty? ? "canonical" : request[:render_policy].to_s)
+            strategy: render_strategy || (request[:render_policy].to_s.empty? ? "canonical" : request[:render_policy].to_s),
+            **render_identity(request)
           },
           formatting_preservation: {
             line_diff_score: 0.0,
@@ -129,6 +130,15 @@ module Ast
           }.merge(formatting_preservation),
           reparse_after_render: reparse_after_render
         }
+      end
+
+      def render_identity(request)
+        case normalize_language(request)
+        when "json"
+          {backend_id: "native-json", parser_identity: "standard-json"}
+        else
+          {}
+        end
       end
 
       def render_conflict_source(request, conflicts)
