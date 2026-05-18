@@ -889,7 +889,7 @@ RSpec.describe Kettle::Jem do
       expect(template_report.fetch(:changed)).to be(true)
       expect(template_report.dig(:request_envelope, :request, :template_content)).to include("{KJ|GEM_NAME}")
       expect(template_report.fetch(:final_content)).to eq(<<~MARKDOWN)
-        # example
+        # 💎 Example
 
         Namespace: Example
         Path: example

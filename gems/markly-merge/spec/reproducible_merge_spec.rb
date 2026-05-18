@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "markly/merge"
+require "ast/merge/rspec/shared_examples"
 
 RSpec.describe "Markly reproducible merge" do
   let(:fixtures_path) { File.expand_path("fixtures/reproducible", __dir__) }

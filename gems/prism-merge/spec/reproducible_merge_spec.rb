@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "prism/merge"
+require "ast/merge/rspec/shared_examples"
 
 RSpec.describe "Prism reproducible merge" do
   let(:fixtures_path) { File.expand_path("fixtures/reproducible", __dir__) }
