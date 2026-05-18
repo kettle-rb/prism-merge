@@ -1151,6 +1151,62 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "bootstraps a monorepo subgem template profile with package-owned entries only" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-bootstrap-monorepo-subgem", tmp_root) do |root|
+      write_tree(root, {
+        "tree_haver.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "tree_haver"
+            spec.summary = "Example gem"
+            spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        "README.md" => "# 💎 Tree::Haver\n\nExisting README.\n",
+      })
+
+      setup = described_class.setup_project(
+        root,
+        env: {},
+        run_options: {bootstrap_mode: true, template_profile: "monorepo-subgem", skip_commit: true}
+      )
+      config = File.read(File.join(root, ".kettle-jem.yml"))
+
+      expect(setup.fetch(:changed_files)).to include(".kettle-jem.yml")
+      expect(config).to include("project_emoji: 💎\n")
+      expect(config).to include(<<~YAML)
+        templates:
+          root: packaged
+          apply: true
+          profile: monorepo-subgem
+          entries:
+            - README.md
+            - source: gem.gemspec
+              target: tree_haver.gemspec
+            - LICENSE.md
+      YAML
+      expect(config).to include("    - certs/pboling.pem\n")
+      expect(config).to include("    - tmp/.gitignore\n")
+      expect(config).not_to include("    - .github/workflows/current.yml\n")
+      expect(config).to include(<<~YAML)
+        files:
+          README.md:
+            strategy: keep_destination
+          tree_haver.gemspec:
+            strategy: keep_destination
+      YAML
+
+      apply = described_class.apply_project(root, env: {}, run_options: {accept: true, skip_commit: true})
+      expect(apply.fetch(:changed_files)).to include("LICENSE.md")
+      expect(apply.fetch(:changed_files)).not_to include("README.md", "tree_haver.gemspec")
+      expect(File).not_to exist(File.join(root, ".github"))
+      expect(File).not_to exist(File.join(root, "Gemfile"))
+      expect(File).not_to exist(File.join(root, "Rakefile"))
+    end
+  end
+
   it "applies bootstrap with non-interactive defaults and converges on the next run" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

@@ -68,6 +68,18 @@ module Kettle
     ].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS = %w[REEK bin/setup].freeze
+    MONOREPO_SUBGEM_TEMPLATE_PROFILE = "monorepo-subgem"
+    MONOREPO_SUBGEM_TEMPLATE_ENTRIES = [
+      "README.md",
+      "LICENSE.md",
+      "MIT.md",
+      "AGPL-3.0-only.md",
+      "PolyForm-Noncommercial-1.0.0.md",
+      "PolyForm-Small-Business-1.0.0.md",
+      "Big-Time-Public-License.md",
+      "certs/pboling.pem",
+      "tmp/.gitignore",
+    ].freeze
     NON_LICENSE_MD_BASENAMES = %w[
       AGENTS
       CHANGELOG
@@ -2092,8 +2104,15 @@ module Kettle
       }
       generated_blocks = generated_blocks_facts(gemspec, facts, run_options)
       facts[:generated_blocks] = generated_blocks unless generated_blocks.empty?
-      bootstrap = kettle_config_bootstrap_facts(project_root, env)
+      template_selection = template_selection_for(env, run_options)
+      configured_template_profile = kettle_config.dig("templates", "profile").to_s
+      if template_selection[:template_profile].to_s.empty? && !configured_template_profile.empty?
+        template_selection[:template_profile] = configured_template_profile
+      end
+      bootstrap = kettle_config_bootstrap_facts(project_root, env, template_selection: template_selection)
       bootstrap[:licenses] = gemspec_license_spdx if bootstrap && !gemspec_license_spdx.empty?
+      bootstrap[:gemspec_path] = File.basename(gemspec_path) if bootstrap && gemspec_path
+      bootstrap[:project_emoji] = readme_project_emoji(project_root) if bootstrap
       facts[:kettle_config_bootstrap] = bootstrap if bootstrap
       facts[:author] = author unless author.empty?
       facts[:copyright] = copyright unless copyright.empty?
@@ -2124,8 +2143,8 @@ module Kettle
       open_collective_files = opencollective_disabled ? opencollective_disabled_files(project_root) : []
       funding[:open_collective_files] = open_collective_files unless open_collective_files.empty?
       facts[:funding] = funding unless funding.empty?
-      template_selection = template_selection_for(env, run_options)
       opt_in_workflows = opt_in_workflow_cleanup_files(project_root, template_selection)
+      facts[:template_profile] = template_selection[:template_profile] unless template_selection[:template_profile].to_s.empty?
       facts[:ci] = {
         provider: "github_actions",
         default_branch: "main",
@@ -2166,56 +2185,62 @@ module Kettle
     end
 
     def recipe_pack(facts)
-      recipes = [
-        recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
-        recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
-        recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
-        recipe_entry(
-          "github_funding_yml",
-          ".github/FUNDING.yml",
-          "yaml",
-          "supplied_github_funding_yaml_synchronization",
-          facts: %w[package funding]
-        ),
-      ]
+      recipes = if monorepo_subgem_template_profile?(facts)
+        []
+      else
+        [
+          recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
+          recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
+          recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+          recipe_entry(
+            "github_funding_yml",
+            ".github/FUNDING.yml",
+            "yaml",
+            "supplied_github_funding_yaml_synchronization",
+            facts: %w[package funding]
+          ),
+        ]
+      end
       if facts[:kettle_config_bootstrap]
         recipes.unshift(kettle_config_bootstrap_recipe(facts.fetch(:kettle_config_bootstrap)))
       end
-      facts.dig(:ci, :obsolete_workflows).to_a.each do |workflow_path|
-        recipes << recipe_entry(
-          "github_actions_obsolete_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
-          workflow_path,
-          "file",
-          "supplied_obsolete_file_deletion",
-          facts: %w[ci]
-        )
-      end
-      facts.dig(:ci, :opt_in_workflow_cleanups).to_a.each do |workflow_path|
-        recipes << recipe_entry(
-          "github_actions_opt_in_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
-          workflow_path,
-          "file",
-          "supplied_opt_in_workflow_deletion",
-          facts: %w[ci]
-        )
-      end
-      facts.dig(:funding, :open_collective_files).to_a.each do |relative_path|
-        recipes << recipe_entry(
-          "opencollective_disabled_file_cleanup_#{workflow_recipe_slug(relative_path)}",
-          relative_path,
-          "file",
-          "supplied_disabled_opencollective_file_deletion",
-          facts: %w[funding]
-        )
-      end
-      facts.dig(:ci, :custom_workflows).to_a.each do |workflow_path|
-        recipes << recipe_entry(
-          "github_actions_workflow_snippets_#{workflow_recipe_slug(workflow_path)}",
-          workflow_path,
-          "yaml",
-          "supplied_github_actions_workflow_snippet_merge",
-          facts: %w[ci]
-        )
+      unless monorepo_subgem_template_profile?(facts)
+        facts.dig(:ci, :obsolete_workflows).to_a.each do |workflow_path|
+          recipes << recipe_entry(
+            "github_actions_obsolete_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
+            workflow_path,
+            "file",
+            "supplied_obsolete_file_deletion",
+            facts: %w[ci]
+          )
+        end
+        facts.dig(:ci, :opt_in_workflow_cleanups).to_a.each do |workflow_path|
+          recipes << recipe_entry(
+            "github_actions_opt_in_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
+            workflow_path,
+            "file",
+            "supplied_opt_in_workflow_deletion",
+            facts: %w[ci]
+          )
+        end
+        facts.dig(:funding, :open_collective_files).to_a.each do |relative_path|
+          recipes << recipe_entry(
+            "opencollective_disabled_file_cleanup_#{workflow_recipe_slug(relative_path)}",
+            relative_path,
+            "file",
+            "supplied_disabled_opencollective_file_deletion",
+            facts: %w[funding]
+          )
+        end
+        facts.dig(:ci, :custom_workflows).to_a.each do |workflow_path|
+          recipes << recipe_entry(
+            "github_actions_workflow_snippets_#{workflow_recipe_slug(workflow_path)}",
+            workflow_path,
+            "yaml",
+            "supplied_github_actions_workflow_snippet_merge",
+            facts: %w[ci]
+          )
+        end
       end
       facts.dig(:templates, :source_preferences).to_a.each do |preference|
         apply_template = preference.fetch(:apply, false)
@@ -3760,7 +3785,16 @@ module Kettle
       tokens = stringify_template_tokens(recipe.fetch(:template_tokens, {}))
       content = content.gsub("{KJ|MIN_DIVERGENCE_THRESHOLD}", tokens.fetch("KJ|MIN_DIVERGENCE_THRESHOLD", ""))
       bootstrap_licenses = Array(recipe[:bootstrap_licenses]).map(&:to_s).reject(&:empty?)
-      bootstrap_licenses.empty? ? content : replace_kettle_config_bootstrap_licenses(content, bootstrap_licenses)
+      content = replace_kettle_config_bootstrap_licenses(content, bootstrap_licenses) unless bootstrap_licenses.empty?
+      content = replace_kettle_config_bootstrap_project_emoji(content, recipe[:bootstrap_project_emoji]) unless recipe[:bootstrap_project_emoji].to_s.empty?
+      apply_kettle_config_bootstrap_profile(content, recipe[:bootstrap_template_profile], recipe[:bootstrap_gemspec_path])
+    end
+
+    def replace_kettle_config_bootstrap_project_emoji(content, emoji)
+      updated = content.sub(/^project_emoji:\s*.*$/, "project_emoji: #{emoji}")
+      return updated unless updated == content
+
+      raise Error, "Could not replace project_emoji in .kettle-jem.yml bootstrap template"
     end
 
     def replace_kettle_config_bootstrap_licenses(content, licenses)
@@ -3769,6 +3803,70 @@ module Kettle
       return updated unless updated == content
 
       raise Error, "Could not replace licenses block in .kettle-jem.yml bootstrap template"
+    end
+
+    def apply_kettle_config_bootstrap_profile(content, profile, gemspec_path)
+      return content if profile.to_s.empty?
+      return apply_monorepo_subgem_template_profile(content, gemspec_path) if profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+
+      raise Error, "Unknown kettle-jem template profile: #{profile}"
+    end
+
+    def apply_monorepo_subgem_template_profile(content, gemspec_path)
+      entries = monorepo_subgem_template_entries(gemspec_path)
+      entry_lines = entries.flat_map do |entry|
+        if entry.is_a?(Hash)
+          [
+            "    - source: #{entry.fetch("source")}",
+            "      target: #{entry.fetch("target")}",
+          ]
+        else
+          ["    - #{entry}"]
+        end
+      end
+      entries_block = ["  profile: #{MONOREPO_SUBGEM_TEMPLATE_PROFILE}", "  entries:", *entry_lines].join("\n")
+      updated = content.sub(/^(templates:\n  root: packaged\n  apply: true\n)/, "\\1#{entries_block}\n")
+      raise Error, "Could not apply monorepo-subgem template profile to .kettle-jem.yml bootstrap template" if updated == content
+
+      add_monorepo_subgem_file_overrides(updated, gemspec_path)
+    end
+
+    def monorepo_subgem_template_entries(gemspec_path)
+      entries = MONOREPO_SUBGEM_TEMPLATE_ENTRIES.dup
+      gemspec = gemspec_path.to_s.strip
+      return entries if gemspec.empty?
+
+      entries.insert(1, { "source" => "gem.gemspec", "target" => gemspec })
+    end
+
+    def add_monorepo_subgem_file_overrides(content, gemspec_path)
+      override_lines = [
+        "  README.md:",
+        "    strategy: keep_destination",
+      ]
+      gemspec = gemspec_path.to_s.strip
+      unless gemspec.empty?
+        override_lines.concat([
+          "  #{gemspec}:",
+          "    strategy: keep_destination",
+        ])
+      end
+      updated = content.sub(/^files:\n/, "files:\n#{override_lines.join("\n")}\n")
+      return updated unless updated == content
+
+      raise Error, "Could not apply monorepo-subgem file overrides to .kettle-jem.yml bootstrap template"
+    end
+
+    def monorepo_subgem_template_profile?(facts)
+      facts[:template_profile].to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+    end
+
+    def readme_project_emoji(project_root)
+      readme_path = File.join(project_root, "README.md")
+      return nil unless File.exist?(readme_path)
+
+      heading = File.read(readme_path).lines.find { |line| line.match?(/\A#\s+\S+/) }
+      heading.to_s[/\A#\s+(\S+)/, 1]
     end
 
     def recipe_report_metadata(recipe)
@@ -3793,6 +3891,7 @@ module Kettle
         hook_templates: option_hash.fetch(:hook_templates, env_hash["hook_templates"]),
         only: normalize_list_option(option_hash.fetch(:only, env_hash["only"])),
         include: normalize_list_option(option_hash.fetch(:include, env_hash["include"])),
+        template_profile: option_hash.fetch(:template_profile, env_hash["KETTLE_JEM_TEMPLATE_PROFILE"]).to_s,
         skip_commit: DecisionPolicy.value_to_boolean(option_hash.fetch(:skip_commit, env_hash["KETTLE_JEM_SKIP_COMMIT"])),
         accept_config: DecisionPolicy.value_to_boolean(option_hash.fetch(:accept_config, env_hash["KETTLE_JEM_ACCEPT_CONFIG"])),
         bootstrap_mode: DecisionPolicy.value_to_boolean(option_hash.fetch(:bootstrap_mode, env_hash["KETTLE_JEM_BOOTSTRAP_MODE"])),
@@ -5833,7 +5932,7 @@ module Kettle
       COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS.include?(relative_path.to_s)
     end
 
-    def kettle_config_bootstrap_facts(project_root, env)
+    def kettle_config_bootstrap_facts(project_root, env, template_selection: {})
       return if File.exist?(File.join(project_root, ".kettle-jem.yml"))
 
       selected_source = preferred_template_source(PACKAGED_TEMPLATE_ROOT, ".kettle-jem.yml")
@@ -5851,7 +5950,8 @@ module Kettle
           apply: true,
         },
         min_divergence_threshold: preferred_template_token_value(nil, nil, env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
-      }
+        template_profile: template_selection[:template_profile].to_s,
+      }.compact
     end
 
     def kettle_config_bootstrap_recipe(bootstrap)
@@ -5867,6 +5967,9 @@ module Kettle
         "KJ|MIN_DIVERGENCE_THRESHOLD" => bootstrap.fetch(:min_divergence_threshold).to_s,
       }
       recipe[:bootstrap_licenses] = Array(bootstrap[:licenses]).map(&:to_s).reject(&:empty?)
+      recipe[:bootstrap_template_profile] = bootstrap[:template_profile].to_s unless bootstrap[:template_profile].to_s.empty?
+      recipe[:bootstrap_gemspec_path] = bootstrap[:gemspec_path].to_s unless bootstrap[:gemspec_path].to_s.empty?
+      recipe[:bootstrap_project_emoji] = bootstrap[:project_emoji].to_s unless bootstrap[:project_emoji].to_s.empty?
       recipe
     end
 
