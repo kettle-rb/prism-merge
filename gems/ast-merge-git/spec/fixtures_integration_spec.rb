@@ -34,4 +34,28 @@ RSpec.describe Ast::Merge::Git do
       end
     end
   end
+
+  it "conforms to the git comment delta semantics fixture" do
+    fixture = read_json(fixtures_root.join("diagnostics", "slice-953-git-comment-delta-semantics", "git-comment-delta-semantics.json"))
+    expect(fixture.dig(:contract, :package)).to eq("ast-merge-git")
+    expect(fixture.dig(:contract, :operation)).to eq("comment_delta_semantics")
+
+    fixture.fetch(:cases).each do |test_case|
+      result = described_class.merge_comment_delta(
+        base_comment: test_case[:base_comment],
+        ours_comment: test_case[:ours_comment],
+        theirs_comment: test_case[:theirs_comment],
+        owner_path: fixture.dig(:owner, :path)
+      )
+      expected = test_case.fetch(:expected)
+
+      expect(result.fetch(:ok)).to eq(expected.fetch(:ok)), test_case.fetch(:case_id)
+      expect(result.fetch(:conflicts).length).to eq(expected.fetch(:conflict_count)), test_case.fetch(:case_id)
+      expect(result.fetch(:merged_comment)).to eq(expected[:merged_comment]) if expected.key?(:merged_comment)
+      if expected.key?(:conflict_categories)
+        expect(result.fetch(:conflicts).map { |conflict| conflict.fetch(:category) }).to eq(expected.fetch(:conflict_categories))
+      end
+      expect(fixture.dig(:owner, :path)).to eq(expected[:comment_owner_path]) if expected.key?(:comment_owner_path)
+    end
+  end
 end

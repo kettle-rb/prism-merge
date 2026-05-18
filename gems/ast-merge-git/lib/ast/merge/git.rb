@@ -80,6 +80,33 @@ module Ast
         request.transform_keys(&:to_sym)
       end
 
+      def merge_comment_delta(base_comment:, ours_comment:, theirs_comment:, owner_path: "/")
+        conflicts = []
+        merged_comment =
+          if ours_comment == theirs_comment
+            ours_comment
+          elsif base_comment == ours_comment
+            theirs_comment
+          elsif base_comment == theirs_comment
+            ours_comment
+          elsif ours_comment.nil?
+            conflicts << comment_conflict("delete_edit", owner_path, "ours deleted a comment that theirs edited")
+            theirs_comment
+          elsif theirs_comment.nil?
+            conflicts << comment_conflict("delete_edit", owner_path, "theirs deleted a comment that ours edited")
+            ours_comment
+          else
+            conflicts << comment_conflict("edit_edit", owner_path, "comment changed differently in ours and theirs")
+            ours_comment
+          end
+
+        {
+          ok: conflicts.empty?,
+          merged_comment: conflicts.empty? ? merged_comment : nil,
+          conflicts: conflicts
+        }
+      end
+
       def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], reparse_after_render: nil, formatting_preservation: {}, render_strategy: nil)
         {
           ok: ok,
@@ -186,6 +213,15 @@ module Ast
           conflict_id: "conflict-#{conflicts.length + 1}",
           category: category,
           path: path.empty? ? "/" : path,
+          message: message
+        }
+      end
+
+      def comment_conflict(category, path, message)
+        {
+          conflict_id: "comment-conflict-1",
+          category: category,
+          path: path.to_s.empty? ? "/" : path,
           message: message
         }
       end
