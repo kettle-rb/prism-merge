@@ -423,6 +423,95 @@ RSpec.describe Ast::Merge do
     expect(result.line_count).to eq(expected.fetch(:line_count))
   end
 
+  it "conforms to the slice-957 freeze directive execution contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-957-freeze-directive-execution-contract",
+        "freeze-directive-execution-contract.json"
+      )
+    )
+    valid_count = 0
+    invalid_count = 0
+
+    fixture.fetch(:cases).each do |test_case|
+      style = test_case.fetch(:style).to_sym
+      token = test_case.fetch(:token)
+      lines = test_case.fetch(:lines)
+      expected = test_case.fetch(:expected)
+      blocks = []
+      diagnostics = []
+      open_line = nil
+      start_marker = nil
+
+      lines.each_with_index do |line, index|
+        line_number = index + 1
+        if described_class::FreezeNodeBase.freeze_start?(line, style)
+          if open_line
+            diagnostics << {category: "nested_freeze_open", severity: "error", line: line_number}
+          else
+            open_line = line_number
+            start_marker = line
+          end
+        elsif described_class::FreezeNodeBase.freeze_end?(line, style)
+          if open_line.nil?
+            diagnostics << {category: "unmatched_freeze_close", severity: "error", line: line_number}
+          else
+            node = described_class::FreezeNodeBase.new(
+              start_line: open_line,
+              end_line: line_number,
+              lines: lines[(open_line - 1)...line_number],
+              start_marker: start_marker,
+              end_marker: line,
+              pattern_type: style
+            )
+            blocks << {
+              id: "freeze:#{test_case.fetch(:id)}:#{open_line}-#{line_number}",
+              style: test_case.fetch(:style),
+              token: token,
+              start_line: node.start_line,
+              end_line: node.end_line,
+              reason: node.reason.to_s,
+              content_lines: lines[(open_line - 1)...line_number],
+              merge_policy: node.merge_policy.to_s,
+              decision: node.merge_type.to_s,
+              signature: ["freeze_block", open_line.to_s, line_number.to_s]
+            }
+            open_line = nil
+            start_marker = nil
+          end
+        end
+      end
+
+      if open_line
+        diagnostics << {category: "unclosed_freeze_open", severity: "error", line: open_line}
+        blocks = []
+      elsif diagnostics.any?
+        blocks = []
+      end
+
+      expected.fetch(:valid) ? valid_count += 1 : invalid_count += 1
+      expect(blocks.length).to eq(expected.fetch(:block_count))
+      expect(diagnostics.length).to eq(expected.fetch(:diagnostic_count))
+      expect(diagnostics.empty?).to eq(expected.fetch(:valid))
+      expect(blocks).to eq(expected.fetch(:blocks)) if blocks.any?
+      if diagnostics.any?
+        expected.fetch(:diagnostics).each_with_index do |expected_diagnostic, index|
+          expect(diagnostics.fetch(index)).to include(expected_diagnostic)
+        end
+      end
+      expected.fetch(:line_queries).each do |query|
+        block = blocks.find { |candidate| query.fetch(:line).between?(candidate.fetch(:start_line), candidate.fetch(:end_line)) }
+        expect(!block.nil?).to eq(query.fetch(:in_freeze))
+        expect(block&.fetch(:id)).to eq(query.fetch(:block_id))
+      end
+    end
+
+    expect(fixture.fetch(:cases).length).to eq(fixture.dig(:expected, :case_count))
+    expect(valid_count).to eq(fixture.dig(:expected, :valid_case_count))
+    expect(invalid_count).to eq(fixture.dig(:expected, :invalid_case_count))
+  end
+
   it "conforms to the RSpec shared examples dependency tag inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
