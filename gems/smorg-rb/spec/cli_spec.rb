@@ -140,6 +140,9 @@ RSpec.describe Smorg::RB do
         expected_report.fetch("diagnostics_contain").each do |needle|
           expect(diagnostics_json).to include(needle), test_case.fetch("case_id")
         end
+        expected_report.fetch("required_fields", []).each do |field|
+          expect(report).to have_key(field), test_case.fetch("case_id")
+        end
       end
     end
   end
