@@ -1238,17 +1238,54 @@ RSpec.describe Kettle::Jem do
       expect(config).to include(<<~YAML)
         files:
           README.md:
-            strategy: keep_destination
+            strategy: merge
           tree_haver.gemspec:
             strategy: keep_destination
       YAML
 
       apply = described_class.apply_project(root, env: {}, run_options: {accept: true, skip_commit: true})
       expect(apply.fetch(:changed_files)).to include("LICENSE.md")
-      expect(apply.fetch(:changed_files)).not_to include("README.md", "tree_haver.gemspec")
+      expect(apply.fetch(:changed_files)).to include("README.md")
+      expect(apply.fetch(:changed_files)).not_to include("tree_haver.gemspec")
       expect(File).not_to exist(File.join(root, ".github"))
       expect(File).not_to exist(File.join(root, "Gemfile"))
       expect(File).not_to exist(File.join(root, "Rakefile"))
+    end
+  end
+
+  it "bootstraps a monorepo root template profile with shared documentation entries" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-bootstrap-monorepo-root", tmp_root) do |root|
+      setup = described_class.setup_project(
+        root,
+        env: {},
+        run_options: {bootstrap_mode: true, template_profile: "monorepo-root", skip_commit: true}
+      )
+      config = File.read(File.join(root, ".kettle-jem.yml"))
+
+      expect(setup.fetch(:changed_files)).to include(".kettle-jem.yml")
+      expect(config).to include(<<~YAML)
+        templates:
+          root: packaged
+          apply: true
+          profile: monorepo-root
+          entries:
+            - CHANGELOG.md
+            - CODE_OF_CONDUCT.md
+            - CONTRIBUTING.md
+            - FUNDING.md
+            - IRP.md
+            - RUBOCOP.md
+            - SECURITY.md
+            - .github/FUNDING.yml
+      YAML
+      expect(config).to include(<<~YAML)
+        files:
+          CHANGELOG.md:
+            strategy: accept_template
+      YAML
+      expect(config.lines.count { |line| line == "  .github:\n" }).to eq(1)
     end
   end
 
@@ -1314,6 +1351,131 @@ RSpec.describe Kettle::Jem do
       expect(readme).to include("[🚨irp]: #{source_root}/IRP.md")
       expect(readme).to include("[🔐security]: #{source_root}/SECURITY.md")
       expect(File.read(File.join(root, "README.md"))).to eq(readme)
+    end
+  end
+
+  it "projects monorepo subgem README output to thin form while preserving destination-owned sections" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-monorepo-subgem-thin-readme", tmp_root) do |root|
+      write_tree(root, {
+        "ast-merge.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "ast-merge"
+            spec.summary = "Example gem"
+            spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"
+            spec.licenses = ["AGPL-3.0-only"]
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "☯️"
+          templates:
+            root: template
+            apply: true
+            profile: monorepo-subgem
+            entries:
+              - README.md
+          files:
+            README.md:
+              strategy: merge
+        YAML
+        "README.md" => <<~MARKDOWN,
+          # Existing
+
+          ## 🌻 Synopsis
+
+          Destination synopsis.
+
+          ## ⚙️ Configuration
+
+          Destination configuration.
+
+          ## 🔧 Basic Usage
+
+          Destination usage.
+        MARKDOWN
+        "template/README.md.example" => <<~MARKDOWN,
+          # {KJ|PROJECT_EMOJI} {KJ|NAMESPACE}
+
+          ## 🌻 Synopsis
+
+          Template synopsis.
+
+          ## 💡 Info you can shake a stick at
+
+          Info.
+
+          ### Compatibility
+
+          Compatible.
+
+          ### Enterprise Support
+
+          Heavy support content.
+
+          ## ✨ Installation
+
+          Install.
+
+          ## ⚙️ Configuration
+
+          Template configuration.
+
+          ## 🔧 Basic Usage
+
+          Template usage.
+
+          ## 🦷 FLOSS Funding
+
+          Funding.
+
+          ## 🔐 Security
+
+          See [SECURITY.md][🔐security].
+
+          ## 🤝 Contributing
+
+          Contributions.
+
+          ### Code Coverage
+
+          Coverage.
+
+          ## 🌈 Contributors
+
+          Contributors.
+
+          ## 📌 Versioning
+
+          Versioning.
+
+          ## 📄 License
+
+          License.
+
+          ## 🤑 A request for help
+
+          Request.
+
+          [🔐security]: SECURITY.md
+        MARKDOWN
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: {skip_commit: true})
+      readme = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == "README.md" }.fetch(:final_content)
+
+      expect(readme).to include("## 🌻 Synopsis\n\nDestination synopsis.")
+      expect(readme).to include("## ⚙️ Configuration\n\nDestination configuration.")
+      expect(readme).to include("## 🔧 Basic Usage\n\nDestination usage.")
+      expect(readme).to include("### Compatibility")
+      expect(readme).to include("## ✨ Installation")
+      expect(readme).to include("## 🔐 Security")
+      expect(readme).not_to include("### Enterprise Support")
+      expect(readme).not_to include("## 🦷 FLOSS Funding")
+      expect(readme).not_to include("### Code Coverage")
+      expect(readme).not_to include("## 🌈 Contributors")
+      expect(readme).not_to include("## 🤑 A request for help")
     end
   end
 

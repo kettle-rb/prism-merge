@@ -120,6 +120,9 @@ module Kettle
           opts.on("--bootstrap-mode", "Force first-run bootstrap mode.") do
             options[:run_options][:bootstrap_mode] = true
           end
+          opts.on("--template-profile PROFILE", "Use a packaged template profile.") do |value|
+            options[:run_options][:template_profile] = value
+          end
           opts.on("--destination PATH", "Selftest destination root.") do |path|
             options[:destination_root] = path
           end

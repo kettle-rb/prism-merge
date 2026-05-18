@@ -73,7 +73,18 @@ module Kettle
     ].freeze
     PACKAGED_TEMPLATE_ROOT = File.expand_path("jem/templates", __dir__)
     COPY_ONLY_WHEN_MISSING_TEMPLATE_PATHS = %w[REEK bin/setup].freeze
+    MONOREPO_ROOT_TEMPLATE_PROFILE = "monorepo-root"
     MONOREPO_SUBGEM_TEMPLATE_PROFILE = "monorepo-subgem"
+    MONOREPO_ROOT_TEMPLATE_ENTRIES = [
+      "CHANGELOG.md",
+      "CODE_OF_CONDUCT.md",
+      "CONTRIBUTING.md",
+      "FUNDING.md",
+      "IRP.md",
+      "RUBOCOP.md",
+      "SECURITY.md",
+      ".github/FUNDING.yml",
+    ].freeze
     MONOREPO_SUBGEM_TEMPLATE_ENTRIES = [
       "README.md",
       "LICENSE.md",
@@ -103,6 +114,18 @@ module Kettle
       IRP.md
       RUBOCOP.md
       SECURITY.md
+    ].freeze
+    MONOREPO_SUBGEM_THIN_README_KEEP_HEADINGS = [
+      "synopsis",
+      "info you can shake a stick at",
+      "compatibility",
+      "installation",
+      "configuration",
+      "basic usage",
+      "security",
+      "contributing",
+      "versioning",
+      "license",
     ].freeze
     LEGACY_DESTINATION_PATHS = {
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
@@ -2055,8 +2078,87 @@ module Kettle
       end
     end
 
+    def discover_monorepo_root_facts(project_root, kettle_config, env, template_selection)
+      source_url = git_remote_source_url(project_root)
+      package_name = repository_name_from_source_url(source_url)
+      package_name = File.basename(project_root.to_s) if package_name.empty?
+      license = license_facts(kettle_config, Array(kettle_config["licenses"]), author: {}, author_email: nil, copyright: {})
+      author = author_facts("", kettle_config, env)
+      copyright = copyright_facts(project_root, kettle_config)
+      project_runtime = project_runtime_facts(
+        kettle_config,
+        env,
+        package_name: package_name,
+        source_url: source_url,
+        author_domain: author[:domain],
+        min_ruby: nil,
+        version: nil
+      )
+      facts = {
+        package: compact_hash(
+          ecosystem: "monorepo",
+          name: package_name,
+          slug: package_name,
+          description: "#{package_name} monorepo",
+          homepage_url: source_url,
+          source_url: source_url,
+          license_expression: license[:expression],
+        ),
+        rubygems: compact_hash(
+          namespace: classify_namespace(package_name),
+          min_ruby: nil,
+          engines: ruby_engines_config(kettle_config),
+        ),
+        template_profile: MONOREPO_ROOT_TEMPLATE_PROFILE,
+      }
+      bootstrap = kettle_config_bootstrap_facts(project_root, env, template_selection: template_selection)
+      bootstrap[:licenses] = Array(kettle_config["licenses"]) if bootstrap && kettle_config["licenses"]
+      facts[:kettle_config_bootstrap] = bootstrap if bootstrap
+      facts[:author] = author unless author.empty?
+      facts[:copyright] = copyright unless copyright.empty?
+      forge = forge_facts(kettle_config, env, derived_github_user: nil)
+      social = social_facts(kettle_config, env)
+      facts[:forge] = forge unless forge.empty?
+      facts[:social] = social unless social.empty?
+      facts[:license] = license unless license.empty?
+      facts[:project_runtime] = project_runtime unless project_runtime.empty?
+      funding = compact_hash(
+        urls: funding_urls(project_root, "", package_name, opencollective_disabled: false),
+        platform_tokens: funding_platform_token_facts(kettle_config, env)
+      )
+      detected_open_collective_org = opencollective_org(project_root, env, opencollective_disabled: false)
+      if detected_open_collective_org
+        funding[:open_collective_org] = detected_open_collective_org.fetch(:org)
+        funding[:open_collective_org_source] = detected_open_collective_org.fetch(:source)
+      end
+      facts[:funding] = funding unless funding.empty?
+      readme_logo = readme_logo_facts(kettle_config, package_name: package_name, github_org: project_runtime[:github_org])
+      facts[:readme_logo] = readme_logo unless readme_logo.empty?
+      template_facts = {}
+      template_preferences = template_source_preferences(
+        project_root,
+        kettle_config,
+        opencollective_disabled: false,
+        include_patterns: template_selection[:include]
+      )
+      template_facts[:source_preferences] = template_preferences unless template_preferences.empty?
+      template_tokens = template_tokens(facts, funding)
+      template_facts[:tokens] = template_tokens unless template_tokens.empty?
+      facts[:templates] = template_facts unless template_facts.empty?
+      facts
+    end
+
     def discover_facts(project_root, env: ENV, run_options: {})
+      kettle_config = kettle_jem_config(project_root)
+      template_selection = template_selection_for(env, run_options)
+      configured_template_profile = kettle_config.dig("templates", "profile").to_s
+      if template_selection[:template_profile].to_s.empty? && !configured_template_profile.empty?
+        template_selection[:template_profile] = configured_template_profile
+      end
       gemspec_path = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
+      if !gemspec_path && template_selection[:template_profile].to_s == MONOREPO_ROOT_TEMPLATE_PROFILE
+        return discover_monorepo_root_facts(project_root, kettle_config, env, template_selection)
+      end
       raise ArgumentError, "no gemspec found in #{project_root}" unless gemspec_path
 
       gemspec = File.read(gemspec_path)
@@ -2075,7 +2177,6 @@ module Kettle
         git_source_url
       derived_github_user = git_github_url && source_url == git_github_url ? github_org_from_url(git_github_url) : nil
 
-      kettle_config = kettle_jem_config(project_root)
       author = author_facts(gemspec, kettle_config, env)
       copyright = copyright_facts(project_root, kettle_config)
       license = license_facts(
@@ -2117,11 +2218,6 @@ module Kettle
       }
       generated_blocks = generated_blocks_facts(gemspec, facts, run_options)
       facts[:generated_blocks] = generated_blocks unless generated_blocks.empty?
-      template_selection = template_selection_for(env, run_options)
-      configured_template_profile = kettle_config.dig("templates", "profile").to_s
-      if template_selection[:template_profile].to_s.empty? && !configured_template_profile.empty?
-        template_selection[:template_profile] = configured_template_profile
-      end
       bootstrap = kettle_config_bootstrap_facts(project_root, env, template_selection: template_selection)
       bootstrap[:licenses] = gemspec_license_spdx if bootstrap && !gemspec_license_spdx.empty?
       bootstrap[:gemspec_path] = File.basename(gemspec_path) if bootstrap && gemspec_path
@@ -2193,7 +2289,12 @@ module Kettle
         facts[:project_runtime] = project_runtime unless project_runtime.empty?
         readme_logo = readme_logo_facts(kettle_config, package_name: name, github_org: project_runtime[:github_org])
         facts[:readme_logo] = readme_logo unless readme_logo.empty?
-        readme_style = readme_style_facts(project_root, kettle_config, license)
+        readme_style = readme_style_facts(
+          project_root,
+          kettle_config,
+          license,
+          template_profile: template_selection[:template_profile]
+        )
         facts[:readme_style] = readme_style unless readme_style.empty?
         template_tokens = template_tokens(facts, funding)
         template_facts[:tokens] = template_tokens unless template_tokens.empty?
@@ -2203,7 +2304,7 @@ module Kettle
     end
 
     def recipe_pack(facts)
-      recipes = if monorepo_subgem_template_profile?(facts)
+      recipes = if monorepo_template_profile?(facts)
         []
       else
         [
@@ -2222,7 +2323,7 @@ module Kettle
       if facts[:kettle_config_bootstrap]
         recipes.unshift(kettle_config_bootstrap_recipe(facts.fetch(:kettle_config_bootstrap)))
       end
-      unless monorepo_subgem_template_profile?(facts)
+      unless monorepo_template_profile?(facts)
         facts.dig(:ci, :obsolete_workflows).to_a.each do |workflow_path|
           recipes << recipe_entry(
             "github_actions_obsolete_workflow_cleanup_#{workflow_recipe_slug(workflow_path)}",
@@ -2545,7 +2646,7 @@ module Kettle
       facts = discover_facts(project_root, env: env)
       config = kettle_jem_config(project_root)
       readme_style = facts[:readme_style] ||
-        readme_style_facts(project_root, config, facts.fetch(:license, {}))
+        readme_style_facts(project_root, config, facts.fetch(:license, {}), template_profile: facts[:template_profile])
       original_path = File.join(project_root, "README.md")
       original = File.exist?(original_path) ? File.read(original_path) : ""
       final_content = render_thin_readme(facts, readme_style, original, readme_preserve_config(config))
@@ -3149,6 +3250,7 @@ module Kettle
       )
       processed = normalize_readme_project_heading(processed, facts)
       processed = apply_readme_conditional_blocks(processed, facts)
+      processed = apply_monorepo_subgem_thin_readme_projection(processed, facts)
       apply_monorepo_subgem_readme_recipe(processed, facts)
     end
 
@@ -3194,6 +3296,43 @@ module Kettle
       rewrite_markdown_reference_links(content, root_doc_links)
     end
 
+    def apply_monorepo_subgem_thin_readme_projection(content, facts)
+      return content unless monorepo_subgem_template_profile?(facts)
+
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
+      link_definitions = context.structural_owners(owner_scope: :link_definitions)
+      heading_sections = context.structural_owners(owner_scope: :heading_sections)
+      removable = heading_sections.each_with_index.select do |owner, index|
+        owner.level.to_i > 1 && !MONOREPO_SUBGEM_THIN_README_KEEP_HEADINGS.include?(owner.base.to_s)
+      end.reject do |owner, index|
+        markdown_heading_has_preserved_readme_ancestor?(heading_sections, index)
+      end.map(&:first)
+      projected = removable.reverse.reduce(content.to_s) do |processed, owner|
+        delete_markdown_with_ast_crispr(
+          processed,
+          Ast::Crispr::Markdown::Markly::Selectors.heading_section(
+            heading_text: owner.heading_text,
+            level: owner.level,
+            limit: {at_least: 0}
+          )
+        )
+      end
+      append_missing_markdown_link_definitions(projected, link_definitions)
+    end
+
+    def markdown_heading_has_preserved_readme_ancestor?(heading_sections, index)
+      owner = heading_sections.fetch(index)
+      ancestor_level = owner.level.to_i
+      heading_sections[0...index].reverse_each do |candidate|
+        next unless candidate.level.to_i < ancestor_level
+
+        return true if README_DEFAULT_PRESERVE_SECTIONS.include?(candidate.base.to_s)
+
+        ancestor_level = candidate.level.to_i
+      end
+      false
+    end
+
     def rewrite_markdown_reference_links(content, links)
       context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
       context.structural_owners(owner_scope: :link_definitions).reduce(content.to_s) do |processed, owner|
@@ -3206,6 +3345,19 @@ module Kettle
           markdown_link_definition_source(owner, replacement)
         )
       end
+    end
+
+    def append_missing_markdown_link_definitions(content, definitions)
+      existing = Ast::Crispr::Markdown::Markly.document_context(
+        content: content,
+        source_label: "README.md"
+      ).structural_owners(owner_scope: :link_definitions).map { |owner| owner.label.to_s }
+      missing_sources = definitions.reject { |owner| existing.include?(owner.label.to_s) }.map do |owner|
+        owner.source.to_s.end_with?("\n") ? owner.source.to_s : "#{owner.source}\n"
+      end
+      return content if missing_sources.empty?
+
+      [content.to_s.rstrip, "", missing_sources.join.rstrip, ""].join("\n")
     end
 
     def delete_markdown_with_ast_crispr(content, target)
@@ -4102,9 +4254,22 @@ module Kettle
 
     def apply_kettle_config_bootstrap_profile(content, profile, gemspec_path)
       return content if profile.to_s.empty?
+      return apply_monorepo_root_template_profile(content) if profile.to_s == MONOREPO_ROOT_TEMPLATE_PROFILE
       return apply_monorepo_subgem_template_profile(content, gemspec_path) if profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
 
       raise Error, "Unknown kettle-jem template profile: #{profile}"
+    end
+
+    def apply_monorepo_root_template_profile(content)
+      entry_lines = MONOREPO_ROOT_TEMPLATE_ENTRIES.map { |entry| "    - #{entry}" }
+      entries_block = ["  profile: #{MONOREPO_ROOT_TEMPLATE_PROFILE}", "  entries:", *entry_lines].join("\n")
+      updated = insert_after_line_sequence(
+        content,
+        ["templates:", "  root: packaged", "  apply: true"],
+        entries_block,
+        "Could not apply monorepo-root template profile to .kettle-jem.yml bootstrap template"
+      )
+      add_monorepo_root_file_overrides(updated)
     end
 
     def apply_monorepo_subgem_template_profile(content, gemspec_path)
@@ -4120,10 +4285,38 @@ module Kettle
         end
       end
       entries_block = ["  profile: #{MONOREPO_SUBGEM_TEMPLATE_PROFILE}", "  entries:", *entry_lines].join("\n")
-      updated = content.sub(/^(templates:\n  root: packaged\n  apply: true\n)/, "\\1#{entries_block}\n")
-      raise Error, "Could not apply monorepo-subgem template profile to .kettle-jem.yml bootstrap template" if updated == content
+      updated = insert_after_line_sequence(
+        content,
+        ["templates:", "  root: packaged", "  apply: true"],
+        entries_block,
+        "Could not apply monorepo-subgem template profile to .kettle-jem.yml bootstrap template"
+      )
 
       add_monorepo_subgem_file_overrides(updated, gemspec_path)
+    end
+
+    def add_monorepo_root_file_overrides(content)
+      override_lines = MONOREPO_ROOT_TEMPLATE_ENTRIES.reject { |entry| entry.to_s.include?("/") }.flat_map do |entry|
+        kettle_config_file_override_lines(entry, "accept_template")
+      end
+      insert_after_line_sequence(
+        content,
+        ["files:"],
+        override_lines.join("\n"),
+        "Could not apply monorepo-root file overrides to .kettle-jem.yml bootstrap template"
+      )
+    end
+
+    def kettle_config_file_override_lines(path, strategy)
+      parts = path.to_s.split("/")
+      parts.each_with_index.flat_map do |part, index|
+        indent = "  " * (index + 1)
+        if index == parts.length - 1
+          ["#{indent}#{part}:", "#{"  " * (index + 2)}strategy: #{strategy}"]
+        else
+          ["#{indent}#{part}:"]
+        end
+      end
     end
 
     def monorepo_subgem_template_entries(gemspec_path)
@@ -4137,7 +4330,7 @@ module Kettle
     def add_monorepo_subgem_file_overrides(content, gemspec_path)
       override_lines = [
         "  README.md:",
-        "    strategy: keep_destination",
+        "    strategy: merge",
       ]
       gemspec = gemspec_path.to_s.strip
       unless gemspec.empty?
@@ -4146,14 +4339,37 @@ module Kettle
           "    strategy: keep_destination",
         ])
       end
-      updated = content.sub(/^files:\n/, "files:\n#{override_lines.join("\n")}\n")
-      return updated unless updated == content
+      insert_after_line_sequence(
+        content,
+        ["files:"],
+        override_lines.join("\n"),
+        "Could not apply monorepo-subgem file overrides to .kettle-jem.yml bootstrap template"
+      )
+    end
 
-      raise Error, "Could not apply monorepo-subgem file overrides to .kettle-jem.yml bootstrap template"
+    def insert_after_line_sequence(content, sequence, insertion, error_message)
+      lines = content.to_s.lines(chomp: true)
+      index = (0..(lines.length - sequence.length)).find do |candidate|
+        lines[candidate, sequence.length] == sequence
+      end
+      raise Error, error_message unless index
+
+      insertion_lines = insertion.to_s.lines(chomp: true)
+      updated = lines.dup
+      updated.insert(index + sequence.length, *insertion_lines)
+      "#{updated.join("\n")}\n"
     end
 
     def monorepo_subgem_template_profile?(facts)
       facts[:template_profile].to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+    end
+
+    def monorepo_root_template_profile?(facts)
+      facts[:template_profile].to_s == MONOREPO_ROOT_TEMPLATE_PROFILE
+    end
+
+    def monorepo_template_profile?(facts)
+      monorepo_root_template_profile?(facts) || monorepo_subgem_template_profile?(facts)
     end
 
     def readme_project_emoji(project_root)
@@ -5438,6 +5654,13 @@ module Kettle
       github_org_from_url(url) ? url.to_s : nil
     end
 
+    def repository_name_from_source_url(source_url)
+      base = source_url.to_s.split("?", 2).first.to_s.split("#", 2).first.to_s
+      base = base[0...-1] while base.end_with?("/")
+      name = base.split("/").last.to_s
+      name.end_with?(".git") ? name[0...-4] : name
+    end
+
     def git_remote_source_url(project_root)
       normalize_git_source_url(git_capture(project_root, "config", "--get", "remote.origin.url").strip)
     rescue ArgumentError
@@ -5893,7 +6116,7 @@ module Kettle
       raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.map { |token| "{#{token}}" }.join(", ")}"
     end
 
-    def readme_style_facts(project_root, config, license)
+    def readme_style_facts(project_root, config, license, template_profile: nil)
       readme = config["readme"].is_a?(Hash) ? config["readme"] : {}
       conditional = readme["conditional_sections"].is_a?(Hash) ? readme["conditional_sections"] : {}
       disabled_integrations = readme_disabled_integrations(readme)
@@ -5901,7 +6124,8 @@ module Kettle
         disabled_integrations.include?(integration) || readme_integration_configured?(project_root, integration)
       end
       omitted_sections = []
-      security_enabled = File.exist?(File.join(project_root, "SECURITY.md"))
+      security_enabled = template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE ||
+        File.exist?(File.join(project_root, "SECURITY.md"))
       floss_funding_enabled = readme_floss_funding_enabled?(license, conditional["floss_funding"])
       omitted_sections << "security" unless security_enabled
       omitted_sections << "floss_funding" unless floss_funding_enabled
