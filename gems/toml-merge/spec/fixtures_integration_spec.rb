@@ -205,6 +205,49 @@ RSpec.describe Toml::Merge do
     expect(owners.values.uniq).to eq([owners.fetch(:core)])
   end
 
+  it "exposes non-overlapping effective table ranges and source fragments across TOML providers" do
+    source = <<~TOML
+      title = "example"
+
+      [env]
+      project = "kettle-jem"
+      path = ["exe", "bin"]
+
+      [tools]
+      ruby = "4.0.2"
+    TOML
+
+    analyses = {
+      core: described_class::FileAnalysis.new(source),
+      citrus: TreeHaver.with_backend("citrus") { described_class::FileAnalysis.new(source) },
+      parslet: TreeHaver.with_backend("parslet") { described_class::FileAnalysis.new(source) },
+    }
+
+    analyses.each_value { |analysis| expect(analysis).to be_valid }
+
+    table_ranges = analyses.transform_values do |analysis|
+      analysis.tables.to_h do |table|
+        [table.table_name, table.start_line..table.effective_end_line]
+      end
+    end
+    table_fragments = analyses.transform_values do |analysis|
+      analysis.tables.to_h do |table|
+        [table.table_name, table.content]
+      end
+    end
+
+    expect(table_ranges.values.uniq).to eq([table_ranges.fetch(:core)])
+    expect(table_ranges.fetch(:core)).to eq(
+      "env" => 3..5,
+      "tools" => 7..8
+    )
+    expect(table_fragments.values.uniq).to eq([table_fragments.fetch(:core)])
+    expect(table_fragments.fetch(:core)).to eq(
+      "env" => "[env]\nproject = \"kettle-jem\"\npath = [\"exe\", \"bin\"]",
+      "tools" => "[tools]\nruby = \"4.0.2\""
+    )
+  end
+
   it "reports the Parslet provider gap for mise-style dotted keys and inline tables" do
     source = <<~TOML
       [env]
