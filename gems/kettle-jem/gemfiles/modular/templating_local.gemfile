@@ -6,6 +6,8 @@
 require "nomono/bundler" unless defined?(Nomono)
 local_gems = %w[
   tree_haver
+  ast-crispr
+  ast-crispr-markdown-markly
   ast-merge
   ast-template
   binary-merge

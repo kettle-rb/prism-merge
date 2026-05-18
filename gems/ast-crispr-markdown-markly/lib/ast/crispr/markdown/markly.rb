@@ -21,6 +21,20 @@ module Ast
             :base,
             keyword_init: true,
           )
+          LinkDefinitionOwner = Struct.new(
+            :location,
+            :label,
+            :url,
+            :title,
+            :source,
+            keyword_init: true,
+          )
+          HtmlCommentOwner = Struct.new(
+            :location,
+            :text,
+            :source,
+            keyword_init: true,
+          )
 
           def read_ast(document)
             analysis = ::Markly::Merge::FileAnalysis.new(document.content)
@@ -34,6 +48,10 @@ module Ast
             case owner_scope
             when :shared_default, :heading_sections
               build_heading_sections(analysis)
+            when :link_definitions
+              build_link_definitions(analysis)
+            when :html_comments
+              build_html_comments(analysis)
             else
               raise Ast::Crispr::Error.new("Unsupported CRISPR owner scope", details: {owner_scope: owner_scope})
             end
@@ -59,6 +77,20 @@ module Ast
                 supported_comment_regions: [],
                 metadata: {adapter: :markly},
               )
+            when :link_definitions
+              Ast::Crispr::StructureProfile.new(
+                owner_scope: owner_scope,
+                owner_selector: :link_definitions,
+                supported_comment_regions: [],
+                metadata: {adapter: :markly},
+              )
+            when :html_comments
+              Ast::Crispr::StructureProfile.new(
+                owner_scope: owner_scope,
+                owner_selector: :line_bound_statements,
+                supported_comment_regions: [],
+                metadata: {adapter: :markly, markdown_owner: :html_comment},
+              )
             else
               raise Ast::Crispr::Error.new("Unsupported CRISPR owner scope", details: {owner_scope: owner_scope})
             end
@@ -81,6 +113,33 @@ module Ast
                 heading_source: owner.heading_source,
                 level: owner.level,
                 base: owner.base,
+              )
+            end
+          end
+
+          def build_link_definitions(analysis)
+            Array(analysis.statements).filter_map do |statement|
+              next unless statement.respond_to?(:merge_type) && statement.merge_type == :link_definition
+
+              position = statement.source_position
+              next unless position
+
+              LinkDefinitionOwner.new(
+                location: Location.new(start_line: position[:start_line], end_line: position[:end_line]),
+                label: statement.label,
+                url: statement.url,
+                title: statement.title,
+                source: statement.respond_to?(:content) ? statement.content : analysis.source_range(position[:start_line], position[:end_line]).chomp,
+              )
+            end
+          end
+
+          def build_html_comments(analysis)
+            analysis.comment_tracker.comment_nodes.map do |comment|
+              HtmlCommentOwner.new(
+                location: Location.new(start_line: comment.location.start_line, end_line: comment.location.end_line),
+                text: comment.content,
+                source: comment.text,
               )
             end
           end
@@ -170,6 +229,106 @@ module Ast
                       heading_text: owner.heading_text,
                       level: owner.level,
                       base: owner.base,
+                    },
+                  )
+                end
+              end,
+            )
+          end
+
+          def link_definition(label: nil, url: nil, id: nil, limit: nil, metadata: {}, **options)
+            Ast::Crispr::OwnerSelector.new(
+              id: id || ["link_definition", label, url].compact.join(":"),
+              limit: limit,
+              metadata: metadata.merge(
+                adapter: Ast::Crispr::Markdown::Markly.adapter,
+                owner_scope: :link_definitions,
+                selector_kind: :link_definition,
+                selection_intent: :predicate_filter,
+                include_trailing_gap: false,
+              ).merge(options),
+              locate: lambda do |context|
+                context.structural_owners(owner_scope: :link_definitions).filter_map do |owner|
+                  next if label && owner.label.to_s != label.to_s
+                  next if url && owner.url.to_s != url.to_s
+
+                  Ast::Crispr::Match.new(
+                    node: owner,
+                    start_line: owner.location.start_line,
+                    end_line: owner.location.end_line,
+                    metadata: {
+                      start_boundary: :owner_start,
+                      end_boundary: :owner_end,
+                      payload_kind: :structural_owner_body,
+                      label: owner.label,
+                      url: owner.url,
+                    },
+                  )
+                end
+              end,
+            )
+          end
+
+          def html_comment(text:, id: nil, limit: nil, metadata: {}, **options)
+            Ast::Crispr::OwnerSelector.new(
+              id: id || "html_comment_#{text}",
+              limit: limit,
+              metadata: metadata.merge(
+                adapter: Ast::Crispr::Markdown::Markly.adapter,
+                owner_scope: :html_comments,
+                selector_kind: :html_comment,
+                selection_intent: :predicate_filter,
+                include_trailing_gap: false,
+              ).merge(options),
+              locate: lambda do |context|
+                context.structural_owners(owner_scope: :html_comments).filter_map do |owner|
+                  next unless owner.text.to_s == text.to_s
+
+                  Ast::Crispr::Match.new(
+                    node: owner,
+                    start_line: owner.location.start_line,
+                    end_line: owner.location.end_line,
+                    metadata: {
+                      start_boundary: :owner_start,
+                      end_boundary: :owner_end,
+                      payload_kind: :structural_owner_body,
+                      text: owner.text,
+                    },
+                  )
+                end
+              end,
+            )
+          end
+
+          def html_comment_block(start_text:, end_text:, id: nil, limit: nil, metadata: {}, **options)
+            Ast::Crispr::OwnerSelector.new(
+              id: id || "html_comment_block_#{start_text}",
+              limit: limit,
+              metadata: metadata.merge(
+                adapter: Ast::Crispr::Markdown::Markly.adapter,
+                owner_scope: :html_comments,
+                selector_kind: :html_comment_block,
+                selection_intent: :predicate_filter,
+                include_trailing_gap: false,
+              ).merge(options),
+              locate: lambda do |context|
+                comments = context.structural_owners(owner_scope: :html_comments)
+                comments.each_with_index.filter_map do |owner, index|
+                  next unless owner.text.to_s == start_text.to_s
+
+                  closing = comments[index + 1..]&.find { |comment| comment.text.to_s == end_text.to_s }
+                  next unless closing
+
+                  Ast::Crispr::Match.new(
+                    node: owner,
+                    start_line: owner.location.start_line,
+                    end_line: closing.location.end_line,
+                    metadata: {
+                      start_boundary: :owner_start,
+                      end_boundary: :owner_end,
+                      payload_kind: :structural_owner_body,
+                      start_text: start_text,
+                      end_text: end_text,
                     },
                   )
                 end

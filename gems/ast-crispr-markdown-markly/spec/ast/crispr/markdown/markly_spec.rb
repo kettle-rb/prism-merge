@@ -74,6 +74,45 @@ RSpec.describe Ast::Crispr::Markdown::Markly do
       expect(profile.metadata[:adapter]).to eq(:markly)
     end
 
+    it "finds link reference definitions by label and URL" do
+      content = <<~MARKDOWN
+        # Title
+
+        [docs]: README.md
+        [policy]: SECURITY.md
+      MARKDOWN
+
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
+      label_target = described_class.link_definition(label: "docs")
+      url_target = described_class.link_definition(url: "SECURITY.md")
+
+      expect(label_target.locate_matches(context).first.slice_from(content)).to eq("[docs]: README.md\n")
+      expect(url_target.locate_matches(context).first.node.label).to eq("policy")
+    end
+
+    it "finds exact HTML comments and marker-bounded HTML comment blocks" do
+      content = <<~MARKDOWN
+        # Title
+
+        <!-- KJ:OPEN_COLLECTIVE:START -->
+        Visible content.
+        <!-- KJ:OPEN_COLLECTIVE:END -->
+
+        Tail.
+      MARKDOWN
+
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
+      comment_target = described_class.html_comment(text: "KJ:OPEN_COLLECTIVE:START")
+      block_target = described_class.html_comment_block(
+        start_text: "KJ:OPEN_COLLECTIVE:START",
+        end_text: "KJ:OPEN_COLLECTIVE:END",
+      )
+
+      expect(comment_target.locate_matches(context).first.start_line).to eq(3)
+      expect(block_target.locate_matches(context).first.slice_from(content)).to include("Visible content.")
+      expect(block_target.locate_matches(context).first.slice_from(content)).not_to include("Tail.")
+    end
+
     context "with a heading-section selection profile" do
       let(:target) { described_class.heading_section(heading_text: "Synopsis", level: 2) }
       let(:context) { Ast::Crispr::Markdown::Markly.document_context(content: "# Title\n\n## Synopsis\n\nCustom synopsis.\n", source_label: "README.md") }

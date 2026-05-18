@@ -23,6 +23,7 @@ require "toml-merge"
 require "psych-merge"
 require "yaml"
 require "ast/merge"
+require "ast/crispr/markdown/markly"
 require_relative "jem/version"
 
 module Kettle
@@ -3158,10 +3159,26 @@ module Kettle
     end
 
     def apply_markdown_conditional_block(content, name, keep:)
-      content.to_s.gsub(
-        /^<!-- KJ:#{Regexp.escape(name)}:START -->\r?\n(.*?)^<!-- KJ:#{Regexp.escape(name)}:END -->\r?\n?/m
-      ) do
-        keep ? Regexp.last_match(1) : ""
+      start_text = "KJ:#{name}:START"
+      end_text = "KJ:#{name}:END"
+      if keep
+        processed = delete_markdown_with_ast_crispr(
+          content,
+          Ast::Crispr::Markdown::Markly::Selectors.html_comment(text: start_text, limit: {at_least: 0})
+        )
+        delete_markdown_with_ast_crispr(
+          processed,
+          Ast::Crispr::Markdown::Markly::Selectors.html_comment(text: end_text, limit: {at_least: 0})
+        )
+      else
+        delete_markdown_with_ast_crispr(
+          content,
+          Ast::Crispr::Markdown::Markly::Selectors.html_comment_block(
+            start_text: start_text,
+            end_text: end_text,
+            limit: {at_least: 0}
+          )
+        )
       end
     end
 
@@ -3178,22 +3195,45 @@ module Kettle
     end
 
     def rewrite_markdown_reference_links(content, links)
-      content.to_s.lines.map do |line|
-        match = line.match(/\A(\[[^\]]+\]:\s*)(\S+\.md)([^\r\n]*)(\r?\n?)\z/)
-        next line unless match
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
+      context.structural_owners(owner_scope: :link_definitions).reduce(content.to_s) do |processed, owner|
+        replacement = links[owner.url.to_s]
+        next processed unless replacement
 
-        replacement = links[match[2]]
-        replacement ? "#{match[1]}#{replacement}#{match[3]}#{match[4]}" : line
-      end.join
+        replace_markdown_with_ast_crispr(
+          processed,
+          Ast::Crispr::Markdown::Markly::Selectors.link_definition(label: owner.label, limit: {exactly: 1}),
+          markdown_link_definition_source(owner, replacement)
+        )
+      end
+    end
+
+    def delete_markdown_with_ast_crispr(content, target)
+      Ast::Crispr::Delete.call(content: content.to_s, target: target, source_label: "README.md").updated_content
+    end
+
+    def replace_markdown_with_ast_crispr(content, target, replacement)
+      Ast::Crispr::Replace.call(
+        content: content.to_s,
+        target: target,
+        replacement: replacement,
+        source_label: "README.md"
+      ).updated_content
+    end
+
+    def markdown_link_definition_source(owner, url)
+      source = "[#{owner.label}]: #{url}"
+      source = "#{source} #{owner.title.dump}" if owner.title
+      "#{source}\n"
     end
 
     def source_blob_url(source_url, path)
-      base = source_url.to_s.sub(%r{/+\z}, "")
-      escaped_path = path.to_s.split("/").map { |segment| segment.gsub(" ", "%20") }.join("/")
-      case base
-      when %r{\Ahttps?://gitlab\.com/}
+      base = source_url.to_s.dup
+      base = base[0...-1] while base.end_with?("/")
+      escaped_path = path.to_s.split("/").map { |segment| segment.split(" ").join("%20") }.join("/")
+      if base.start_with?("https://gitlab.com/", "http://gitlab.com/")
         "#{base}/-/blob/main/#{escaped_path}"
-      when %r{\Ahttps?://codeberg\.org/}
+      elsif base.start_with?("https://codeberg.org/", "http://codeberg.org/")
         "#{base}/src/branch/main/#{escaped_path}"
       else
         "#{base}/blob/main/#{escaped_path}"

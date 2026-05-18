@@ -103,6 +103,7 @@ PATH
   remote: gems/kettle-jem
   specs:
     kettle-jem (7.0.0)
+      ast-crispr-markdown-markly (= 7.0.0)
       ast-merge (= 7.0.0)
       bash-merge (= 7.0.0)
       commonmarker-merge (= 7.0.0)
