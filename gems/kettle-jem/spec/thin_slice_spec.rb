@@ -1120,6 +1120,37 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "seeds bootstrap config licenses from the gemspec" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-bootstrap-licenses", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
+          end
+        RUBY
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      bootstrap_report = plan.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "kettle_config_bootstrap"
+      end
+
+      expect(bootstrap_report.fetch(:final_content)).to include(<<~YAML)
+        licenses:
+          - AGPL-3.0-only
+          - PolyForm-Small-Business-1.0.0
+      YAML
+      expect(bootstrap_report.fetch(:final_content)).not_to include(<<~YAML)
+        licenses:
+          - MIT
+      YAML
+    end
+  end
+
   it "applies bootstrap with non-interactive defaults and converges on the next run" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

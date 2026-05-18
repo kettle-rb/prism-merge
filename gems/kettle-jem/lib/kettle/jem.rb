@@ -2060,6 +2060,9 @@ module Kettle
         author_email: author[:email],
         copyright: copyright
       )
+      gemspec_license_spdx = extract_gemspec_array(gemspec, "spec.licenses")
+        .map { |license_id| license_id.to_s.strip }
+        .reject(&:empty?)
       project_runtime = project_runtime_facts(
         kettle_config,
         env,
@@ -2090,6 +2093,7 @@ module Kettle
       generated_blocks = generated_blocks_facts(gemspec, facts, run_options)
       facts[:generated_blocks] = generated_blocks unless generated_blocks.empty?
       bootstrap = kettle_config_bootstrap_facts(project_root, env)
+      bootstrap[:licenses] = gemspec_license_spdx if bootstrap && !gemspec_license_spdx.empty?
       facts[:kettle_config_bootstrap] = bootstrap if bootstrap
       facts[:author] = author unless author.empty?
       facts[:copyright] = copyright unless copyright.empty?
@@ -3754,7 +3758,17 @@ module Kettle
     def apply_kettle_config_bootstrap(project_root, recipe)
       content = recipe_template_content(project_root, recipe)
       tokens = stringify_template_tokens(recipe.fetch(:template_tokens, {}))
-      content.gsub("{KJ|MIN_DIVERGENCE_THRESHOLD}", tokens.fetch("KJ|MIN_DIVERGENCE_THRESHOLD", ""))
+      content = content.gsub("{KJ|MIN_DIVERGENCE_THRESHOLD}", tokens.fetch("KJ|MIN_DIVERGENCE_THRESHOLD", ""))
+      bootstrap_licenses = Array(recipe[:bootstrap_licenses]).map(&:to_s).reject(&:empty?)
+      bootstrap_licenses.empty? ? content : replace_kettle_config_bootstrap_licenses(content, bootstrap_licenses)
+    end
+
+    def replace_kettle_config_bootstrap_licenses(content, licenses)
+      license_block = ["licenses:", *licenses.map { |license_id| "  - #{license_id}" }].join("\n")
+      updated = content.sub(/^licenses:\n(?:  - .+\n?)+/, "#{license_block}\n")
+      return updated unless updated == content
+
+      raise Error, "Could not replace licenses block in .kettle-jem.yml bootstrap template"
     end
 
     def recipe_report_metadata(recipe)
@@ -5852,6 +5866,7 @@ module Kettle
       recipe[:template_tokens] = {
         "KJ|MIN_DIVERGENCE_THRESHOLD" => bootstrap.fetch(:min_divergence_threshold).to_s,
       }
+      recipe[:bootstrap_licenses] = Array(bootstrap[:licenses]).map(&:to_s).reject(&:empty?)
       recipe
     end
 
