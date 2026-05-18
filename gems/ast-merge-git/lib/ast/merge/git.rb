@@ -37,6 +37,7 @@ module Ast
         ours = parse_json_role("ours", request.fetch(:ours_source))
         theirs = parse_json_role("theirs", request.fetch(:theirs_source))
         conflicts = []
+        change_classifications = classify_json_changes(base, ours, theirs)
         merged = merge_json_value(base, ours, theirs, "", conflicts)
         if conflicts.any?
           owned_regions = json_owned_regions_for_conflicts(request, conflicts)
@@ -46,6 +47,7 @@ module Ast
             request: request,
             conflicted_source: render_json_owned_region_conflict_source(request, owned_regions.first) || render_conflict_source(request, conflicts),
             conflicts: conflicts,
+            change_classifications: change_classifications,
             owned_regions: owned_regions,
             render_strategy: render_strategy,
             diagnostics: [{
@@ -61,6 +63,7 @@ module Ast
           ok: true,
           request: request,
           merged_source: output,
+          change_classifications: change_classifications,
           reparse_after_render: JSON.parse(output) && true,
           formatting_preservation: {
             line_diff_score: 1.0,
@@ -110,12 +113,13 @@ module Ast
         }
       end
 
-      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], owned_regions: [], reparse_after_render: nil, formatting_preservation: {}, secondary_formatting_metrics: nil, render_strategy: nil)
+      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], change_classifications: [], diagnostics: [], fallbacks: [], owned_regions: [], reparse_after_render: nil, formatting_preservation: {}, secondary_formatting_metrics: nil, render_strategy: nil)
         {
           ok: ok,
           merged_source: merged_source,
           conflicted_source: conflicted_source,
           conflicts: conflicts,
+          change_classifications: change_classifications,
           diagnostics: diagnostics,
           fallbacks: fallbacks,
           owned_regions: owned_regions,
@@ -322,6 +326,37 @@ module Ast
           )
           result[key] = merged if keep
         end
+      end
+
+      def classify_json_changes(base, ours, theirs)
+        if base.is_a?(Hash) && ours.is_a?(Hash) && theirs.is_a?(Hash)
+          base = base.transform_keys(&:to_s)
+          ours = ours.transform_keys(&:to_s)
+          theirs = theirs.transform_keys(&:to_s)
+          keys = (base.keys | ours.keys | theirs.keys).sort
+          return keys.filter_map do |key|
+            ours_change = classify_json_value_change(base.key?(key) ? base[key] : :__absent__, ours.key?(key) ? ours[key] : :__absent__)
+            theirs_change = classify_json_value_change(base.key?(key) ? base[key] : :__absent__, theirs.key?(key) ? theirs[key] : :__absent__)
+            next if ours_change == "unchanged" && theirs_change == "unchanged"
+
+            {path: json_pointer_join("", key), ours: ours_change, theirs: theirs_change}
+          end
+        end
+
+        ours_change = classify_json_value_change(base, ours)
+        theirs_change = classify_json_value_change(base, theirs)
+        return [] if ours_change == "unchanged" && theirs_change == "unchanged"
+
+        [{path: "/", ours: ours_change, theirs: theirs_change}]
+      end
+
+      def classify_json_value_change(base, value)
+        return "unchanged" if base == :__absent__ && value == :__absent__
+        return "added" if base == :__absent__
+        return "deleted" if value == :__absent__
+        return "unchanged" if base == value
+
+        "edited"
       end
 
       def merge_json_entry(base, ours, theirs, path, conflicts)
