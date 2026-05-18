@@ -2112,7 +2112,11 @@ module Kettle
       bootstrap = kettle_config_bootstrap_facts(project_root, env, template_selection: template_selection)
       bootstrap[:licenses] = gemspec_license_spdx if bootstrap && !gemspec_license_spdx.empty?
       bootstrap[:gemspec_path] = File.basename(gemspec_path) if bootstrap && gemspec_path
-      bootstrap[:project_emoji] = readme_project_emoji(project_root) if bootstrap
+      if bootstrap
+        project_emoji = readme_project_emoji(project_root)
+        project_emoji ||= "💎" if template_selection[:template_profile].to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+        bootstrap[:project_emoji] = project_emoji
+      end
       facts[:kettle_config_bootstrap] = bootstrap if bootstrap
       facts[:author] = author unless author.empty?
       facts[:copyright] = copyright unless copyright.empty?

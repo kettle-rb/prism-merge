@@ -1207,6 +1207,30 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "seeds a default project emoji for monorepo subgems without a README" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-bootstrap-monorepo-subgem-emoji", tmp_root) do |root|
+      write_tree(root, {
+        "ast-crispr.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "ast-crispr"
+            spec.summary = "Example gem"
+            spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
+          end
+        RUBY
+      })
+
+      described_class.setup_project(
+        root,
+        env: {},
+        run_options: {bootstrap_mode: true, template_profile: "monorepo-subgem", skip_commit: true}
+      )
+
+      expect(File.read(File.join(root, ".kettle-jem.yml"))).to include("project_emoji: 💎\n")
+    end
+  end
+
   it "applies bootstrap with non-interactive defaults and converges on the next run" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
