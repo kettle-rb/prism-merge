@@ -1,0 +1,10 @@
+module Citrus
+  module Toml
+    module Merge
+      module Version
+        VERSION: String
+      end
+      VERSION: String
+    end
+  end
+end

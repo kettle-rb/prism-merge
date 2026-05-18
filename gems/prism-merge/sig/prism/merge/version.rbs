@@ -1,0 +1,8 @@
+module Prism
+  module Merge
+    module Version
+      VERSION: String
+    end
+    VERSION: String
+  end
+end

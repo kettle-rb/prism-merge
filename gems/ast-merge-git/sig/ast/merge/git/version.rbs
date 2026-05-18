@@ -1,0 +1,10 @@
+module Ast
+  module Merge
+    module Git
+      module Version
+        VERSION: String
+      end
+      VERSION: String
+    end
+  end
+end

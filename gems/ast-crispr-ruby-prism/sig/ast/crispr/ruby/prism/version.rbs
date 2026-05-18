@@ -1,0 +1,12 @@
+module Ast
+  module Crispr
+    module Ruby
+      module Prism
+        module Version
+          VERSION: String
+        end
+        VERSION: String
+      end
+    end
+  end
+end

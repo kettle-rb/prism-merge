@@ -1,0 +1,8 @@
+module Kramdown
+  module Merge
+    module Version
+      VERSION: String
+    end
+    VERSION: String
+  end
+end

@@ -1,0 +1,12 @@
+module Ast
+  module Crispr
+    module Markdown
+      module Markly
+        module Version
+          VERSION: String
+        end
+        VERSION: String
+      end
+    end
+  end
+end

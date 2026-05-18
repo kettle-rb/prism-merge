@@ -1,0 +1,8 @@
+module Smorg
+  module RB
+    module Version
+      VERSION: String
+    end
+    VERSION: String
+  end
+end

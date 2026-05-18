@@ -1,0 +1,8 @@
+module Ast
+  module Template
+    module Version
+      VERSION: String
+    end
+    VERSION: String
+  end
+end
