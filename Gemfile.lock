@@ -1,4 +1,20 @@
 PATH
+  remote: gems/ast-crispr-markdown-markly
+  specs:
+    ast-crispr-markdown-markly (7.0.0)
+      ast-crispr (= 7.0.0)
+      markly-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
+  remote: gems/ast-crispr-ruby-prism
+  specs:
+    ast-crispr-ruby-prism (7.0.0)
+      ast-crispr (= 7.0.0)
+      prism (>= 1.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
   remote: gems/ast-crispr
   specs:
     ast-crispr (7.0.0)
@@ -346,6 +362,8 @@ PLATFORMS
 DEPENDENCIES
   appraisal2 (~> 3.0, >= 3.0.6)
   ast-crispr!
+  ast-crispr-markdown-markly!
+  ast-crispr-ruby-prism!
   ast-merge!
   ast-merge-git!
   ast-template!
@@ -387,6 +405,8 @@ DEPENDENCIES
 CHECKSUMS
   appraisal2 (3.0.6) sha256=09387896b6c8c8c0ff0749af691ddff5e3168de2f06b591a80d8fd8b6394d147
   ast-crispr (7.0.0)
+  ast-crispr-markdown-markly (7.0.0)
+  ast-crispr-ruby-prism (7.0.0)
   ast-merge (7.0.0)
   ast-merge-git (7.0.0)
   ast-template (7.0.0)
