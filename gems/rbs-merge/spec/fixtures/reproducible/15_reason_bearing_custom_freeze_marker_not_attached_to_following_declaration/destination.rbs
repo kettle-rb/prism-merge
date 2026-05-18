@@ -1,0 +1,5 @@
+# custom-token:freeze keep local customization
+type custom = String
+# custom-token:unfreeze resume normal merge
+class Foo
+end

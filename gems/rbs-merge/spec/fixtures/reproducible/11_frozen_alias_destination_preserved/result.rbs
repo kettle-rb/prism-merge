@@ -1,0 +1,5 @@
+# rbs-merge:freeze
+# keep alias docs
+class Foo = CustomBar
+module Baz = CustomQuux
+# rbs-merge:unfreeze

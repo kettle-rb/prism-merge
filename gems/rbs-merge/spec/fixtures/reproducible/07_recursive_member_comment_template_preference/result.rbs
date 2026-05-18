@@ -1,0 +1,4 @@
+class MyClass
+  # keep shared docs
+  def shared: () -> String
+end

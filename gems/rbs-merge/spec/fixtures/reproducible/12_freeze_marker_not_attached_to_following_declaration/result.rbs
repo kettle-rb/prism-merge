@@ -1,0 +1,5 @@
+class Foo
+end
+# rbs-merge:freeze
+type custom = String
+# rbs-merge:unfreeze

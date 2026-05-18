@@ -1,0 +1,5 @@
+interface _Foo
+  def foo: (String) -> Symbol
+  def foo: () -> Symbol
+  def dest_only: () -> bool
+end

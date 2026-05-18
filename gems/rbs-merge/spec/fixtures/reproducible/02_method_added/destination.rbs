@@ -1,0 +1,5 @@
+class MyClass
+  def initialize: (String name) -> void
+  def name: () -> String
+  def custom_method: (Hash[Symbol, untyped] options) -> bool
+end

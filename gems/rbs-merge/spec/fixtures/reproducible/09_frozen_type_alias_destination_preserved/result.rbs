@@ -1,0 +1,4 @@
+# rbs-merge:freeze
+# keep frozen docs
+type custom = String
+# rbs-merge:unfreeze

@@ -1,0 +1,4 @@
+class MyClass
+  def initialize: (String name, ?Integer age) -> void
+  def process: (Integer count, ?String prefix) -> Array[String]
+end

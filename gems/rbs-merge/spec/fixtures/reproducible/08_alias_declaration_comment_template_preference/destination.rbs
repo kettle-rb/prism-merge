@@ -1,0 +1,2 @@
+# keep alias docs
+class Foo = Baz

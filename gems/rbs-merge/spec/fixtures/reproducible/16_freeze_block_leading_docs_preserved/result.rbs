@@ -1,0 +1,6 @@
+class Foo
+end
+# keep freeze docs
+# rbs-merge:freeze
+type custom = String
+# rbs-merge:unfreeze

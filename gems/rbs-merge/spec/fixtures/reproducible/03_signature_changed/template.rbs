@@ -1,0 +1,4 @@
+class MyClass
+  def initialize: (String name) -> void
+  def process: (Integer count) -> String
+end

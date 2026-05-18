@@ -1,0 +1,6 @@
+class One
+end
+
+# keep second declaration docs
+class Two
+end

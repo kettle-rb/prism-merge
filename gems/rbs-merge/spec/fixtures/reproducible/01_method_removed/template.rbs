@@ -1,0 +1,5 @@
+class MyClass
+  def initialize: (String name) -> void
+  def name: () -> String
+  def process: (Integer count) -> Array[String]
+end

@@ -1,0 +1,5 @@
+interface _Foo
+  def foo: () -> String
+  def foo: (Integer) -> String
+  def template_only: () -> Integer
+end

@@ -1,0 +1,5 @@
+# custom-token:freeze
+type custom = String
+# custom-token:unfreeze
+class Foo
+end

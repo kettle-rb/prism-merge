@@ -1,0 +1,6 @@
+class Foo
+end
+# keep freeze docs
+# rbs-merge:freeze keep local customization
+type custom = String
+# rbs-merge:unfreeze resume normal merge

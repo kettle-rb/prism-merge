@@ -1,0 +1,7 @@
+interface _Foo
+  def foo: (String) -> Symbol
+  def foo: () -> String
+  def dest_only: () -> bool
+  def foo: (Integer) -> String
+  def template_only: () -> Integer
+end

@@ -104,6 +104,10 @@ module TreeHaver
       return parser_for_parslet(class_config.fetch(:grammar_class))
     end
 
+    if (config = registrations[:rbs])
+      return parser_for_backend_module(config.fetch(:backend_module), name)
+    end
+
     if (config = registrations[:tree_sitter])
       return parser_for_tree_sitter(name, config[:path], config[:symbol])
     end

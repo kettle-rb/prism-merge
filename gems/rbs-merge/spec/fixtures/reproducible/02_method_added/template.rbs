@@ -1,0 +1,4 @@
+class MyClass
+  def initialize: (String name) -> void
+  def name: () -> String
+end

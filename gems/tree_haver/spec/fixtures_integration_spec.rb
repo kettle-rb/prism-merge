@@ -996,6 +996,32 @@ RSpec.describe TreeHaver do
     end
   end
 
+  it "resolves registered external native backend modules without explicit backend selection" do
+    backend = Module.new do
+      class self::Language
+        def self.rbs
+          :rbs_language
+        end
+      end
+
+      class self::Parser
+        attr_accessor :language
+      end
+    end
+
+    described_class.register_language(
+      :rbs,
+      backend_module: backend,
+      backend_type: :rbs,
+      gem_name: "rbs",
+    )
+
+    parser = described_class.parser_for(:rbs)
+
+    expect(parser).to be_a(backend::Parser)
+    expect(parser.language).to eq(:rbs_language)
+  end
+
   it "provides PEG framework parsing helpers" do
     require "toml"
     require "toml-rb"
