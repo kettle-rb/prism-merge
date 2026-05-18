@@ -238,6 +238,10 @@ templates:
     - Big-Time-Public-License.md
     - certs/pboling.pem
     - tmp/.gitignore
+    - source: lib/gem/version.rb
+      target: lib/toml/merge/version.rb
+    - source: sig/gem/version.rbs
+      target: sig/toml/merge/version.rbs
 
 # Optional kettle-jem plugins.
 # Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is

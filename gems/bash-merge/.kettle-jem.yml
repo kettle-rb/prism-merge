@@ -229,7 +229,7 @@ templates:
   entries:
     - README.md
     - source: gem.gemspec
-      target: plain-merge.gemspec
+      target: bash-merge.gemspec
     - LICENSE.md
     - MIT.md
     - AGPL-3.0-only.md
@@ -238,6 +238,10 @@ templates:
     - Big-Time-Public-License.md
     - certs/pboling.pem
     - tmp/.gitignore
+    - source: lib/gem/version.rb
+      target: lib/bash/merge/version.rb
+    - source: sig/gem/version.rbs
+      target: sig/bash/merge/version.rbs
 
 # Optional kettle-jem plugins.
 # Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is

@@ -229,7 +229,7 @@ templates:
   entries:
     - README.md
     - source: gem.gemspec
-      target: ast-crispr.gemspec
+      target: ast-crispr-ruby-prism.gemspec
     - LICENSE.md
     - MIT.md
     - AGPL-3.0-only.md
@@ -238,6 +238,10 @@ templates:
     - Big-Time-Public-License.md
     - certs/pboling.pem
     - tmp/.gitignore
+    - source: lib/gem/version.rb
+      target: lib/ast/crispr/ruby/prism/version.rb
+    - source: sig/gem/version.rbs
+      target: sig/ast/crispr/ruby/prism/version.rbs
 
 # Optional kettle-jem plugins.
 # Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is

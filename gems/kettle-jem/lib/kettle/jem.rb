@@ -96,6 +96,10 @@ module Kettle
       "certs/pboling.pem",
       "tmp/.gitignore",
     ].freeze
+    VERSION_GEM_TEMPLATE_SOURCES = [
+      "lib/gem/version.rb",
+      "sig/gem/version.rbs",
+    ].freeze
     NON_LICENSE_MD_BASENAMES = %w[
       AGENTS
       CHANGELOG
@@ -2176,6 +2180,12 @@ module Kettle
         homepage_url ||
         git_source_url
       derived_github_user = git_github_url && source_url == git_github_url ? github_org_from_url(git_github_url) : nil
+      entrypoint_require = name.tr("-", "/")
+      version_path = File.join("lib", entrypoint_require, "version.rb")
+      entrypoint_path = File.join("lib", "#{entrypoint_require}.rb")
+      namespace = existing_entrypoint_version_namespace(project_root, entrypoint_path) ||
+        existing_version_namespace(project_root, version_path) ||
+        classify_namespace(name)
 
       author = author_facts(gemspec, kettle_config, env)
       copyright = copyright_facts(project_root, kettle_config)
@@ -2211,7 +2221,7 @@ module Kettle
         ),
         rubygems: compact_hash(
           gemspec_path: File.basename(gemspec_path),
-          namespace: classify_namespace(name),
+          namespace: namespace,
           min_ruby: extract_gemspec_assignment(gemspec, "spec.required_ruby_version"),
           engines: ruby_engines_config(kettle_config),
         ),
@@ -2553,7 +2563,17 @@ module Kettle
       gemspec_content = project_gemspec_content(project_root) if gemspec_content.empty?
       return nil unless gemspec_declares_version_gem?(gemspec_content)
 
-      version_gem_bootstrap_step(project_root, report.fetch(:facts))
+      facts = report.fetch(:facts)
+      entrypoint_require = facts.dig(:package, :name).to_s.tr("-", "/")
+      templated_paths = report.fetch(:recipe_reports, []).map { |recipe_report| recipe_report.fetch(:relative_path, "") }
+      version_path = File.join("lib", entrypoint_require, "version.rb")
+      signature_path = File.join("sig", entrypoint_require, "version.rbs")
+      version_gem_bootstrap_step_for_paths(
+        project_root,
+        facts,
+        manage_version_file: !templated_paths.include?(version_path),
+        manage_signature_file: !templated_paths.include?(signature_path)
+      )
     end
 
     def project_gemspec_content(project_root)
@@ -4325,6 +4345,27 @@ module Kettle
       return entries if gemspec.empty?
 
       entries.insert(1, { "source" => "gem.gemspec", "target" => gemspec })
+      entries.concat(version_gem_template_entries(gemspec))
+      entries
+    end
+
+    def version_gem_template_entries(gemspec_path)
+      VERSION_GEM_TEMPLATE_SOURCES.map do |source|
+        { "source" => source, "target" => version_gem_template_target_path(gemspec_path, source) }
+      end
+    end
+
+    def version_gem_template_target_path(gemspec_path, source)
+      package_name = File.basename(gemspec_path.to_s, ".gemspec")
+      entrypoint_require = package_name.tr("-", "/")
+      case source
+      when "lib/gem/version.rb"
+        File.join("lib", entrypoint_require, "version.rb")
+      when "sig/gem/version.rbs"
+        File.join("sig", entrypoint_require, "version.rbs")
+      else
+        source
+      end
     end
 
     def add_monorepo_subgem_file_overrides(content, gemspec_path)
@@ -5113,8 +5154,21 @@ module Kettle
       org = funding[:open_collective_org].to_s
       tokens["KJ|OPENCOLLECTIVE_ORG"] = org
       tokens["KJ|README:FAMILY_INTRO_BACKEND_MATRIX"] = readme_family_intro_and_backend_matrix
+      tokens.merge!(version_gem_template_tokens(facts))
 
       tokens.reject { |key, value| value.empty? && !EMPTY_TEMPLATE_TOKENS.include?(key) }
+    end
+
+    def version_gem_template_tokens(facts)
+      namespace = facts.dig(:rubygems, :namespace).to_s
+      version = facts.dig(:project_runtime, :version).to_s
+      version = "0.0.1.pre" if version.empty?
+      return {} if namespace.empty?
+
+      {
+        "KJ|VERSION_GEM:VERSION_RB" => version_gem_version_file_content(existing_version: "", namespace: namespace, version: version),
+        "KJ|VERSION_GEM:VERSION_RBS" => version_gem_signature_file_content(namespace: namespace),
+      }
     end
 
     def readme_family_intro_and_backend_matrix
@@ -5471,6 +5525,10 @@ module Kettle
     end
 
     def version_gem_bootstrap_step(project_root, facts)
+      version_gem_bootstrap_step_for_paths(project_root, facts)
+    end
+
+    def version_gem_bootstrap_step_for_paths(project_root, facts, manage_version_file: true, manage_signature_file: true)
       package_name = facts.dig(:package, :name).to_s
       return {name: "version_gem_bootstrap", status: "unavailable", reason: "missing_package_facts"} if package_name.empty?
 
@@ -5488,11 +5546,13 @@ module Kettle
       version = "0.0.1.pre" if version.empty?
       changes = []
 
-      changes << write_if_changed(
-        project_root,
-        version_path,
-        version_gem_version_file_content(existing_version: existing_version_file_value(project_root, version_path), namespace: namespace, version: version)
-      )
+      if manage_version_file
+        changes << write_if_changed(
+          project_root,
+          version_path,
+          version_gem_version_file_content(existing_version: existing_version_file_value(project_root, version_path), namespace: namespace, version: version)
+        )
+      end
       current_entrypoint = read_project_file(project_root, entrypoint_path)
       entrypoint_content = if current_entrypoint.empty?
         version_gem_entrypoint_file_content(namespace: namespace, entrypoint_require: entrypoint_require)
@@ -5500,7 +5560,7 @@ module Kettle
         version_gem_bootstrap_entrypoint_content(current_entrypoint, namespace: namespace, entrypoint_require: entrypoint_require)
       end
       changes << write_if_changed(project_root, entrypoint_path, entrypoint_content)
-      changes << write_if_changed(project_root, signature_path, version_gem_signature_file_content(namespace: namespace))
+      changes << write_if_changed(project_root, signature_path, version_gem_signature_file_content(namespace: namespace)) if manage_signature_file
       changed_files = changes.compact
 
       {
@@ -6465,6 +6525,11 @@ module Kettle
 
     def template_inventory_target_path(project_root, logical_path)
       return ".env.local.example" if logical_path == ".env.local"
+
+      if VERSION_GEM_TEMPLATE_SOURCES.include?(logical_path)
+        existing_gemspec = Dir.glob(File.join(project_root, "*.gemspec")).sort.first
+        return version_gem_template_target_path(File.basename(existing_gemspec), logical_path) if existing_gemspec
+      end
 
       if logical_path.end_with?(".gemspec")
         existing_gemspec = Dir.glob(File.join(project_root, "*.gemspec")).sort.first

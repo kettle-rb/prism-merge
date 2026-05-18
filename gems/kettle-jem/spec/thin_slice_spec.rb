@@ -1232,6 +1232,12 @@ RSpec.describe Kettle::Jem do
               target: tree_haver.gemspec
             - LICENSE.md
       YAML
+      expect(config).to include(
+        "    - source: lib/gem/version.rb\n" \
+        "      target: lib/tree_haver/version.rb\n" \
+        "    - source: sig/gem/version.rbs\n" \
+        "      target: sig/tree_haver/version.rbs\n"
+      )
       expect(config).to include("    - certs/pboling.pem\n")
       expect(config).to include("    - tmp/.gitignore\n")
       expect(config).not_to include("    - .github/workflows/current.yml\n")
@@ -1250,6 +1256,48 @@ RSpec.describe Kettle::Jem do
       expect(File).not_to exist(File.join(root, ".github"))
       expect(File).not_to exist(File.join(root, "Gemfile"))
       expect(File).not_to exist(File.join(root, "Rakefile"))
+    end
+  end
+
+  it "renders version_gem Ruby and RBS files from packaged templates" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-version-gem-template-files", tmp_root) do |root|
+      write_tree(root, {
+        "example-gem.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example-gem"
+            spec.version = "1.2.3"
+            spec.summary = "Example gem"
+            spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "💎"
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - source: lib/gem/version.rb
+                target: lib/example/gem/version.rb
+              - source: sig/gem/version.rbs
+                target: sig/example/gem/version.rbs
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: {skip_commit: true, accept: true})
+
+      expect(apply.fetch(:changed_files)).to include("lib/example/gem/version.rb", "sig/example/gem/version.rbs")
+      version_rb = File.read(File.join(root, "lib", "example", "gem", "version.rb"))
+      expect(version_rb).to include("module Example")
+      expect(version_rb).to include("module Gem")
+      expect(version_rb).to include('VERSION = "1.2.3"')
+      version_rbs = File.read(File.join(root, "sig", "example", "gem", "version.rbs"))
+      expect(version_rbs).to include("module Example")
+      expect(version_rbs).to include("module Gem")
+      expect(version_rbs).to include("VERSION: String")
+      post_step = apply.fetch(:post_apply_steps).find { |step| step.fetch(:name) == "version_gem_bootstrap" }
+      expect(post_step.fetch(:changed_files)).to eq(["lib/example/gem.rb"])
     end
   end
 
