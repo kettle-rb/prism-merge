@@ -422,11 +422,12 @@ module Toml
         line = node_start_line(node)
         return unless line
 
-        column = node_start_column(node) || 0
+        raw = node_text(node).to_s.sub(/\n\z/, "")
+        return unless raw.lstrip.start_with?("#")
+
         raw_line = line_at(line).to_s
-        raw = raw_line.byteslice(column..) || node_text(node).to_s
-        raw = raw.sub(/\n\z/, "")
-        prefix = raw_line.byteslice(0, column).to_s
+        column = raw_line.index(raw) || node_start_column(node) || 0
+        prefix = raw_line[0...column].to_s
 
         build_comment_entry(line: line, column: column, prefix: prefix, raw: raw, source: :native)
       end
@@ -576,7 +577,16 @@ module Toml
       def node_text(node)
         return "" unless node.respond_to?(:start_byte) && node.respond_to?(:end_byte)
 
-        @source.byteslice(node.start_byte, node.end_byte - node.start_byte).to_s
+        length = node.end_byte - node.start_byte
+        return @source[node.start_byte, length].to_s if @backend == :citrus
+
+        text = @source.byteslice(node.start_byte, length)
+        return text if text&.valid_encoding?
+
+        text = @source[node.start_byte, length]
+        return text if text&.valid_encoding?
+
+        text.to_s.scrub
       end
 
       def build_signature_map

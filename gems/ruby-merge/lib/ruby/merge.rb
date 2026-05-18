@@ -196,6 +196,7 @@ module Ruby
       )
 
       output = "#{sections.join("\n\n").strip}\n"
+      output = normalize_nocov_require_blocks(output)
       matching_reports = [ruby_method_move_detection(template_source, destination_source, dialect)]
       move_report = matching_reports.first
       moved_method_count = move_report.fetch(:matches).count { |entry| entry.fetch(:moved) }
@@ -1544,6 +1545,40 @@ module Ruby
       insertion = task_block.dup
       insertion << "" unless lines[insertion_index].to_s.strip.empty?
       lines.insert(insertion_index, *insertion)
+      "#{lines.join("\n").sub(/\n+\z/, "")}\n"
+    end
+
+    def normalize_nocov_require_blocks(content)
+      lines = normalize_source(content).split("\n")
+      index = 0
+
+      while index < lines.length
+        unless lines[index].match?(/\Arequire(?:_relative)?\s+["']/)
+          index += 1
+          next
+        end
+
+        opening_index = preceding_code_line_index(lines, index - 1)
+        unless opening_index && lines[opening_index].strip == "# :nocov:"
+          index += 1
+          next
+        end
+
+        if opening_index + 1 < index
+          lines.slice!(opening_index + 1, index - opening_index - 1)
+          index = opening_index + 1
+        end
+
+        closing_index = next_code_line_index(lines, index + 1)
+        unless closing_index && lines[closing_index].strip == "# :nocov:"
+          lines.insert(index + 1, "# :nocov:")
+          index += 1
+        end
+        lines.slice!(index + 2) while lines[index + 2]&.strip == "# :nocov:"
+
+        index += 1
+      end
+
       "#{lines.join("\n").sub(/\n+\z/, "")}\n"
     end
 

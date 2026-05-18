@@ -1,0 +1,5 @@
+# Glob patterns evaluated in order (first match wins)
+patterns:
+  -
+    path: "certs/**"
+    strategy: raw_copy

@@ -63,6 +63,7 @@ module Toml
           **options,
         )
 
+        normalize_toml_line_range!
         hydrate_comment_associations!
       end
 
@@ -80,6 +81,23 @@ module Toml
         @comment_entries = Array(options[:comment_entries])
         @comment_tracker = options[:comment_tracker]
         @raw_text = options[:raw_text]
+      end
+
+      def node_text(ts_node)
+        return "" unless ts_node.respond_to?(:start_byte) && ts_node.respond_to?(:end_byte)
+
+        length = ts_node.end_byte - ts_node.start_byte
+        return @source[ts_node.start_byte, length].to_s if @backend == :citrus
+
+        super
+      end
+
+      def normalize_toml_line_range!
+        return unless pair?
+        return unless @start_line && @end_line && @end_line > @start_line
+
+        line_count = [node_text(@node).sub(/\n\z/, "").lines.count, 1].max
+        @end_line = @start_line + line_count - 1
       end
 
       # Get the canonical (normalized) type for this node

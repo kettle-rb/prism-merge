@@ -18,4 +18,11 @@ RSpec.describe "TOML reproducible merge fixtures", :toml_parsing do
       preference: :template,
     }
   end
+
+  context "when unicode string values precede native comment-shaped parser trivia" do
+    it_behaves_like "a reproducible merge", "03_unicode_string_values_do_not_create_invalid_native_comments", {
+      preference: :destination,
+      add_template_only_nodes: true,
+    }
+  end
 end

@@ -1,0 +1,7 @@
+# Shared development environment for this gem.
+
+[env]
+KJ_PROJECT_EMOJI = "🔮"
+DEBUG = "false"
+FUNDING_ORG = ""
+_.source = ".config/mise/env.sh"

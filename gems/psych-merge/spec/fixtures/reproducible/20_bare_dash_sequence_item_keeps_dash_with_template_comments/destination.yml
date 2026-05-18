@@ -1,0 +1,4 @@
+patterns:
+  -
+    path: "certs/**"
+    strategy: raw_copy

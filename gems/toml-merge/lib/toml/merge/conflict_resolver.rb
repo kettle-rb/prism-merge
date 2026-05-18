@@ -110,6 +110,7 @@ module Toml
         # legitimately repeat headers.
         consumed_template_indices = ::Set.new
         sig_cursor = Hash.new(0)
+        emitted_destination_signatures = ::Set.new
         prev_emitted_end_line = nil
         prev_emitted_analysis = nil
 
@@ -178,6 +179,7 @@ module Toml
               merge_matched_nodes_to_emitter(template_node, dest_node, template_analysis, dest_analysis)
               prev_emitted_end_line = emitted_end_line_for(selected_node)
               prev_emitted_analysis = selected_analysis
+              emitted_destination_signatures << dest_sig if dest_sig
 
               consumed_template_indices << template_info[:index]
               sig_cursor[dest_sig] = cursor + 1
@@ -187,11 +189,14 @@ module Toml
                 prev_emitted_end_line = emitted_end_line_for(dest_node)
                 prev_emitted_analysis = dest_analysis
               end
+            elsif redundant_destination_pair_duplicate?(dest_node, dest_sig, emitted_destination_signatures)
+              next
             else
               emit_gap_before_node(dest_node, dest_analysis, prev_emitted_end_line, prev_emitted_analysis)
               emit_node(dest_node, dest_analysis)
               prev_emitted_end_line = emitted_end_line_for(dest_node)
               prev_emitted_analysis = dest_analysis
+              emitted_destination_signatures << dest_sig if dest_sig
             end
           elsif refined_dest_to_template.key?(dest_node)
             # Found refined match
@@ -225,17 +230,21 @@ module Toml
             merge_matched_nodes_to_emitter(template_node, dest_node, template_analysis, dest_analysis)
             prev_emitted_end_line = emitted_end_line_for(selected_node)
             prev_emitted_analysis = selected_analysis
+            emitted_destination_signatures << dest_sig if dest_sig
           elsif @remove_template_missing_nodes
             # Destination-only node
             if emit_removed_destination_node_comments(dest_node, dest_analysis)
               prev_emitted_end_line = emitted_end_line_for(dest_node)
               prev_emitted_analysis = dest_analysis
             end
+          elsif redundant_destination_pair_duplicate?(dest_node, dest_sig, emitted_destination_signatures)
+            next
           else
             emit_gap_before_node(dest_node, dest_analysis, prev_emitted_end_line, prev_emitted_analysis)
             emit_node(dest_node, dest_analysis)
             prev_emitted_end_line = emitted_end_line_for(dest_node)
             prev_emitted_analysis = dest_analysis
+            emitted_destination_signatures << dest_sig if dest_sig
           end
 
           # Flush interior trailing groups
@@ -326,6 +335,10 @@ module Toml
             comment_analysis: dest_analysis,
           )
         end
+      end
+
+      def redundant_destination_pair_duplicate?(node, signature, emitted_signatures)
+        signature && node.respond_to?(:pair?) && node.pair? && emitted_signatures.include?(signature)
       end
 
       # Emit a single node to the emitter

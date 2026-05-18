@@ -712,6 +712,8 @@ module Psych
 
         if template_node.mapping? && dest_node.mapping?
           return false if sequence_item_mapping_reorder_requires_whole_item?(template_node, dest_node)
+          return false if bare_dash_sequence_item_mapping?(template_node, @template_analysis)
+          return false if bare_dash_sequence_item_mapping?(dest_node, @dest_analysis)
 
           # Empty flow mappings (e.g. `files: {}`) are safe to recurse into:
           # the inline `{}` carries no content to preserve, and template-only
@@ -781,6 +783,23 @@ module Psych
 
       def sequence_item_mapping_node?(node)
         node.respond_to?(:mapping?) && node.mapping? && (!node.respond_to?(:key) || node.key.nil?)
+      end
+
+      def bare_dash_sequence_item_mapping?(node, analysis)
+        return false unless sequence_item_mapping_node?(node)
+        return false unless node.respond_to?(:start_line) && node.start_line
+        return false unless analysis.respond_to?(:line_at)
+
+        previous_line_num = node.start_line - 1
+        return false if previous_line_num < 1
+
+        previous_line = analysis.line_at(previous_line_num).to_s
+        item_line = analysis.line_at(node.start_line).to_s
+        return false unless previous_line.match?(/\A\s*-\s*(?:#.*)?\z/)
+
+        previous_indent = previous_line[/\A\s*/].to_s.length
+        item_indent = item_line[/\A\s*/].to_s.length
+        previous_indent < item_indent
       end
 
       def first_mapping_key_name(node)
@@ -1593,7 +1612,8 @@ module Psych
 
       def trimmed_sequence_item_lines(item, analysis, next_node: nil)
         end_line = sequence_item_end_line(item, analysis, next_node: next_node)
-        lines = (item.start_line..end_line).map { |line_num| analysis.line_at(line_num) }.compact
+        start_line = sequence_item_start_line(item, analysis)
+        lines = (start_line..end_line).map { |line_num| analysis.line_at(line_num) }.compact
         return lines if lines.empty?
 
         first_content_line = lines.find { |line| !line.strip.empty? }
@@ -1610,6 +1630,22 @@ module Psych
         trimmed_lines = cutoff_index ? lines.take(cutoff_index) : lines
         trimmed_lines.pop while next_node.nil? && trimmed_lines.any? && trimmed_lines.last.strip.empty?
         trimmed_lines
+      end
+
+      def sequence_item_start_line(item, analysis)
+        return item.start_line unless item.respond_to?(:start_line) && item.start_line
+        return item.start_line unless analysis.respond_to?(:line_at)
+
+        previous_line_num = item.start_line - 1
+        return item.start_line if previous_line_num < 1
+
+        previous_line = analysis.line_at(previous_line_num).to_s
+        item_line = analysis.line_at(item.start_line).to_s
+        return item.start_line unless previous_line.match?(/\A\s*-\s*(?:#.*)?\z/)
+
+        previous_indent = previous_line[/\A\s*/].to_s.length
+        item_indent = item_line[/\A\s*/].to_s.length
+        previous_indent < item_indent ? previous_line_num : item.start_line
       end
 
       def sequence_item_end_line(item, analysis, next_node: nil)

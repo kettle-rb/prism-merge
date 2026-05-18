@@ -1,12 +1,14 @@
+# These are supported funding model platforms
+
 buy_me_a_coffee: pboling
-community_bridge:
-github:
+community_bridge: # Replace with a single Community Bridge project-name e.g., cloud-foundry
+github:             # Replace with up to 4 GitHub Sponsors-enabled usernames e.g., [user1, user2]
   - pboling
-issuehunt: pboling
-ko_fi: pboling
-liberapay: pboling
+issuehunt: pboling   # Replace with a single IssueHunt username
+ko_fi: pboling   # Replace with a single Ko-fi username
+liberapay: pboling   # Replace with a single Liberapay username
 open_collective: ""
-patreon: galtzo
+patreon: galtzo   # Replace with a single Patreon username
 polar: pboling
 thanks_dev: "u/gh/pboling"
 tidelift: "rubygems/kettle-jem"

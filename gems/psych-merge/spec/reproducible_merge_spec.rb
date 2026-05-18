@@ -84,6 +84,13 @@ RSpec.describe "Psych reproducible merge fixtures" do
     FixtureCase.new(name: "19_attached_trailing_comment_not_duplicated", options: {
       preference: :destination,
       add_template_only_nodes: true
+    }),
+    FixtureCase.new(name: "20_bare_dash_sequence_item_keeps_dash_with_template_comments", options: {
+      preference: :destination,
+      recursive: true,
+      add_template_only_nodes: true,
+      add_template_only_sequence_items: false,
+      comment_merge_policy: :template_fallback_when_missing
     })
   ].freeze
 

@@ -153,7 +153,16 @@ module Ast
       def node_text(ts_node)
         return "" unless ts_node.respond_to?(:start_byte) && ts_node.respond_to?(:end_byte)
 
-        @source.byteslice(ts_node.start_byte, ts_node.end_byte - ts_node.start_byte) || ""
+        length = ts_node.end_byte - ts_node.start_byte
+        text = @source.byteslice(ts_node.start_byte, length)
+        return text if text&.valid_encoding?
+
+        # Some parser adapters expose character offsets through byte-named
+        # methods. Fall back before scrubbing so Unicode source is preserved.
+        text = @source[ts_node.start_byte, length]
+        return text if text&.valid_encoding?
+
+        text.to_s.scrub
       end
 
       # Get the content for this node from source lines.

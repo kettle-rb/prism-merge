@@ -811,6 +811,53 @@ RSpec.describe "Ruby::Merge" do
     expect(rakefile_require_merge[:output]).to include('require "bundler/setup"')
     expect(rakefile_require_merge[:output]).to include('require "kettle/dev"')
 
+    nocov_require_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+      RUBY
+      <<~RUBY,
+        # :nocov:
+        require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+        # :nocov:
+      RUBY
+      "ruby",
+      merge_template_requires: true
+    )
+    expect(nocov_require_merge[:ok]).to be(true)
+    expect(nocov_require_merge[:output]).to include(<<~RUBY)
+      # :nocov:
+      require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+      # :nocov:
+    RUBY
+    expect(nocov_require_merge[:output].scan("# :nocov:").size).to eq(2)
+
+    nested_require_merge = RUBY_MERGE.merge_ruby(
+      <<~RUBY,
+        require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+
+        begin
+          require "kettle/dev"
+          require "kettle/jem"
+        rescue LoadError
+        end
+      RUBY
+      <<~RUBY,
+        # :nocov:
+        require "bundler/gem_tasks" if !Dir[File.join(__dir__, "*.gemspec")].empty?
+        # :nocov:
+
+        begin
+          require "kettle/dev"
+          require "kettle/jem"
+        rescue LoadError
+        end
+      RUBY
+      "ruby",
+      merge_template_requires: true
+    )
+    expect(nested_require_merge[:ok]).to be(true)
+    expect(nested_require_merge[:output].scan("# :nocov:").size).to eq(2)
+
     surfaces_analysis = RUBY_MERGE.parse_ruby(surfaces_fixture[:source], "ruby")
     expect(surfaces_analysis[:ok]).to be(true)
     expect(json_ready(RUBY_MERGE.ruby_discovered_surfaces(surfaces_analysis[:analysis]))).to eq(
