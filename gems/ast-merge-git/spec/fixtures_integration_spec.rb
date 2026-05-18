@@ -41,6 +41,9 @@ RSpec.describe Ast::Merge::Git do
         expected.fetch(:conflicted_source_contains, []).each do |needle|
           expect(result.fetch(:conflicted_source)).to include(needle), test_case.fetch(:case_id)
         end
+        expected.fetch(:conflicted_source_not_contains, []).each do |needle|
+          expect(result.fetch(:conflicted_source)).not_to include(needle), test_case.fetch(:case_id)
+        end
       end
     end
   end

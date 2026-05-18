@@ -40,13 +40,14 @@ module Ast
         merged = merge_json_value(base, ours, theirs, "", conflicts)
         if conflicts.any?
           owned_regions = json_owned_regions_for_conflicts(request, conflicts)
+          render_strategy = owned_regions.empty? ? "full_file_conflict_markers" : "owned_region_conflict_markers"
           return response(
             ok: false,
             request: request,
-            conflicted_source: render_conflict_source(request, conflicts),
+            conflicted_source: render_json_owned_region_conflict_source(request, owned_regions.first) || render_conflict_source(request, conflicts),
             conflicts: conflicts,
             owned_regions: owned_regions,
-            render_strategy: owned_regions.empty? ? "full_file_conflict_markers" : "owned_region_conflict_markers",
+            render_strategy: render_strategy,
             diagnostics: [{
               severity: "error",
               category: MERGE_CONFLICT_CATEGORY,
@@ -214,6 +215,43 @@ module Ast
           "#{">" * marker_size} theirs",
           ""
         ].join("\n")
+      end
+
+      def render_json_owned_region_conflict_source(request, region)
+        return nil unless region && region.fetch(:region_kind) == "node"
+
+        key = region.fetch(:owner_path).delete_prefix("/")
+        ours_region = json_member_source(request.fetch(:ours_source), key)
+        base_region = json_member_source(request.fetch(:base_source), key)
+        theirs_region = json_member_source(request.fetch(:theirs_source), key)
+        return nil unless ours_region && base_region && theirs_region
+
+        marker_size = request[:conflict_marker_size].to_i
+        marker_size = 7 unless marker_size.positive?
+        replacement = [
+          "#{"<" * marker_size} ours",
+          ours_region.fetch(:text),
+          "#{"|" * marker_size} base",
+          base_region.fetch(:text),
+          "=" * marker_size,
+          theirs_region.fetch(:text),
+          "#{">" * marker_size} theirs"
+        ].join("\n")
+        range = ours_region.fetch(:byte_range)
+        source = request.fetch(:ours_source)
+        prefix = source.byteslice(0, range.fetch(:start)) || ""
+        suffix = source.byteslice(range.fetch(:end), source.bytesize - range.fetch(:end)) || ""
+        prefix + replacement + suffix
+      end
+
+      def json_member_source(source, key)
+        range = json_key_byte_range(source, key)
+        return nil if range.fetch(:end) <= range.fetch(:start)
+
+        {
+          byte_range: range,
+          text: source.byteslice(range.fetch(:start)...range.fetch(:end))
+        }
       end
 
       def json_owned_regions_for_conflicts(request, conflicts)
