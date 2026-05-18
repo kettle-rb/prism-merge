@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "citrus/toml/merge"
+require "parslet/toml/merge"
+
 RSpec.describe Toml::Merge do
   def fixtures_root
     Pathname(__dir__).join("..", "..", "..", "..", "fixtures").expand_path
@@ -171,6 +174,56 @@ RSpec.describe Toml::Merge do
     expect(result.dig(:analysis, :normalized_source)).to include('file = { path = ".env.local", redact = true }')
     expect(result.dig(:analysis, :owners)).to include(
       include(path: "/env/_/file", owner_kind: "key_value", match_key: "file")
+    )
+  end
+
+  it "projects equivalent normalized output across active TOML provider surfaces" do
+    source = <<~TOML
+      # Shared provider projection fixture.
+      title = "example"
+
+      [env]
+      KJ_PROJECT_EMOJI = "gem"
+      path = ["exe", "bin"]
+      source = ".config/mise/env.sh"
+    TOML
+
+    results = {
+      core: described_class.parse_toml(source, "toml"),
+      citrus: Citrus::Toml::Merge.parse_toml(source, "toml"),
+      parslet: Parslet::Toml::Merge.parse_toml(source, "toml"),
+    }
+
+    expect(results.transform_values { |result| result.fetch(:ok) }).to eq(
+      core: true,
+      citrus: true,
+      parslet: true
+    )
+    normalized = results.transform_values { |result| result.dig(:analysis, :normalized_source) }
+    owners = results.transform_values { |result| json_ready(result.dig(:analysis, :owners)) }
+    expect(normalized.values.uniq).to eq([normalized.fetch(:core)])
+    expect(owners.values.uniq).to eq([owners.fetch(:core)])
+  end
+
+  it "reports the Parslet provider gap for mise-style dotted keys and inline tables" do
+    source = <<~TOML
+      [env]
+      KJ_PROJECT_EMOJI = "gem"
+      _.file = { path = ".env.local", redact = true }
+      _.path = ["exe", "bin"]
+      _.source = ".config/mise/env.sh"
+    TOML
+
+    core = described_class.parse_toml(source, "toml")
+    citrus = Citrus::Toml::Merge.parse_toml(source, "toml")
+    parslet = Parslet::Toml::Merge.parse_toml(source, "toml")
+
+    expect(core.fetch(:ok)).to be(true)
+    expect(citrus.fetch(:ok)).to be(true)
+    expect(json_ready(citrus.dig(:analysis, :owners))).to eq(json_ready(core.dig(:analysis, :owners)))
+    expect(parslet.fetch(:ok)).to be(false)
+    expect(parslet.fetch(:diagnostics)).to include(
+      include(category: "parse_error")
     )
   end
 
