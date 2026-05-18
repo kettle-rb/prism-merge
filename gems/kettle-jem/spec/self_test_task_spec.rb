@@ -88,7 +88,8 @@ RSpec.describe Kettle::Jem::Tasks::SelfTestTask do
 
       expect(result.fetch(:comparison).fetch(:changed)).to include("README.md")
       expect(result.fetch(:output_root)).to start_with(File.join(root, "tmp", "template_test", "output"))
-      expect(File.read(File.join(result.fetch(:output_root), "README.md"))).to include("# Example")
+      expected_emoji = ENV.fetch("KJ_PROJECT_EMOJI", "💎")
+      expect(File.read(File.join(result.fetch(:output_root), "README.md"))).to include("# #{expected_emoji} Example")
       expect(File).to exist(result.fetch(:report_path))
     end
   end

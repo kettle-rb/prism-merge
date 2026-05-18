@@ -171,6 +171,7 @@ RSpec.describe Kettle::Jem::CLI do
         skip_commit: true,
         accept_config: true,
         bootstrap_mode: true,
+        template_profile: "",
         quiet: true,
         verbose: true
       )

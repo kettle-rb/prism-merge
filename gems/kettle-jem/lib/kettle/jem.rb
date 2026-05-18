@@ -3129,11 +3129,25 @@ module Kettle
     def postprocess_readme_content(content, facts)
       return content unless facts
 
-      ReadmePostProcessor.process(
+      processed = ReadmePostProcessor.process(
         content: content,
         min_ruby: minimum_ruby_token(facts.dig(:rubygems, :min_ruby)),
         engines: facts.dig(:rubygems, :engines)
       )
+      normalize_readme_project_heading(processed, facts)
+    end
+
+    def normalize_readme_project_heading(content, facts)
+      namespace = facts.dig(:rubygems, :namespace).to_s
+      emoji = facts.dig(:project_runtime, :project_emoji).to_s
+      return content if namespace.empty? || emoji.empty?
+
+      lines = content.to_s.split("\n", -1)
+      index = lines.index { |line| line.match?(/\A#\s+/) }
+      return content unless index
+
+      lines[index] = "# #{emoji} #{namespace}"
+      lines.join("\n")
     end
 
     def prepare_readme_template(content, readme_style)
@@ -3886,7 +3900,19 @@ module Kettle
       return nil unless File.exist?(readme_path)
 
       heading = File.read(readme_path).lines.find { |line| line.match?(/\A#\s+\S+/) }
-      heading.to_s[/\A#\s+(\S+)/, 1]
+      candidate = first_grapheme(heading.to_s.sub(/\A#\s+/, ""))
+      decorative_grapheme?(candidate) ? candidate : nil
+    end
+
+    def first_grapheme(text)
+      text.to_s.strip[/\A\X/u].to_s
+    end
+
+    def decorative_grapheme?(grapheme)
+      value = grapheme.to_s
+      return false if value.empty?
+
+      !value.match?(/\A[[:alnum:][:space:]]\z/u)
     end
 
     def recipe_report_metadata(recipe)
