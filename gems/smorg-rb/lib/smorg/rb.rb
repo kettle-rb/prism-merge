@@ -43,7 +43,7 @@ module Smorg
     end
 
     def print_usage(out)
-      out.puts("usage: smorg-rb merge-driver [--path-name PATH] [--output PATH] [--strict] [--fallback=none|line|local|full-file] %O %A %B [%P]")
+      out.puts("usage: smorg-rb merge-driver [--path-name PATH] [--output PATH] [--report PATH] [--strict] [--fallback=none|line|local|full-file] %O %A %B [%P]")
       out.puts("       smorg-rb merge-driver --ancestor %O --current %A --other %B --path-name %P")
       out.puts("       smorg-rb diff-driver [--path-name PATH] OLD NEW")
       out.puts("       smorg-rb diff-driver PATH OLD-FILE OLD-HEX OLD-MODE NEW-FILE NEW-HEX NEW-MODE [OLD-PREFIX NEW-PREFIX]")
@@ -70,7 +70,18 @@ module Smorg
       output = result[:output]
       unless result[:ok]
         print_diagnostics(stderr, result)
+        fallbacks = []
         output ||= full_file_conflict_output(settings[:conflict_marker_size], ancestor_source, current_source, other_source) unless options[:strict] || options[:fallback] == "none"
+        if output && !result[:output] && !options[:strict] && options[:fallback] != "none"
+          fallbacks << {
+            mode: "full_file",
+            requested_mode: options[:fallback],
+            reason: fallback_reason(result.fetch(:diagnostics, [])),
+            applied: true
+          }
+        end
+        report_exit = write_merge_driver_machine_report(options[:report], effective_path, false, EXIT_UNRESOLVED_CONFLICT, fallbacks, result.fetch(:diagnostics, []), stderr)
+        return report_exit unless report_exit == EXIT_SUCCESS
         return EXIT_UNRESOLVED_CONFLICT if options[:check_only]
         File.write(options[:output] || options[:current], output) if output
         return EXIT_UNRESOLVED_CONFLICT
@@ -81,10 +92,15 @@ module Smorg
       end
 
       if options[:check_only]
-        return options[:exit_code] && output != current_source ? EXIT_UNRESOLVED_CONFLICT : EXIT_SUCCESS
+        exit_code = options[:exit_code] && output != current_source ? EXIT_UNRESOLVED_CONFLICT : EXIT_SUCCESS
+        report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, exit_code, [], result.fetch(:diagnostics, []), stderr)
+        return report_exit unless report_exit == EXIT_SUCCESS
+        return exit_code
       end
 
       File.write(options[:output] || options[:current], output)
+      report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, EXIT_SUCCESS, [], result.fetch(:diagnostics, []), stderr)
+      return report_exit unless report_exit == EXIT_SUCCESS
       EXIT_SUCCESS
     rescue Errno::ENOENT, Errno::EACCES => e
       stderr.puts("file error: #{e.message}")
@@ -131,6 +147,9 @@ module Smorg
         when "--output"
           index += 1
           options[:output] = args[index]
+        when "--report"
+          index += 1
+          options[:report] = args[index]
         when "--strict"
           options[:strict] = true
         when "--check-only"
@@ -175,6 +194,31 @@ module Smorg
         return nil
       end
       options
+    end
+
+    def write_merge_driver_machine_report(report_path, path_name, ok, exit_code, fallbacks, diagnostics, stderr)
+      return EXIT_SUCCESS unless report_path
+
+      report = {
+        command: "merge-driver",
+        path_name: path_name,
+        ok: ok,
+        exit_code: exit_code,
+        fallbacks: fallbacks,
+        diagnostics: diagnostics
+      }
+      File.write(report_path, JSON.pretty_generate(Ast::Merge.json_ready(report)) + "\n")
+      EXIT_SUCCESS
+    rescue StandardError => e
+      stderr.puts("write report: #{e.message}")
+      EXIT_INTERNAL_ERROR
+    end
+
+    def fallback_reason(diagnostics)
+      first = diagnostics.first
+      return "structured_merge_failed" unless first
+
+      (first[:category] || first["category"] || "structured_merge_failed").to_s
     end
 
     def report_and_enforce_profile(options, stdout, stderr)

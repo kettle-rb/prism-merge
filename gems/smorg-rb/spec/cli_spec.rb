@@ -107,10 +107,12 @@ RSpec.describe Smorg::RB do
         ancestor = write_file(dir, "ancestor.json", test_case.fetch("base_source"))
         current = write_file(dir, "current.json", test_case.fetch("ours_source"))
         other = write_file(dir, "other.json", test_case.fetch("theirs_source"))
+        report_path = File.join(dir, "merge-report.json")
         args = ["merge-driver"]
         args << "--strict" if test_case.dig("options", "strict")
         fallback = test_case.dig("options", "fallback")
         args.concat(["--fallback", fallback]) if fallback && fallback != "full-file"
+        args.concat(["--report", report_path])
         args.concat([ancestor, current, other, test_case.fetch("path_name")])
         stdout = StringIO.new
         stderr = StringIO.new
@@ -125,6 +127,15 @@ RSpec.describe Smorg::RB do
         end
         expected.fetch("stderr_contains", []).each do |needle|
           expect(stderr.string).to include(needle), test_case.fetch("case_id")
+        end
+        report = JSON.parse(File.read(report_path))
+        expected_report = expected.fetch("machine_report")
+        expect(report.fetch("ok")).to eq(expected_report.fetch("ok")), test_case.fetch("case_id")
+        expect(report.fetch("exit_code")).to eq(expected_report.fetch("exit_code")), test_case.fetch("case_id")
+        expect(report.fetch("fallbacks")).to eq(expected_report.fetch("fallbacks")), test_case.fetch("case_id")
+        diagnostics_json = JSON.generate(report.fetch("diagnostics"))
+        expected_report.fetch("diagnostics_contain").each do |needle|
+          expect(diagnostics_json).to include(needle), test_case.fetch("case_id")
         end
       end
     end
