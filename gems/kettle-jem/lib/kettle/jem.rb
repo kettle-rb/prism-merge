@@ -95,6 +95,14 @@ module Kettle
       RUBOCOP
       SECURITY
     ].freeze
+    MONOREPO_SUBGEM_README_BLOB_PATHS = %w[
+      CHANGELOG.md
+      CODE_OF_CONDUCT.md
+      CONTRIBUTING.md
+      IRP.md
+      RUBOCOP.md
+      SECURITY.md
+    ].freeze
     LEGACY_DESTINATION_PATHS = {
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
     }.freeze
@@ -3138,7 +3146,43 @@ module Kettle
         min_ruby: minimum_ruby_token(facts.dig(:rubygems, :min_ruby)),
         engines: facts.dig(:rubygems, :engines)
       )
-      normalize_readme_project_heading(processed, facts)
+      processed = normalize_readme_project_heading(processed, facts)
+      apply_monorepo_subgem_readme_recipe(processed, facts)
+    end
+
+    def apply_monorepo_subgem_readme_recipe(content, facts)
+      return content unless monorepo_subgem_template_profile?(facts)
+
+      source_url = facts.dig(:package, :source_url).to_s
+      return content if source_url.empty?
+
+      root_doc_links = MONOREPO_SUBGEM_README_BLOB_PATHS.to_h do |path|
+        [path, source_blob_url(source_url, path)]
+      end
+      rewrite_markdown_reference_links(content, root_doc_links)
+    end
+
+    def rewrite_markdown_reference_links(content, links)
+      content.to_s.lines.map do |line|
+        match = line.match(/\A(\[[^\]]+\]:\s*)(\S+\.md)([^\r\n]*)(\r?\n?)\z/)
+        next line unless match
+
+        replacement = links[match[2]]
+        replacement ? "#{match[1]}#{replacement}#{match[3]}#{match[4]}" : line
+      end.join
+    end
+
+    def source_blob_url(source_url, path)
+      base = source_url.to_s.sub(%r{/+\z}, "")
+      escaped_path = path.to_s.split("/").map { |segment| segment.gsub(" ", "%20") }.join("/")
+      case base
+      when %r{\Ahttps?://gitlab\.com/}
+        "#{base}/-/blob/main/#{escaped_path}"
+      when %r{\Ahttps?://codeberg\.org/}
+        "#{base}/src/branch/main/#{escaped_path}"
+      else
+        "#{base}/blob/main/#{escaped_path}"
+      end
     end
 
     def normalize_readme_project_heading(content, facts)

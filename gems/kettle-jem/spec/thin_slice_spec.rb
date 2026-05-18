@@ -1207,6 +1207,71 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "rewrites monorepo subgem README policy document references to source-hosted URLs" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-monorepo-subgem-readme-links", tmp_root) do |root|
+      write_tree(root, {
+        "ast-merge.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "ast-merge"
+            spec.summary = "Example gem"
+            spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"
+            spec.licenses = ["AGPL-3.0-only"]
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "☯️"
+          templates:
+            root: template
+            apply: true
+            profile: monorepo-subgem
+            entries:
+              - README.md
+          files:
+            README.md:
+              strategy: accept_template
+        YAML
+        "template/README.md.example" => <<~MARKDOWN,
+          # {KJ|PROJECT_EMOJI} {KJ|NAMESPACE}
+
+          ## 🤝 Contributing
+
+          See [CONTRIBUTING.md][🤝contributing].
+
+          ## 🔐 Security
+
+          See [SECURITY.md][🔐security].
+
+          ## 📌 Versioning
+
+          See [CHANGELOG.md][📌changelog].
+
+          [🤝contributing]: CONTRIBUTING.md
+          [🪇conduct]: CODE_OF_CONDUCT.md
+          [📌changelog]: CHANGELOG.md
+          [🧹rubocop]: RUBOCOP.md
+          [🚨irp]: IRP.md
+          [🔐security]: SECURITY.md
+        MARKDOWN
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: {skip_commit: true})
+      report = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == "README.md" }
+      readme = report.fetch(:final_content)
+      source_root = "https://github.com/structuredmerge/structuredmerge-ruby/blob/main"
+
+      expect(readme).to include("[🤝contributing]: #{source_root}/CONTRIBUTING.md")
+      expect(readme).to include("[🪇conduct]: #{source_root}/CODE_OF_CONDUCT.md")
+      expect(readme).to include("[📌changelog]: #{source_root}/CHANGELOG.md")
+      expect(readme).to include("[🧹rubocop]: #{source_root}/RUBOCOP.md")
+      expect(readme).to include("[🚨irp]: #{source_root}/IRP.md")
+      expect(readme).to include("[🔐security]: #{source_root}/SECURITY.md")
+      expect(File.read(File.join(root, "README.md"))).to eq(readme)
+    end
+  end
+
   it "seeds a default project emoji for monorepo subgems without a README" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
