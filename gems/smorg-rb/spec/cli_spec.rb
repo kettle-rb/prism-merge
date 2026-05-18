@@ -178,6 +178,8 @@ RSpec.describe Smorg::RB do
     expect(report.dig("owned_regions", 0, "region_kind")).to eq("node")
     expect(report.dig("profile", "profile_id")).to eq("json.keyed-object")
     expect(report.dig("profile", "language")).to eq("json")
+    expect(report.dig("formatting_preservation", "line_diff_score")).not_to be_nil
+    expect(report.dig("default_driver_evaluation", "status")).to be_a(String)
   end
 
   it "conforms to the git-driver JSON integration fixture in a repository" do

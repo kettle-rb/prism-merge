@@ -80,7 +80,7 @@ module Smorg
             applied: true
           }
         end
-        report_exit = write_merge_driver_machine_report(options[:report], effective_path, false, EXIT_UNRESOLVED_CONFLICT, fallbacks, result.fetch(:owned_regions, []), result[:render_report], result[:profile], result.fetch(:diagnostics, []), stderr)
+        report_exit = write_merge_driver_machine_report(options[:report], effective_path, false, EXIT_UNRESOLVED_CONFLICT, fallbacks, result, stderr)
         return report_exit unless report_exit == EXIT_SUCCESS
         return EXIT_UNRESOLVED_CONFLICT if options[:check_only]
         File.write(options[:output] || options[:current], output) if output
@@ -93,13 +93,13 @@ module Smorg
 
       if options[:check_only]
         exit_code = options[:exit_code] && output != current_source ? EXIT_UNRESOLVED_CONFLICT : EXIT_SUCCESS
-        report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, exit_code, [], result.fetch(:owned_regions, []), result[:render_report], result[:profile], result.fetch(:diagnostics, []), stderr)
+        report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, exit_code, [], result, stderr)
         return report_exit unless report_exit == EXIT_SUCCESS
         return exit_code
       end
 
       File.write(options[:output] || options[:current], output)
-      report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, EXIT_SUCCESS, [], result.fetch(:owned_regions, []), result[:render_report], result[:profile], result.fetch(:diagnostics, []), stderr)
+      report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, EXIT_SUCCESS, [], result, stderr)
       return report_exit unless report_exit == EXIT_SUCCESS
       EXIT_SUCCESS
     rescue Errno::ENOENT, Errno::EACCES => e
@@ -196,7 +196,7 @@ module Smorg
       options
     end
 
-    def write_merge_driver_machine_report(report_path, path_name, ok, exit_code, fallbacks, owned_regions, render_report, profile, diagnostics, stderr)
+    def write_merge_driver_machine_report(report_path, path_name, ok, exit_code, fallbacks, result, stderr)
       return EXIT_SUCCESS unless report_path
 
       report = {
@@ -205,10 +205,14 @@ module Smorg
         ok: ok,
         exit_code: exit_code,
         fallbacks: fallbacks,
-        owned_regions: owned_regions,
-        render_report: render_report,
-        profile: profile,
-        diagnostics: diagnostics
+        owned_regions: result.fetch(:owned_regions, []),
+        render_report: result[:render_report],
+        reparse_after_render: result[:reparse_after_render],
+        formatting_preservation: result[:formatting_preservation],
+        secondary_formatting_metrics: result[:secondary_formatting_metrics],
+        default_driver_evaluation: result[:default_driver_evaluation],
+        profile: result[:profile],
+        diagnostics: result.fetch(:diagnostics, [])
       }
       File.write(report_path, JSON.pretty_generate(Ast::Merge.json_ready(report)) + "\n")
       EXIT_SUCCESS
@@ -399,6 +403,12 @@ module Smorg
     end
 
     def merge3_result(result)
+      merge3_report_fields = {
+        reparse_after_render: result[:reparse_after_render],
+        formatting_preservation: result[:formatting_preservation],
+        secondary_formatting_metrics: result[:secondary_formatting_metrics],
+        default_driver_evaluation: result[:default_driver_evaluation]
+      }
       if result[:ok] && result[:merged_source]
         {
           ok: true,
@@ -407,7 +417,8 @@ module Smorg
           owned_regions: result.fetch(:owned_regions, []),
           render_report: result.fetch(:render_report),
           profile: result.fetch(:profile),
-          policies: []
+          policies: [],
+          **merge3_report_fields
         }
       elsif !result[:ok] && result[:conflicted_source]
         {
@@ -417,7 +428,8 @@ module Smorg
           owned_regions: result.fetch(:owned_regions, []),
           render_report: result.fetch(:render_report),
           profile: result.fetch(:profile),
-          policies: []
+          policies: [],
+          **merge3_report_fields
         }
       else
         {
@@ -426,7 +438,8 @@ module Smorg
           owned_regions: result.fetch(:owned_regions, []),
           render_report: result.fetch(:render_report),
           profile: result.fetch(:profile),
-          policies: []
+          policies: [],
+          **merge3_report_fields
         }
       end
     end
