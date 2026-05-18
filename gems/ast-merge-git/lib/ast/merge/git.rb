@@ -129,7 +129,41 @@ module Ast
             character_diff_score: 0.0
           }.merge(formatting_preservation),
           secondary_formatting_metrics: secondary_formatting_metrics || secondary_formatting_metrics_for(ok && merged_source),
+          default_driver_evaluation: default_driver_evaluation(
+            formatting_preservation: {
+              line_diff_score: 0.0,
+              character_diff_score: 0.0
+            }.merge(formatting_preservation),
+            reparse_after_render: reparse_after_render,
+            render_strategy: render_strategy || (request[:render_policy].to_s.empty? ? "canonical" : request[:render_policy].to_s)
+          ),
           reparse_after_render: reparse_after_render
+        }
+      end
+
+      def default_driver_evaluation(formatting_preservation:, reparse_after_render:, render_strategy:)
+        threshold = 0.95
+        score = (formatting_preservation.fetch(:line_diff_score) + formatting_preservation.fetch(:character_diff_score)) / 2.0
+        reparse_passed = reparse_after_render == true
+        no_full_file_rewrite = render_strategy != "full_file_conflict_markers"
+        coherent_conflict_markers = render_strategy != "full_file_conflict_markers"
+        blocking_reasons = []
+        blocking_reasons << "rendered output did not reparse" unless reparse_passed
+        blocking_reasons << "formatting score is below threshold" if score < threshold
+        blocking_reasons << "full-file rewrite or conflict markers were used" unless no_full_file_rewrite
+        blocking_reasons << "conflict marker placement is not syntactically coherent" unless coherent_conflict_markers
+
+        {
+          status: blocking_reasons.empty? ? "recommended" : "not_recommended",
+          formatting_threshold: threshold,
+          formatting_score: score,
+          hard_gates: [
+            {name: "reparse_after_render", passed: reparse_passed, weighted: false},
+            {name: "no_full_file_rewrite", passed: no_full_file_rewrite, weighted: false},
+            {name: "coherent_conflict_marker_placement", passed: coherent_conflict_markers, weighted: false}
+          ],
+          blocking_reasons: blocking_reasons,
+          diagnostics: ["default-driver evaluation is advisory unless explicitly required"]
         }
       end
 
