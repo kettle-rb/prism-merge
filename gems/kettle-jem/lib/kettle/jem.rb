@@ -3876,7 +3876,44 @@ module Kettle
       missing_lines = destination_dependencies.reject { |key, _line| existing_keys.include?(key) }.values
       return content if missing_lines.empty?
 
+      runtime_lines, development_lines = missing_lines.partition do |line|
+        key = gemspec_dependency_line_key(line, receiver: receiver)
+        key && key.first != "add_development_dependency"
+      end
+
+      merged = content.to_s
+      merged = insert_missing_runtime_gemspec_dependency_lines(merged, runtime_lines, receiver: receiver)
+      insert_missing_development_gemspec_dependency_lines(merged, development_lines)
+    end
+
+    def insert_missing_runtime_gemspec_dependency_lines(content, missing_lines, receiver:)
+      return content if missing_lines.empty?
+
+      lines = content.to_s.lines
+      insertion_index = runtime_gemspec_dependency_insertion_index(lines, receiver: receiver)
+      lines.insert(insertion_index, *missing_lines)
+      lines.join
+    end
+
+    def insert_missing_development_gemspec_dependency_lines(content, missing_lines)
+      return content if missing_lines.empty?
+
       content.sub(/^end\s*\z/, "#{missing_lines.join}end")
+    end
+
+    def runtime_gemspec_dependency_insertion_index(lines, receiver:)
+      note_index = lines.find_index do |line|
+        line.match?(/^\s*# NOTE: It is preferable to list development dependencies/)
+      end
+      return note_index - 1 if note_index&.positive? && lines[note_index - 1].strip.empty?
+      return note_index if note_index
+
+      development_index = lines.find_index do |line|
+        line.match?(/^\s*#{Regexp.escape(receiver)}\.add_development_dependency\s*(?:\(|\s)/)
+      end
+      return development_index if development_index
+
+      lines.rindex { |line| line.match?(/^end\s*\z/) } || lines.length
     end
 
     def gemspec_dependency_line_index(source, receiver:)

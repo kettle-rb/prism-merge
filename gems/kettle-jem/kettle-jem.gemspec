@@ -110,6 +110,22 @@ Gem::Specification.new do |spec|
 
   # Utilities
   spec.add_dependency("version_gem", "~> 1.1", ">= 1.1.9")              # ruby >= 2.2.0
+  spec.add_dependency("ast-merge", "= #{spec.version}")                  # ruby >= 4.0.0
+  spec.add_dependency("bash-merge", "= #{spec.version}")                 # ruby >= 4.0.0
+  spec.add_dependency("token-resolver", "~> 1.0", ">= 1.0.2")            # ruby >= 3.2.0
+  spec.add_dependency("tree_haver", "= #{spec.version}")                 # ruby >= 4.0.0
+  spec.add_dependency("commonmarker-merge", "= #{spec.version}")         # ruby >= 4.0.0
+  spec.add_dependency("dotenv-merge", "= #{spec.version}")              # ruby >= 4.0.0
+  spec.add_dependency("json-merge", "= #{spec.version}")                 # ruby >= 4.0.0
+  spec.add_dependency("kramdown-merge", "= #{spec.version}")             # ruby >= 4.0.0
+  spec.add_dependency("markdown-merge", "= #{spec.version}")             # ruby >= 4.0.0
+  spec.add_dependency("markly-merge", "= #{spec.version}")               # ruby >= 4.0.0
+  spec.add_dependency("prism-merge", "= #{spec.version}")                # ruby >= 4.0.0
+  spec.add_dependency("psych-merge", "= #{spec.version}")                # ruby >= 4.0.0
+  spec.add_dependency("rbs-merge", "= #{spec.version}")                  # ruby >= 4.0.0
+  spec.add_dependency("ruby-merge", "= #{spec.version}")                 # ruby >= 4.0.0
+  spec.add_dependency("toml-merge", "= #{spec.version}")                 # ruby >= 4.0.0
+  spec.add_dependency("yaml-merge", "= #{spec.version}")                 # ruby >= 4.0.0
 
   # NOTE: It is preferable to list development dependencies in the gemspec due to increased
   #       visibility and discoverability.
@@ -162,20 +178,4 @@ Gem::Specification.new do |spec|
   # See: https://github.com/vcr/vcr/issues/1057
   # spec.add_development_dependency("vcr", ">= 4")                        # 6.0 claims to support ruby >= 2.3, but fails on ruby 2.4
   # spec.add_development_dependency("webmock", ">= 3")                    # Last version to support ruby >= 2.3
-  spec.add_dependency("ast-merge", "= #{spec.version}")                  # ruby >= 4.0.0
-  spec.add_dependency("bash-merge", "= #{spec.version}")                 # ruby >= 4.0.0
-  spec.add_dependency("token-resolver", "~> 1.0", ">= 1.0.2")            # ruby >= 3.2.0
-  spec.add_dependency("tree_haver", "= #{spec.version}")                 # ruby >= 4.0.0
-  spec.add_dependency("commonmarker-merge", "= #{spec.version}")         # ruby >= 4.0.0
-  spec.add_dependency("dotenv-merge", "= #{spec.version}")              # ruby >= 4.0.0
-  spec.add_dependency("json-merge", "= #{spec.version}")                 # ruby >= 4.0.0
-  spec.add_dependency("kramdown-merge", "= #{spec.version}")             # ruby >= 4.0.0
-  spec.add_dependency("markdown-merge", "= #{spec.version}")             # ruby >= 4.0.0
-  spec.add_dependency("markly-merge", "= #{spec.version}")               # ruby >= 4.0.0
-  spec.add_dependency("prism-merge", "= #{spec.version}")                # ruby >= 4.0.0
-  spec.add_dependency("psych-merge", "= #{spec.version}")                # ruby >= 4.0.0
-  spec.add_dependency("rbs-merge", "= #{spec.version}")                  # ruby >= 4.0.0
-  spec.add_dependency("ruby-merge", "= #{spec.version}")                 # ruby >= 4.0.0
-  spec.add_dependency("toml-merge", "= #{spec.version}")                 # ruby >= 4.0.0
-  spec.add_dependency("yaml-merge", "= #{spec.version}")                 # ruby >= 4.0.0
 end

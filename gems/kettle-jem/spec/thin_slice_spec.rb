@@ -3510,6 +3510,60 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "preserves missing runtime gemspec dependencies above the development dependency separator" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+
+    Dir.mktmpdir("kettle-jem-gemspec-runtime-dependency-slice", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |gem|
+            gem.name = "example"
+            gem.summary = "Real summary"
+            gem.required_ruby_version = ">= 4.0"
+            gem.add_dependency("json", "~> 2.10")
+            gem.add_development_dependency("rubocop", "~> 1.70")
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - example.gemspec
+        YAML
+        "template/example.gemspec.example" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "TODO: Write a short summary"
+            spec.required_ruby_version = ">= 4.0"
+            spec.add_dependency("version_gem", "~> 1.1", ">= 1.1.9")
+
+            # NOTE: It is preferable to list development dependencies in the gemspec due to increased
+            #       visibility and discoverability.
+
+            spec.add_development_dependency("rake", "~> 13.0")
+          end
+        RUBY
+      })
+
+      apply = described_class.apply_project(root, env: {})
+      gemspec_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_example_gemspec"
+      end
+      gemspec_content = gemspec_report.fetch(:final_content)
+      runtime_index = gemspec_content.index(%(spec.add_dependency("json", "~> 2.10")))
+      separator_index = gemspec_content.index("# NOTE: It is preferable")
+      development_index = gemspec_content.index(%(spec.add_development_dependency("rubocop", "~> 1.70")))
+
+      expect(gemspec_content).to include(%(spec.add_dependency("json", "~> 2.10")))
+      expect(gemspec_content).to include(%(spec.add_development_dependency("rubocop", "~> 1.70")))
+      expect(runtime_index).to be < separator_index
+      expect(development_index).to be > separator_index
+      expect(File.read(File.join(root, "example.gemspec"))).to eq(gemspec_content)
+    end
+  end
+
   it "ports old gemspec emoji field replacement without duplicating the Gem::Specification block" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
