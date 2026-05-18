@@ -107,7 +107,7 @@ module Ast
         }
       end
 
-      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], reparse_after_render: nil, formatting_preservation: {}, render_strategy: nil)
+      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], reparse_after_render: nil, formatting_preservation: {}, secondary_formatting_metrics: nil, render_strategy: nil)
         {
           ok: ok,
           merged_source: merged_source,
@@ -128,8 +128,29 @@ module Ast
             line_diff_score: 0.0,
             character_diff_score: 0.0
           }.merge(formatting_preservation),
+          secondary_formatting_metrics: secondary_formatting_metrics || secondary_formatting_metrics_for(ok && merged_source),
           reparse_after_render: reparse_after_render
         }
+      end
+
+      def secondary_formatting_metrics_for(merged)
+        if merged
+          {
+            unchanged_line_churn: 0,
+            output_diff_size: 0,
+            source_fragment_retention: 1.0,
+            weighted: false,
+            diagnostics: ["canonical JSON has no trivia-preserving source fragments yet"]
+          }
+        else
+          {
+            unchanged_line_churn: 0,
+            output_diff_size: 0,
+            source_fragment_retention: 0.0,
+            weighted: false,
+            diagnostics: ["unresolved conflict did not produce a merged source-fragment retention measurement"]
+          }
+        end
       end
 
       def render_identity(request)

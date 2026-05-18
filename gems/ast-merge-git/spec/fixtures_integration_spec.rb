@@ -25,6 +25,7 @@ RSpec.describe Ast::Merge::Git do
       expect(result.fetch(:reparse_after_render)).to eq(expected.fetch(:reparse_after_render))
       expect(result.fetch(:render_report)).to eq(expected.fetch(:render_report)) if expected.key?(:render_report)
       expect(result.fetch(:formatting_preservation)).to eq(expected.fetch(:formatting_preservation)) if expected.key?(:formatting_preservation)
+      expect(result.fetch(:secondary_formatting_metrics)).to eq(expected.fetch(:secondary_formatting_metrics)) if expected.key?(:secondary_formatting_metrics)
       if result.fetch(:ok)
         expect(JSON.parse(result.fetch(:merged_source))).to eq(JSON.parse(JSON.generate(expected.fetch(:merged_json))))
       else
