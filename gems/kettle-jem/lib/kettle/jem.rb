@@ -14,6 +14,7 @@ require "set"
 require "time"
 require "uri"
 require "ruby/merge"
+require "bash/merge"
 require "json/merge"
 require "dotenv/merge"
 require "rbs/merge"
@@ -98,7 +99,7 @@ module Kettle
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
     }.freeze
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
-    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown json jsonc dotenv rbs text].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown json jsonc dotenv rbs bash text].freeze
     SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
     DEFAULT_RUBY_METHOD_MOVE_POLICY = "destination_order"
     SUPPORTED_YAML_COMMENT_MERGE_POLICIES = %w[preserve_destination template_fallback_when_missing template_documentation].freeze
@@ -3224,6 +3225,8 @@ module Kettle
         merge_result = merge_dotenv_template_source(template_content, destination_content, recipe)
       when :rbs
         merge_result = merge_rbs_template_source(template_content, destination_content, recipe)
+      when :bash
+        merge_result = merge_bash_template_source(template_content, destination_content, recipe)
       else
         return template_content
       end
@@ -3624,6 +3627,43 @@ module Kettle
       { ok: true, output: output, diagnostics: [] }
     rescue Rbs::Merge::Error => e
       { ok: false, output: destination_content, diagnostics: [{ kind: "rbs_merge_failed", message: e.message }] }
+    end
+
+    def bash_merge_options(recipe)
+      options = {
+        preference: (recipe.dig(:template_preference, :preference) || "destination").to_sym,
+        add_template_only_nodes: true,
+        freeze_token: recipe.dig(:template_preference, :freeze_token) || "kettle-jem",
+      }
+      if recipe.dig(:template_preference, :add_template_only_nodes) != nil
+        configured = DecisionPolicy.value_to_boolean(recipe.dig(:template_preference, :add_template_only_nodes))
+        options[:add_template_only_nodes] = configured unless configured.nil?
+      end
+      options
+    end
+
+    def merge_bash_template_source(template_content, destination_content, recipe)
+      availability = Bash::Merge.availability(source: template_content.to_s)
+      unless availability.available?
+        return {
+          ok: false,
+          output: destination_content,
+          diagnostics: [{
+            kind: "bash_merge_unavailable",
+            message: "bash structural merge is unavailable because TreeHaver node parser support for Bash is not available",
+            details: availability.diagnostics,
+          }],
+        }
+      end
+
+      output = Bash::Merge::SmartMerger.new(
+        template_content,
+        destination_content,
+        **bash_merge_options(recipe)
+      ).merge
+      { ok: true, output: output, diagnostics: [] }
+    rescue Bash::Merge::Error => e
+      { ok: false, output: destination_content, diagnostics: [{ kind: "bash_merge_failed", message: e.message }] }
     end
 
     def merge_appraisals_template_source(template_content, destination_content, facts:)

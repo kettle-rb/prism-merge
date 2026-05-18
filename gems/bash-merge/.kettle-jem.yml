@@ -44,7 +44,7 @@
 #     Optional explicit merge-engine hint for extensionless or ambiguous files.
 #     Supported values: ruby, gemfile, appraisals, gemspec, rakefile,
 #     yaml, markdown, text, json, jsonc, toml, dotenv, rbs
-#     Planned values requiring provider/runtime gating: bash
+#     Runtime-gated values requiring provider availability: bash
 #   max_recursion_depth:
 #     Limit for recursive merging when a merger supports it
 #

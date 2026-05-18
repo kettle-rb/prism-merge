@@ -163,6 +163,7 @@ Gem::Specification.new do |spec|
   # spec.add_development_dependency("vcr", ">= 4")                        # 6.0 claims to support ruby >= 2.3, but fails on ruby 2.4
   # spec.add_development_dependency("webmock", ">= 3")                    # Last version to support ruby >= 2.3
   spec.add_dependency("ast-merge", "= #{spec.version}")                  # ruby >= 4.0.0
+  spec.add_dependency("bash-merge", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("token-resolver", "~> 1.0", ">= 1.0.2")            # ruby >= 3.2.0
   spec.add_dependency("tree_haver", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("commonmarker-merge", "= #{spec.version}")         # ruby >= 4.0.0

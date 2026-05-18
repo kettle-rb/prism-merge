@@ -2154,6 +2154,53 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "loudly rejects explicit Bash structural routing when the node parser is unavailable" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-bash-template-gate", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          files:
+            scripts:
+              setup:
+                strategy: merge
+                file_type: bash
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: setup
+                target: scripts/setup
+        YAML
+        "template/setup.example" => <<~BASH,
+          #!/usr/bin/env bash
+          bundle install
+        BASH
+        "scripts/setup" => <<~BASH,
+          #!/usr/bin/env bash
+          bundle check || bundle install
+        BASH
+      })
+      availability = Bash::Merge::Availability.new(
+        grammar_path: nil,
+        language_pack_process: true,
+        node_parser: false,
+        diagnostics: [{ kind: "bash_node_parser_unavailable", message: "missing node adapter" }]
+      )
+      allow(Bash::Merge).to receive(:availability).and_return(availability)
+
+      expect do
+        described_class.plan_project(root, env: {})
+      end.to raise_error(ArgumentError, /failed to merge bash template scripts\/setup: bash structural merge is unavailable/)
+    end
+  end
+
   it "refreshes mise trust after templating mise.toml when mise is available" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
