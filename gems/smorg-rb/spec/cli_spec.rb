@@ -176,6 +176,8 @@ RSpec.describe Smorg::RB do
     expect(report.dig("render_report", "strategy")).to eq("owned_region_conflict_markers")
     expect(report.dig("owned_regions", 0, "owner_path")).to eq("/enabled")
     expect(report.dig("owned_regions", 0, "region_kind")).to eq("node")
+    expect(report.dig("profile", "profile_id")).to eq("json.keyed-object")
+    expect(report.dig("profile", "language")).to eq("json")
   end
 
   it "conforms to the git-driver JSON integration fixture in a repository" do
