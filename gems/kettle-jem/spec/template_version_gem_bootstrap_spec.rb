@@ -43,7 +43,7 @@ RSpec.describe "Kettle/Jem template version_gem bootstrap" do
         include(
           name: "version_gem_bootstrap",
           status: "applied",
-          changed_files: include("lib/plain/merge.rb", "lib/plain/merge/version.rb")
+          changed_files: include("lib/plain/merge.rb", "lib/plain/merge/version.rb", "sig/plain/merge/version.rbs")
         )
       )
       entrypoint = File.read(File.join(root, "lib/plain/merge.rb"))
@@ -53,6 +53,11 @@ RSpec.describe "Kettle/Jem template version_gem bootstrap" do
       RUBY
       expect(entrypoint.index('require_relative "merge/version"')).to be < entrypoint.index("Plain::Merge::Version.class_eval do")
       expect(File.read(File.join(root, "lib/plain/merge/version.rb"))).to include('VERSION = "7.0.0"')
+      signature = File.read(File.join(root, "sig/plain/merge/version.rbs"))
+      expect(signature).to include("module Plain")
+      expect(signature).to include("module Merge")
+      expect(signature).to include("module Version")
+      expect(signature.scan("VERSION: String").length).to eq(2)
     end
   end
 end

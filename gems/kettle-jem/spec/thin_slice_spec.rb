@@ -2109,6 +2109,51 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "uses RBS structural merge for RBS template files" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-rbs-template-merge", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: sig/example/version.rbs
+                target: sig/example/version.rbs
+        YAML
+        "template/sig/example/version.rbs.example" => <<~RBS,
+          module Example
+            module Version
+              VERSION: String
+            end
+
+            VERSION: String
+          end
+        RBS
+        "sig/example/version.rbs" => <<~RBS,
+          module Example
+            module Version
+              VERSION: "1.2.3"
+            end
+          end
+        RBS
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find { |entry| entry.fetch(:relative_path) == "sig/example/version.rbs" }
+
+      expect(report.fetch(:final_content)).to include('VERSION: "1.2.3"')
+      expect(report.fetch(:final_content)).to include("VERSION: String")
+    end
+  end
+
   it "refreshes mise trust after templating mise.toml when mise is available" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
@@ -2215,9 +2260,10 @@ RSpec.describe Kettle::Jem do
       expect(install.fetch(:install_steps)).to include(
         name: "version_gem_bootstrap",
         status: "applied",
-        changed_files: ["lib/example/gem/version.rb", "lib/example/gem.rb"],
+        changed_files: ["lib/example/gem/version.rb", "lib/example/gem.rb", "sig/example/gem/version.rbs"],
         version_path: "lib/example/gem/version.rb",
-        entrypoint_path: "lib/example/gem.rb"
+        entrypoint_path: "lib/example/gem.rb",
+        signature_path: "sig/example/gem/version.rbs"
       )
       expect(install.fetch(:install_phase_reports)).to include(hash_including(
         phase: "post_template",
@@ -2229,6 +2275,11 @@ RSpec.describe Kettle::Jem do
       expect(File.read(entrypoint_path)).to include('require "version_gem"')
       expect(File.read(entrypoint_path)).to include('require_relative "gem/version"')
       expect(File.read(entrypoint_path)).to include("Example::Gem::Version.class_eval do")
+      signature = File.read(File.join(root, "sig", "example", "gem", "version.rbs"))
+      expect(signature).to include("module Example")
+      expect(signature).to include("module Gem")
+      expect(signature).to include("module Version")
+      expect(signature).to include("VERSION: String")
       expect(commands).to eq([
         %w[bundle binstubs --all],
         ["bundle", "exec", "kettle-jem", "--skip-commit", "--only", "example-gem.gemspec"],

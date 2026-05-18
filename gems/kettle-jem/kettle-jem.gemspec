@@ -173,6 +173,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency("markly-merge", "= #{spec.version}")               # ruby >= 4.0.0
   spec.add_dependency("prism-merge", "= #{spec.version}")                # ruby >= 4.0.0
   spec.add_dependency("psych-merge", "= #{spec.version}")                # ruby >= 4.0.0
+  spec.add_dependency("rbs-merge", "= #{spec.version}")                  # ruby >= 4.0.0
   spec.add_dependency("ruby-merge", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("toml-merge", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("yaml-merge", "= #{spec.version}")                 # ruby >= 4.0.0

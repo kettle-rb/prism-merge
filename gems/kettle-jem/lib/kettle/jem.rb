@@ -16,6 +16,7 @@ require "uri"
 require "ruby/merge"
 require "json/merge"
 require "dotenv/merge"
+require "rbs/merge"
 require "token/resolver"
 require "toml-merge"
 require "psych-merge"
@@ -97,7 +98,7 @@ module Kettle
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
     }.freeze
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
-    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown json jsonc dotenv text].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown json jsonc dotenv rbs text].freeze
     SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
     DEFAULT_RUBY_METHOD_MOVE_POLICY = "destination_order"
     SUPPORTED_YAML_COMMENT_MERGE_POLICIES = %w[preserve_destination template_fallback_when_missing template_documentation].freeze
@@ -3221,6 +3222,8 @@ module Kettle
         merge_result = merge_json_template_source(template_content, destination_content, recipe, file_type)
       when :dotenv
         merge_result = merge_dotenv_template_source(template_content, destination_content, recipe)
+      when :rbs
+        merge_result = merge_rbs_template_source(template_content, destination_content, recipe)
       else
         return template_content
       end
@@ -3599,6 +3602,30 @@ module Kettle
       { ok: false, output: destination_content, diagnostics: [{ kind: "dotenv_merge_failed", message: e.message }] }
     end
 
+    def rbs_merge_options(recipe)
+      options = {
+        preference: (recipe.dig(:template_preference, :preference) || "destination").to_sym,
+        add_template_only_nodes: true,
+        freeze_token: recipe.dig(:template_preference, :freeze_token) || "kettle-jem",
+      }
+      if recipe.dig(:template_preference, :add_template_only_nodes) != nil
+        configured = DecisionPolicy.value_to_boolean(recipe.dig(:template_preference, :add_template_only_nodes))
+        options[:add_template_only_nodes] = configured unless configured.nil?
+      end
+      options
+    end
+
+    def merge_rbs_template_source(template_content, destination_content, recipe)
+      output = Rbs::Merge::SmartMerger.new(
+        template_content,
+        destination_content,
+        **rbs_merge_options(recipe)
+      ).merge
+      { ok: true, output: output, diagnostics: [] }
+    rescue Rbs::Merge::Error => e
+      { ok: false, output: destination_content, diagnostics: [{ kind: "rbs_merge_failed", message: e.message }] }
+    end
+
     def merge_appraisals_template_source(template_content, destination_content, facts:)
       template = appraisal_blocks(template_content)
       destination = appraisal_blocks(destination_content)
@@ -3867,6 +3894,7 @@ module Kettle
       return :json if extension == ".json"
       return :markdown if extension.match?(/\A\.md(?:own)?\z/)
       return :dotenv if basename.start_with?(".env") || basename.end_with?(".env") || extension == ".env"
+      return :rbs if extension == ".rbs"
 
       :text
     end
@@ -5057,6 +5085,7 @@ module Kettle
       entrypoint_require = package_name.tr("-", "/")
       version_path = File.join("lib", entrypoint_require, "version.rb")
       entrypoint_path = File.join("lib", "#{entrypoint_require}.rb")
+      signature_path = File.join("sig", entrypoint_require, "version.rbs")
       namespace = existing_entrypoint_version_namespace(project_root, entrypoint_path) ||
         existing_version_namespace(project_root, version_path) ||
         facts.dig(:rubygems, :namespace).to_s
@@ -5079,6 +5108,7 @@ module Kettle
         version_gem_bootstrap_entrypoint_content(current_entrypoint, namespace: namespace, entrypoint_require: entrypoint_require)
       end
       changes << write_if_changed(project_root, entrypoint_path, entrypoint_content)
+      changes << write_if_changed(project_root, signature_path, version_gem_signature_file_content(namespace: namespace))
       changed_files = changes.compact
 
       {
@@ -5087,6 +5117,7 @@ module Kettle
         changed_files: changed_files,
         version_path: version_path,
         entrypoint_path: entrypoint_path,
+        signature_path: signature_path,
       }
     end
 
@@ -5115,6 +5146,17 @@ module Kettle
       sections << wrap_ruby_namespace(namespace, []).join("\n")
       sections << version_gem_class_eval_block(namespace).chomp
       "#{sections.reject(&:empty?).join("\n\n")}\n"
+    end
+
+    def version_gem_signature_file_content(namespace:)
+      body = [
+        "module Version",
+        "  VERSION: String",
+        "end",
+        "VERSION: String",
+      ]
+
+      "#{wrap_ruby_namespace(namespace, body).join("\n")}\n"
     end
 
     def version_gem_bootstrap_entrypoint_content(content, namespace:, entrypoint_require:)
