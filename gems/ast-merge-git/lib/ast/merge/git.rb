@@ -245,6 +245,8 @@ module Ast
       end
 
       def json_member_source(source, key)
+        return nil unless source.include?("\"#{key}\"")
+
         range = json_key_byte_range(source, key)
         return nil if range.fetch(:end) <= range.fetch(:start)
 
@@ -260,11 +262,14 @@ module Ast
           next unless path.start_with?("/") && path.count("/") == 1
 
           key = path.delete_prefix("/")
+          base_region = json_member_source(request.fetch(:base_source), key)
+          next unless base_region && json_member_source(request.fetch(:ours_source), key) && json_member_source(request.fetch(:theirs_source), key)
+
           {
             owner_path: path,
             node_id: "json:key:#{key}",
             region_kind: "node",
-            byte_range: json_key_byte_range(request.fetch(:base_source), key),
+            byte_range: base_region.fetch(:byte_range),
             line_range: {start: 1, end: 1},
             attached_spans: [],
             backend_id: "native-json",
