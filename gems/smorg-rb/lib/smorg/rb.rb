@@ -205,6 +205,7 @@ module Smorg
         ok: ok,
         exit_code: exit_code,
         fallbacks: fallbacks,
+        change_classifications: result.fetch(:change_classifications, []),
         owned_regions: result.fetch(:owned_regions, []),
         render_report: result[:render_report],
         reparse_after_render: result[:reparse_after_render],
@@ -404,6 +405,7 @@ module Smorg
 
     def merge3_result(result)
       merge3_report_fields = {
+        change_classifications: result.fetch(:change_classifications, []),
         reparse_after_render: result[:reparse_after_render],
         formatting_preservation: result[:formatting_preservation],
         secondary_formatting_metrics: result[:secondary_formatting_metrics],
