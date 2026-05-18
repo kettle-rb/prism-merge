@@ -80,7 +80,7 @@ module Smorg
             applied: true
           }
         end
-        report_exit = write_merge_driver_machine_report(options[:report], effective_path, false, EXIT_UNRESOLVED_CONFLICT, fallbacks, result.fetch(:diagnostics, []), stderr)
+        report_exit = write_merge_driver_machine_report(options[:report], effective_path, false, EXIT_UNRESOLVED_CONFLICT, fallbacks, result.fetch(:owned_regions, []), result[:render_report], result.fetch(:diagnostics, []), stderr)
         return report_exit unless report_exit == EXIT_SUCCESS
         return EXIT_UNRESOLVED_CONFLICT if options[:check_only]
         File.write(options[:output] || options[:current], output) if output
@@ -93,13 +93,13 @@ module Smorg
 
       if options[:check_only]
         exit_code = options[:exit_code] && output != current_source ? EXIT_UNRESOLVED_CONFLICT : EXIT_SUCCESS
-        report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, exit_code, [], result.fetch(:diagnostics, []), stderr)
+        report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, exit_code, [], result.fetch(:owned_regions, []), result[:render_report], result.fetch(:diagnostics, []), stderr)
         return report_exit unless report_exit == EXIT_SUCCESS
         return exit_code
       end
 
       File.write(options[:output] || options[:current], output)
-      report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, EXIT_SUCCESS, [], result.fetch(:diagnostics, []), stderr)
+      report_exit = write_merge_driver_machine_report(options[:report], effective_path, true, EXIT_SUCCESS, [], result.fetch(:owned_regions, []), result[:render_report], result.fetch(:diagnostics, []), stderr)
       return report_exit unless report_exit == EXIT_SUCCESS
       EXIT_SUCCESS
     rescue Errno::ENOENT, Errno::EACCES => e
@@ -196,7 +196,7 @@ module Smorg
       options
     end
 
-    def write_merge_driver_machine_report(report_path, path_name, ok, exit_code, fallbacks, diagnostics, stderr)
+    def write_merge_driver_machine_report(report_path, path_name, ok, exit_code, fallbacks, owned_regions, render_report, diagnostics, stderr)
       return EXIT_SUCCESS unless report_path
 
       report = {
@@ -205,6 +205,8 @@ module Smorg
         ok: ok,
         exit_code: exit_code,
         fallbacks: fallbacks,
+        owned_regions: owned_regions,
+        render_report: render_report,
         diagnostics: diagnostics
       }
       File.write(report_path, JSON.pretty_generate(Ast::Merge.json_ready(report)) + "\n")
@@ -401,6 +403,8 @@ module Smorg
           ok: true,
           diagnostics: result.fetch(:diagnostics),
           output: result.fetch(:merged_source),
+          owned_regions: result.fetch(:owned_regions, []),
+          render_report: result.fetch(:render_report),
           policies: []
         }
       elsif !result[:ok] && result[:conflicted_source]
@@ -408,12 +412,16 @@ module Smorg
           ok: false,
           diagnostics: result.fetch(:diagnostics),
           output: result.fetch(:conflicted_source),
+          owned_regions: result.fetch(:owned_regions, []),
+          render_report: result.fetch(:render_report),
           policies: []
         }
       else
         {
           ok: false,
           diagnostics: result.fetch(:diagnostics),
+          owned_regions: result.fetch(:owned_regions, []),
+          render_report: result.fetch(:render_report),
           policies: []
         }
       end

@@ -161,6 +161,23 @@ RSpec.describe Smorg::RB do
     expect(stderr.string).to include("merge_conflict")
   end
 
+  it "includes owned-region placement in merge-driver reports" do
+    ancestor = write_file(@dir, "ancestor.json", '{"name":"demo","enabled":true}')
+    current = write_file(@dir, "current.json", '{"name":"demo","enabled":false}')
+    other = write_file(@dir, "other.json", '{"name":"demo","enabled":"yes"}')
+    report_path = File.join(@dir, "merge-report.json")
+    stdout = StringIO.new
+    stderr = StringIO.new
+
+    exit_code = described_class.run(["merge-driver", "--report", report_path, ancestor, current, other, "package.json"], stdout: stdout, stderr: stderr)
+
+    expect(exit_code).to eq(described_class::EXIT_UNRESOLVED_CONFLICT)
+    report = JSON.parse(File.read(report_path))
+    expect(report.dig("render_report", "strategy")).to eq("owned_region_conflict_markers")
+    expect(report.dig("owned_regions", 0, "owner_path")).to eq("/enabled")
+    expect(report.dig("owned_regions", 0, "region_kind")).to eq("node")
+  end
+
   it "conforms to the git-driver JSON integration fixture in a repository" do
     git_driver_json_fixture.fetch("cases").each do |test_case|
       Dir.mktmpdir("smorg-rb-git-driver-") do |dir|
