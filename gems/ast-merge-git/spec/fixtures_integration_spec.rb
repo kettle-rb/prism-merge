@@ -24,6 +24,7 @@ RSpec.describe Ast::Merge::Git do
       expect(result.fetch(:conflicts).length).to eq(expected.fetch(:conflict_count)), test_case.fetch(:case_id)
       expect(result.fetch(:reparse_after_render)).to eq(expected.fetch(:reparse_after_render))
       expect(result.fetch(:render_report)).to eq(expected.fetch(:render_report)) if expected.key?(:render_report)
+      expect(result.fetch(:formatting_preservation)).to eq(expected.fetch(:formatting_preservation)) if expected.key?(:formatting_preservation)
       if result.fetch(:ok)
         expect(JSON.parse(result.fetch(:merged_source))).to eq(JSON.parse(JSON.generate(expected.fetch(:merged_json))))
       else
