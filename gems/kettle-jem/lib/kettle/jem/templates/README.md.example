@@ -12,7 +12,12 @@
 
 `if ci_badges.map(&:color).all? { it == "green"}` 👇️ send money so I can do more of this. FLOSS maintenance is now my full-time job.
 
+<!-- KJ:OPEN_COLLECTIVE:START -->
 [![OpenCollective Backers][🖇osc-backers-i]][🖇osc-backers] [![OpenCollective Sponsors][🖇osc-sponsors-i]][🖇osc-sponsors] [![Sponsor Me on Github][🖇sponsor-img]][🖇sponsor] [![Liberapay Goal Progress][⛳liberapay-img]][⛳liberapay] [![Donate on PayPal][🖇paypal-img]][🖇paypal] [![Buy me a coffee][🖇buyme-small-img]][🖇buyme] [![Donate on Polar][🖇polar-img]][🖇polar] [![Donate at ko-fi.com][🖇kofi-img]][🖇kofi]
+<!-- KJ:OPEN_COLLECTIVE:END -->
+<!-- KJ:NO_OPEN_COLLECTIVE:START -->
+[![Sponsor Me on Github][🖇sponsor-img]][🖇sponsor] [![Liberapay Goal Progress][⛳liberapay-img]][⛳liberapay] [![Donate on PayPal][🖇paypal-img]][🖇paypal] [![Buy me a coffee][🖇buyme-small-img]][🖇buyme] [![Donate on Polar][🖇polar-img]][🖇polar] [![Donate at ko-fi.com][🖇kofi-img]][🖇kofi]
+<!-- KJ:NO_OPEN_COLLECTIVE:END -->
 
 <details>
     <summary>👣 How will this project approach the September 2025 hostile takeover of RubyGems? 🚑️</summary>
@@ -117,8 +122,13 @@ While {KJ|GH_ORG} tools are free software and will always be, the project would 
 Raising a monthly budget of... "dollars" would make the project more sustainable.
 
 We welcome both individual and corporate sponsors! We also offer a
-wide array of funding channels to account for your preferences
-(although currently [Open Collective][🖇osc] is our preferred funding platform).
+wide array of funding channels to account for your preferences.
+<!-- KJ:OPEN_COLLECTIVE:START -->
+Currently, [Open Collective][🖇osc] is our preferred funding platform.
+<!-- KJ:OPEN_COLLECTIVE:END -->
+<!-- KJ:NO_OPEN_COLLECTIVE:START -->
+Currently, [GitHub Sponsors][🖇sponsor], and [Liberapay][⛳liberapay] are our preferred funding platforms.
+<!-- KJ:NO_OPEN_COLLECTIVE:END -->
 
 **If you're working in a company that's making significant use of {KJ|GH_ORG} tools we'd
 appreciate it if you suggest to your company to become a {KJ|GH_ORG} sponsor.**
@@ -127,13 +137,16 @@ You can support the development of {KJ|GH_ORG} tools via
 [GitHub Sponsors][🖇sponsor],
 [Liberapay][⛳liberapay],
 [PayPal][🖇paypal],
+<!-- KJ:OPEN_COLLECTIVE:START -->
 [Open Collective][🖇osc]
+<!-- KJ:OPEN_COLLECTIVE:END -->
 and [Tidelift][🏙️entsup-tidelift].
 
 | 📍 NOTE                                                                                                                                                                                                              |
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | If doing a sponsorship in the form of donation is problematic for your company <br/> from an accounting standpoint, we'd recommend the use of Tidelift, <br/> where you can get a support-like subscription instead. |
 
+<!-- KJ:OPEN_COLLECTIVE:START -->
 ### Open Collective for Individuals
 
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/{KJ|GH_ORG}#backer)]
@@ -155,6 +168,7 @@ No sponsors yet. Be the first!
 <!-- OPENCOLLECTIVE-ORGANIZATIONS:END -->
 
 [kettle-readme-backers]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/blob/main/exe/kettle-readme-backers
+<!-- KJ:OPEN_COLLECTIVE:END -->
 
 ### Another way to support open-source
 
@@ -274,7 +288,12 @@ To join the community or get help 👇️ Join the Discord.
 
 To say "thanks!" ☝️ Join the Discord or 👇️ send money.
 
+<!-- KJ:OPEN_COLLECTIVE:START -->
 [![Sponsor {KJ|GH_ORG}/{KJ|GEM_NAME} on Open Source Collective][🖇osc-all-bottom-img]][🖇osc] 💌 [![Sponsor me on GitHub Sponsors][🖇sponsor-bottom-img]][🖇sponsor] 💌 [![Sponsor me on Liberapay][⛳liberapay-bottom-img]][⛳liberapay] 💌 [![Donate on PayPal][🖇paypal-bottom-img]][🖇paypal]
+<!-- KJ:OPEN_COLLECTIVE:END -->
+<!-- KJ:NO_OPEN_COLLECTIVE:START -->
+[![Sponsor me on GitHub Sponsors][🖇sponsor-bottom-img]][🖇sponsor] 💌 [![Sponsor me on Liberapay][⛳liberapay-bottom-img]][⛳liberapay] 💌 [![Donate on PayPal][🖇paypal-bottom-img]][🖇paypal]
+<!-- KJ:NO_OPEN_COLLECTIVE:END -->
 
 ### Please give the project a star ⭐ ♥.
 
@@ -283,6 +302,7 @@ Thanks for RTFM. ☺️
 [⛳liberapay-img]: https://img.shields.io/liberapay/goal/{KJ|FUNDING:LIBERAPAY}.svg?logo=liberapay&color=a51611&style=flat
 [⛳liberapay-bottom-img]: https://img.shields.io/liberapay/goal/{KJ|FUNDING:LIBERAPAY}.svg?style=for-the-badge&logo=liberapay&color=a51611
 [⛳liberapay]: https://liberapay.com/{KJ|FUNDING:LIBERAPAY}/donate
+<!-- KJ:OPEN_COLLECTIVE:START -->
 [🖇osc-all-img]: https://img.shields.io/opencollective/all/{KJ|GH_ORG}
 [🖇osc-sponsors-img]: https://img.shields.io/opencollective/sponsors/{KJ|GH_ORG}
 [🖇osc-backers-img]: https://img.shields.io/opencollective/backers/{KJ|GH_ORG}
@@ -294,6 +314,7 @@ Thanks for RTFM. ☺️
 [🖇osc-sponsors-bottom-img]: https://img.shields.io/opencollective/sponsors/{KJ|GH_ORG}?style=for-the-badge
 [🖇osc-backers-bottom-img]: https://img.shields.io/opencollective/backers/{KJ|GH_ORG}?style=for-the-badge
 [🖇osc]: https://opencollective.com/{KJ|GH_ORG}
+<!-- KJ:OPEN_COLLECTIVE:END -->
 [🖇sponsor-img]: https://img.shields.io/badge/Sponsor_Me!-{KJ|GH:USER}.svg?style=social&logo=github
 [🖇sponsor-bottom-img]: https://img.shields.io/badge/Sponsor_Me!-{KJ|GH:USER}-blue?style=for-the-badge&logo=github
 [🖇sponsor]: https://github.com/sponsors/{KJ|GH:USER}

@@ -3147,7 +3147,22 @@ module Kettle
         engines: facts.dig(:rubygems, :engines)
       )
       processed = normalize_readme_project_heading(processed, facts)
+      processed = apply_readme_conditional_blocks(processed, facts)
       apply_monorepo_subgem_readme_recipe(processed, facts)
+    end
+
+    def apply_readme_conditional_blocks(content, facts)
+      open_collective_enabled = !facts.dig(:funding, :open_collective_disabled)
+      processed = apply_markdown_conditional_block(content, "OPEN_COLLECTIVE", keep: open_collective_enabled)
+      apply_markdown_conditional_block(processed, "NO_OPEN_COLLECTIVE", keep: !open_collective_enabled)
+    end
+
+    def apply_markdown_conditional_block(content, name, keep:)
+      content.to_s.gsub(
+        /^<!-- KJ:#{Regexp.escape(name)}:START -->\r?\n(.*?)^<!-- KJ:#{Regexp.escape(name)}:END -->\r?\n?/m
+      ) do
+        keep ? Regexp.last_match(1) : ""
+      end
     end
 
     def apply_monorepo_subgem_readme_recipe(content, facts)
@@ -6492,7 +6507,7 @@ module Kettle
     def preferred_template_source(template_root, configured_source, opencollective_disabled: false)
       base = configured_source.sub(/\.example\z/, "")
       candidates = []
-      candidates << "#{base}.no-osc.example" if opencollective_disabled
+      candidates << "#{base}.no-osc.example" if opencollective_disabled && base != "README.md"
       candidates << "#{base}.example"
       candidates << configured_source
       candidates.find { |relative_path| File.exist?(File.join(template_root, relative_path)) }

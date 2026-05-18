@@ -670,10 +670,10 @@ RSpec.describe Kettle::Jem do
         a_hash_including(
           target_path: "README.md",
           configured_source: "README.md",
-          selected_source: "README.md.no-osc.example",
-          source_relative_path: "README.md.no-osc.example",
+          selected_source: "README.md.example",
+          source_relative_path: "README.md.example",
           source_root: "packaged",
-          selection_reason: "opencollective_disabled_no_osc_variant",
+          selection_reason: "default_example_variant",
           apply: false
         ),
         a_hash_including(
@@ -691,10 +691,10 @@ RSpec.describe Kettle::Jem do
       end
       expect(template_report.fetch(:changed)).to be(false)
       expect(template_report.dig(:metadata, :template_source_preference, :selected_source)).to eq(
-        "README.md.no-osc.example"
+        "README.md.example"
       )
       expect(template_report.dig(:request_envelope, :request, :runtime_context, :template_source_preference, :selection_reason)).to eq(
-        "opencollective_disabled_no_osc_variant"
+        "default_example_variant"
       )
       funding_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "github_funding_yml" }
       expect(funding_report.fetch(:final_content)).not_to include("open_collective")
@@ -711,6 +711,51 @@ RSpec.describe Kettle::Jem do
       expect(apply[:changed_files]).to include(".opencollective.yml", ".github/workflows/opencollective.yml")
       expect(File).not_to exist(File.join(root, ".opencollective.yml"))
       expect(File).not_to exist(File.join(root, ".github/workflows/opencollective.yml"))
+    end
+  end
+
+  it "applies the packaged README Open Collective recipe from the canonical template" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-packaged-readme-no-opencollective", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+            spec.homepage = "https://github.com/acme/example"
+            spec.licenses = ["MIT"]
+            spec.required_ruby_version = ">= 3.2"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          funding:
+            open_collective: false
+          templates:
+            root: packaged
+            apply: true
+            entries:
+              - README.md
+          files:
+            README.md:
+              strategy: accept_template
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: {skip_commit: true})
+      readme_report = apply.fetch(:recipe_reports).find do |report|
+        report.fetch(:recipe_name) == "template_source_application_README_md"
+      end
+      readme = readme_report.fetch(:final_content)
+
+      expect(readme_report.dig(:metadata, :template_source_preference, :selected_source)).to eq("README.md.example")
+      expect(readme).not_to include("KJ:OPEN_COLLECTIVE")
+      expect(readme).not_to include("KJ:NO_OPEN_COLLECTIVE")
+      expect(readme).not_to include("opencollective")
+      expect(readme).not_to include("Open Collective")
+      expect(readme).not_to include("kettle-readme-backers")
+      expect(readme).to include("[![Sponsor Me on Github][🖇sponsor-img]][🖇sponsor]")
+      expect(File.read(File.join(root, "README.md"))).to eq(readme)
     end
   end
 
@@ -5070,7 +5115,6 @@ RSpec.describe Kettle::Jem do
     template_root = described_class::PACKAGED_TEMPLATE_ROOT
 
     expect(File.read(File.join(template_root, "README.md.example"))).not_to include("### 🔒 Secure Installation")
-    expect(File.read(File.join(template_root, "README.md.no-osc.example"))).not_to include("### 🔒 Secure Installation")
   end
 
   it "projects RuboCop LTS template tokens from minimum Ruby" do
