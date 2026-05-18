@@ -128,6 +128,9 @@ RSpec.describe Smorg::RB do
         expected.fetch("stderr_contains", []).each do |needle|
           expect(stderr.string).to include(needle), test_case.fetch("case_id")
         end
+        expected.fetch("stderr_not_contains", []).each do |needle|
+          expect(stderr.string).not_to include(needle), test_case.fetch("case_id")
+        end
         report = JSON.parse(File.read(report_path))
         expected_report = expected.fetch("machine_report")
         expect(report.fetch("ok")).to eq(expected_report.fetch("ok")), test_case.fetch("case_id")
