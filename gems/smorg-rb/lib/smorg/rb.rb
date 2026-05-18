@@ -66,7 +66,8 @@ module Smorg
       profile_exit = report_and_enforce_profile(options, stdout, stderr)
       return profile_exit unless profile_exit == EXIT_SUCCESS
 
-      result = merge_by_path(effective_path, settings[:language], settings[:conflict_marker_size], ancestor_source, current_source, other_source)
+      fallback_policy = options[:strict] ? "none" : options[:fallback]
+      result = merge_by_path(effective_path, settings[:language], settings[:conflict_marker_size], fallback_policy, ancestor_source, current_source, other_source)
       output = result[:output]
       unless result[:ok]
         print_diagnostics(stderr, result)
@@ -377,7 +378,7 @@ module Smorg
       EXIT_SUCCESS
     end
 
-    def merge_by_path(path_name, language, conflict_marker_size, ancestor_source, current_source, other_source)
+    def merge_by_path(path_name, language, conflict_marker_size, fallback_policy, ancestor_source, current_source, other_source)
       case normalize_language(language, path_name)
       when "go"
         Go::Merge.merge_go(other_source, current_source, "go")
@@ -391,7 +392,7 @@ module Smorg
             language: "json",
             dialect: "json",
             profile_id: "json.keyed-object",
-            fallback_policy: "none",
+            fallback_policy: fallback_policy,
             conflict_marker_size: conflict_marker_size,
             render_policy: "canonical"
           )
