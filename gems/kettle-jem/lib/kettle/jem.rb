@@ -14,6 +14,7 @@ require "set"
 require "time"
 require "uri"
 require "ruby/merge"
+require "json/merge"
 require "dotenv/merge"
 require "token/resolver"
 require "toml-merge"
@@ -96,7 +97,7 @@ module Kettle
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
     }.freeze
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
-    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown dotenv text].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown json jsonc dotenv text].freeze
     SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
     DEFAULT_RUBY_METHOD_MOVE_POLICY = "destination_order"
     SUPPORTED_YAML_COMMENT_MERGE_POLICIES = %w[preserve_destination template_fallback_when_missing template_documentation].freeze
@@ -3216,6 +3217,8 @@ module Kettle
         )
       when :toml
         merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
+      when :json, :jsonc
+        merge_result = merge_json_template_source(template_content, destination_content, recipe, file_type)
       when :dotenv
         merge_result = merge_dotenv_template_source(template_content, destination_content, recipe)
       else
@@ -3548,6 +3551,30 @@ module Kettle
       { comment_merge_policy: policy.to_sym }
     end
 
+    def json_merge_options(recipe)
+      options = {
+        preference: (recipe.dig(:template_preference, :preference) || "destination").to_sym,
+        add_template_only_nodes: true,
+        freeze_token: recipe.dig(:template_preference, :freeze_token) || "kettle-jem",
+      }
+      if recipe.dig(:template_preference, :add_template_only_nodes) != nil
+        configured = DecisionPolicy.value_to_boolean(recipe.dig(:template_preference, :add_template_only_nodes))
+        options[:add_template_only_nodes] = configured unless configured.nil?
+      end
+      options
+    end
+
+    def merge_json_template_source(template_content, destination_content, recipe, file_type)
+      output = Json::Merge::SmartMerger.new(
+        template_content,
+        destination_content,
+        **json_merge_options(recipe)
+      ).merge
+      { ok: true, output: output, diagnostics: [] }
+    rescue Json::Merge::Error => e
+      { ok: false, output: destination_content, diagnostics: [{ kind: "#{file_type}_merge_failed", message: e.message }] }
+    end
+
     def dotenv_merge_options(recipe)
       options = {
         preference: (recipe.dig(:template_preference, :preference) || "destination").to_sym,
@@ -3836,6 +3863,8 @@ module Kettle
         RUBY_TEMPLATE_EXTENSIONS.include?(extension)
       return :yaml if extension.match?(/\A\.ya?ml\z/) || File.basename(relative_path).casecmp("citation.cff").zero?
       return :toml if extension == ".toml"
+      return :jsonc if extension == ".jsonc"
+      return :json if extension == ".json"
       return :markdown if extension.match?(/\A\.md(?:own)?\z/)
       return :dotenv if basename.start_with?(".env") || basename.end_with?(".env") || extension == ".env"
 

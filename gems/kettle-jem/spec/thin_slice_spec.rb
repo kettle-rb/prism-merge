@@ -2020,6 +2020,95 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "uses JSON structural merge for JSON template files" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-json-template-merge", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: devcontainer.json
+                target: .devcontainer/devcontainer.json
+        YAML
+        "template/devcontainer.json.example" => <<~JSON,
+          {
+            "name": "template",
+            "features": {
+              "ghcr.io/devcontainers/features/git:1": {}
+            }
+          }
+        JSON
+        ".devcontainer/devcontainer.json" => <<~JSON,
+          {
+            "name": "destination"
+          }
+        JSON
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find { |entry| entry.fetch(:relative_path) == ".devcontainer/devcontainer.json" }
+
+      expect(report.fetch(:final_content)).to include('"name": "destination"')
+      expect(report.fetch(:final_content)).to include('"ghcr.io/devcontainers/features/git:1": {}')
+    end
+  end
+
+  it "uses JSONC structural merge for JSONC template files" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-jsonc-template-merge", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: settings.jsonc
+                target: .vscode/settings.jsonc
+        YAML
+        "template/settings.jsonc.example" => <<~JSONC,
+          {
+            // Shared editor defaults
+            "editor.tabSize": 2,
+            "files.trimTrailingWhitespace": true
+          }
+        JSONC
+        ".vscode/settings.jsonc" => <<~JSONC,
+          {
+            // Local documentation must survive
+            "editor.tabSize": 4
+          }
+        JSONC
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find { |entry| entry.fetch(:relative_path) == ".vscode/settings.jsonc" }
+
+      expect(report.fetch(:final_content)).to eq(<<~JSONC)
+        {
+          // Local documentation must survive
+          "editor.tabSize": 4,
+          "files.trimTrailingWhitespace": true
+        }
+      JSONC
+    end
+  end
+
   it "refreshes mise trust after templating mise.toml when mise is available" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
