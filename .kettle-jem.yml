@@ -84,7 +84,7 @@
 # Set this to a single emoji that represents your gem. Examples: 🪙 🔑 🛠️ 🔮
 # This key is REQUIRED. kettle-jem will abort if it is absent.
 # ENV override: KJ_PROJECT_EMOJI
-project_emoji: 💎
+project_emoji: ""
 
 # Engines this project supports.
 # List the Ruby engines that your gem targets. kettle-jem uses this to decide
@@ -193,8 +193,7 @@ readme:
 #   - When MIT (or AGPL), a PolyForm variant, AND LicenseRef-Big-Time-Public-License
 #     are all present, a use-case guide table is added to README and LICENSE.md.
 licenses:
-  - AGPL-3.0-only
-  - PolyForm-Small-Business-1.0.0
+  - MIT
 
 # Machine / automation accounts to exclude from generated copyright output.
 #
@@ -216,7 +215,7 @@ machine_users:
 # Divergence is currently measured as the percent of produced files that would
 # change or be added during templating (100 - unchanged-file score).
 # ENV override: KJ_MIN_DIVERGENCE_THRESHOLD
-min_divergence_threshold: 
+min_divergence_threshold:
 
 # Template source inventory.
 # The packaged inventory is the canonical kettle-jem project template. It
@@ -225,19 +224,16 @@ min_divergence_threshold:
 templates:
   root: packaged
   apply: true
-  profile: monorepo-subgem
+  profile: monorepo-root
   entries:
-    - README.md
-    - source: gem.gemspec
-      target: ast-crispr.gemspec
-    - LICENSE.md
-    - MIT.md
-    - AGPL-3.0-only.md
-    - PolyForm-Noncommercial-1.0.0.md
-    - PolyForm-Small-Business-1.0.0.md
-    - Big-Time-Public-License.md
-    - certs/pboling.pem
-    - tmp/.gitignore
+    - CHANGELOG.md
+    - CODE_OF_CONDUCT.md
+    - CONTRIBUTING.md
+    - FUNDING.md
+    - IRP.md
+    - RUBOCOP.md
+    - SECURITY.md
+    - .github/FUNDING.yml
 
 # Optional kettle-jem plugins.
 # Each entry is a gem name. During bootstrap, kettle-jem ensures each plugin is
@@ -323,10 +319,20 @@ patterns:
 # Per-file configuration (nested directory structure)
 # Only files that need overrides belong here. Everything else defaults to merge.
 files:
-  README.md:
-    strategy: merge
-  ast-crispr.gemspec:
-    strategy: keep_destination
+  CHANGELOG.md:
+    strategy: accept_template
+  CODE_OF_CONDUCT.md:
+    strategy: accept_template
+  CONTRIBUTING.md:
+    strategy: accept_template
+  FUNDING.md:
+    strategy: accept_template
+  IRP.md:
+    strategy: accept_template
+  RUBOCOP.md:
+    strategy: accept_template
+  SECURITY.md:
+    strategy: accept_template
   AGENTS.md:
     strategy: accept_template
   .github:

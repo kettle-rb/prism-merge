@@ -324,7 +324,7 @@ patterns:
 # Only files that need overrides belong here. Everything else defaults to merge.
 files:
   README.md:
-    strategy: keep_destination
+    strategy: merge
   tree_haver.gemspec:
     strategy: keep_destination
   AGENTS.md:

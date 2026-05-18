@@ -7,7 +7,7 @@
 [🖼️structuredmerge-i]: https://logos.galtzo.com/assets/images/structuredmerge/avatar-192px.svg
 [🖼️structuredmerge]: https://github.com/structuredmerge
 
-# ☯️ Typescript::Merge
+# ☯️ Ast::Merge::Git
 
 [![Version][👽versioni]][👽version] [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: AGPL-3.0-only OR PolyForm-Small-Business-1.0.0][📄license-img]][📄license] [![Downloads Rank][👽dl-ranki]][👽dl-rank] [![Open Source Helpers][👽oss-helpi]][👽oss-help] [![CI Heads][🚎3-hd-wfi]][🚎3-hd-wf] [![CI Runtime Dependencies @ HEAD][🚎12-crh-wfi]][🚎12-crh-wf] [![CI Current][🚎11-c-wfi]][🚎11-c-wf] [![CI Truffle Ruby][🚎9-t-wfi]][🚎9-t-wf] [![CI JRuby][🚎10-j-wfi]][🚎10-j-wf] [![Deps Locked][🚎13-🔒️-wfi]][🚎13-🔒️-wf] [![Deps Unlocked][🚎14-🔓️-wfi]][🚎14-🔓️-wf] [![CI Test Coverage][🚎2-cov-wfi]][🚎2-cov-wf] [![CI Style][🚎5-st-wfi]][🚎5-st-wf] [![Apache SkyWalking Eyes License Compatibility Check][🚎15-🪪-wfi]][🚎15-🪪-wf]
 
@@ -107,13 +107,13 @@ Markdown provider note: `markdown-merge` is the canonical Markdown family packag
 Install the gem and add to the application's Gemfile by executing:
 
 ```console
-bundle add typescript-merge
+bundle add ast-merge-git
 ```
 
 If bundler is not being used to manage dependencies, install the gem by executing:
 
 ```console
-gem install typescript-merge
+gem install ast-merge-git
 ```
 
 ## ⚙️ Configuration
@@ -146,7 +146,7 @@ For most applications, prefer the [Pessimistic Version Constraint][📌pvc] with
 For example:
 
 ```ruby
-spec.add_dependency("typescript-merge", "~> 0.0")
+spec.add_dependency("ast-merge-git", "~> 0.0")
 ```
 
 <details markdown="1">
@@ -171,7 +171,7 @@ See [LICENSE.md][📄license] for details.
 
 If none of the available licenses suit your use case, please [contact us](mailto:floss@galtzo.com) to discuss a custom commercial license.
 
-[gh-discussions]: https://github.com/structuredmerge/typescript-merge/discussions
+[gh-discussions]: https://github.com/structuredmerge/ast-merge-git/discussions
 [⛳liberapay-img]: https://img.shields.io/liberapay/goal/pboling.svg?logo=liberapay&color=a51611&style=flat
 [⛳liberapay-bottom-img]: https://img.shields.io/liberapay/goal/pboling.svg?style=for-the-badge&logo=liberapay&color=a51611
 [⛳liberapay]: https://liberapay.com/pboling/donate
@@ -208,13 +208,13 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [✉️ruby-friends-img]: https://img.shields.io/badge/daily.dev-%F0%9F%92%8E_Ruby_Friends-0A0A0A?style=for-the-badge&logo=dailydotdev&logoColor=white
 [✉️ruby-friends]: https://app.daily.dev/squads/rubyfriends
 [✇bundle-group-pattern]: https://gist.github.com/pboling/4564780
-[⛳️gem-namespace]: https://github.com/structuredmerge/typescript-merge
-[⛳️namespace-img]: https://img.shields.io/badge/namespace-Typescript::Merge-3C2D2D.svg?style=square&logo=ruby&logoColor=white
-[⛳️gem-name]: https://bestgems.org/gems/typescript-merge
-[⛳️name-img]: https://img.shields.io/badge/name-typescript--merge-3C2D2D.svg?style=square&logo=rubygems&logoColor=red
-[⛳️tag-img]: https://img.shields.io/github/tag/structuredmerge/typescript-merge.svg
-[⛳️tag]: http://github.com/structuredmerge/typescript-merge/releases
-[🚂maint-blog]: http://www.railsbling.com/tags/typescript-merge
+[⛳️gem-namespace]: https://github.com/structuredmerge/ast-merge-git
+[⛳️namespace-img]: https://img.shields.io/badge/namespace-Ast::Merge::Git-3C2D2D.svg?style=square&logo=ruby&logoColor=white
+[⛳️gem-name]: https://bestgems.org/gems/ast-merge-git
+[⛳️name-img]: https://img.shields.io/badge/name-ast--merge--git-3C2D2D.svg?style=square&logo=rubygems&logoColor=red
+[⛳️tag-img]: https://img.shields.io/github/tag/structuredmerge/ast-merge-git.svg
+[⛳️tag]: http://github.com/structuredmerge/ast-merge-git/releases
+[🚂maint-blog]: http://www.railsbling.com/tags/ast-merge-git
 [🚂maint-blog-img]: https://img.shields.io/badge/blog-railsbling-0093D0.svg?style=for-the-badge&logo=rubyonrails&logoColor=orange
 [🚂maint-contact]: http://www.railsbling.com/contact
 [🚂maint-contact-img]: https://img.shields.io/badge/Contact-Maintainer-0093D0.svg?style=flat&logo=rubyonrails&logoColor=red
@@ -242,78 +242,78 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [👨🏼‍🏫expsup-upwork-img]: https://img.shields.io/badge/UpWork-13544E?style=for-the-badge&logo=Upwork&logoColor=white
 [👨🏼‍🏫expsup-codementor]: https://www.codementor.io/peterboling?utm_source=github&utm_medium=button&utm_term=peterboling&utm_campaign=github
 [👨🏼‍🏫expsup-codementor-img]: https://img.shields.io/badge/CodeMentor-Get_Help-1abc9c?style=for-the-badge&logo=CodeMentor&logoColor=white
-[🏙️entsup-tidelift]: https://tidelift.com/subscription/pkg/rubygems-typescript-merge?utm_source=rubygems-typescript-merge&utm_medium=referral&utm_campaign=readme
+[🏙️entsup-tidelift]: https://tidelift.com/subscription/pkg/rubygems-ast-merge-git?utm_source=rubygems-ast-merge-git&utm_medium=referral&utm_campaign=readme
 [🏙️entsup-tidelift-img]: https://img.shields.io/badge/Tidelift_and_Sonar-Enterprise_Support-FD3456?style=for-the-badge&logo=sonar&logoColor=white
 [🏙️entsup-tidelift-sonar]: https://blog.tidelift.com/tidelift-joins-sonar
 [💁🏼‍♂️peterboling]: http://www.peterboling.com
 [🚂railsbling]: http://www.railsbling.com
 [📜src-gl-img]: https://img.shields.io/badge/GitLab-FBA326?style=for-the-badge&logo=Gitlab&logoColor=orange
-[📜src-gl]: https://gitlab.com/structuredmerge/typescript-merge/
+[📜src-gl]: https://gitlab.com/structuredmerge/ast-merge-git/
 [📜src-cb-img]: https://img.shields.io/badge/CodeBerg-4893CC?style=for-the-badge&logo=CodeBerg&logoColor=blue
-[📜src-cb]: https://codeberg.org/structuredmerge/typescript-merge
+[📜src-cb]: https://codeberg.org/structuredmerge/ast-merge-git
 [📜src-gh-img]: https://img.shields.io/badge/GitHub-238636?style=for-the-badge&logo=Github&logoColor=green
-[📜src-gh]: https://github.com/structuredmerge/typescript-merge
+[📜src-gh]: https://github.com/structuredmerge/ast-merge-git
 [📜docs-cr-rd-img]: https://img.shields.io/badge/RubyDoc-Current_Release-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
 [📜docs-head-rd-img]: https://img.shields.io/badge/YARD_on_Galtzo.com-HEAD-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
-[📜gl-wiki]: https://gitlab.com/structuredmerge/typescript-merge/-/wikis/home
-[📜gh-wiki]: https://github.com/structuredmerge/typescript-merge/wiki
+[📜gl-wiki]: https://gitlab.com/structuredmerge/ast-merge-git/-/wikis/home
+[📜gh-wiki]: https://github.com/structuredmerge/ast-merge-git/wiki
 [📜gl-wiki-img]: https://img.shields.io/badge/wiki-examples-943CD2.svg?style=for-the-badge&logo=gitlab&logoColor=white
 [📜gh-wiki-img]: https://img.shields.io/badge/wiki-examples-943CD2.svg?style=for-the-badge&logo=github&logoColor=white
-[👽dl-rank]: https://bestgems.org/gems/typescript-merge
-[👽dl-ranki]: https://img.shields.io/gem/rd/typescript-merge.svg
-[👽oss-help]: https://www.codetriage.com/structuredmerge/typescript-merge
-[👽oss-helpi]: https://www.codetriage.com/structuredmerge/typescript-merge/badges/users.svg
-[👽version]: https://bestgems.org/gems/typescript-merge
-[👽versioni]: https://img.shields.io/gem/v/typescript-merge.svg
-[🏀qlty-mnt]: https://qlty.sh/gh/structuredmerge/projects/typescript-merge
-[🏀qlty-mnti]: https://qlty.sh/gh/structuredmerge/projects/typescript-merge/maintainability.svg
-[🏀qlty-cov]: https://qlty.sh/gh/structuredmerge/projects/typescript-merge/metrics/code?sort=coverageRating
-[🏀qlty-covi]: https://qlty.sh/gh/structuredmerge/projects/typescript-merge/coverage.svg
-[🏀codecov]: https://codecov.io/gh/structuredmerge/typescript-merge
-[🏀codecovi]: https://codecov.io/gh/structuredmerge/typescript-merge/graph/badge.svg
-[🏀coveralls]: https://coveralls.io/github/structuredmerge/typescript-merge?branch=main
-[🏀coveralls-img]: https://coveralls.io/repos/github/structuredmerge/typescript-merge/badge.svg?branch=main
-[🖐codeQL]: https://github.com/structuredmerge/typescript-merge/security/code-scanning
-[🖐codeQL-img]: https://github.com/structuredmerge/typescript-merge/actions/workflows/codeql-analysis.yml/badge.svg
-[🚎2-cov-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/coverage.yml
-[🚎2-cov-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/coverage.yml/badge.svg
-[🚎3-hd-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/heads.yml
-[🚎3-hd-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/heads.yml/badge.svg
-[🚎5-st-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/style.yml
-[🚎5-st-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/style.yml/badge.svg
-[🚎9-t-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/truffle.yml
-[🚎9-t-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/truffle.yml/badge.svg
-[🚎10-j-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/jruby.yml
-[🚎10-j-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/jruby.yml/badge.svg
-[🚎11-c-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/current.yml
-[🚎11-c-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/current.yml/badge.svg
-[🚎12-crh-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/dep-heads.yml
-[🚎12-crh-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/dep-heads.yml/badge.svg
-[🚎13-🔒️-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/locked_deps.yml
-[🚎13-🔒️-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/locked_deps.yml/badge.svg
-[🚎14-🔓️-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/unlocked_deps.yml
-[🚎14-🔓️-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/unlocked_deps.yml/badge.svg
-[🚎15-🪪-wf]: https://github.com/structuredmerge/typescript-merge/actions/workflows/license-eye.yml
-[🚎15-🪪-wfi]: https://github.com/structuredmerge/typescript-merge/actions/workflows/license-eye.yml/badge.svg
+[👽dl-rank]: https://bestgems.org/gems/ast-merge-git
+[👽dl-ranki]: https://img.shields.io/gem/rd/ast-merge-git.svg
+[👽oss-help]: https://www.codetriage.com/structuredmerge/ast-merge-git
+[👽oss-helpi]: https://www.codetriage.com/structuredmerge/ast-merge-git/badges/users.svg
+[👽version]: https://bestgems.org/gems/ast-merge-git
+[👽versioni]: https://img.shields.io/gem/v/ast-merge-git.svg
+[🏀qlty-mnt]: https://qlty.sh/gh/structuredmerge/projects/ast-merge-git
+[🏀qlty-mnti]: https://qlty.sh/gh/structuredmerge/projects/ast-merge-git/maintainability.svg
+[🏀qlty-cov]: https://qlty.sh/gh/structuredmerge/projects/ast-merge-git/metrics/code?sort=coverageRating
+[🏀qlty-covi]: https://qlty.sh/gh/structuredmerge/projects/ast-merge-git/coverage.svg
+[🏀codecov]: https://codecov.io/gh/structuredmerge/ast-merge-git
+[🏀codecovi]: https://codecov.io/gh/structuredmerge/ast-merge-git/graph/badge.svg
+[🏀coveralls]: https://coveralls.io/github/structuredmerge/ast-merge-git?branch=main
+[🏀coveralls-img]: https://coveralls.io/repos/github/structuredmerge/ast-merge-git/badge.svg?branch=main
+[🖐codeQL]: https://github.com/structuredmerge/ast-merge-git/security/code-scanning
+[🖐codeQL-img]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/codeql-analysis.yml/badge.svg
+[🚎2-cov-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/coverage.yml
+[🚎2-cov-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/coverage.yml/badge.svg
+[🚎3-hd-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/heads.yml
+[🚎3-hd-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/heads.yml/badge.svg
+[🚎5-st-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/style.yml
+[🚎5-st-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/style.yml/badge.svg
+[🚎9-t-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/truffle.yml
+[🚎9-t-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/truffle.yml/badge.svg
+[🚎10-j-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/jruby.yml
+[🚎10-j-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/jruby.yml/badge.svg
+[🚎11-c-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/current.yml
+[🚎11-c-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/current.yml/badge.svg
+[🚎12-crh-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/dep-heads.yml
+[🚎12-crh-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/dep-heads.yml/badge.svg
+[🚎13-🔒️-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/locked_deps.yml
+[🚎13-🔒️-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/locked_deps.yml/badge.svg
+[🚎14-🔓️-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/unlocked_deps.yml
+[🚎14-🔓️-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/unlocked_deps.yml/badge.svg
+[🚎15-🪪-wf]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/license-eye.yml
+[🚎15-🪪-wfi]: https://github.com/structuredmerge/ast-merge-git/actions/workflows/license-eye.yml/badge.svg
 [💎ruby-4.0i]: https://img.shields.io/badge/Ruby-4.0-CC342D?style=for-the-badge&logo=ruby&logoColor=white
 [💎ruby-c-i]: https://img.shields.io/badge/Ruby-current-CC342D?style=for-the-badge&logo=ruby&logoColor=green
 [💎ruby-headi]: https://img.shields.io/badge/Ruby-HEAD-CC342D?style=for-the-badge&logo=ruby&logoColor=blue
 [💎truby-c-i]: https://img.shields.io/badge/Truffle_Ruby-current-34BCB1?style=for-the-badge&logo=ruby&logoColor=green
 [💎jruby-c-i]: https://img.shields.io/badge/JRuby-current-FBE742?style=for-the-badge&logo=ruby&logoColor=green
 [💎jruby-headi]: https://img.shields.io/badge/JRuby-HEAD-FBE742?style=for-the-badge&logo=ruby&logoColor=blue
-[🤝gh-issues]: https://github.com/structuredmerge/typescript-merge/issues
-[🤝gh-pulls]: https://github.com/structuredmerge/typescript-merge/pulls
-[🤝gl-issues]: https://gitlab.com/structuredmerge/typescript-merge/-/issues
-[🤝gl-pulls]: https://gitlab.com/structuredmerge/typescript-merge/-/merge_requests
-[🤝cb-issues]: https://codeberg.org/structuredmerge/typescript-merge/issues
-[🤝cb-pulls]: https://codeberg.org/structuredmerge/typescript-merge/pulls
+[🤝gh-issues]: https://github.com/structuredmerge/ast-merge-git/issues
+[🤝gh-pulls]: https://github.com/structuredmerge/ast-merge-git/pulls
+[🤝gl-issues]: https://gitlab.com/structuredmerge/ast-merge-git/-/issues
+[🤝gl-pulls]: https://gitlab.com/structuredmerge/ast-merge-git/-/merge_requests
+[🤝cb-issues]: https://codeberg.org/structuredmerge/ast-merge-git/issues
+[🤝cb-pulls]: https://codeberg.org/structuredmerge/ast-merge-git/pulls
 [🤝cb-donate]: https://donate.codeberg.org/
 [🤝contributing]: https://github.com/structuredmerge/structuredmerge-ruby/blob/main/CONTRIBUTING.md
-[🏀codecov-g]: https://codecov.io/gh/structuredmerge/typescript-merge/graphs/tree.svg
+[🏀codecov-g]: https://codecov.io/gh/structuredmerge/ast-merge-git/graphs/tree.svg
 [🖐contrib-rocks]: https://contrib.rocks
-[🖐contributors]: https://github.com/structuredmerge/typescript-merge/graphs/contributors
-[🖐contributors-img]: https://contrib.rocks/image?repo=structuredmerge/typescript-merge
-[🚎contributors-gl]: https://gitlab.com/structuredmerge/typescript-merge/-/graphs/main
+[🖐contributors]: https://github.com/structuredmerge/ast-merge-git/graphs/contributors
+[🖐contributors-img]: https://contrib.rocks/image?repo=structuredmerge/ast-merge-git
+[🚎contributors-gl]: https://gitlab.com/structuredmerge/ast-merge-git/-/graphs/main
 [🪇conduct]: https://github.com/structuredmerge/structuredmerge-ruby/blob/main/CODE_OF_CONDUCT.md
 [🪇conduct-img]: https://img.shields.io/badge/Contributor_Covenant-2.1-259D6C.svg
 [📌pvc]: http://guides.rubygems.org/patterns/#pessimistic-version-constraint
@@ -338,10 +338,10 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [📄license-compat-img]: https://img.shields.io/badge/Apache_Incompatible:_Category_X-✗-C0392B.svg?style=flat&logo=Apache
 [📄ilo-declaration]: https://www.ilo.org/declaration/lang--en/index.htm
 [📄ilo-declaration-img]: https://img.shields.io/badge/ILO_Fundamental_Principles-✓-259D6C.svg?style=flat
-[🚎yard-current]: http://rubydoc.info/gems/typescript-merge
-[🚎yard-head]: https://typescript-merge.galtzo.com
+[🚎yard-current]: http://rubydoc.info/gems/ast-merge-git
+[🚎yard-head]: https://ast-merge-git.galtzo.com
 [💎stone_checksums]: https://github.com/galtzo-floss/stone_checksums
-[💎SHA_checksums]: https://gitlab.com/structuredmerge/typescript-merge/-/tree/main/checksums
+[💎SHA_checksums]: https://gitlab.com/structuredmerge/ast-merge-git/-/tree/main/checksums
 [💎rlts]: https://github.com/rubocop-lts/rubocop-lts
 [💎rlts-img]: https://img.shields.io/badge/code_style_&_linting-rubocop--lts-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
