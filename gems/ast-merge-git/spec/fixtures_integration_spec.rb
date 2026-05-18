@@ -27,6 +27,12 @@ RSpec.describe Ast::Merge::Git do
       expect(result.fetch(:formatting_preservation)).to eq(expected.fetch(:formatting_preservation)) if expected.key?(:formatting_preservation)
       expect(result.fetch(:secondary_formatting_metrics)).to eq(expected.fetch(:secondary_formatting_metrics)) if expected.key?(:secondary_formatting_metrics)
       expect(result.fetch(:default_driver_evaluation)).to eq(expected.fetch(:default_driver_evaluation)) if expected.key?(:default_driver_evaluation)
+      if expected.key?(:owned_regions)
+        expect(result.fetch(:owned_regions).length).to eq(expected.fetch(:owned_regions).length), test_case.fetch(:case_id)
+        expected.fetch(:owned_regions).each_with_index do |expected_region, index|
+          expect(result.fetch(:owned_regions)[index]).to include(expected_region), test_case.fetch(:case_id)
+        end
+      end
       if result.fetch(:ok)
         expect(JSON.parse(result.fetch(:merged_source))).to eq(JSON.parse(JSON.generate(expected.fetch(:merged_json))))
       else

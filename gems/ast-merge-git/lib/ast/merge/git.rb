@@ -39,12 +39,14 @@ module Ast
         conflicts = []
         merged = merge_json_value(base, ours, theirs, "", conflicts)
         if conflicts.any?
+          owned_regions = json_owned_regions_for_conflicts(request, conflicts)
           return response(
             ok: false,
             request: request,
             conflicted_source: render_conflict_source(request, conflicts),
             conflicts: conflicts,
-            render_strategy: "full_file_conflict_markers",
+            owned_regions: owned_regions,
+            render_strategy: owned_regions.empty? ? "full_file_conflict_markers" : "owned_region_conflict_markers",
             diagnostics: [{
               severity: "error",
               category: MERGE_CONFLICT_CATEGORY,
@@ -107,7 +109,7 @@ module Ast
         }
       end
 
-      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], reparse_after_render: nil, formatting_preservation: {}, secondary_formatting_metrics: nil, render_strategy: nil)
+      def response(ok:, request:, merged_source: nil, conflicted_source: nil, conflicts: [], diagnostics: [], fallbacks: [], owned_regions: [], reparse_after_render: nil, formatting_preservation: {}, secondary_formatting_metrics: nil, render_strategy: nil)
         {
           ok: ok,
           merged_source: merged_source,
@@ -115,6 +117,7 @@ module Ast
           conflicts: conflicts,
           diagnostics: diagnostics,
           fallbacks: fallbacks,
+          owned_regions: owned_regions,
           profile: {
             profile_id: request[:profile_id].to_s,
             language: normalize_language(request),
@@ -211,6 +214,38 @@ module Ast
           "#{">" * marker_size} theirs",
           ""
         ].join("\n")
+      end
+
+      def json_owned_regions_for_conflicts(request, conflicts)
+        conflicts.filter_map do |conflict|
+          path = conflict.fetch(:path).to_s
+          next unless path.start_with?("/") && path.count("/") == 1
+
+          key = path.delete_prefix("/")
+          {
+            owner_path: path,
+            node_id: "json:key:#{key}",
+            region_kind: "node",
+            byte_range: json_key_byte_range(request.fetch(:base_source), key),
+            line_range: {start: 1, end: 1},
+            attached_spans: [],
+            backend_id: "native-json",
+            parser_identity: "standard-json",
+            can_replace: true,
+            can_line_merge: false,
+            requires_reparse: true
+          }
+        end
+      end
+
+      def json_key_byte_range(source, key)
+        needle = "\"#{key}\""
+        start = source.index(needle)
+        return {start: 0, end: source.bytesize} unless start
+
+        finish = start + needle.bytesize
+        finish += 1 while finish < source.bytesize && ![",", "}"].include?(source[finish])
+        {start: start, end: finish}
       end
 
       def parse_json_role(role, source)
