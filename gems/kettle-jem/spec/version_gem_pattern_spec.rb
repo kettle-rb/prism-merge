@@ -26,8 +26,12 @@ RSpec.describe "active Ruby gem version_gem pattern" do
         expect(File).to exist(entrypoint_path)
 
         entrypoint_content = File.read(entrypoint_path)
+        version_require = %(require_relative "#{File.basename(version_dir)}/version")
+        class_eval = "#{namespace}::Version.class_eval do"
         expect(entrypoint_content).to include('require "version_gem"')
-        expect(entrypoint_content).to include("#{namespace}::Version.class_eval do")
+        expect(entrypoint_content).to include(version_require)
+        expect(entrypoint_content.index(version_require)).to be < entrypoint_content.index(class_eval)
+        expect(entrypoint_content).to include(class_eval)
         expect(entrypoint_content).to include("extend VersionGem::Basic")
       end
 

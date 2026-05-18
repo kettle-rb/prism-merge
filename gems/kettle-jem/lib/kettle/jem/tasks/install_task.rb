@@ -65,12 +65,8 @@ module Kettle
         end
 
         def version_gem_bootstrap_step(project_root, report)
-          gemspec_report = report.fetch(:recipe_reports, []).find do |recipe_report|
-            recipe_report.fetch(:relative_path, "").end_with?(".gemspec")
-          end
-          return nil unless gemspec_report&.fetch(:final_content, "").to_s.match?(/add_(?:runtime_)?dependency\s*(?:\(|\s)\s*["']version_gem["']/)
-
-          Kettle::Jem.version_gem_bootstrap_step(project_root, report.fetch(:facts))
+          report.fetch(:post_apply_steps, []).find { |step| step.fetch(:name, nil) == "version_gem_bootstrap" } ||
+            Kettle::Jem.template_version_gem_bootstrap_step(project_root, report)
         end
 
         def install_phase_reports(install_steps)

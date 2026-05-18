@@ -2379,12 +2379,48 @@ module Kettle
     def apply_project(project_root, env: ENV, run_options: {})
       report = plan_project(project_root, env: env, run_options: run_options).merge(mode: "apply")
       run_apply_phases(project_root, report)
+      report[:post_apply_steps] = post_apply_steps(project_root, report)
+      report[:changed_files] = (report.fetch(:changed_files, []) + report.fetch(:post_apply_steps).flat_map do |step|
+        step.fetch(:changed_files, [])
+      end).uniq.sort
       report[:duplicate_drift] = duplicate_drift_report(
         project_root: project_root,
         template_root: template_root_path(project_root, config: kettle_jem_config(project_root)),
         run_options: run_options
       )
       report
+    end
+
+    def post_apply_steps(project_root, report)
+      [
+        template_version_gem_bootstrap_step(project_root, report),
+      ].compact
+    end
+
+    def template_version_gem_bootstrap_step(project_root, report)
+      gemspec_report = report.fetch(:recipe_reports, []).find do |recipe_report|
+        recipe_report.fetch(:relative_path, "").end_with?(".gemspec")
+      end
+      gemspec_content = gemspec_report&.fetch(:final_content, "").to_s
+      gemspec_content = project_gemspec_content(project_root) if gemspec_content.empty?
+      return nil unless gemspec_declares_version_gem?(gemspec_content)
+
+      version_gem_bootstrap_step(project_root, report.fetch(:facts))
+    end
+
+    def project_gemspec_content(project_root)
+      candidates = Dir.glob(File.join(project_root, "*.gemspec"))
+      return "" unless candidates.length == 1
+
+      File.read(candidates.first)
+    end
+
+    def project_gemspec_version(project_root)
+      extract_gemspec_assignment(project_gemspec_content(project_root), "spec.version").to_s
+    end
+
+    def gemspec_declares_version_gem?(content)
+      content.to_s.match?(/add_(?:runtime_)?dependency\s*(?:\(|\s)\s*["']version_gem["']/)
     end
 
     def duplicate_drift_report(project_root:, template_root:, run_options: {})
@@ -4799,15 +4835,20 @@ module Kettle
 
     def version_gem_bootstrap_step(project_root, facts)
       package_name = facts.dig(:package, :name).to_s
-      namespace = facts.dig(:rubygems, :namespace).to_s
-      return {name: "version_gem_bootstrap", status: "unavailable", reason: "missing_package_facts"} if package_name.empty? || namespace.empty?
+      return {name: "version_gem_bootstrap", status: "unavailable", reason: "missing_package_facts"} if package_name.empty?
 
       entrypoint_require = package_name.tr("-", "/")
-      version = facts.dig(:project_runtime, :version).to_s
-      version = "0.0.1.pre" if version.empty?
-      changes = []
       version_path = File.join("lib", entrypoint_require, "version.rb")
       entrypoint_path = File.join("lib", "#{entrypoint_require}.rb")
+      namespace = existing_entrypoint_version_namespace(project_root, entrypoint_path) ||
+        existing_version_namespace(project_root, version_path) ||
+        facts.dig(:rubygems, :namespace).to_s
+      return {name: "version_gem_bootstrap", status: "unavailable", reason: "missing_package_facts"} if namespace.empty?
+
+      version = facts.dig(:project_runtime, :version).to_s
+      version = project_gemspec_version(project_root) if version.empty?
+      version = "0.0.1.pre" if version.empty?
+      changes = []
 
       changes << write_if_changed(
         project_root,
@@ -4869,7 +4910,10 @@ module Kettle
       relative_path = File.join(File.basename(entrypoint_require), "version")
       require_relative_pattern = /^\s*require_relative\s+["']#{Regexp.escape(relative_path)}["']\s*$/
       insert_lines << %(require_relative "#{relative_path}"\n) unless current.match?(require_relative_pattern)
-      lines.insert(version_gem_require_insertion_index(lines), *insert_lines, "\n") if insert_lines.any?
+      if insert_lines.any?
+        after_version_gem = insert_lines.none? { |line| line.include?('"version_gem"') }
+        lines.insert(version_gem_require_insertion_index(lines, after_version_gem: after_version_gem), *insert_lines, "\n")
+      end
 
       updated = lines.join
       unless updated.include?("#{namespace}::Version.class_eval do")
@@ -4879,7 +4923,12 @@ module Kettle
       updated.gsub(/\n{3,}/, "\n\n")
     end
 
-    def version_gem_require_insertion_index(lines)
+    def version_gem_require_insertion_index(lines, after_version_gem: false)
+      if after_version_gem
+        version_gem_index = lines.index { |line| line.match?(/^\s*require\s+["']version_gem["']\s*$/) }
+        return version_gem_index + 1 if version_gem_index
+      end
+
       index = 0
       while index < lines.length && lines[index].match?(/\A#(?:!|\s*(?:frozen_string_literal|coding|encoding))/)
         index += 1
@@ -4909,6 +4958,21 @@ module Kettle
 
     def existing_version_file_value(project_root, relative_path)
       read_project_file(project_root, relative_path)[/^\s*VERSION\s*=\s*["']([^"']+)["']/, 1].to_s
+    end
+
+    def existing_version_namespace(project_root, relative_path)
+      content = read_project_file(project_root, relative_path)
+      modules = content.scan(/^\s*module\s+([A-Z][A-Za-z0-9_]*)\s*$/).flatten
+      version_index = modules.index("Version")
+      return nil unless version_index && version_index.positive?
+
+      modules.take(version_index).join("::")
+    end
+
+    def existing_entrypoint_version_namespace(project_root, relative_path)
+      content = read_project_file(project_root, relative_path)
+      match = content.match(/^\s*([A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*)::Version\.class_eval\s+do/)
+      match && match[1]
     end
 
     def read_project_file(project_root, relative_path)
