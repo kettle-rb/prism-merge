@@ -2113,7 +2113,8 @@ module Kettle
       bootstrap[:licenses] = gemspec_license_spdx if bootstrap && !gemspec_license_spdx.empty?
       bootstrap[:gemspec_path] = File.basename(gemspec_path) if bootstrap && gemspec_path
       if bootstrap
-        project_emoji = readme_project_emoji(project_root)
+        project_emoji = preferred_template_token_value(nil, nil, env, "KJ_PROJECT_EMOJI")
+        project_emoji ||= readme_project_emoji(project_root)
         project_emoji ||= "💎" if template_selection[:template_profile].to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
         bootstrap[:project_emoji] = project_emoji
       end

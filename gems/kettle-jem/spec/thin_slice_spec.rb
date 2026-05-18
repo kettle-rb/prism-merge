@@ -1231,6 +1231,31 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "seeds project emoji from KJ_PROJECT_EMOJI before README or defaults" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-config-bootstrap-env-emoji", tmp_root) do |root|
+      write_tree(root, {
+        "json-merge.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "json-merge"
+            spec.summary = "Example gem"
+            spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
+          end
+        RUBY
+        "README.md" => "# 💎 Json::Merge\n\nExisting README.\n",
+      })
+
+      described_class.setup_project(
+        root,
+        env: {"KJ_PROJECT_EMOJI" => "☯️"},
+        run_options: {bootstrap_mode: true, template_profile: "monorepo-subgem", skip_commit: true}
+      )
+
+      expect(File.read(File.join(root, ".kettle-jem.yml"))).to include("project_emoji: ☯️\n")
+    end
+  end
+
   it "applies bootstrap with non-interactive defaults and converges on the next run" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

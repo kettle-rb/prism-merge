@@ -2,6 +2,7 @@
 # Local overrides belong in .env.local (loaded via dotenvy through mise).
 
 [env]
+KJ_PROJECT_EMOJI = "🔮"
 DEBUG = "false"
 FLOSS_CFG_FUND_DEBUG = "false"
 FLOSS_CFG_FUND_LOGFILE = "tmp/log/debug.log"
