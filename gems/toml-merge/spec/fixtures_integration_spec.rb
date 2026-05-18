@@ -156,6 +156,24 @@ RSpec.describe Toml::Merge do
     expect(result[:output]).to include("generated = true")
   end
 
+  it "parses mise-style dotted env keys and inline tables" do
+    source = <<~TOML
+      [env]
+      KJ_PROJECT_EMOJI = "🔮"
+      _.file = { path = ".env.local", redact = true }
+      _.path = ["exe", "bin"]
+      _.source = ".config/mise/env.sh"
+    TOML
+
+    result = described_class.parse_toml(source, "toml")
+
+    expect(result.fetch(:ok)).to be(true)
+    expect(result.dig(:analysis, :normalized_source)).to include('file = { path = ".env.local", redact = true }')
+    expect(result.dig(:analysis, :owners)).to include(
+      include(path: "/env/_/file", owner_kind: "key_value", match_key: "file")
+    )
+  end
+
   it "conforms to the slice-139 family named-suite plan fixture" do
     fixture = read_json(
       fixtures_root.join(

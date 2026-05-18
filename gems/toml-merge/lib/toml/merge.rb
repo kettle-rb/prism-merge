@@ -51,6 +51,9 @@ module Toml
     PARSLET_BACKEND_REFERENCE = TreeHaver::BackendReference.new(id: "parslet", family: "peg").freeze
     BACKEND_REGISTRY = Struct.new(:registered, :mutex).new(false, Mutex.new)
 
+    class InlineTable < Hash
+    end
+
     # Base error class for Toml::Merge
     # Inherits from Ast::Merge::Error for consistency across merge gems.
     class Error < Ast::Merge::Error; end
@@ -402,10 +405,10 @@ module Toml
           when '"'
             in_string = true
             current << char
-          when "["
+          when "[", "{"
             depth += 1
             current << char
-          when "]"
+          when "]", "}"
             depth -= 1
             current << char
           else
@@ -418,7 +421,7 @@ module Toml
           end
         end
 
-        raise ParseError, "Unterminated TOML string or array." if in_string || !depth.zero?
+        raise ParseError, "Unterminated TOML string, array, or inline table." if in_string || !depth.zero?
 
         parts << current.strip
         parts
@@ -462,6 +465,20 @@ module Toml
           return [] if inner.empty?
 
           split_outside_quotes(inner, ",").map { |entry| parse_toml_scalar_value(entry) }
+        elsif stripped.start_with?("{")
+          raise ParseError, "Invalid TOML inline table #{value}." unless stripped.end_with?("}")
+
+          inner = stripped[1..-2].strip
+          table = InlineTable.new
+          return table if inner.empty?
+
+          split_outside_quotes(inner, ",").each do |entry|
+            pair = split_outside_quotes(entry, "=")
+            raise ParseError, "Invalid TOML inline table entry #{entry}." unless pair.length == 2
+
+            assign_toml_value(table, parse_toml_key_path(pair[0]), parse_toml_value(pair[1]))
+          end
+          table
         else
           parse_toml_scalar_value(stripped)
         end
@@ -474,7 +491,7 @@ module Toml
           if existing.nil?
             current[segment] = {}
             current = current[segment]
-          elsif existing.is_a?(Hash)
+          elsif toml_table_value?(existing)
             current = existing
           else
             raise ParseError, "TOML table path /#{path.join('/')} conflicts with a value."
@@ -489,7 +506,7 @@ module Toml
         table = ensure_toml_table(root, path[0..-2])
         key = path[-1]
         existing = table[key]
-        raise ParseError, "TOML key /#{path.join('/')} conflicts with a table." if existing.is_a?(Hash)
+        raise ParseError, "TOML key /#{path.join('/')} conflicts with a table." if toml_table_value?(existing)
 
         table[key] = value
       end
@@ -534,6 +551,10 @@ module Toml
 
       def render_toml_value(value)
         return "[#{value.map { |item| render_toml_scalar(item) }.join(', ')}]" if value.is_a?(Array)
+        if value.is_a?(InlineTable)
+          pairs = value.keys.sort.map { |key| "#{key} = #{render_toml_value(value[key])}" }
+          return "{ #{pairs.join(', ')} }"
+        end
 
         render_toml_scalar(value)
       end
@@ -541,8 +562,8 @@ module Toml
       def render_toml_table(table, path = [])
         lines = []
         keys = table.keys.sort
-        value_keys = keys.reject { |key| table[key].is_a?(Hash) }
-        table_keys = keys.select { |key| table[key].is_a?(Hash) }
+        value_keys = keys.reject { |key| toml_table_value?(table[key]) }
+        table_keys = keys.select { |key| toml_table_value?(table[key]) }
 
         lines << "[#{path.join('.')}]" unless path.empty?
         value_keys.each do |key|
@@ -566,7 +587,7 @@ module Toml
           if value.is_a?(Array)
             [{ path: path, owner_kind: "key_value", match_key: key }] +
               value.each_index.map { |index| { path: "#{path}/#{index}", owner_kind: "array_item" } }
-          elsif value.is_a?(Hash)
+          elsif toml_table_value?(value)
             [{ path: path, owner_kind: "table", match_key: key }] + collect_toml_owners(value, path)
           else
             [{ path: path, owner_kind: "key_value", match_key: key }]
@@ -580,12 +601,16 @@ module Toml
             merged[key] = destination[key]
           elsif !destination.key?(key)
             merged[key] = template[key]
-          elsif template[key].is_a?(Hash) && destination[key].is_a?(Hash)
+          elsif toml_table_value?(template[key]) && toml_table_value?(destination[key])
             merged[key] = merge_toml_tables(template[key], destination[key])
           else
             merged[key] = destination[key]
           end
         end
+      end
+
+      def toml_table_value?(value)
+        value.is_a?(Hash) && !value.is_a?(InlineTable)
       end
 
       def unsupported_feature_parse_result(message)
