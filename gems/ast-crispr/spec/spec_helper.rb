@@ -3,6 +3,7 @@
 require "json"
 require "pathname"
 require "ast/crispr"
+require "ast/crispr/rspec"
 
 RSpec.configure do |config|
   config.disable_monkey_patching!
@@ -10,4 +11,3 @@ RSpec.configure do |config|
     expectations.syntax = :expect
   end
 end
-
