@@ -105,6 +105,23 @@ RSpec.describe Json::Merge do
     ).to eq(json_ready(fallback_fixture.dig(:expected, :diagnostics)))
   end
 
+  it "records emitter source provenance line metadata for raw source rendering" do
+    emitter = described_class::Emitter.new
+    emitter.emit_raw_lines(
+      ["{", '  "name": "example"', "}"],
+      metadata: { source: :destination, original_line_start: 7 }
+    )
+
+    expect(emitter.lines).to eq(["{", '  "name": "example"', "}"])
+    expect(emitter.line_metadata).to eq(
+      [
+        { source: :destination, original_line: 7 },
+        { source: :destination, original_line: 8 },
+        { source: :destination, original_line: 9 },
+      ]
+    )
+  end
+
   it "conforms to the language-pack adapter fixture and shared family feature profile fixture" do
     adapter_fixture = json_fixture("tree_sitter_adapter")
     adapter_fixture[:cases].each do |test_case|

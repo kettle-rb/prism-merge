@@ -149,6 +149,22 @@ RSpec.describe Psych::Merge do
     expect(result[:output]).to include("  root: template")
   end
 
+  it "records emitter source provenance line metadata for raw source rendering" do
+    emitter = ::Psych::Merge::Emitter.new
+    emitter.emit_raw_lines(
+      ["root:", "  value: destination"],
+      metadata: { source: :destination, original_line_start: 4 }
+    )
+
+    expect(emitter.lines).to eq(["root:", "  value: destination"])
+    expect(emitter.line_metadata).to eq(
+      [
+        { source: :destination, original_line: 4 },
+        { source: :destination, original_line: 5 },
+      ]
+    )
+  end
+
   it "rejects unsupported provider backend overrides" do
     result = ::Psych::Merge.parse_yaml("root: value\n", "yaml", backend: "kreuzberg-language-pack")
     expect(result[:ok]).to be(false)

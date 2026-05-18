@@ -159,6 +159,22 @@ RSpec.describe Toml::Merge do
     expect(result[:output]).to include("generated = true")
   end
 
+  it "records emitter source provenance line metadata for raw source rendering" do
+    emitter = described_class::Emitter.new
+    emitter.emit_raw_lines(
+      ["[env]", 'project = "kettle-jem"'],
+      metadata: { source: :destination, original_line_start: 12 }
+    )
+
+    expect(emitter.lines).to eq(["[env]", 'project = "kettle-jem"'])
+    expect(emitter.line_metadata).to eq(
+      [
+        { source: :destination, original_line: 12 },
+        { source: :destination, original_line: 13 },
+      ]
+    )
+  end
+
   it "parses mise-style dotted env keys and inline tables" do
     source = <<~TOML
       [env]
