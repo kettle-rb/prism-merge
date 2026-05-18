@@ -4214,6 +4214,31 @@ RSpec.describe Kettle::Jem do
     expect(block).to include("| License | `AGPL-3.0-only` OR `PolyForm-Small-Business-1.0.0` |")
   end
 
+  it "applies configured licenses to merged gemspec output" do
+    template = <<~RUBY
+      Gem::Specification.new do |spec|
+        spec.name = "example"
+        spec.homepage = "https://example.test"
+        spec.licenses = ["MIT"]
+      end
+    RUBY
+    destination = <<~RUBY
+      Gem::Specification.new do |spec|
+        spec.name = "example"
+        spec.homepage = "https://example.test"
+        spec.licenses = ["AGPL-3.0-only"]
+      end
+    RUBY
+    facts = {
+      package: {name: "example"},
+      license: {spdx: ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]},
+    }
+
+    output = described_class.merge_gemspec_template_source(template, destination, facts: facts)
+
+    expect(output).to include('spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]')
+  end
+
   it "preserves README metadata during template-source README application" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

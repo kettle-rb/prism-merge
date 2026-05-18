@@ -3631,7 +3631,22 @@ module Kettle
         destination_receiver: destination_receiver
       )
       merged = preserve_gemspec_freeze_blocks(merged, destination_content, receiver: template_receiver)
+      merged = apply_configured_gemspec_licenses(merged, facts, receiver: template_receiver)
       remove_gemspec_self_dependency_lines(merged, package_name, receiver: template_receiver)
+    end
+
+    def apply_configured_gemspec_licenses(content, facts, receiver:)
+      licenses = Array(facts&.dig(:license, :spdx)).map { |license| license.to_s.strip }.reject(&:empty?)
+      return content if licenses.empty?
+
+      replacement = "#{receiver}.licenses = #{licenses.inspect}"
+      pattern = /^(\s*)#{Regexp.escape(receiver)}\.licenses\s*=.*$/
+      return content.sub(pattern) { "#{$1}#{replacement}" } if content.match?(pattern)
+
+      content.sub(
+        /^(\s*#{Regexp.escape(receiver)}\.homepage\s*=.*$)/,
+        "\\1\n  #{replacement}"
+      )
     end
 
     def gemspec_block_param(source)
