@@ -109,10 +109,12 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # Utilities
+  spec.add_dependency("token-resolver", "~> 1.0", ">= 1.0.2")            # ruby >= 3.2.0
   spec.add_dependency("version_gem", "~> 1.1", ">= 1.1.9")              # ruby >= 2.2.0
+
+  # Templating merge tools
   spec.add_dependency("ast-merge", "= #{spec.version}")                  # ruby >= 4.0.0
   spec.add_dependency("bash-merge", "= #{spec.version}")                 # ruby >= 4.0.0
-  spec.add_dependency("token-resolver", "~> 1.0", ">= 1.0.2")            # ruby >= 3.2.0
   spec.add_dependency("tree_haver", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("commonmarker-merge", "= #{spec.version}")         # ruby >= 4.0.0
   spec.add_dependency("dotenv-merge", "= #{spec.version}")              # ruby >= 4.0.0
