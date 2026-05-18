@@ -24,6 +24,7 @@ require "psych-merge"
 require "yaml"
 require "ast/merge"
 require "ast/crispr/markdown/markly"
+require "ast/crispr/ruby/prism"
 require_relative "jem/version"
 
 module Kettle
@@ -5615,15 +5616,14 @@ module Kettle
       current = content.to_s
       lines = current.lines
       insert_lines = []
-      if File.basename(entrypoint_require) != "version_gem" && !current.match?(/^\s*require\s+["']version_gem["']\s*$/)
+      if File.basename(entrypoint_require) != "version_gem" && !ruby_top_level_require?(current, "require", "version_gem")
         insert_lines << "require \"version_gem\"\n"
       end
       relative_path = File.join(File.basename(entrypoint_require), "version")
-      require_relative_pattern = /^\s*require_relative\s+["']#{Regexp.escape(relative_path)}["']\s*$/
-      insert_lines << %(require_relative "#{relative_path}"\n) unless current.match?(require_relative_pattern)
+      insert_lines << %(require_relative "#{relative_path}"\n) unless ruby_top_level_require?(current, "require_relative", relative_path)
       if insert_lines.any?
         after_version_gem = insert_lines.none? { |line| line.include?('"version_gem"') }
-        lines.insert(version_gem_require_insertion_index(lines, after_version_gem: after_version_gem), *insert_lines, "\n")
+        lines.insert(version_gem_require_insertion_index(current, after_version_gem: after_version_gem), *insert_lines, "\n")
       end
 
       updated = lines.join
@@ -5631,21 +5631,50 @@ module Kettle
         updated += "\n" unless updated.end_with?("\n")
         updated += "\n#{version_gem_class_eval_block(namespace)}"
       end
-      updated.gsub(/\n{3,}/, "\n\n")
+      collapse_excess_blank_lines(updated)
     end
 
-    def version_gem_require_insertion_index(lines, after_version_gem: false)
+    def version_gem_require_insertion_index(content, after_version_gem: false)
+      context = Ast::Crispr::Ruby::Prism.document_context(content: content.to_s, source_label: "entrypoint.rb")
+      owners = context.structural_owners(owner_scope: :top_level_statements)
       if after_version_gem
-        version_gem_index = lines.index { |line| line.match?(/^\s*require\s+["']version_gem["']\s*$/) }
-        return version_gem_index + 1 if version_gem_index
+        owner = owners.find { |candidate| ruby_require_call?(candidate, "require", "version_gem") }
+        return owner.location.end_line if owner
       end
 
-      index = 0
-      while index < lines.length && lines[index].match?(/\A#(?:!|\s*(?:frozen_string_literal|coding|encoding))/)
-        index += 1
+      first_owner = owners.first
+      first_owner ? first_owner.location.start_line - 1 : context.ast.comments.map { |comment| comment.location.end_line }.max.to_i
+    end
+
+    def ruby_top_level_require?(content, method_name, argument)
+      context = Ast::Crispr::Ruby::Prism.document_context(content: content.to_s, source_label: "entrypoint.rb")
+      context.structural_owners(owner_scope: :top_level_statements).any? do |owner|
+        ruby_require_call?(owner, method_name, argument)
       end
-      index += 1 while index < lines.length && lines[index].strip.empty?
-      index
+    end
+
+    def ruby_require_call?(owner, method_name, argument)
+      owner.is_a?(::Prism::CallNode) &&
+        owner.name.to_s == method_name.to_s &&
+        ruby_first_string_argument(owner).to_s == argument.to_s
+    end
+
+    def ruby_first_string_argument(owner)
+      argument = owner.arguments&.arguments&.first
+      argument.respond_to?(:unescaped) ? argument.unescaped : nil
+    end
+
+    def collapse_excess_blank_lines(content)
+      blank_count = 0
+      content.to_s.lines.filter_map do |line|
+        if line.strip.empty?
+          blank_count += 1
+          next if blank_count > 1
+        else
+          blank_count = 0
+        end
+        line
+      end.join
     end
 
     def version_gem_class_eval_block(namespace)

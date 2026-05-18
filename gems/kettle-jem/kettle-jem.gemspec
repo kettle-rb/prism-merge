@@ -114,6 +114,7 @@ Gem::Specification.new do |spec|
 
   # Templating merge tools
   spec.add_dependency("ast-crispr-markdown-markly", "= #{spec.version}")  # ruby >= 4.0.0
+  spec.add_dependency("ast-crispr-ruby-prism", "= #{spec.version}")        # ruby >= 4.0.0
   spec.add_dependency("ast-merge", "= #{spec.version}")                  # ruby >= 4.0.0
   spec.add_dependency("bash-merge", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("tree_haver", "= #{spec.version}")                 # ruby >= 4.0.0

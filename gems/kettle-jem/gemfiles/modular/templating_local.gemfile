@@ -8,6 +8,7 @@ local_gems = %w[
   tree_haver
   ast-crispr
   ast-crispr-markdown-markly
+  ast-crispr-ruby-prism
   ast-merge
   ast-template
   binary-merge

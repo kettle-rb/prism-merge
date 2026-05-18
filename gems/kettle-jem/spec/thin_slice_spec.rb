@@ -2654,6 +2654,62 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "places version_gem entrypoint requires from top-level Ruby structure" do
+    content = <<~RUBY
+      # frozen_string_literal: true
+
+      def setup
+        require "version_gem"
+      end
+    RUBY
+
+    updated = described_class.send(
+      :version_gem_bootstrap_entrypoint_content,
+      content,
+      namespace: "Example::Gem",
+      entrypoint_require: "example/gem"
+    )
+
+    expect(updated).to start_with(<<~RUBY)
+      # frozen_string_literal: true
+
+      require "version_gem"
+      require_relative "gem/version"
+
+      def setup
+        require "version_gem"
+      end
+    RUBY
+    expect(updated).to include("Example::Gem::Version.class_eval do")
+  end
+
+  it "anchors version_gem relative entrypoint requires after an existing top-level version_gem require" do
+    content = <<~RUBY
+      # frozen_string_literal: true
+
+      require "version_gem"
+
+      module Example
+        module Gem
+        end
+      end
+    RUBY
+
+    updated = described_class.send(
+      :version_gem_bootstrap_entrypoint_content,
+      content,
+      namespace: "Example::Gem",
+      entrypoint_require: "example/gem"
+    )
+
+    expect(updated).to include(<<~RUBY)
+      require "version_gem"
+      require_relative "gem/version"
+
+      module Example
+    RUBY
+  end
+
   it "reports setup execution context without load-path inspection" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)

@@ -3,6 +3,7 @@ PATH
   specs:
     kettle-jem (7.0.0)
       ast-crispr-markdown-markly (= 7.0.0)
+      ast-crispr-ruby-prism (= 7.0.0)
       ast-merge (= 7.0.0)
       bash-merge (= 7.0.0)
       commonmarker-merge (= 7.0.0)
@@ -27,6 +28,14 @@ PATH
     ast-crispr-markdown-markly (7.0.0)
       ast-crispr (= 7.0.0)
       markly-merge (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
+  remote: /home/pboling/src/kettle-rb/structuredmerge/ruby/gems/ast-crispr-ruby-prism
+  specs:
+    ast-crispr-ruby-prism (7.0.0)
+      ast-crispr (= 7.0.0)
+      prism (>= 1.0)
       version_gem (~> 1.1, >= 1.1.9)
 
 PATH
@@ -574,6 +583,7 @@ DEPENDENCIES
   appraisal2 (~> 3.0, >= 3.0.6)
   ast-crispr!
   ast-crispr-markdown-markly!
+  ast-crispr-ruby-prism!
   ast-merge!
   ast-template!
   benchmark (~> 0.5, >= 0.5.0)
@@ -645,6 +655,7 @@ CHECKSUMS
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
   ast-crispr (7.0.0)
   ast-crispr-markdown-markly (7.0.0)
+  ast-crispr-ruby-prism (7.0.0)
   ast-merge (7.0.0)
   ast-merge-git (7.0.0)
   ast-template (7.0.0)
