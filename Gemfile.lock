@@ -51,6 +51,14 @@ PATH
       version_gem (~> 1.1, >= 1.1.9)
 
 PATH
+  remote: gems/dotenv-merge
+  specs:
+    dotenv-merge (7.0.0)
+      ast-merge (= 7.0.0)
+      tree_haver (= 7.0.0)
+      version_gem (~> 1.1, >= 1.1.9)
+
+PATH
   remote: gems/go-merge
   specs:
     go-merge (7.0.0)
@@ -72,6 +80,7 @@ PATH
     kettle-jem (7.0.0)
       ast-merge (= 7.0.0)
       commonmarker-merge (= 7.0.0)
+      dotenv-merge (= 7.0.0)
       json-merge (= 7.0.0)
       kramdown-merge (= 7.0.0)
       markdown-merge (= 7.0.0)
@@ -318,6 +327,7 @@ DEPENDENCIES
   bundler-audit (~> 0.9.3)
   citrus-toml-merge!
   commonmarker-merge!
+  dotenv-merge!
   gitmoji-regex (~> 1.0, >= 1.0.3)
   go-merge!
   json-merge!
@@ -363,6 +373,7 @@ CHECKSUMS
   commonmarker-merge (7.0.0)
   delegate (0.6.1) sha256=54cf946cacfe05b1c23114edd8fbd8d54e9cea7abf36b95130ab53cc88b8f7e4
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
+  dotenv-merge (7.0.0)
   gitmoji-regex (1.0.3) sha256=538c6f49f5af6dc36d1630edb89a5a66f6e14ec5850d7fd071e0331f940e553f
   go-merge (7.0.0)
   json-merge (7.0.0)

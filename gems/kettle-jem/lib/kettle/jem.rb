@@ -14,6 +14,7 @@ require "set"
 require "time"
 require "uri"
 require "ruby/merge"
+require "dotenv/merge"
 require "token/resolver"
 require "toml-merge"
 require "psych-merge"
@@ -95,7 +96,7 @@ module Kettle
       ".github/copilot_instructions.md" => ".github/COPILOT_INSTRUCTIONS.md",
     }.freeze
     SUPPORTED_TEMPLATE_STRATEGIES = %i[merge accept_template keep_destination raw_copy].freeze
-    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown text].freeze
+    SUPPORTED_TEMPLATE_FILE_TYPES = %i[ruby gemfile appraisals gemspec rakefile yaml toml markdown dotenv text].freeze
     SUPPORTED_RUBY_METHOD_MOVE_POLICIES = %w[destination_order].freeze
     DEFAULT_RUBY_METHOD_MOVE_POLICY = "destination_order"
     SUPPORTED_YAML_COMMENT_MERGE_POLICIES = %w[preserve_destination template_fallback_when_missing template_documentation].freeze
@@ -3215,6 +3216,8 @@ module Kettle
         )
       when :toml
         merge_result = Toml::Merge.merge_toml(template_content, destination_content, "toml")
+      when :dotenv
+        merge_result = merge_dotenv_template_source(template_content, destination_content, recipe)
       else
         return template_content
       end
@@ -3545,6 +3548,30 @@ module Kettle
       { comment_merge_policy: policy.to_sym }
     end
 
+    def dotenv_merge_options(recipe)
+      options = {
+        preference: (recipe.dig(:template_preference, :preference) || "destination").to_sym,
+        add_template_only_nodes: true,
+        freeze_token: recipe.dig(:template_preference, :freeze_token) || "kettle-jem",
+      }
+      if recipe.dig(:template_preference, :add_template_only_nodes) != nil
+        configured = DecisionPolicy.value_to_boolean(recipe.dig(:template_preference, :add_template_only_nodes))
+        options[:add_template_only_nodes] = configured unless configured.nil?
+      end
+      options
+    end
+
+    def merge_dotenv_template_source(template_content, destination_content, recipe)
+      output = Dotenv::Merge::SmartMerger.new(
+        template_content,
+        destination_content,
+        **dotenv_merge_options(recipe)
+      ).merge
+      { ok: true, output: output, diagnostics: [] }
+    rescue Dotenv::Merge::Error => e
+      { ok: false, output: destination_content, diagnostics: [{ kind: "dotenv_merge_failed", message: e.message }] }
+    end
+
     def merge_appraisals_template_source(template_content, destination_content, facts:)
       template = appraisal_blocks(template_content)
       destination = appraisal_blocks(destination_content)
@@ -3810,6 +3837,7 @@ module Kettle
       return :yaml if extension.match?(/\A\.ya?ml\z/) || File.basename(relative_path).casecmp("citation.cff").zero?
       return :toml if extension == ".toml"
       return :markdown if extension.match?(/\A\.md(?:own)?\z/)
+      return :dotenv if basename.start_with?(".env") || basename.end_with?(".env") || extension == ".env"
 
       :text
     end
@@ -4671,13 +4699,14 @@ module Kettle
         "| tree-sitter-language-pack | Go, Ruby, Rust, TypeScript | markdown, toml, yaml, source | Preferred cross-language parser substrate where a family has language-pack support. |",
         "| native ecosystem parser | Ruby | ruby, yaml, markdown, toml | Backend-specific Ruby packages are provider prior art or adapters, not the source schema. |",
         "| plain structured text | Go, Ruby, Rust, TypeScript | plain, binary, zip | Families without parser requirements document preservation, byte ranges, archive members, and diagnostics. |",
+        "| line-oriented config | Ruby | dotenv | Active Ruby provider for env-key matching, hash comments, freeze regions, and environment template files. |",
         "",
         "| Compatibility claim | Current disposition | Fixture source |",
         "|---|---|---|",
         "| Old Ruby runtime backend tables | Prior art only; not a cross-language support promise | slice-741 backend/platform reconciliation |",
         "| tree-sitter-language-pack | Current portable parser substrate for Go, Ruby, Rust, and TypeScript | slices 122, 135, 171, 195, 215 |",
         "| Native parser/adaptor backends | Implementation-specific providers documented through family fixtures | slices 122 and 183 |",
-        "| bash-merge, dotenv-merge, rbs-merge | Excluded from generated support tables until explicit scope decisions exist | slice-741 unresolved package list |",
+        "| bash-merge, rbs-merge | Excluded from generated support tables until explicit scope decisions exist | slice-741 unresolved package list |",
         "",
         "| Reusable example | README role | Source fixture |",
         "|---|---|---|",

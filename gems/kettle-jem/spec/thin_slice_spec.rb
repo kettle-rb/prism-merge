@@ -1979,6 +1979,47 @@ RSpec.describe Kettle::Jem do
     end
   end
 
+  it "uses dotenv structural merge for environment template files" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-dotenv-template-merge", tmp_root) do |root|
+      write_tree(root, {
+        "example.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "example"
+            spec.summary = "Example gem"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          templates:
+            root: template
+            apply: true
+            entries:
+              - source: .env.local
+                target: .env.local.example
+        YAML
+        "template/.env.local.example" => <<~ENV,
+          # Shared development defaults
+          KETTLE_RB_DEV=false
+          DEBUG=false # keep debugging disabled by default
+        ENV
+        ".env.local.example" => <<~ENV,
+          # Local documentation must survive
+          KETTLE_RB_DEV=true
+        ENV
+      })
+
+      plan = described_class.plan_project(root, env: {})
+      report = plan.fetch(:recipe_reports).find { |entry| entry.fetch(:relative_path) == ".env.local.example" }
+
+      expect(report.fetch(:final_content)).to eq(<<~ENV)
+        # Local documentation must survive
+        KETTLE_RB_DEV=true
+        DEBUG=false # keep debugging disabled by default
+      ENV
+    end
+  end
+
   it "refreshes mise trust after templating mise.toml when mise is available" do
     tmp_root = File.join(__dir__, "tmp")
     FileUtils.mkdir_p(tmp_root)
@@ -4186,7 +4227,10 @@ RSpec.describe Kettle::Jem do
         "tree-sitter-language-pack"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
-        "bash-merge, dotenv-merge, rbs-merge"
+        "bash-merge, rbs-merge"
+      )
+      expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
+        "line-oriented config"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
         "Freeze tokens"

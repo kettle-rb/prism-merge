@@ -166,6 +166,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency("token-resolver", "~> 1.0", ">= 1.0.2")            # ruby >= 3.2.0
   spec.add_dependency("tree_haver", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("commonmarker-merge", "= #{spec.version}")         # ruby >= 4.0.0
+  spec.add_dependency("dotenv-merge", "= #{spec.version}")              # ruby >= 4.0.0
   spec.add_dependency("json-merge", "= #{spec.version}")                 # ruby >= 4.0.0
   spec.add_dependency("kramdown-merge", "= #{spec.version}")             # ruby >= 4.0.0
   spec.add_dependency("markdown-merge", "= #{spec.version}")             # ruby >= 4.0.0
