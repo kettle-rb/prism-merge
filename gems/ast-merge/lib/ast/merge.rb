@@ -809,6 +809,66 @@ module Ast
     PROMOTION_PROFILE_TYPESCRIPT_IMPORT_DECLARATIONS = "typescript.import-declarations"
     PROMOTION_PROFILE_RUBY_GEMSPEC_DEPENDENCY_DECLARATIONS = "ruby.gemspec-dependency-declarations"
 
+    def ruby_reference_merge_orchestration_contract_report
+      {
+        report_id: "ruby-ast-merge-orchestration-contract",
+        reference_runtime: "ruby",
+        contract_layer: "ast_merge",
+        proves: [
+          {
+            phase: "analysis_object",
+            fixture_roles: %w[merge_session source_region_analysis],
+            ruby_surface: "Ast::Merge::FileAnalyzable",
+            portability: "portable_contract_ruby_reference_helper"
+          },
+          {
+            phase: "match_refinement",
+            fixture_roles: %w[source_owner_matching decision_record],
+            ruby_surface: "Ast::Merge::MatchRefinerBase",
+            portability: "portable_contract"
+          },
+          {
+            phase: "conflict_resolver",
+            fixture_roles: %w[source_conflict_report unresolved_case],
+            ruby_surface: "Ast::Merge::ConflictResolverBase",
+            portability: "portable_contract_ruby_reference_helper"
+          },
+          {
+            phase: "result_object",
+            fixture_roles: %w[merge_result decision_record],
+            ruby_surface: "Ast::Merge::MergeResultBase",
+            portability: "portable_contract"
+          },
+          {
+            phase: "render_emission",
+            fixture_roles: %w[source_interstitial_merge validation_failure],
+            ruby_surface: "Ast::Merge::EmitterBase",
+            portability: "portable_contract_ruby_reference_helper"
+          },
+          {
+            phase: "unresolved_review_state",
+            fixture_roles: %w[unresolved_case replay_bundle],
+            ruby_surface: "Ast::Merge::UnresolvedReviewState",
+            portability: "portable_contract"
+          },
+          {
+            phase: "structured_diagnostics",
+            fixture_roles: %w[diagnostic_record fallback_activation validation_failure],
+            ruby_surface: "Ast::Merge::Runtime::Diagnostic",
+            portability: "portable_contract"
+          }
+        ],
+        release_status: "ruby_reference_ready",
+        diagnostics: [
+          {
+            severity: "info",
+            category: "ruby_reference_contract",
+            message: "Ruby ast-merge proves the merge orchestration substrate behind the portable fixture roles."
+          }
+        ]
+      }
+    end
+
     def initial_profile_promotion_policy
       source_subprofile = lambda do |profile_id, family|
         ProfilePromotionPolicyEntry.new(

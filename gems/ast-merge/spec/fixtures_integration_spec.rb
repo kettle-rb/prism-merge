@@ -162,6 +162,20 @@ RSpec.describe Ast::Merge do
     expect(fixture.fetch(:decision)).to include("port format-neutral Ruby substrate")
   end
 
+  it "conforms to the Ruby ast-merge reference contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1004-ruby-ast-merge-reference-contract",
+        "ruby-ast-merge-reference-contract.json"
+      )
+    )
+
+    expect(json_ready(described_class.ruby_reference_merge_orchestration_contract_report)).to eq(
+      json_ready(fixture[:expected])
+    )
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

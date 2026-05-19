@@ -115,6 +115,60 @@ module TreeHaver
     raise NotAvailable, "No parser registered for #{name}"
   end
 
+  def ruby_reference_parser_backend_contract_report
+    {
+      report_id: "ruby-tree-haver-parser-backend-contract",
+      reference_runtime: "ruby",
+      contract_layer: "tree_haver",
+      proves: [
+        {
+          capability: "stable_node_spans",
+          fixture_roles: %w[portable_byte_location_contract node_span_source_fragment],
+          ruby_surface: "TreeHaver::ByteRange and TreeHaver::SourceSpan",
+          portability: "portable_contract"
+        },
+        {
+          capability: "source_fragments",
+          fixture_roles: %w[source_fragment_extraction node_span_source_fragment],
+          ruby_surface: "TreeHaver.extract_source_fragment",
+          portability: "portable_contract"
+        },
+        {
+          capability: "comments_when_backend_supports_them",
+          fixture_roles: %w[comment_capability],
+          ruby_surface: "TreeHaver::Base::Comment",
+          portability: "backend_restricted_contract"
+        },
+        {
+          capability: "parser_diagnostics",
+          fixture_roles: %w[parse_error_tolerance parser_diagnostics],
+          ruby_surface: "TreeHaver::ParseErrorTolerance and TreeHaver::ParserDiagnostics",
+          portability: "portable_contract"
+        },
+        {
+          capability: "backend_capability_reports",
+          fixture_roles: %w[backend_capability_report backend_availability provider_diagnostics],
+          ruby_surface: "TreeHaver::BackendCapability",
+          portability: "portable_contract"
+        },
+        {
+          capability: "backend_selection_context",
+          fixture_roles: %w[backend_selection_context backend_registry],
+          ruby_surface: "TreeHaver.with_backend and TreeHaver.current_backend_id",
+          portability: "portable_contract_runtime_local_mechanism"
+        }
+      ],
+      release_status: "ruby_reference_ready",
+      diagnostics: [
+        {
+          severity: "info",
+          category: "ruby_reference_contract",
+          message: "Ruby tree_haver proves the parser/backend substrate needed by source-region extraction."
+        }
+      ]
+    }
+  end
+
   def requested_backend_type(registrations)
     backend_id = current_backend_id || ENV["TREE_HAVER_BACKEND"]
     return if backend_id.to_s.empty?

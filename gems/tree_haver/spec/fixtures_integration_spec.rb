@@ -179,6 +179,20 @@ RSpec.describe TreeHaver do
     expect(fixture.fetch(:decision)).to include("Do not reintroduce manual grammar shared-library search")
   end
 
+  it "conforms to the Ruby tree_haver reference contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1003-ruby-tree-haver-reference-contract",
+        "ruby-tree-haver-reference-contract.json"
+      )
+    )
+
+    expect(json_ready(described_class.ruby_reference_parser_backend_contract_report)).to eq(
+      json_ready(fixture[:expected])
+    )
+  end
+
   it "exposes PEG backend references for parser-plurality slices" do
     expect(json_ready(described_class::CITRUS_BACKEND.to_h)).to eq(
       json_ready({ id: "citrus", family: "peg" })
