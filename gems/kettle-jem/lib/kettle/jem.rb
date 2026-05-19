@@ -2339,7 +2339,7 @@ module Kettle
         [
           recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
           recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
-          recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "text", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+          recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "ruby", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
           recipe_entry(
             "github_funding_yml",
             ".github/FUNDING.yml",
@@ -4630,7 +4630,10 @@ module Kettle
     end
 
     def step_report_metadata(recipe, deletion)
-      metadata = { target_path: recipe.fetch(:target_path) }
+      metadata = {
+        target_path: recipe.fetch(:target_path),
+        provider_family: recipe.fetch(:provider_family),
+      }
       if recipe.fetch(:primitive) == "supplied_obsolete_file_deletion"
         metadata.merge!(
           policy_kind: "delete_obsolete_file",
