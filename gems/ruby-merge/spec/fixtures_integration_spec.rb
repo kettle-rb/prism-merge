@@ -258,6 +258,16 @@ RSpec.describe "Ruby::Merge" do
       output: data_loss_fixture[:output]
     )
     expect(json_ready(data_loss_validation)).to eq(json_ready(data_loss_fixture[:expected]))
+    conflict_diagnostics_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-998-conflict-diagnostics-profile",
+        "ruby-conflict-diagnostics-profile.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_conflict_diagnostics_profile)).to eq(
+      json_ready(conflict_diagnostics_fixture[:expected])
+    )
 
     shadowing_fixture = read_json(
       fixtures_root.join(

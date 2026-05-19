@@ -479,6 +479,38 @@ module Ruby
       }
     end
 
+    def ruby_conflict_diagnostics_profile
+      {
+        profile_id: "ruby-source-conflict-diagnostics",
+        conflict_kinds: %w[
+          both_modified
+          both_added
+          modify_delete
+          rename_rename
+          rename_modify
+          order_sensitive_sibling_additions
+          interstitial_conflict
+          validation_failure
+        ],
+        risk_levels: %w[text_only syntax_level semantic_risk unknown],
+        marker_compatibility: {
+          standard_markers: true,
+          enhanced_metadata: "sidecar_or_review_state"
+        },
+        audit_fields: %w[
+          owner_identity
+          owner_kind
+          strategy_chosen
+          match_confidence
+          fallback_reason
+          validation_warnings
+          conflict_kind
+          conflict_scope
+        ],
+        stable_for_review_replay: true
+      }
+    end
+
     def ruby_silent_data_loss_validation_report(template_source:, destination_source:, output:)
       significant_inputs = {
         template: significant_source_lines(template_source),
