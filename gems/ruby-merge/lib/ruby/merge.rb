@@ -479,6 +479,37 @@ module Ruby
       }
     end
 
+    def ruby_silent_data_loss_validation_report(template_source:, destination_source:, output:)
+      significant_inputs = {
+        template: significant_source_lines(template_source),
+        destination: significant_source_lines(destination_source)
+      }
+      output_lines = significant_source_lines(output).to_h { |line| [line, true] }
+      missing = significant_inputs.flat_map do |side, lines|
+        lines.reject { |line| output_lines[line] }.map do |line|
+          {
+            side: side.to_s,
+            line: line,
+            check: "branch_added_significant_lines_preserved"
+          }
+        end
+      end
+
+      {
+        ok: missing.empty?,
+        validation_profile: ruby_post_merge_validation_profile.fetch(:profile_id),
+        failures: missing,
+        outcome: missing.empty? ? "accepted" : "hard_diagnostic_failure",
+        diagnostics: missing.empty? ? [] : [
+          {
+            severity: "error",
+            category: "silent_data_loss_prevention",
+            message: "Ruby post-merge validation detected significant input lines missing from output."
+          }
+        ]
+      }
+    end
+
     def ruby_fallback_scope_guard_report(requested_scope:, declared_scope:)
       widened = ruby_fallback_scope_rank(requested_scope) > ruby_fallback_scope_rank(declared_scope)
       {
@@ -1049,6 +1080,12 @@ module Ruby
 
     def ruby_fallback_scope_rank(scope)
       ruby_fallback_policy_profile.fetch(:scopes).index(scope.to_s) || Float::INFINITY
+    end
+
+    def significant_source_lines(source)
+      normalize_source(source).lines.map(&:strip).reject do |line|
+        line.empty? || line.start_with?("#") || line == "end"
+      end
     end
 
     def merge_ruby_requires(destination_requires, template_requires)

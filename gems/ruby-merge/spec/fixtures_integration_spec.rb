@@ -245,6 +245,19 @@ RSpec.describe "Ruby::Merge" do
     expect(json_ready(RUBY_MERGE.ruby_post_merge_validation_profile)).to eq(
       json_ready(validation_profile_fixture[:expected])
     )
+    data_loss_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-997-silent-data-loss-validation",
+        "silent-data-loss-validation.json"
+      )
+    )
+    data_loss_validation = RUBY_MERGE.ruby_silent_data_loss_validation_report(
+      template_source: data_loss_fixture[:template],
+      destination_source: data_loss_fixture[:destination],
+      output: data_loss_fixture[:output]
+    )
+    expect(json_ready(data_loss_validation)).to eq(json_ready(data_loss_fixture[:expected]))
 
     shadowing_fixture = read_json(
       fixtures_root.join(
