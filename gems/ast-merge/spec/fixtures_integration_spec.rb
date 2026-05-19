@@ -288,6 +288,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.logical_owner_substrate_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the render source-shaper contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1014-render-source-shaper-contract",
+        "render-source-shaper-contract.json"
+      )
+    )
+
+    expect(json_ready(described_class.render_source_shaper_contract_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

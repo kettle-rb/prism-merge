@@ -17,6 +17,7 @@ module Ast
               read_strategy: config.read,
               attachment_strategy: config.attach,
               comment_style: config.comment_style,
+              render_family: config.render,
               capabilities: config.capabilities,
               logical_owners: config.logical_owners,
               support_style: support_style,
@@ -35,7 +36,7 @@ module Ast
               read_strategy: runtime.read_strategy,
               attachment_strategy: runtime.attachment_strategy,
               comment_style: runtime.comment_style,
-              render_family: config.render,
+              render_family: runtime.render_family,
               support_style: runtime.support_style,
               capabilities: runtime.capabilities.merge(
                 layout_aware: true,

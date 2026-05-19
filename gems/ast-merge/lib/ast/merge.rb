@@ -1533,6 +1533,40 @@ module Ast
       }
     end
 
+    def render_source_shaper_contract_report
+      {
+        report_id: "render-source-shaper-contract",
+        reference_runtime: "ruby",
+        ruleset_directive: "render",
+        runtime_field: "render_family",
+        runtime_paths: [
+          "Ruleset::RuntimeDeclaration#render_family",
+          "Ruleset::FeatureProfile#render_family",
+          "RenderPlanReport",
+          "RenderVerificationReport"
+        ],
+        shared_contract_owns: [
+          "render strategy metadata",
+          "source fragment preservation metadata",
+          "reparse-after-render verification metadata",
+          "emitter attachment and layout preservation helpers"
+        ],
+        format_specific_adapters_own: [
+          "syntax serialization",
+          "canonical formatter integration",
+          "provider-native render APIs",
+          "format-specific source shapers"
+        ],
+        diagnostics: [
+          {
+            severity: "info",
+            category: "render_source_shaper_contract",
+            message: "Render directive vocabulary is carried into runtime declarations while concrete serialization remains format-specific."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,

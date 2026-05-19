@@ -247,6 +247,7 @@ RSpec.describe Ast::Merge::Ruleset::Config do
       expect(declaration).to be_a(Ast::Merge::Ruleset::RuntimeDeclaration)
       expect(declaration.read_strategy).to eq(:native_read_portable_write)
       expect(declaration.attachment_strategy).to eq(:normalize_tracked_layout_merge)
+      expect(declaration.render_family).to eq(:toml_pairs_and_tables)
       expect(declaration.capabilities).to eq(
         inline_comments: true,
         quoted_hash_inline_literals: false,
@@ -257,6 +258,7 @@ RSpec.describe Ast::Merge::Ruleset::Config do
       )
       expect(profile.read_strategy).to eq(declaration.read_strategy)
       expect(profile.attachment_strategy).to eq(declaration.attachment_strategy)
+      expect(profile.render_family).to eq(declaration.render_family)
       expect(profile.logical_owners).to eq(declaration.logical_owners)
       expect(profile.logical_owner_policies.map(&:to_h)).to eq(declaration.logical_owner_policies.map(&:to_h))
       expect(profile.support_style.to_h).to eq(declaration.support_style.to_h)
