@@ -162,6 +162,17 @@ RSpec.describe "Ruby::Merge" do
     )
     expect(interstitial_require_merge[:ok]).to eq(interstitial_require_fixture.dig(:expected, :merge, :ok))
     expect(interstitial_require_merge[:output]).to eq(interstitial_require_fixture.dig(:expected, :merge, :output))
+    interstitial_comment_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-989-interstitial-comment-attachment",
+        "interstitial-comment-attachment.json"
+      )
+    )
+    interstitial_comments = RUBY_MERGE.ruby_interstitial_comment_attachment_report(
+      interstitial_comment_fixture[:source]
+    )
+    expect(json_ready(interstitial_comments)).to eq(json_ready(interstitial_comment_fixture[:expected]))
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(

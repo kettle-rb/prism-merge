@@ -440,6 +440,36 @@ module Ruby
       }
     end
 
+    def ruby_interstitial_comment_attachment_report(source)
+      lines = normalize_source(source).lines(chomp: true)
+      owners = top_level_source_region_owners(lines)
+      comment_blocks = source_comment_blocks(lines)
+
+      {
+        comments: comment_blocks.map do |block|
+          previous_owner = owners.reverse.find { |owner| owner[:end_index] < block[:start_index] }
+          next_owner = owners.find { |owner| owner.fetch(:declaration_start_index, owner[:start_index]) > block[:end_index] }
+          next_owner_index = next_owner&.fetch(:declaration_start_index, next_owner&.fetch(:start_index))
+          attachment = if next_owner_index && block[:end_index] + 1 == next_owner_index
+            "following_owner"
+          elsif previous_owner && next_owner_index && (block[:end_index] + 1...next_owner_index).any? { |index| lines[index].to_s.strip.empty? }
+            "preceding_owner"
+          elsif previous_owner && next_owner.nil?
+            "preceding_owner"
+          else
+            "standalone"
+          end
+          compact_region(
+            attachment: attachment,
+            previous_owner: previous_owner&.fetch(:address),
+            next_owner: next_owner&.fetch(:address),
+            span: line_span(block[:start_index], block[:end_index]),
+            content: source_region_content(lines, block[:start_index], block[:end_index])
+          )
+        end
+      }
+    end
+
     def ruby_rename_detection_policy_profile
       {
         policy_id: "ruby-source-rename-detection",
@@ -1342,22 +1372,24 @@ module Ruby
         end
 
         declaration = declaration_for_line(line)
-        if declaration && %w[class module].include?(declaration[:kind])
+        if declaration
           start_index = pending_comments.first || index
           finish_index = ruby_block_finish_index(lines, index)
+          address = declaration[:kind] == "def" ? "/methods/#{declaration[:name]}" : "/declarations/#{declaration[:name]}"
           owner = {
-            region_id: "declaration:#{declaration[:name]}",
+            region_id: "#{declaration[:kind] == "def" ? "method" : "declaration"}:#{declaration[:name]}",
             region_kind: "owner",
             owner_kind: declaration[:kind],
-            address: "/declarations/#{declaration[:name]}",
+            address: address,
             match_key: declaration[:name],
             start_index: start_index,
+            declaration_start_index: index,
             end_index: finish_index,
             span: line_span(start_index, finish_index),
             declaration_span: line_span(index, finish_index),
-            content: source_region_content(lines, start_index, finish_index),
-            child_regions: container_child_source_regions(lines, declaration, index, finish_index)
+            content: source_region_content(lines, start_index, finish_index)
           }
+          owner[:child_regions] = container_child_source_regions(lines, declaration, index, finish_index) if %w[class module].include?(declaration[:kind])
           attached_comments = attached_comment_regions(lines, start_index, index)
           owner[:attached_comments] = attached_comments unless attached_comments.empty?
           owners << owner
@@ -1511,8 +1543,24 @@ module Ruby
       )
     end
 
+    def source_comment_blocks(lines)
+      blocks = []
+      index = 0
+      while index < lines.length
+        unless comment_line?(lines[index])
+          index += 1
+          next
+        end
+
+        start_index = index
+        index += 1 while index < lines.length && comment_line?(lines[index])
+        blocks << { start_index: start_index, end_index: index - 1 }
+      end
+      blocks
+    end
+
     def public_source_region(region)
-      region.reject { |key, _value| %i[start_index end_index].include?(key) }
+      region.reject { |key, _value| %i[start_index declaration_start_index end_index].include?(key) }
     end
 
     def line_span(start_index, end_index)
