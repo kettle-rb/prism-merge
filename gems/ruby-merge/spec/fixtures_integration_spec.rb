@@ -217,6 +217,16 @@ RSpec.describe "Ruby::Merge" do
       scope: fallback_activation_fixture.dig(:expected, :scope)
     )
     expect(json_ready(fallback_activation)).to eq(json_ready(fallback_activation_fixture[:expected]))
+    never_worse_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-994-never-worse-fallback-mode",
+        "ruby-never-worse-fallback-mode.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_never_worse_fallback_mode)).to eq(
+      json_ready(never_worse_fixture[:expected])
+    )
 
     shadowing_fixture = read_json(
       fixtures_root.join(

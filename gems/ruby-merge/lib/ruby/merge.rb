@@ -436,6 +436,27 @@ module Ruby
       }
     end
 
+    def ruby_never_worse_fallback_mode
+      {
+        mode_id: "never_worse_than_baseline",
+        enabled: true,
+        baseline_provider: ruby_fallback_policy_profile.dig(:baseline_provider, :provider_id),
+        comparison: {
+          conflict_count: "structured_must_not_exceed_baseline",
+          conflict_scope: "structured_must_not_be_broader_than_baseline",
+          data_loss: "structured_must_not_drop_clean_branch_content"
+        },
+        fallback_action: "discard_structured_result_and_use_baseline",
+        diagnostics: [
+          {
+            severity: "info",
+            category: "never_worse_fallback_mode",
+            message: "Ruby fallback comparison mode treats the host baseline merge as the safety floor."
+          }
+        ]
+      }
+    end
+
     def ruby_interstitial_merge_policy_profile
       {
         policy_id: "ruby-source-interstitial-merge",
