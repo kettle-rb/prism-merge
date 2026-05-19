@@ -1424,6 +1424,52 @@ module Ast
       }
     end
 
+    def attachment_strategy_substrate_report
+      {
+        report_id: "attachment-strategy-substrate",
+        reference_runtime: "ruby",
+        shared_surface: "Ast::Merge::FileAnalyzable#shared_comment_attachment_for",
+        strategies: [
+          {
+            strategy: "layout_only",
+            shared_method: "merge_comment_attachment_with_layout",
+            downstream_adopters: %w[default ast-merge]
+          },
+          {
+            strategy: "tracker_layout_merge",
+            shared_method: "merge_comment_attachment_with_layout",
+            downstream_adopters: %w[dotenv-merge psych-merge]
+          },
+          {
+            strategy: "augmenter_preferred_tracker_layout",
+            shared_method: "merge_augmented_comment_attachment_with_layout",
+            downstream_adopters: %w[bash-merge json-merge]
+          },
+          {
+            strategy: "normalize_tracked_layout_merge",
+            shared_method: "normalize_tracked_comment_attachment_with_layout",
+            downstream_adopters: %w[markdown-merge rbs-merge toml-merge]
+          }
+        ],
+        selection_contract: {
+          selected_by: [
+            "ruleset attach directive",
+            "FileAnalyzable#comment_attachment_strategy",
+            "Ruleset::FeatureProfile#attachment_strategy"
+          ],
+          unknown_strategy: "ArgumentError",
+          vocabulary: "Ast::Merge::Ruleset::ProfileVocabulary"
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "attachment_strategy_substrate",
+            message: "Recurring attachment strategy orchestration is shared and selected by named behavior."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,

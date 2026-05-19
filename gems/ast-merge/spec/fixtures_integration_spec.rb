@@ -252,6 +252,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.owner_selection_substrate_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the attachment-strategy substrate fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1011-attachment-strategy-substrate",
+        "attachment-strategy-substrate.json"
+      )
+    )
+
+    expect(json_ready(described_class.attachment_strategy_substrate_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
