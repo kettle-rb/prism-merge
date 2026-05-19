@@ -275,7 +275,7 @@ GEM
     gitmoji-regex (1.0.3)
       version_gem (~> 1.1, >= 1.1.8)
     kettle-dev (2.0.0)
-    kettle-test (2.0.0)
+    kettle-test (1.0.10)
       appraisal2 (~> 3.0, >= 3.0.2)
       backports (~> 3.0)
       rspec (~> 3.0)
@@ -285,15 +285,11 @@ GEM
       rspec_junit_formatter (~> 0.6)
       silent_stream (~> 1.0, >= 1.0.12)
       timecop-rspec (~> 1.0, >= 1.0.3)
-      turbo_tests2 (~> 3.0)
       version_gem (~> 1.1, >= 1.1.9)
     kramdown (2.5.2)
       rexml (>= 3.4.4)
     logger (1.7.0)
     markly (0.16.0)
-    parallel (2.1.0)
-    parallel_tests (5.7.0)
-      parallel
     parslet (2.0.0)
     prism (1.9.0)
     racc (1.8.1)
@@ -353,10 +349,6 @@ GEM
       racc (~> 1.7)
     tree_sitter_language_pack (1.8.1-x86_64-linux)
     tsort (0.2.0)
-    turbo_tests2 (3.0.0)
-      parallel_tests (>= 3.3.0, < 6)
-      rspec (>= 3.10)
-      version_gem (~> 1.1, >= 1.1.9)
     version_gem (1.1.9)
     zeitwerk (2.7.5)
 
@@ -382,7 +374,7 @@ DEPENDENCIES
   json-merge!
   kettle-dev (~> 2.0)
   kettle-jem!
-  kettle-test (~> 2.0, >= 2.0.0)
+  kettle-test (~> 1.0, >= 1.0.7)
   kramdown-merge!
   markdown-merge!
   markly-merge!
@@ -432,15 +424,13 @@ CHECKSUMS
   json-merge (7.0.0)
   kettle-dev (2.0.0) sha256=f3cd1a2f8cc4f1fcc573d7e9177644873cfdfe455e26365416b4290ea09490b5
   kettle-jem (7.0.0)
-  kettle-test (2.0.0) sha256=decf6ee0e6546d3b31c127ca493a4a46ef222c3343ebbe8ec6e89845530d509a
+  kettle-test (1.0.10) sha256=ddefc5d54b290ee6dbe5a3983128f6948fa63f624ca676c1e6cfffc9b6878179
   kramdown (2.5.2) sha256=1ba542204c66b6f9111ff00dcc26075b95b220b07f2905d8261740c82f7f02fa
   kramdown-merge (7.0.0)
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
   markdown-merge (7.0.0)
   markly (0.16.0) sha256=6f70d79e385b1efc9e171f74c81628826259039fe6c778e03c3924c71dac5511
   markly-merge (7.0.0)
-  parallel (2.1.0) sha256=b35258865c2e31134c5ecb708beaaf6772adf9d5efae28e93e99260877b09356
-  parallel_tests (5.7.0) sha256=3f1762c46ca2c223b8af8ef877217f9d76974e191bfa934f2580b58bcf1d005c
   parslet (2.0.0) sha256=d45130695d39b43d7e6a91f4d2ec66b388a8d822bae38de9b4de9a5fbde1f606
   parslet-toml-merge (7.0.0)
   plain-merge (7.0.0)
@@ -481,7 +471,6 @@ CHECKSUMS
   tree_haver (7.0.0)
   tree_sitter_language_pack (1.8.1-x86_64-linux) sha256=058f1378605a19e6a966115eefef2c6b4c8d4d04b187939252948bd5a877aa1a
   tsort (0.2.0) sha256=9650a793f6859a43b6641671278f79cfead60ac714148aabe4e3f0060480089f
-  turbo_tests2 (3.0.0) sha256=a2a91df491386e0b11a717197fcd116c2b5417f941fa2c959dfb76077a4b8971
   typescript-merge (7.0.0)
   version_gem (1.1.9) sha256=0c1a0962ae543c84a00889bb018d9f14d8f8af6029d26b295d98774e3d2eb9a4
   yaml-merge (7.0.0)
