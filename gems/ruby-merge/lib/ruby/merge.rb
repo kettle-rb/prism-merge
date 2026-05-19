@@ -442,6 +442,41 @@ module Ruby
       }
     end
 
+    def ruby_child_group_profile
+      {
+        profile_id: "ruby-source-child-groups",
+        groups: [
+          {
+            owner_kind: "class",
+            child_group: "methods",
+            ordering: "policy_ordered",
+            ordering_policy: DEFAULT_METHOD_MOVE_POLICY,
+            commutative: false,
+            visibility_sections: %w[public protected private]
+          },
+          {
+            owner_kind: "class",
+            child_group: "constants",
+            ordering: "destination_order_then_template_additions",
+            commutative: false
+          },
+          {
+            owner_kind: "module",
+            child_group: "declarations",
+            ordering: "destination_order_then_template_additions",
+            commutative: false
+          }
+        ],
+        diagnostics: [
+          {
+            severity: "info",
+            category: "ruby_child_group_profile",
+            message: "Ruby child groups preserve destination order unless an explicit policy says otherwise."
+          }
+        ]
+      }
+    end
+
     def ruby_interstitial_comment_attachment_report(source)
       lines = normalize_source(source).lines(chomp: true)
       owners = top_level_source_region_owners(lines)

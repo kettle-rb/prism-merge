@@ -188,6 +188,12 @@ RSpec.describe "Ruby::Merge" do
     )
     expect(file_edge_merge[:ok]).to eq(file_edge_fixture.dig(:expected, :ok))
     expect(file_edge_merge[:output]).to eq(file_edge_fixture.dig(:expected, :output))
+    child_group_profile_fixture = read_json(
+      fixtures_root.join("ruby", "slice-992-child-group-profile", "ruby-child-group-profile.json")
+    )
+    expect(json_ready(RUBY_MERGE.ruby_child_group_profile)).to eq(
+      json_ready(child_group_profile_fixture[:expected])
+    )
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(
