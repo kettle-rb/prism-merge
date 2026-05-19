@@ -65,6 +65,12 @@ RSpec.describe "Ruby::Merge" do
     expect(analysis[:ok]).to be(true)
     expect(json_ready(analysis.dig(:analysis, :owners))).to eq(json_ready(analysis_fixture.dig(:expected, :owners)))
 
+    source_region_fixture = read_json(
+      fixtures_root.join("ruby", "slice-977-source-region-analysis", "class-method-source-regions.json")
+    )
+    source_regions = RUBY_MERGE.ruby_source_regions(source_region_fixture[:source])
+    expect(json_ready(source_regions)).to eq(json_ready(source_region_fixture[:expected]))
+
     shadowing_fixture = read_json(
       fixtures_root.join(
         "ruby",

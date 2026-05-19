@@ -260,6 +260,16 @@ module Ruby
       operations
     end
 
+    def ruby_source_regions(source)
+      lines = normalize_source(source).lines(chomp: true)
+      owners = top_level_source_region_owners(lines)
+
+      {
+        regions: interleave_source_regions(lines, owners),
+        trailing_newline: normalize_source(source).end_with?("\n")
+      }
+    end
+
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
       lines = normalize_source(source).split("\n")
       operations_by_id = delegated_operations.to_h { |operation| [operation[:operation_id], operation] }
@@ -894,6 +904,247 @@ module Ruby
     end
 
     private
+
+    def top_level_source_region_owners(lines)
+      owners = []
+      pending_comments = []
+      index = 0
+
+      while index < lines.length
+        line = lines[index]
+        stripped = line.strip
+
+        if comment_line?(line)
+          pending_comments << index
+          index += 1
+          next
+        end
+
+        if stripped.empty?
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        if (match = REQUIRE_PATTERN.match(line))
+          require_path = match[1]
+          owners << {
+            region_id: "require:#{require_path}",
+            region_kind: "owner",
+            owner_kind: "require",
+            address: "/requires/#{require_path}",
+            match_key: require_path,
+            start_index: index,
+            end_index: index,
+            span: line_span(index, index),
+            content: source_region_content(lines, index, index)
+          }
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        declaration = declaration_for_line(line)
+        if declaration && %w[class module].include?(declaration[:kind])
+          start_index = pending_comments.first || index
+          finish_index = ruby_block_finish_index(lines, index)
+          owner = {
+            region_id: "declaration:#{declaration[:name]}",
+            region_kind: "owner",
+            owner_kind: declaration[:kind],
+            address: "/declarations/#{declaration[:name]}",
+            match_key: declaration[:name],
+            start_index: start_index,
+            end_index: finish_index,
+            span: line_span(start_index, finish_index),
+            declaration_span: line_span(index, finish_index),
+            content: source_region_content(lines, start_index, finish_index),
+            child_regions: container_child_source_regions(lines, declaration, index, finish_index)
+          }
+          attached_comments = attached_comment_regions(lines, start_index, index)
+          owner[:attached_comments] = attached_comments unless attached_comments.empty?
+          owners << owner
+          pending_comments = []
+          index = finish_index + 1
+          next
+        end
+
+        pending_comments = []
+        index += 1
+      end
+
+      owners
+    end
+
+    def container_child_source_regions(lines, declaration, declaration_index, finish_index)
+      owners = []
+      pending_comments = []
+      index = declaration_index + 1
+
+      while index < finish_index
+        line = lines[index]
+        stripped = line.strip
+
+        if comment_line?(line)
+          pending_comments << index
+          index += 1
+          next
+        end
+
+        if stripped.empty?
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        nested_declaration = declaration_for_line(line)
+        if nested_declaration && %w[class module].include?(nested_declaration[:kind])
+          pending_comments = []
+          index = ruby_block_finish_index(lines, index) + 1
+          next
+        end
+
+        method = DEF_PATTERN.match(line)
+        unless method
+          pending_comments = []
+          index += 1
+          next
+        end
+
+        start_index = pending_comments.first || index
+        method_finish_index = ruby_block_finish_index(lines, index)
+        method_name = method[2]
+        owner = {
+          region_id: "method:#{declaration[:name]}##{method_name}",
+          region_kind: "owner",
+          owner_kind: "method",
+          address: "/declarations/#{declaration[:name]}/methods/#{method_name}",
+          match_key: method_name,
+          start_index: start_index,
+          end_index: method_finish_index,
+          span: line_span(start_index, method_finish_index),
+          content: source_region_content(lines, start_index, method_finish_index)
+        }
+        owner[:declaration_span] = line_span(index, method_finish_index) if start_index != index
+        attached_comments = attached_comment_regions(lines, start_index, index)
+        owner[:attached_comments] = attached_comments unless attached_comments.empty?
+        owners << owner
+        pending_comments = []
+        index = method_finish_index + 1
+      end
+
+      interleave_source_regions(
+        lines,
+        owners,
+        container_name: declaration[:name],
+        container_start_index: declaration_index,
+        container_end_index: finish_index
+      )
+    end
+
+    def interleave_source_regions(lines, owners, container_name: nil, container_start_index: 0, container_end_index: nil)
+      container_end_index ||= lines.length - 1
+      regions = []
+      cursor = container_start_index
+      previous_owner = nil
+
+      owners.each do |owner|
+        if cursor < owner[:start_index]
+          regions << source_interstitial_region(
+            lines,
+            cursor,
+            owner[:start_index] - 1,
+            previous_owner,
+            owner,
+            container_name: container_name
+          )
+        end
+
+        regions << public_source_region(owner)
+        previous_owner = owner
+        cursor = owner[:end_index] + 1
+      end
+
+      if cursor <= container_end_index
+        regions << source_interstitial_region(
+          lines,
+          cursor,
+          container_end_index,
+          previous_owner,
+          nil,
+          container_name: container_name
+        )
+      end
+
+      regions
+    end
+
+    def source_interstitial_region(lines, start_index, end_index, previous_owner, next_owner, container_name: nil)
+      position = if previous_owner.nil? && next_owner
+        container_name ? "container_header" : "file_header"
+      elsif previous_owner && next_owner
+        "between"
+      elsif container_name
+        "container_footer"
+      else
+        "file_footer"
+      end
+
+      region_id = case position
+      when "container_header"
+        "class_header:#{container_name}"
+      when "container_footer"
+        "class_footer:#{container_name}"
+      when "file_header"
+        "file_header"
+      when "file_footer"
+        "file_footer"
+      else
+        "between:#{previous_owner[:region_id]}:#{next_owner[:region_id]}"
+      end
+
+      compact_region(
+        region_id: region_id,
+        region_kind: "interstitial",
+        position: position,
+        previous_owner: previous_owner&.fetch(:address),
+        next_owner: next_owner&.fetch(:address),
+        span: line_span(start_index, end_index),
+        content: source_region_content(lines, start_index, end_index)
+      )
+    end
+
+    def public_source_region(region)
+      region.reject { |key, _value| %i[start_index end_index].include?(key) }
+    end
+
+    def line_span(start_index, end_index)
+      {
+        start_line: start_index + 1,
+        end_line: end_index + 1
+      }
+    end
+
+    def source_region_content(lines, start_index, end_index)
+      "#{lines[start_index..end_index].join("\n")}\n"
+    end
+
+    def attached_comment_regions(lines, start_index, declaration_index)
+      return [] unless start_index < declaration_index
+
+      [
+        {
+          attachment: "leading",
+          start_line: start_index + 1,
+          end_line: declaration_index,
+          content: source_region_content(lines, start_index, declaration_index - 1)
+        }
+      ]
+    end
+
+    def compact_region(region)
+      region.reject { |_key, value| value.nil? }
+    end
 
     RubyHashNode = Struct.new(:pairs, :inline, :trailing_comma, keyword_init: true)
     RubyHashPair = Struct.new(:key, :key_source, :delimiter, :value, keyword_init: true)
