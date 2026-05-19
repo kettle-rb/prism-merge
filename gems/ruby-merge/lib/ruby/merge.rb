@@ -366,6 +366,27 @@ module Ruby
       }
     end
 
+    def ruby_fallback_policy_profile
+      {
+        policy_id: "ruby-source-fallback-policy",
+        baseline_provider: {
+          provider_id: "host_baseline_merge",
+          integration_point: true
+        },
+        scopes: %w[node subtree owned_region whole_file],
+        triggers: [
+          { reason: "binary_input", scope: "whole_file" },
+          { reason: "unsupported_parser_or_backend", scope: "whole_file" },
+          { reason: "no_structural_owners", scope: "whole_file" },
+          { reason: "both_branches_create_file", scope: "whole_file" },
+          { reason: "excessive_duplicate_identities", scope: "owned_region" },
+          { reason: "timeout_or_resource_budget", scope: "whole_file" },
+          { reason: "backend_diagnostic_threshold", scope: "owned_region" }
+        ],
+        reporting_fields: %w[activated reason scope selected_baseline structured_result_discarded]
+      }
+    end
+
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
       lines = normalize_source(source).split("\n")
       operations_by_id = delegated_operations.to_h { |operation| [operation[:operation_id], operation] }

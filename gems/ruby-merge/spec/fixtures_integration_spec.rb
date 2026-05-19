@@ -99,6 +99,17 @@ RSpec.describe "Ruby::Merge" do
     )
     expect(json_ready(owner_matches)).to eq(json_ready(owner_matching_fixture[:expected]))
 
+    fallback_policy_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-983-fallback-policy-profile",
+        "ruby-fallback-policy-profile.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_fallback_policy_profile)).to eq(
+      json_ready(fallback_policy_fixture[:expected])
+    )
+
     shadowing_fixture = read_json(
       fixtures_root.join(
         "ruby",
