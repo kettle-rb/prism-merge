@@ -23,7 +23,7 @@ module Ast
       # be checked before they are loaded (e.g., during RSpec setup):
       # - :markly_merge, :commonmarker_merge, :markdown_merge (markdown)
       # - :prism_merge, :bash_merge, :rbs_merge (code)
-      # - :json_merge, :jsonc_merge (data)
+      # - :json_merge (data, including JSONC dialect support)
       # - :toml_merge, :psych_merge, :dotenv_merge (config)
       #
       # External merge gems can also register themselves by calling {register}
@@ -126,13 +126,6 @@ module Ast
             require_path: "json/merge",
             merger_class: "Json::Merge::SmartMerger",
             test_source: '{"key": "value"}',
-            category: :data,
-            skip_instantiation: false,
-          },
-          jsonc_merge: {
-            require_path: "jsonc/merge",
-            merger_class: "Jsonc::Merge::SmartMerger",
-            test_source: "// comment\n{\"key\": \"value\"}",
             category: :data,
             skip_instantiation: false,
           },

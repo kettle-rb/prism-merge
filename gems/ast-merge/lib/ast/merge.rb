@@ -974,23 +974,13 @@ module Ast
           ),
           downstream_merge_gem_feature(
             "json-merge",
-            owner_selector: "json_object_member",
+            owner_selector: "json_or_jsonc_object_member",
             match_key: "object_key",
-            attachment_strategy: "none",
-            comment_style: "none",
-            layout_awareness: "structural_json",
+            attachment_strategy: "member_or_dialect_trivia",
+            comment_style: "none_or_jsonc_line_or_block",
+            layout_awareness: "structural_json_or_jsonc",
             logical_owner_behavior: "keyed_member",
             render_source_shaper_family: "canonical_or_source_fragment"
-          ),
-          downstream_merge_gem_feature(
-            "jsonc-merge",
-            owner_selector: "jsonc_object_member",
-            match_key: "object_key",
-            attachment_strategy: "nearest_comment_or_member",
-            comment_style: "line_or_block",
-            layout_awareness: "comment_and_trivia_preserving",
-            logical_owner_behavior: "keyed_member",
-            render_source_shaper_family: "source_fragment"
           ),
           downstream_merge_gem_feature(
             "markdown-merge",

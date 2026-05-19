@@ -610,6 +610,17 @@ rescue LoadError
   nil
 end
 
+if defined?(Ast::Merge::RSpec::MergeGemRegistry)
+  Ast::Merge::RSpec::MergeGemRegistry.register(
+    :markdown_merge,
+    require_path: "markdown/merge",
+    merger_class: "Markdown::Merge::SmartMerger",
+    test_source: "# Test\n\nParagraph",
+    category: :markdown,
+    skip_instantiation: true,
+  )
+end
+
 Markdown::Merge::Version.class_eval do
   extend VersionGem::Basic
 end

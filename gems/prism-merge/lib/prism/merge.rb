@@ -964,6 +964,16 @@ end
 
 Prism::Merge.register_backend!
 
+if defined?(Ast::Merge::RSpec::MergeGemRegistry)
+  Ast::Merge::RSpec::MergeGemRegistry.register(
+    :prism_merge,
+    require_path: "prism/merge",
+    merger_class: "Prism::Merge::SmartMerger",
+    test_source: "def foo; end",
+    category: :code,
+  )
+end
+
 Prism::Merge::Version.class_eval do
   extend VersionGem::Basic
 end

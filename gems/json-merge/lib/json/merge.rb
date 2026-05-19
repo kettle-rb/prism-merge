@@ -439,6 +439,16 @@ end
 
 Json::Merge.register_backend!
 
+if defined?(Ast::Merge::RSpec::MergeGemRegistry)
+  Ast::Merge::RSpec::MergeGemRegistry.register(
+    :json_merge,
+    require_path: "json/merge",
+    merger_class: "Json::Merge::SmartMerger",
+    test_source: '{"key": "value"}',
+    category: :data,
+  )
+end
+
 Json::Merge::Version.class_eval do
   extend VersionGem::Basic
 end
