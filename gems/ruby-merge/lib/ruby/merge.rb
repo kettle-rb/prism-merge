@@ -418,6 +418,24 @@ module Ruby
       }
     end
 
+    def ruby_fallback_activation_report(reason:, scope:, selected_baseline: "host_baseline_merge", structured_result_discarded: true)
+      {
+        activated: true,
+        reason: reason,
+        scope: scope,
+        selected_baseline: selected_baseline,
+        structured_result_discarded: structured_result_discarded,
+        policy_id: ruby_fallback_policy_profile.fetch(:policy_id),
+        diagnostics: [
+          {
+            severity: "warning",
+            category: "fallback_applied",
+            message: "Ruby source fallback activated for #{reason} at #{scope} scope."
+          }
+        ]
+      }
+    end
+
     def ruby_interstitial_merge_policy_profile
       {
         policy_id: "ruby-source-interstitial-merge",

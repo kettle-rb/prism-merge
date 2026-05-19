@@ -205,6 +205,18 @@ RSpec.describe "Ruby::Merge" do
     expect(json_ready(RUBY_MERGE.ruby_fallback_policy_profile)).to eq(
       json_ready(fallback_policy_fixture[:expected])
     )
+    fallback_activation_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-993-fallback-activation-report",
+        "ruby-fallback-activation-report.json"
+      )
+    )
+    fallback_activation = RUBY_MERGE.ruby_fallback_activation_report(
+      reason: fallback_activation_fixture.dig(:expected, :reason),
+      scope: fallback_activation_fixture.dig(:expected, :scope)
+    )
+    expect(json_ready(fallback_activation)).to eq(json_ready(fallback_activation_fixture[:expected]))
 
     shadowing_fixture = read_json(
       fixtures_root.join(
