@@ -114,7 +114,7 @@ module Toml
         @comment_support_style ||= shared_comment_support_style(
           source: native_comment_backend? ? @backend : :toml_source,
           style: :hash_comment,
-          read_strategy: native_comment_backend? ? :native_read_synthetic_write : :source_augmented_synthetic,
+          read_strategy: native_comment_backend? ? :native_read_portable_write : :source_augmented_portable_write,
         )
       end
 

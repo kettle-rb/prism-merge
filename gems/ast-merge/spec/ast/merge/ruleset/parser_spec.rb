@@ -44,24 +44,36 @@ RSpec.describe Ast::Merge::Ruleset::Parser do
       expect(parsed[:directives].last).to include(name: :delegate)
     end
 
-    it "normalizes legacy read-strategy names" do
-      parsed = described_class.parse(<<~RULESET)
-        format toml
-        owners line_bound_statements
-        match signature
-        read native_read_synthetic_write
-        attach normalize_tracked_layout_merge
-      RULESET
-
-      expect(parsed[:read]).to eq(:native_read_portable_write)
+    it "rejects old native-read read-strategy names" do
+      expect do
+        described_class.parse(<<~RULESET)
+          format toml
+          owners line_bound_statements
+          match signature
+          read native_read_synthetic_write
+          attach normalize_tracked_layout_merge
+        RULESET
+      end.to raise_error(ArgumentError, /Unknown read strategy/)
     end
 
-    it "normalizes legacy source-augmented read-strategy names" do
+    it "rejects old source-augmented read-strategy names" do
+      expect do
+        described_class.parse(<<~RULESET)
+          format toml
+          owners line_bound_statements
+          match signature
+          read source_augmented_synthetic
+          attach normalize_tracked_layout_merge
+        RULESET
+      end.to raise_error(ArgumentError, /Unknown read strategy/)
+    end
+
+    it "accepts source-augmented portable-write read-strategy names" do
       parsed = described_class.parse(<<~RULESET)
         format toml
         owners line_bound_statements
         match signature
-        read source_augmented_synthetic
+        read source_augmented_portable_write
         attach normalize_tracked_layout_merge
       RULESET
 

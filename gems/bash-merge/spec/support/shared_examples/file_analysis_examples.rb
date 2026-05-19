@@ -250,8 +250,8 @@ RSpec.shared_examples "shared comment capability" do
 
       expect(analysis.comment_capability.source_augmented?).to be true
       expect(analysis.comment_support_style).to be_a(Ast::Merge::Comment::SupportStyle)
-      expect(analysis.comment_support_style.source_augmented_synthetic?).to be true
-      expect(analysis.comment_support_style.synthetic_write?).to be true
+      expect(analysis.comment_support_style.source_augmented_portable_write?).to be true
+      expect(analysis.comment_support_style.portable_write?).to be true
       expect(analysis.comment_support_style.details[:capability]).to eq(:source_augmented)
       expect(analysis.comment_support_style.details[:source]).to eq(:bash_source)
       expect(analysis.comment_support_style.details[:style]).to eq(:hash_comment)

@@ -208,17 +208,6 @@ RSpec.describe Ast::Merge::Ruleset::Config do
       expect(support_style.details[:style]).to eq(:hash_comment)
     end
 
-    it "normalizes legacy read-strategy names to the new portable-write vocabulary" do
-      ruleset = described_class.parse(<<~RULESET)
-        format toml
-        owners line_bound_statements
-        match signature
-        read native_read_synthetic_write
-        attach normalize_tracked_layout_merge
-      RULESET
-
-      expect(ruleset.read).to eq(:native_read_portable_write)
-    end
   end
 
   describe "#feature_profile" do

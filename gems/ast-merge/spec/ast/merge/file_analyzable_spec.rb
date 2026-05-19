@@ -59,28 +59,48 @@ RSpec.describe Ast::Merge::FileAnalyzable do
       expect(support_style.details[:source]).to eq(:fixture_native)
     end
 
-    it "normalizes legacy source-augmented support-style names" do
+    it "rejects old source-augmented support-style names" do
+      expect do
+        analysis.shared_comment_support_style(
+          source: :fixture_source,
+          style: :hash_comment,
+          read_strategy: :source_augmented_synthetic,
+          capability: :full,
+        )
+      end.to raise_error(ArgumentError, /Unknown comment support read strategy/)
+    end
+
+    it "rejects old native-read support-style names" do
+      expect do
+        analysis.shared_comment_support_style(
+          source: :fixture_native,
+          style: :hash_comment,
+          read_strategy: :native_read_synthetic_write,
+          capability: :full,
+        )
+      end.to raise_error(ArgumentError, /Unknown comment support read strategy/)
+    end
+
+    it "builds source-augmented portable-write support styles" do
       support_style = analysis.shared_comment_support_style(
         source: :fixture_source,
         style: :hash_comment,
-        read_strategy: :source_augmented_synthetic,
+        read_strategy: :source_augmented_portable_write,
         capability: :full,
       )
 
       expect(support_style).to be_source_augmented_portable_write
-      expect(support_style).to be_source_augmented_synthetic
     end
 
-    it "normalizes legacy native-read support-style names" do
+    it "builds native-read portable-write support styles" do
       support_style = analysis.shared_comment_support_style(
         source: :fixture_native,
         style: :hash_comment,
-        read_strategy: :native_read_synthetic_write,
+        read_strategy: :native_read_portable_write,
         capability: :full,
       )
 
       expect(support_style).to be_native_read_portable_write
-      expect(support_style).to be_native_read_synthetic_write
     end
 
     it "raises for an unknown shared support-style strategy" do

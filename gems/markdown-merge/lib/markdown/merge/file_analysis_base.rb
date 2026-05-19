@@ -131,7 +131,7 @@ module Markdown
         @comment_support_style ||= shared_comment_support_style(
           source: :markdown_source,
           style: :html_comment,
-          read_strategy: :source_augmented_synthetic,
+          read_strategy: :source_augmented_portable_write,
         )
       end
 

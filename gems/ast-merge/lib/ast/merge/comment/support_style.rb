@@ -19,10 +19,6 @@ module Ast
           hybrid_native_owned
           unavailable
         ].freeze
-        LEGACY_STYLE_ALIASES = {
-          source_augmented_synthetic: :source_augmented_portable_write,
-          native_read_synthetic_write: :native_read_portable_write,
-        }.freeze
 
         attr_reader :style, :details
 
@@ -71,13 +67,6 @@ module Ast
             new(style: :unavailable, details: details)
           end
 
-          def source_augmented_synthetic(**details)
-            source_augmented_portable_write(**details)
-          end
-
-          def native_read_synthetic_write(**details)
-            native_read_portable_write(**details)
-          end
         end
 
         # @param style [Symbol] normalized support style name
@@ -149,16 +138,12 @@ module Ast
         private
 
         def normalize_style(style)
-          normalized = LEGACY_STYLE_ALIASES.fetch(style&.to_sym, style&.to_sym)
+          normalized = style&.to_sym
           return normalized if STYLES.include?(normalized)
 
           raise ArgumentError,
             "Unknown comment support style: #{style.inspect}. Expected one of: #{STYLES.join(", ")}"
         end
-
-        alias_method :source_augmented_synthetic?, :source_augmented_portable_write?
-        alias_method :native_read_synthetic_write?, :native_read_portable_write?
-        alias_method :synthetic_write?, :portable_write?
       end
     end
   end

@@ -186,14 +186,7 @@ module Ast
           style: style,
         }
 
-        normalized_read_strategy =
-          case read_strategy
-          when :source_augmented_synthetic then :source_augmented_portable_write
-          when :native_read_synthetic_write then :native_read_portable_write
-          else read_strategy
-          end
-
-        Ruleset::SupportStyleResolver.call(read: normalized_read_strategy, **details)
+        Ruleset::SupportStyleResolver.call(read: read_strategy, **details)
       rescue ArgumentError => e
         raise unless e.message.start_with?("Unknown ruleset read strategy:")
 

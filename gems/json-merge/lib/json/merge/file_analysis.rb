@@ -52,7 +52,7 @@ module Json
         @comment_support_style ||= shared_comment_support_style(
           source: :json_source,
           style: :c_style_line,
-          read_strategy: :source_augmented_synthetic,
+          read_strategy: :source_augmented_portable_write,
         )
       end
 

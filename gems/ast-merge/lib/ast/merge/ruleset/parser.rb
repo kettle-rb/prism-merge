@@ -15,10 +15,6 @@ module Ast
           native_read_portable_write
           native_mutation
         ].freeze
-        LEGACY_READ_STRATEGIES = {
-          source_augmented_synthetic: :source_augmented_portable_write,
-          native_read_synthetic_write: :native_read_portable_write,
-        }.freeze
 
         IDENTIFIER_RE = /\A[A-Za-z][A-Za-z0-9_.-]*\z/
         TOKEN_RE = /\A[!-~]+\z/
@@ -112,7 +108,7 @@ module Ast
           when :format, :owners, :match, :comment_style, :render
             value = value.to_sym
           when :read
-            value = parse_strategy!(value, READ_STRATEGIES, directive, line_number, aliases: LEGACY_READ_STRATEGIES)
+            value = parse_strategy!(value, READ_STRATEGIES, directive, line_number)
           when :attach
             value = parse_strategy!(
               value,
@@ -220,8 +216,8 @@ module Ast
           raise ArgumentError, "Invalid #{field} #{token.inspect} on line #{line_number}"
         end
 
-        def parse_strategy!(value, allowed_values, directive, line_number, aliases: {})
-          strategy = aliases.fetch(value.to_sym, value.to_sym)
+        def parse_strategy!(value, allowed_values, directive, line_number)
+          strategy = value.to_sym
           return strategy if allowed_values.include?(strategy)
 
           raise ArgumentError, "Unknown #{directive} strategy #{value.inspect} on line #{line_number}"

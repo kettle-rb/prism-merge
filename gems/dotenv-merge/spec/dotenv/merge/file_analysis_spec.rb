@@ -281,7 +281,7 @@ RSpec.describe Dotenv::Merge::FileAnalysis do
     end
 
     it "reports source-augmented synthetic comment support style" do
-      expect(analysis.comment_support_style.source_augmented_synthetic?).to be true
+      expect(analysis.comment_support_style.source_augmented_portable_write?).to be true
       expect(analysis.comment_support_style.details[:source]).to eq(:dotenv_source)
       expect(analysis.comment_support_style.details[:style]).to eq(:hash_comment)
     end
