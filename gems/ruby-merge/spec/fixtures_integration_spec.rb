@@ -201,6 +201,21 @@ RSpec.describe "Ruby::Merge" do
     expect(child_group_merge_result[:ok]).to eq(child_group_merge_fixture.dig(:expected, :ok))
     expect(child_group_merge_result[:output]).to eq(child_group_merge_fixture.dig(:expected, :output))
 
+    top_level_owner_merge_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-979-independent-function-owner-merge",
+        "independent-function-additions.json"
+      )
+    )
+    top_level_owner_merge_result = RUBY_MERGE.merge_ruby(
+      top_level_owner_merge_fixture[:template],
+      top_level_owner_merge_fixture[:destination],
+      top_level_owner_merge_fixture[:dialect]
+    )
+    expect(top_level_owner_merge_result[:ok]).to eq(top_level_owner_merge_fixture.dig(:expected, :ok))
+    expect(top_level_owner_merge_result[:output]).to eq(top_level_owner_merge_fixture.dig(:expected, :output))
+
     advanced_leaf_fixture = read_json(
       fixtures_root.join("ruby", "slice-720-advanced-leaf-merge", "class-hash-leaf-merge.json")
     )
