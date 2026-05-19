@@ -13,6 +13,27 @@ RSpec.describe "Ast::Merge::Ruleset declaration objects" do
     end
   end
 
+  describe Ast::Merge::Ruleset::LogicalOwnerPolicy do
+    it "stores preserve-if-referenced behavior as a shared runtime hook" do
+      policy = described_class.new(kind: "link_definition", action: "preserve_if_referenced")
+
+      expect(policy.to_h).to eq(
+        kind: :link_definition,
+        action: :preserve_if_referenced,
+        metadata: {},
+      )
+      expect(policy.preserve?(referenced: true)).to be(true)
+      expect(policy.preserve?(referenced: false)).to be(false)
+    end
+
+    it "stores preserve-always behavior" do
+      policy = described_class.new(kind: :anchor, action: :preserve_always)
+
+      expect(policy.preserve?(referenced: true)).to be(true)
+      expect(policy.preserve?(referenced: false)).to be(true)
+    end
+  end
+
   describe Ast::Merge::Ruleset::SurfaceDeclaration do
     it "stores a declarative merge-surface selector" do
       declaration = described_class.new(name: "fenced_code_block", selector: "language_tag")

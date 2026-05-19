@@ -252,9 +252,13 @@ RSpec.describe Ast::Merge::Ruleset::Config do
         quoted_hash_inline_literals: false,
       )
       expect(declaration.logical_owners).to eq(link_definition: :preserve_if_referenced)
+      expect(declaration.logical_owner_policies.map(&:to_h)).to eq(
+        [{kind: :link_definition, action: :preserve_if_referenced, metadata: {}}],
+      )
       expect(profile.read_strategy).to eq(declaration.read_strategy)
       expect(profile.attachment_strategy).to eq(declaration.attachment_strategy)
       expect(profile.logical_owners).to eq(declaration.logical_owners)
+      expect(profile.logical_owner_policies.map(&:to_h)).to eq(declaration.logical_owner_policies.map(&:to_h))
       expect(profile.support_style.to_h).to eq(declaration.support_style.to_h)
     end
   end

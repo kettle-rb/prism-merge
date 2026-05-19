@@ -7,6 +7,7 @@ module Ast
       autoload :Config, "ast/merge/ruleset/config"
       autoload :DelegationPolicy, "ast/merge/ruleset/delegation_policy"
       autoload :FeatureProfile, "ast/merge/ruleset/feature_profile"
+      autoload :LogicalOwnerPolicy, "ast/merge/ruleset/logical_owner_policy"
       autoload :Parser, "ast/merge/ruleset/parser"
       autoload :ProfileVocabulary, "ast/merge/ruleset/profile_vocabulary"
       autoload :RepairPolicy, "ast/merge/ruleset/repair_policy"

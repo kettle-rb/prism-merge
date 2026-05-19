@@ -20,6 +20,7 @@ module Ast
           :support_style,
           :capabilities,
           :logical_owners,
+          :logical_owner_policies,
           :repair_policies,
           :surfaces,
           :delegation_policies,
@@ -51,6 +52,9 @@ module Ast
           @support_style = support_style
           @capabilities = capabilities.dup.freeze
           @logical_owners = logical_owners.dup.freeze
+          @logical_owner_policies = @logical_owners.map do |kind, action|
+            LogicalOwnerPolicy.new(kind: kind, action: action)
+          end.freeze
           @repair_policies = normalize_repair_policies(repair_policies)
           @surfaces = normalize_surfaces(surfaces)
           @delegation_policies = normalize_delegation_policies(delegation_policies)
@@ -143,6 +147,7 @@ module Ast
             support_style: support_style&.to_h,
             capabilities: capabilities,
             logical_owners: logical_owners,
+            logical_owner_policies: logical_owner_policies.map(&:to_h),
             repair_policies: repair_policies.map(&:to_h),
             surfaces: surfaces.map(&:to_h),
             delegation_policies: delegation_policies.map(&:to_h),

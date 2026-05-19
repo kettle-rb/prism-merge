@@ -1500,6 +1500,39 @@ module Ast
       }
     end
 
+    def logical_owner_substrate_report
+      {
+        report_id: "logical-owner-substrate",
+        reference_runtime: "ruby",
+        shared_surface: "Ast::Merge::Ruleset::LogicalOwnerPolicy",
+        policy_actions: Ast::Merge::Ruleset::LogicalOwnerPolicy::ACTIONS.map(&:to_s),
+        runtime_paths: [
+          "Ruleset::RuntimeDeclaration#logical_owner_policies",
+          "Ruleset::FeatureProfile#logical_owner_policies",
+          "FileAnalyzable#ruleset_logical_owners"
+        ],
+        downstream_like_cases: [
+          {
+            format: "markdown",
+            owner_kind: "link_definition",
+            action: "preserve_if_referenced"
+          },
+          {
+            format: "yaml",
+            owner_kind: "anchor",
+            action: "preserve_if_referenced"
+          }
+        ],
+        diagnostics: [
+          {
+            severity: "info",
+            category: "logical_owner_substrate",
+            message: "Logical-owner declarations now materialize as shared runtime policy objects."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,

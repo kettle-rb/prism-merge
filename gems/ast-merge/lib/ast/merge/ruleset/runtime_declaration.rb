@@ -10,6 +10,7 @@ module Ast
           :comment_style,
           :capabilities,
           :logical_owners,
+          :logical_owner_policies,
           :support_style,
           :metadata
 
@@ -27,6 +28,9 @@ module Ast
           @comment_style = comment_style&.to_sym
           @capabilities = capabilities.dup.freeze
           @logical_owners = logical_owners.dup.freeze
+          @logical_owner_policies = @logical_owners.map do |kind, action|
+            LogicalOwnerPolicy.new(kind: kind, action: action)
+          end.freeze
           @support_style = support_style
           @metadata = metadata.dup.freeze
         end
@@ -46,6 +50,7 @@ module Ast
             comment_style: comment_style,
             capabilities: capabilities,
             logical_owners: logical_owners,
+            logical_owner_policies: logical_owner_policies.map(&:to_h),
             support_style: support_style&.to_h,
             metadata: metadata,
             comment_free: comment_free?,
