@@ -300,7 +300,7 @@ module Ast
             )
           end
 
-          def html_comment_block(start_text:, end_text:, id: nil, limit: nil, metadata: {}, **options)
+          def html_comment_block(start_text:, end_text:, id: nil, limit: nil, span: :nearest, include_trailing_gap: false, metadata: {}, **options)
             Ast::Crispr::OwnerSelector.new(
               id: id || "html_comment_block_#{start_text}",
               limit: limit,
@@ -309,23 +309,48 @@ module Ast
                 owner_scope: :html_comments,
                 selector_kind: :html_comment_block,
                 selection_intent: :predicate_filter,
-                include_trailing_gap: false,
+                include_trailing_gap: include_trailing_gap,
               ).merge(options),
               locate: lambda do |context|
                 comments = context.structural_owners(owner_scope: :html_comments)
+                if span.to_sym == :outermost
+                  opening = comments.find { |comment| comment.text.to_s == start_text.to_s }
+                  closing = comments.reverse.find { |comment| opening && comment.text.to_s == end_text.to_s && comment.location.end_line >= opening.location.start_line }
+                  next [] unless opening && closing
+
+                  end_line = closing.location.end_line
+                  end_line = context.expand_following_gap(end_line) if include_trailing_gap
+                  next [
+                    Ast::Crispr::Match.new(
+                      node: opening,
+                      start_line: opening.location.start_line,
+                      end_line: end_line,
+                      metadata: {
+                        start_boundary: :owner_start,
+                        end_boundary: (include_trailing_gap ? :owner_end_plus_trailing_gap : :owner_end),
+                        payload_kind: :structural_owner_body,
+                        start_text: start_text,
+                        end_text: end_text,
+                      },
+                    ),
+                  ]
+                end
+
                 comments.each_with_index.filter_map do |owner, index|
                   next unless owner.text.to_s == start_text.to_s
 
                   closing = comments[index + 1..]&.find { |comment| comment.text.to_s == end_text.to_s }
                   next unless closing
 
+                  end_line = closing.location.end_line
+                  end_line = context.expand_following_gap(end_line) if include_trailing_gap
                   Ast::Crispr::Match.new(
                     node: owner,
                     start_line: owner.location.start_line,
-                    end_line: closing.location.end_line,
+                    end_line: end_line,
                     metadata: {
                       start_boundary: :owner_start,
-                      end_boundary: :owner_end,
+                      end_boundary: (include_trailing_gap ? :owner_end_plus_trailing_gap : :owner_end),
                       payload_kind: :structural_owner_body,
                       start_text: start_text,
                       end_text: end_text,

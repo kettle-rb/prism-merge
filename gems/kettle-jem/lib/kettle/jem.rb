@@ -6432,12 +6432,14 @@ module Kettle
     def markdown_managed_block(content, marker)
       open = "<!-- #{marker}:start -->"
       close = "<!-- #{marker}:end -->"
-      open_index = content.to_s.index(open)
-      close_index = content.to_s.index(close)
-      return nil unless open_index && close_index && close_index >= open_index
-
-      close_end = close_index + close.length
-      content.to_s[open_index...close_end]
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content.to_s, source_label: "managed markdown block")
+      target = Ast::Crispr::Markdown::Markly::Selectors.html_comment_block(
+        start_text: open.delete_prefix("<!-- ").delete_suffix(" -->"),
+        end_text: close.delete_prefix("<!-- ").delete_suffix(" -->"),
+        span: :outermost,
+        limit: {none_or_one: true},
+      )
+      target.locate_matches(context).first&.slice_from(content.to_s)
     end
 
     def markdown_sections(content)
@@ -7513,26 +7515,52 @@ module Kettle
     def replace_markdown_managed_block(content, marker, replacement)
       open = "<!-- #{marker}:start -->"
       close = "<!-- #{marker}:end -->"
-      replace_between_markers(content, open, close, replacement) do
-        [content.rstrip, "", replacement, ""].join("\n")
+      replace_markdown_managed_block_with_crispr(content, open, close, replacement) do
+        ensure_trailing_newline([content.rstrip, "", replacement.to_s.rstrip].join("\n"))
       end
     end
 
     def replace_text_managed_block(content, replacement)
-      replace_between_markers(content, MANAGED_BLOCK_OPEN, MANAGED_BLOCK_CLOSE, replacement) do
-        [content.rstrip, replacement].reject(&:empty?).join("\n")
+      replace_text_managed_block_with_crispr(content, MANAGED_BLOCK_OPEN, MANAGED_BLOCK_CLOSE, replacement) do
+        ensure_trailing_newline([content.rstrip, replacement.to_s.rstrip].reject(&:empty?).join("\n"))
       end
     end
 
-    def replace_between_markers(content, open_marker, close_marker, replacement)
-      open_index = content.index(open_marker)
-      close_index = content.rindex(close_marker)
-      return yield unless open_index && close_index && close_index >= open_index
+    def replace_markdown_managed_block_with_crispr(content, open_marker, close_marker, replacement)
+      prepared_replacement = ensure_trailing_newline(replacement.to_s)
+      actor = Ast::Crispr::Replace.call(
+        content: content.to_s,
+        target: Ast::Crispr::Markdown::Markly::Selectors.html_comment_block(
+          start_text: open_marker.delete_prefix("<!-- ").delete_suffix(" -->"),
+          end_text: close_marker.delete_prefix("<!-- ").delete_suffix(" -->"),
+          span: :outermost,
+          include_trailing_gap: true,
+          limit: {none_or_one: true},
+        ),
+        replacement: prepared_replacement,
+        source_label: "managed markdown block",
+      )
+      return actor.updated_content if actor.match_count.positive?
 
-      close_end = close_index + close_marker.length
-      close_end += 1 if content[close_end] == "\n"
-      separator = replacement.end_with?("\n") ? "" : "\n"
-      "#{content[0...open_index]}#{replacement}#{separator}#{content[close_end..]}"
+      yield
+    end
+
+    def replace_text_managed_block_with_crispr(content, open_marker, close_marker, replacement)
+      prepared_replacement = ensure_trailing_newline(replacement.to_s)
+      actor = Ast::Crispr::Replace.call(
+        content: content.to_s,
+        target: Ast::Crispr::Selectors.line_block(
+          start_line_text: open_marker,
+          end_line_text: close_marker,
+          include_trailing_gap: true,
+          limit: {none_or_one: true},
+        ),
+        replacement: prepared_replacement,
+        source_label: "managed text block",
+      )
+      return actor.updated_content if actor.match_count.positive?
+
+      yield
     end
 
     def ensure_trailing_newline(text)

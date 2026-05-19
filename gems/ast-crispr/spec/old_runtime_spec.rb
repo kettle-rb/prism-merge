@@ -191,6 +191,57 @@ RSpec.describe Ast::Crispr do
       expect(matches.first.slice_from(content)).to include('puts "stable"')
     end
 
+    it "finds the outer text line block between repeated exact markers" do
+      content = <<~TEXT
+        # before
+        # <<tool:generated>>
+        one
+        # <</tool:generated>>
+        # <<tool:generated>>
+        two
+        # <</tool:generated>>
+        # after
+      TEXT
+
+      target = described_class.line_block(
+        start_line_text: "# <<tool:generated>>",
+        end_line_text: "# <</tool:generated>>",
+        limit: {exactly: 1},
+      )
+      context = Ast::Crispr::DocumentContext.new(content: content, source_label: "plain.txt")
+      matches = target.locate_matches(context)
+
+      expect(matches.size).to eq(1)
+      expect(matches.first.start_line).to eq(2)
+      expect(matches.first.end_line).to eq(7)
+      expect(matches.first.slice_from(content)).to include("one")
+      expect(matches.first.slice_from(content)).to include("two")
+      expect(matches.first.slice_from(content)).not_to include("# after")
+    end
+
+    it "can include the blank trailing gap after a text line block" do
+      content = <<~TEXT
+        # <<tool:generated>>
+        one
+        # <</tool:generated>>
+
+        # after
+      TEXT
+
+      target = described_class.line_block(
+        start_line_text: "# <<tool:generated>>",
+        end_line_text: "# <</tool:generated>>",
+        include_trailing_gap: true,
+        limit: {exactly: 1},
+      )
+      context = Ast::Crispr::DocumentContext.new(content: content, source_label: "plain.txt")
+      match = target.locate_matches(context).first
+
+      expect(match.end_line).to eq(4)
+      expect(match.slice_from(content)).to end_with("\n\n")
+      expect(match.slice_from(content)).not_to include("# after")
+    end
+
     context "with a comment-region-owned selection profile" do
       let(:target) do
         described_class.comment_region_owned_owner(

@@ -935,6 +935,48 @@ module Ast
         )
       end
 
+      def line_block(start_line_text:, end_line_text:, id: nil, limit: nil, include_trailing_gap: false, metadata: {}, **options)
+        OwnerSelector.new(
+          id: id || "line_block_#{start_line_text}",
+          limit: limit,
+          metadata: metadata_for(
+            metadata,
+            nil,
+            owner_scope: :text_lines,
+            selector_kind: :line_block,
+            selection_intent: :line_marker_block,
+            include_trailing_gap: include_trailing_gap,
+          ).merge(options),
+          locate: lambda do |context|
+            lines = context.content.to_s.lines
+            open_lines = lines.each_with_index.filter_map do |line, index|
+              index + 1 if line.chomp == start_line_text.to_s
+            end
+            close_lines = lines.each_with_index.filter_map do |line, index|
+              index + 1 if line.chomp == end_line_text.to_s
+            end
+            start_line = open_lines.first
+            end_line = close_lines.reverse.find { |candidate| start_line && candidate >= start_line }
+            next [] unless start_line && end_line
+
+            end_line = context.expand_following_gap(end_line) if include_trailing_gap
+            [
+              Match.new(
+                start_line: start_line,
+                end_line: end_line,
+                metadata: {
+                  start_boundary: :owner_start,
+                  end_boundary: (include_trailing_gap ? :owner_end_plus_trailing_gap : :owner_end),
+                  payload_kind: :structural_owner_body,
+                  start_line_text: start_line_text,
+                  end_line_text: end_line_text,
+                },
+              ),
+            ]
+          end,
+        )
+      end
+
       def metadata_for(metadata, adapter, **options)
         payload = metadata.merge(options)
         adapter ? payload.merge(adapter: adapter) : payload

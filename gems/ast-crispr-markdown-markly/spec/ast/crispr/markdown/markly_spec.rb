@@ -113,6 +113,54 @@ RSpec.describe Ast::Crispr::Markdown::Markly do
       expect(block_target.locate_matches(context).first.slice_from(content)).not_to include("Tail.")
     end
 
+    it "finds the outer marker-bounded HTML comment block when duplicate blocks exist" do
+      content = <<~MARKDOWN
+        <!-- KJ:START -->
+        One.
+        <!-- KJ:END -->
+        <!-- KJ:START -->
+        Two.
+        <!-- KJ:END -->
+        Tail.
+      MARKDOWN
+
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
+      block_target = described_class.html_comment_block(
+        start_text: "KJ:START",
+        end_text: "KJ:END",
+        span: :outermost,
+      )
+      match = block_target.locate_matches(context).first
+
+      expect(match.start_line).to eq(1)
+      expect(match.end_line).to eq(6)
+      expect(match.slice_from(content)).to include("One.")
+      expect(match.slice_from(content)).to include("Two.")
+      expect(match.slice_from(content)).not_to include("Tail.")
+    end
+
+    it "can include the blank trailing gap after a marker-bounded HTML comment block" do
+      content = <<~MARKDOWN
+        <!-- KJ:START -->
+        Managed.
+        <!-- KJ:END -->
+
+        Tail.
+      MARKDOWN
+
+      context = Ast::Crispr::Markdown::Markly.document_context(content: content, source_label: "README.md")
+      block_target = described_class.html_comment_block(
+        start_text: "KJ:START",
+        end_text: "KJ:END",
+        include_trailing_gap: true,
+      )
+      match = block_target.locate_matches(context).first
+
+      expect(match.end_line).to eq(4)
+      expect(match.slice_from(content)).to end_with("\n\n")
+      expect(match.slice_from(content)).not_to include("Tail.")
+    end
+
     context "with a heading-section selection profile" do
       let(:target) { described_class.heading_section(heading_text: "Synopsis", level: 2) }
       let(:context) { Ast::Crispr::Markdown::Markly.document_context(content: "# Title\n\n## Synopsis\n\nCustom synopsis.\n", source_label: "README.md") }
