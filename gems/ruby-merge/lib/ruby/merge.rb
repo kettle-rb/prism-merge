@@ -457,6 +457,28 @@ module Ruby
       }
     end
 
+    def ruby_post_merge_validation_profile
+      {
+        profile_id: "ruby-post-merge-validation",
+        phase: "post_merge_validation",
+        separate_from: %w[merge_planning rendering],
+        checks: [
+          "reparse_merged_output",
+          "resolved_owners_present",
+          "owner_count_not_unexpectedly_lower",
+          "unchanged_significant_lines_preserved",
+          "branch_added_significant_lines_preserved",
+          "output_length_within_policy_bounds",
+          "conflict_marker_shape_compatible"
+        ],
+        failure_outcomes: %w[fallback_to_baseline scoped_conflict hard_diagnostic_failure],
+        hooks: {
+          ci: "strict",
+          exploratory: "permissive_when_explicit"
+        }
+      }
+    end
+
     def ruby_fallback_scope_guard_report(requested_scope:, declared_scope:)
       widened = ruby_fallback_scope_rank(requested_scope) > ruby_fallback_scope_rank(declared_scope)
       {

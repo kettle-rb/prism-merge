@@ -235,6 +235,16 @@ RSpec.describe "Ruby::Merge" do
       declared_scope: fallback_scope_guard_fixture.dig(:expected, :declared_scope)
     )
     expect(json_ready(fallback_scope_guard)).to eq(json_ready(fallback_scope_guard_fixture[:expected]))
+    validation_profile_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-996-post-merge-validation-profile",
+        "ruby-post-merge-validation-profile.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_post_merge_validation_profile)).to eq(
+      json_ready(validation_profile_fixture[:expected])
+    )
 
     shadowing_fixture = read_json(
       fixtures_root.join(
