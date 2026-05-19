@@ -3,6 +3,7 @@
 require "version_gem"
 require_relative "merge/version"
 
+require "digest"
 require "tree_haver"
 require "ast/merge"
 
@@ -274,6 +275,28 @@ module Ruby
         regions: interleave_source_regions(lines, owners),
         trailing_newline: normalize_source(source).end_with?("\n")
       }
+    end
+
+    def ruby_source_owner_identity_profile(source)
+      collect_ruby_declaration_entries(source).flat_map do |entry|
+        declaration_identity = source_owner_identity_entry(
+          kind: entry[:kind],
+          name: entry[:name],
+          parent_scope: "/",
+          address: entry[:path],
+          content: entry[:text]
+        )
+        method_identities = direct_body_method_entries(entry[:text]).map do |method_entry|
+          source_owner_identity_entry(
+            kind: "method",
+            name: method_entry[:signature],
+            parent_scope: entry[:path],
+            address: "#{entry[:path]}/methods/#{method_entry[:signature]}",
+            content: method_entry[:body_text]
+          )
+        end
+        [declaration_identity, *method_identities]
+      end
     end
 
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
@@ -674,6 +697,20 @@ module Ruby
           }
         end
       end
+    end
+
+    def source_owner_identity_entry(kind:, name:, parent_scope:, address:, content:)
+      normalized_kind = kind.to_s
+      normalized_name = name.to_s
+      {
+        owner_kind: normalized_kind,
+        owner_name: normalized_name,
+        parent_scope: parent_scope,
+        address: address,
+        structural_identity: "#{parent_scope}:#{normalized_kind}:#{normalized_name}",
+        content_identity: "sha256:#{Digest::SHA256.hexdigest(content.to_s)}",
+        identity_components: %w[owner_kind owner_name parent_scope content_identity]
+      }
     end
 
     def ruby_method_shadowing(source)

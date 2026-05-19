@@ -76,6 +76,16 @@ RSpec.describe "Ruby::Merge" do
     file_edge_regions = RUBY_MERGE.ruby_source_regions(file_edge_region_fixture[:source])
     expect(json_ready(file_edge_regions)).to eq(json_ready(file_edge_region_fixture[:expected]))
 
+    owner_identity_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-981-source-owner-identity-profile",
+        "class-method-identity-profile.json"
+      )
+    )
+    owner_identities = RUBY_MERGE.ruby_source_owner_identity_profile(owner_identity_fixture[:source])
+    expect(json_ready(owner_identities)).to eq(json_ready(owner_identity_fixture.dig(:expected, :identities)))
+
     shadowing_fixture = read_json(
       fixtures_root.join(
         "ruby",
