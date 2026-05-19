@@ -173,6 +173,11 @@ RSpec.describe "Ruby::Merge" do
       interstitial_comment_fixture[:source]
     )
     expect(json_ready(interstitial_comments)).to eq(json_ready(interstitial_comment_fixture[:expected]))
+    blank_line_fixture = read_json(
+      fixtures_root.join("ruby", "slice-990-blank-line-ownership", "blank-line-ownership.json")
+    )
+    blank_line_ownership = RUBY_MERGE.ruby_blank_line_ownership_report(blank_line_fixture[:source])
+    expect(json_ready(blank_line_ownership)).to eq(json_ready(blank_line_fixture[:expected]))
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(

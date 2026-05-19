@@ -470,6 +470,14 @@ module Ruby
       }
     end
 
+    def ruby_blank_line_ownership_report(source)
+      regions = ruby_source_regions(source)[:regions]
+      blank_regions = collect_blank_line_regions(regions)
+      {
+        blank_line_regions: blank_regions
+      }
+    end
+
     def ruby_rename_detection_policy_profile
       {
         policy_id: "ruby-source-rename-detection",
@@ -1557,6 +1565,27 @@ module Ruby
         blocks << { start_index: start_index, end_index: index - 1 }
       end
       blocks
+    end
+
+    def collect_blank_line_regions(regions)
+      regions.flat_map do |region|
+        child_regions = region[:child_regions] ? collect_blank_line_regions(region[:child_regions]) : []
+        current = if region[:region_kind] == "interstitial" && region[:content].to_s.lines.all? { |line| line.strip.empty? }
+          [
+            compact_region(
+              region_id: region[:region_id],
+              position: region[:position],
+              previous_owner: region[:previous_owner],
+              next_owner: region[:next_owner],
+              span: region[:span],
+              ownership: "declared_interstitial_region"
+            )
+          ]
+        else
+          []
+        end
+        current + child_regions
+      end
     end
 
     def public_source_region(region)
