@@ -300,6 +300,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.render_source_shaper_contract_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the comment-model contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1015-comment-model-contract",
+        "comment-model-contract.json"
+      )
+    )
+
+    expect(json_ready(described_class.comment_model_contract_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

@@ -1567,6 +1567,50 @@ module Ast
       }
     end
 
+    def comment_model_contract_report
+      {
+        report_id: "comment-model-contract",
+        reference_runtime: "ruby",
+        reviewed_surfaces: [
+          "Ast::Merge::Comment::Capability",
+          "Ast::Merge::Comment::Region",
+          "Ast::Merge::Comment::Attachment",
+          "Ast::Merge::Comment::Augmenter",
+          "Ast::Merge::Comment::RegionMergePolicy"
+        ],
+        namespace_decision: {
+          keep_comment_namespace: true,
+          reason: "The types model the comment axis of merge behavior; layout, logical-owner, and render concerns now have separate substrates."
+        },
+        normative_reference_abstractions: [
+          "Capability",
+          "SupportStyle",
+          "Region",
+          "Attachment",
+          "Augmenter",
+          "RegionMergePolicy"
+        ],
+        implementation_local_details: [
+          "parser-specific comment trackers",
+          "provider-local comment node shapes",
+          "format-specific delimiter emission"
+        ],
+        comment_free_behavior: {
+          supported: true,
+          capability: "Comment::Capability.none",
+          support_style: "Comment::SupportStyle.unavailable",
+          layout_axis: "Ast::Merge::Layout"
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "comment_model_contract",
+            message: "Comment support is one merge-behavior axis and no longer acts as the container for layout, logical-owner, or render policy."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,
