@@ -2339,7 +2339,14 @@ module Kettle
         [
           recipe_entry("readme_metadata", "README.md", "markdown", "supplied_readme_metadata_synchronization", facts: %w[package funding readme]),
           recipe_entry("changelog_unreleased", "CHANGELOG.md", "markdown", "changelog_unreleased_normalization", facts: %w[package changelog]),
-          recipe_entry("generated_block_sync", "gemfiles/modular/shunted.gemfile", "ruby", "supplied_managed_text_block_replacement", facts: %w[package generated_blocks]),
+          recipe_entry(
+            "generated_block_sync",
+            "gemfiles/modular/shunted.gemfile",
+            "ruby",
+            "supplied_managed_text_block_replacement",
+            facts: %w[package generated_blocks],
+            provider_backend: "ast-crispr-ruby-prism"
+          ),
           recipe_entry(
             "github_funding_yml",
             ".github/FUNDING.yml",
@@ -2892,7 +2899,7 @@ module Kettle
         MANAGED_BLOCK_CLOSE,
         "",
       ].join("\n")
-      replace_text_managed_block(content.to_s, replacement)
+      replace_ruby_managed_block(content.to_s, replacement)
     end
 
     def execute_recipe(project_root:, recipe:, facts:, files:, decision_policy:)
@@ -7529,6 +7536,12 @@ module Kettle
       end
     end
 
+    def replace_ruby_managed_block(content, replacement)
+      replace_ruby_managed_block_with_crispr(content, MANAGED_BLOCK_OPEN, MANAGED_BLOCK_CLOSE, replacement) do
+        ensure_trailing_newline([content.rstrip, replacement.to_s.rstrip].reject(&:empty?).join("\n"))
+      end
+    end
+
     def replace_markdown_managed_block_with_crispr(content, open_marker, close_marker, replacement)
       prepared_replacement = ensure_trailing_newline(replacement.to_s)
       actor = Ast::Crispr::Replace.call(
@@ -7560,6 +7573,25 @@ module Kettle
         ),
         replacement: prepared_replacement,
         source_label: "managed text block",
+      )
+      return actor.updated_content if actor.match_count.positive?
+
+      yield
+    end
+
+    def replace_ruby_managed_block_with_crispr(content, open_marker, close_marker, replacement)
+      prepared_replacement = ensure_trailing_newline(replacement.to_s)
+      actor = Ast::Crispr::Replace.call(
+        content: content.to_s,
+        target: Ast::Crispr::Ruby::Prism::Selectors.comment_line_block(
+          start_text: open_marker,
+          end_text: close_marker,
+          span: :outermost,
+          include_trailing_gap: true,
+          limit: {none_or_one: true},
+        ),
+        replacement: prepared_replacement,
+        source_label: "managed Ruby block",
       )
       return actor.updated_content if actor.match_count.positive?
 

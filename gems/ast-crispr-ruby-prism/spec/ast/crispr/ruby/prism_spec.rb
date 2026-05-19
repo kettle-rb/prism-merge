@@ -73,6 +73,37 @@ RSpec.describe Ast::Crispr::Ruby::Prism do
       expect(profile.owner_selector).to eq(:line_bound_statements)
     end
 
+    it "finds a marker-bounded Ruby comment line block through Prism comments" do
+      content = <<~RUBY
+        # frozen_string_literal: true
+
+        source "https://rubygems.org"
+
+        # <<kettle-jem:generated>> do not edit below this line
+        gem "debug", "~> 1.9"
+        # <</kettle-jem:generated>>
+
+        group :test do
+          gem "rspec"
+        end
+      RUBY
+
+      target = described_class.comment_line_block(
+        start_text: "# <<kettle-jem:generated>> do not edit below this line",
+        end_text: "# <</kettle-jem:generated>>",
+        span: :outermost,
+        include_trailing_gap: true,
+        limit: {exactly: 1},
+      )
+      context = Ast::Crispr::Ruby::Prism.document_context(content: content, source_label: "shunted.gemfile")
+      match = target.locate_matches(context).first
+
+      expect(match.start_line).to eq(5)
+      expect(match.end_line).to eq(8)
+      expect(match.slice_from(content)).to include('gem "debug"')
+      expect(match.slice_from(content)).not_to include("group :test")
+    end
+
     context "with a selector selection profile" do
       let(:context) { Ast::Crispr::Ruby::Prism.document_context(content: "### MANAGED SNIPPET\nputs \"managed\"\n", source_label: "Rakefile") }
       let(:selection_profile) { target.selection_profile(context) }

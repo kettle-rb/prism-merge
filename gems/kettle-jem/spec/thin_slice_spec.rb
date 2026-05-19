@@ -3780,6 +3780,7 @@ RSpec.describe Kettle::Jem do
       content = report.fetch(:final_content)
 
       expect(report.fetch(:request_envelope).fetch(:request).fetch(:provider_family)).to eq("ruby")
+      expect(report.fetch(:request_envelope).fetch(:request).fetch(:provider_backend)).to eq("ast-crispr-ruby-prism")
       expect(report.fetch(:report_envelope).fetch(:report).fetch(:step_reports).first.fetch(:metadata).fetch(:provider_family)).to eq("ruby")
       expect(content).to include("# local notes remain outside the generated block")
       expect(content).to include('gem "debug", "~> 1.9" # ruby >= 3.3')

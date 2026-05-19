@@ -52,6 +52,8 @@ module Ast
             case owner_scope
             when :shared_default, :line_bound_statements, :top_level_statements
               Utils.extract_statements(parse_result.value.statements)
+            when :ruby_comments
+              parse_result.comments
             else
               raise Ast::Crispr::Error.new("Unsupported CRISPR owner scope", details: {owner_scope: owner_scope})
             end
@@ -89,6 +91,13 @@ module Ast
                 supported_comment_regions: [:leading],
                 metadata: {adapter: :prism},
               )
+            when :ruby_comments
+              Ast::Crispr::StructureProfile.new(
+                owner_scope: owner_scope,
+                owner_selector: :line_bound_statements,
+                supported_comment_regions: [],
+                metadata: {adapter: :prism, selector: :ruby_comments},
+              )
             else
               raise Ast::Crispr::Error.new("Unsupported CRISPR owner scope", details: {owner_scope: owner_scope})
             end
@@ -121,6 +130,71 @@ module Ast
               adapter: Ast::Crispr::Ruby::Prism.adapter,
               metadata: metadata,
               **options,
+            )
+          end
+
+          def comment_line_block(start_text:, end_text:, id: nil, limit: nil, span: :nearest, include_trailing_gap: false, metadata: {}, **options)
+            Ast::Crispr::OwnerSelector.new(
+              id: id || "ruby_comment_line_block_#{start_text}",
+              limit: limit,
+              metadata: metadata.merge(
+                adapter: Ast::Crispr::Ruby::Prism.adapter,
+                owner_scope: :ruby_comments,
+                selector_kind: :ruby_comment_line_block,
+                selection_intent: :line_marker_block,
+                include_trailing_gap: include_trailing_gap,
+              ).merge(options),
+              locate: lambda do |context|
+                comments = context.structural_owners(owner_scope: :ruby_comments)
+                if span.to_sym == :outermost
+                  opening = comments.find { |comment| context.location_slice(comment.location).rstrip == start_text.to_s }
+                  closing = comments.reverse.find do |comment|
+                    opening &&
+                      context.location_slice(comment.location).rstrip == end_text.to_s &&
+                      comment.location.end_line >= opening.location.start_line
+                  end
+                  next [] unless opening && closing
+
+                  end_line = closing.location.end_line
+                  end_line = context.expand_following_gap(end_line) if include_trailing_gap
+                  next [
+                    Ast::Crispr::Match.new(
+                      node: opening,
+                      start_line: opening.location.start_line,
+                      end_line: end_line,
+                      metadata: {
+                        start_boundary: :comment_region_start,
+                        end_boundary: (include_trailing_gap ? :owner_end_plus_trailing_gap : :owner_end),
+                        payload_kind: :comment_owned_body,
+                        start_text: start_text,
+                        end_text: end_text,
+                      },
+                    ),
+                  ]
+                end
+
+                comments.each_with_index.filter_map do |comment, index|
+                  next unless context.location_slice(comment.location).rstrip == start_text.to_s
+
+                  closing = comments[index + 1..]&.find { |candidate| context.location_slice(candidate.location).rstrip == end_text.to_s }
+                  next unless closing
+
+                  end_line = closing.location.end_line
+                  end_line = context.expand_following_gap(end_line) if include_trailing_gap
+                  Ast::Crispr::Match.new(
+                    node: comment,
+                    start_line: comment.location.start_line,
+                    end_line: end_line,
+                    metadata: {
+                      start_boundary: :comment_region_start,
+                      end_boundary: (include_trailing_gap ? :owner_end_plus_trailing_gap : :owner_end),
+                      payload_kind: :comment_owned_body,
+                      start_text: start_text,
+                      end_text: end_text,
+                    },
+                  )
+                end
+              end,
             )
           end
         end
