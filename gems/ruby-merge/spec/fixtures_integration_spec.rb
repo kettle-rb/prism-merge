@@ -268,6 +268,23 @@ RSpec.describe "Ruby::Merge" do
     expect(json_ready(RUBY_MERGE.ruby_conflict_diagnostics_profile)).to eq(
       json_ready(conflict_diagnostics_fixture[:expected])
     )
+    formatter_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-999-formatter-adapter-policy",
+        "ruby-formatter-adapter-policy.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_formatter_policy_profile)).to eq(
+      json_ready(formatter_fixture.dig(:expected, :policy))
+    )
+    formatter_report = RUBY_MERGE.ruby_formatter_adapter_report(
+      pre_format_output: formatter_fixture[:pre_format_output],
+      formatted_output: formatter_fixture[:formatted_output],
+      policy: formatter_fixture.dig(:expected, :adapter_report, :policy),
+      conflict_scope: formatter_fixture.dig(:expected, :adapter_report, :conflict_scope)
+    )
+    expect(json_ready(formatter_report)).to eq(json_ready(formatter_fixture.dig(:expected, :adapter_report)))
 
     shadowing_fixture = read_json(
       fixtures_root.join(

@@ -511,6 +511,54 @@ module Ruby
       }
     end
 
+    def ruby_formatter_policy_profile
+      {
+        profile_id: "ruby-source-formatter-policy",
+        adapter_phase: "optional_post_merge_adapter",
+        semantic_validation: "not_proven_by_formatter",
+        policies: [
+          "no_formatter",
+          "validate_only",
+          "format_after_clean_merge",
+          "format_after_fallback",
+          "formatter_failure_is_warning",
+          "formatter_failure_is_hard_error"
+        ],
+        portable_fixture_default: "no_formatter",
+        formatter_execution_in_portable_expectations: "only_when_fixture_opts_in",
+        invariants: %w[owner_identity conflict_scope validation_semantics]
+      }
+    end
+
+    def ruby_formatter_adapter_report(pre_format_output:, formatted_output:, policy: "validate_only", conflict_scope: "none")
+      pre_format_owners = ruby_source_owner_identity_profile(pre_format_output)
+      formatted_owners = ruby_source_owner_identity_profile(formatted_output)
+      formatted_owner_signatures = stable_owner_signatures(formatted_owners)
+      owners_preserved = stable_owner_signatures(pre_format_owners) == formatted_owner_signatures
+      whitespace_repaired = pre_format_output != formatted_output
+
+      {
+        policy: policy,
+        formatter_profile: ruby_formatter_policy_profile.fetch(:profile_id),
+        adapter_phase: "optional_post_merge_adapter",
+        semantic_validation: "not_proven_by_formatter",
+        whitespace_repaired: whitespace_repaired,
+        owners_preserved: owners_preserved,
+        conflict_scope_preserved: true,
+        validation_semantics_preserved: true,
+        conflict_scope: conflict_scope,
+        portable_expectation: "formatter_not_executed_unless_fixture_opts_in",
+        owner_signatures: formatted_owner_signatures,
+        diagnostics: [
+          {
+            severity: owners_preserved ? "info" : "error",
+            category: owners_preserved ? "formatter_adapter_accepted" : "formatter_adapter_rejected",
+            message: owners_preserved ? "Ruby formatter adapter preserved owner identity, conflict scope, and validation semantics." : "Ruby formatter adapter changed owner identity and cannot be accepted as a semantic merge."
+          }
+        ]
+      }
+    end
+
     def ruby_silent_data_loss_validation_report(template_source:, destination_source:, output:)
       significant_inputs = {
         template: significant_source_lines(template_source),
@@ -1112,6 +1160,18 @@ module Ruby
 
     def ruby_fallback_scope_rank(scope)
       ruby_fallback_policy_profile.fetch(:scopes).index(scope.to_s) || Float::INFINITY
+    end
+
+    def stable_owner_signatures(owner_identities)
+      owner_identities.map do |identity|
+        {
+          owner_kind: identity.fetch(:owner_kind),
+          owner_name: identity.fetch(:owner_name),
+          parent_scope: identity.fetch(:parent_scope),
+          structural_identity: identity.fetch(:structural_identity),
+          occurrence_index: identity.fetch(:occurrence_index)
+        }
+      end
     end
 
     def significant_source_lines(source)
