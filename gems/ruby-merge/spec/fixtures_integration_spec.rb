@@ -285,6 +285,37 @@ RSpec.describe "Ruby::Merge" do
       conflict_scope: formatter_fixture.dig(:expected, :adapter_report, :conflict_scope)
     )
     expect(json_ready(formatter_report)).to eq(json_ready(formatter_fixture.dig(:expected, :adapter_report)))
+    ast_node_merge_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-1000-ast-node-merge-strategy",
+        "ruby-ast-node-merge-strategy.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_ast_node_merge_strategy_profile)).to eq(
+      json_ready(ast_node_merge_fixture.dig(:expected, :profile))
+    )
+    expression_candidate = ast_node_merge_fixture[:expression_level_candidate]
+    expression_report = RUBY_MERGE.ruby_ast_node_merge_candidate_report(
+      surface: expression_candidate[:surface],
+      base: expression_candidate[:base],
+      template: expression_candidate[:template],
+      destination: expression_candidate[:destination]
+    )
+    expect(json_ready(expression_report)).to eq(
+      json_ready(ast_node_merge_fixture.dig(:expected, :expression_level_report))
+    )
+    risky_candidate = ast_node_merge_fixture[:risky_reconstruction_candidate]
+    risky_report = RUBY_MERGE.ruby_ast_node_merge_candidate_report(
+      surface: risky_candidate[:surface],
+      base: risky_candidate[:base],
+      template: risky_candidate[:template],
+      destination: risky_candidate[:destination],
+      reconstruction_risk: true
+    )
+    expect(json_ready(risky_report)).to eq(
+      json_ready(ast_node_merge_fixture.dig(:expected, :risky_reconstruction_report))
+    )
 
     shadowing_fixture = read_json(
       fixtures_root.join(

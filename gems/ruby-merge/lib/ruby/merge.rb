@@ -559,6 +559,52 @@ module Ruby
       }
     end
 
+    def ruby_ast_node_merge_strategy_profile
+      {
+        profile_id: "ruby-optional-ast-node-merge",
+        merge_surfaces: %w[owner ast_node line hybrid],
+        optional_fine_grained_profiles: %w[expression argument_list hash_literal_pair],
+        child_ordering_strategies: %w[destination_order successor_constraints pcs_like_triples],
+        public_contract_level: "ruleset_and_fixture",
+        default_surface: "owner",
+        backend_strategy_choices: %w[entity_level ast_level line_level hybrid],
+        reconstruction_policy: {
+          preserve_original_text_unless_backend_declares_renderer: true,
+          conflict_marker_placement_requires_text_boundary: true,
+          risky_reconstruction_outcome: "fallback_or_scoped_conflict"
+        }
+      }
+    end
+
+    def ruby_ast_node_merge_candidate_report(surface:, base:, template:, destination:, reconstruction_risk: false)
+      {
+        surface: surface,
+        strategy_profile: ruby_ast_node_merge_strategy_profile.fetch(:profile_id),
+        candidate_strategy: reconstruction_risk ? "fallback_or_scoped_conflict" : "hybrid_ast_node_merge",
+        owner_level_fallback_too_blunt: !reconstruction_risk,
+        successor_ordering_available: true,
+        pcs_like_strategy_available: true,
+        public_contract_level: "ruleset_and_fixture",
+        backend_strategy_choices: ruby_ast_node_merge_strategy_profile.fetch(:backend_strategy_choices),
+        inputs: {
+          base: base,
+          template: template,
+          destination: destination
+        },
+        reconstruction: {
+          risky: reconstruction_risk,
+          outcome: reconstruction_risk ? "fallback_or_scoped_conflict" : "preserve_original_text_boundaries"
+        },
+        diagnostics: [
+          {
+            severity: reconstruction_risk ? "warning" : "info",
+            category: reconstruction_risk ? "ast_node_reconstruction_risk" : "ast_node_merge_candidate",
+            message: reconstruction_risk ? "Ruby AST-node merge candidate has ambiguous whitespace, comment, or marker reconstruction boundaries." : "Ruby AST-node merge candidate can be considered when owner-level fallback would be too blunt."
+          }
+        ]
+      }
+    end
+
     def ruby_silent_data_loss_validation_report(template_source:, destination_source:, output:)
       significant_inputs = {
         template: significant_source_lines(template_source),
