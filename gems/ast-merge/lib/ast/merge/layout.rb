@@ -11,6 +11,7 @@ module Ast
       autoload :Attachment, "ast/merge/layout/attachment"
       autoload :Augmenter, "ast/merge/layout/augmenter"
       autoload :Gap, "ast/merge/layout/gap"
+      autoload :Policy, "ast/merge/layout/policy"
     end
   end
 end

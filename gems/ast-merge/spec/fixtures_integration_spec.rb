@@ -264,6 +264,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.attachment_strategy_substrate_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the layout-policy substrate fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1012-layout-policy-substrate",
+        "layout-policy-substrate.json"
+      )
+    )
+
+    expect(json_ready(described_class.layout_policy_substrate_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

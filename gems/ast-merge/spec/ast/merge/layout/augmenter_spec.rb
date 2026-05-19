@@ -73,6 +73,15 @@ RSpec.describe Ast::Merge::Layout::Augmenter do
       expect(augmenter.gaps).to eq([])
       expect(augmenter.attachment_for(augmenter.owners.first)).to be_empty
     end
+
+    it "supports comment-free but layout-aware owners" do
+      owner = AugmenterOwner.new(start_line: 2, end_line: 2, label: :json_member)
+      augmenter = described_class.new(lines: ["", "\"name\": true"], owners: [owner])
+
+      expect(augmenter.preamble_gap).to be_preamble
+      expect(augmenter.attachment_for(owner).leading_gap).to equal(augmenter.preamble_gap)
+      expect(augmenter.attachment_for(owner).leading_gap.lines).to eq([""])
+    end
   end
 
   describe "validation" do

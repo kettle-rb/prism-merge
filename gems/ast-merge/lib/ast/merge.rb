@@ -1470,6 +1470,36 @@ module Ast
       }
     end
 
+    def layout_policy_substrate_report
+      {
+        report_id: "layout-policy-substrate",
+        reference_runtime: "ruby",
+        shared_surface: "Ast::Merge::Layout",
+        components: %w[
+          Ast::Merge::Layout::Augmenter
+          Ast::Merge::Layout::Attachment
+          Ast::Merge::Layout::Gap
+          Ast::Merge::Layout::Policy
+        ],
+        gap_kinds: Ast::Merge::Layout::Gap::KINDS.map(&:to_s),
+        policy_modes: Ast::Merge::Layout::Policy::MODES.map(&:to_s),
+        default_policy: "preserve_exact",
+        comment_free_layout_aware: true,
+        whitespace_equivalence: {
+          implicit_cleanup: false,
+          exact_preservation_default: true,
+          named_equivalence_policy: "blank_line_equivalent"
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "layout_policy_substrate",
+            message: "Layout-aware behavior is shared, exact by default, and supports comment-free formats."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,
