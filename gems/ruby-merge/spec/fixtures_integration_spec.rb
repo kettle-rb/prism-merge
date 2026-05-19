@@ -110,6 +110,15 @@ RSpec.describe "Ruby::Merge" do
     )
     expect(json_ready(ambiguous_identity)).to eq(json_ready(ambiguous_identity_fixture[:expected]))
 
+    rename_detection_fixture = read_json(
+      fixtures_root.join("ruby", "slice-985-clean-rename-detection", "clean-method-rename.json")
+    )
+    rename_detection = RUBY_MERGE.ruby_rename_detection(
+      rename_detection_fixture[:template],
+      rename_detection_fixture[:destination]
+    )
+    expect(json_ready(rename_detection)).to eq(json_ready(rename_detection_fixture[:expected]))
+
     fallback_policy_fixture = read_json(
       fixtures_root.join(
         "ruby",

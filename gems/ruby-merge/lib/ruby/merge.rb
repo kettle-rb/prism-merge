@@ -416,6 +416,66 @@ module Ruby
       }
     end
 
+    def ruby_rename_detection_policy_profile
+      {
+        policy_id: "ruby-source-rename-detection",
+        capability: {
+          name: "rename_detection",
+          enabled: true,
+          default_enabled: false,
+          explicit: true
+        },
+        signals: %w[body_hash_with_owner_name_normalization structural_hash token_similarity parent_scope_similarity backend_native_move_metadata],
+        clean_rename_confidence: "content_hash",
+        conflict_policy: "report_rename_plus_edit"
+      }
+    end
+
+    def ruby_rename_detection(template_source, destination_source)
+      template_methods = ruby_method_identity_entries(template_source)
+      destination_methods = ruby_method_identity_entries(destination_source)
+      destination_by_parent_and_body = destination_methods.group_by do |entry|
+        [entry[:parent_scope], entry[:normalized_body_identity]]
+      end
+      destination_signature_keys = destination_methods.to_h { |entry| [[entry[:parent_scope], entry[:signature]], true] }
+      matched_destination_addresses = {}
+
+      renames = template_methods.filter_map do |template_entry|
+        next if destination_signature_keys[[template_entry[:parent_scope], template_entry[:signature]]]
+
+        destination_entry = destination_by_parent_and_body.fetch(
+          [template_entry[:parent_scope], template_entry[:normalized_body_identity]],
+          []
+        ).find { |entry| entry[:signature] != template_entry[:signature] }
+        next unless destination_entry
+
+        matched_destination_addresses[destination_entry[:address]] = true
+        {
+          from_address: template_entry[:address],
+          to_address: destination_entry[:address],
+          from_name: template_entry[:signature],
+          to_name: destination_entry[:signature],
+          parent_scope: template_entry[:parent_scope],
+          confidence: "content_hash",
+          signals: %w[body_hash_with_owner_name_normalization parent_scope_similarity],
+          clean_rename: true
+        }
+      end
+
+      {
+        policy: ruby_rename_detection_policy_profile,
+        renames: renames,
+        diagnostics: renames.empty? ? [] : [
+          {
+            severity: "info",
+            category: "ruby_rename_detection",
+            message: "Ruby rename detection is explicit and reports clean same-parent method renames by normalized body hash."
+          }
+        ],
+        unmatched_destination: destination_methods.reject { |entry| matched_destination_addresses[entry[:address]] }.map { |entry| entry[:address] }
+      }
+    end
+
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
       lines = normalize_source(source).split("\n")
       operations_by_id = delegated_operations.to_h { |operation| [operation[:operation_id], operation] }
@@ -840,6 +900,26 @@ module Ruby
           address: occurrence_index.zero? ? identity[:address] : "#{identity[:address]}[#{occurrence_index}]"
         )
       end
+    end
+
+    def ruby_method_identity_entries(source)
+      collect_ruby_declaration_entries(source).flat_map do |declaration_entry|
+        direct_body_method_entries(declaration_entry[:text]).map do |method_entry|
+          {
+            parent_scope: declaration_entry[:path],
+            signature: method_entry[:signature],
+            address: "#{declaration_entry[:path]}/methods/#{method_entry[:signature]}",
+            normalized_body_identity: normalized_method_body_identity(method_entry[:body_text])
+          }
+        end
+      end
+    end
+
+    def normalized_method_body_identity(body_text)
+      normalized_lines = body_text.to_s.lines.map.with_index do |line, index|
+        index.zero? && DEF_PATTERN.match?(line) ? "#{line[/\A\s*/]}def __owner_name__\n" : line
+      end
+      "sha256:#{Digest::SHA256.hexdigest(normalized_lines.join)}"
     end
 
     def ruby_method_shadowing(source)
