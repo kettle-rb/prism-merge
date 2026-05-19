@@ -42,8 +42,8 @@ Gem::Specification.new do |spec|
   spec.metadata["discord_uri"] = "https://discord.gg/3qme4XHNKN"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.add_dependency "ast-merge", "= #{Psych::Merge::VERSION}"
-  spec.add_dependency "tree_haver", "= #{Psych::Merge::VERSION}"
+  spec.add_dependency "ast-merge", "= #{spec.version}"
+  spec.add_dependency "tree_haver", "= #{spec.version}"
   spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
-  spec.add_dependency "yaml-merge", "= #{Psych::Merge::VERSION}"
+  spec.add_dependency "yaml-merge", "= #{spec.version}"
 end

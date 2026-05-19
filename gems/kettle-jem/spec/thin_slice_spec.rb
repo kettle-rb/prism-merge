@@ -3783,6 +3783,15 @@ RSpec.describe Kettle::Jem do
       expect(content).to include('gem "debug", "~> 1.9" # ruby >= 3.3')
       expect(content).not_to include('gem "rake"')
       expect(File.read(File.join(root, "gemfiles/modular/shunted.gemfile"))).to eq(content)
+
+      described_class.apply_project(root, env: {}, run_options: { rubygems_resolver: resolver })
+      reapplied = File.read(File.join(root, "gemfiles/modular/shunted.gemfile"))
+      expect(reapplied.lines.count { |line| line.include?(Kettle::Jem::MANAGED_BLOCK_OPEN) }).to be <= 1
+      expect(reapplied.lines.count { |line| line.include?(Kettle::Jem::MANAGED_BLOCK_CLOSE) }).to be <= 1
+      expect(reapplied).to include("# local notes remain outside the generated block")
+
+      described_class.apply_project(root, env: {}, run_options: { rubygems_resolver: resolver })
+      expect(File.read(File.join(root, "gemfiles/modular/shunted.gemfile"))).to eq(reapplied)
     end
   end
 

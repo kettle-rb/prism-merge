@@ -6597,6 +6597,7 @@ module Kettle
           .sub(/\.no-osc\.example\z/, "")
           .sub(/\.example\z/, "")
         next if logical_path.start_with?("readme/partials/")
+        next if logical_path == "gemfiles/modular/shunted.gemfile"
 
         logical_paths << logical_path unless logical_path.empty?
       end
@@ -7525,7 +7526,7 @@ module Kettle
 
     def replace_between_markers(content, open_marker, close_marker, replacement)
       open_index = content.index(open_marker)
-      close_index = content.index(close_marker)
+      close_index = content.rindex(close_marker)
       return yield unless open_index && close_index && close_index >= open_index
 
       close_end = close_index + close_marker.length

@@ -42,7 +42,7 @@ Gem::Specification.new do |spec|
   spec.metadata["discord_uri"] = "https://discord.gg/3qme4XHNKN"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.add_dependency "markdown-merge", "= #{Kramdown::Merge::VERSION}"
+  spec.add_dependency "markdown-merge", "= #{spec.version}"
   spec.add_dependency "kramdown", "~> 2.5"
   spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end

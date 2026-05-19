@@ -42,7 +42,7 @@ Gem::Specification.new do |spec|
   spec.metadata["discord_uri"] = "https://discord.gg/3qme4XHNKN"
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.add_dependency "toml-merge", "= #{Citrus::Toml::Merge::VERSION}"
+  spec.add_dependency "toml-merge", "= #{spec.version}"
   spec.add_dependency "toml-rb", "~> 4.1"
   spec.add_dependency "version_gem", "~> 1.1", ">= 1.1.9"
 end
