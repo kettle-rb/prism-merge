@@ -98,6 +98,17 @@ RSpec.describe "Ruby::Merge" do
       owner_matching_fixture[:destination]
     )
     expect(json_ready(owner_matches)).to eq(json_ready(owner_matching_fixture[:expected]))
+    ambiguous_identity_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-984-ambiguous-visibility-owner-identity",
+        "visibility-duplicate-method-identity.json"
+      )
+    )
+    ambiguous_identity = RUBY_MERGE.ruby_ambiguous_source_owner_identity_report(
+      ambiguous_identity_fixture[:source]
+    )
+    expect(json_ready(ambiguous_identity)).to eq(json_ready(ambiguous_identity_fixture[:expected]))
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(

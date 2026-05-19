@@ -339,6 +339,35 @@ module Ruby
       }
     end
 
+    def ruby_ambiguous_source_owner_identity_report(source)
+      identities = ruby_source_owner_identity_profile(source)
+      ambiguities = identities
+        .group_by { |identity| identity[:structural_identity] }
+        .filter_map do |structural_identity, entries|
+          next if entries.length < 2
+
+          {
+            structural_identity: structural_identity,
+            occurrence_count: entries.length,
+            addresses: entries.map { |entry| entry[:address] },
+            ambiguity_kind: "duplicate_structural_identity",
+            resolution_model: "ordered_cursor",
+            confidence: "structural_ordered"
+          }
+        end
+
+      {
+        ambiguities: ambiguities,
+        diagnostics: ambiguities.empty? ? [] : [
+          {
+            severity: "warning",
+            category: "ambiguous_source_owner_identity",
+            message: "Repeated Ruby source-owner identities require ordered cursor matching."
+          }
+        ]
+      }
+    end
+
     def ruby_source_owner_match_confidence_profile
       {
         levels: [
