@@ -476,6 +476,54 @@ module Ruby
       }
     end
 
+    def ruby_rename_plus_edit_conflicts(base_source, template_source, destination_source)
+      base_methods = ruby_method_identity_entries(base_source)
+      template_methods = ruby_method_identity_entries(template_source)
+      destination_methods = ruby_method_identity_entries(destination_source)
+      template_by_parent = template_methods.group_by { |entry| entry[:parent_scope] }
+      destination_by_parent = destination_methods.group_by { |entry| entry[:parent_scope] }
+
+      conflicts = base_methods.filter_map do |base_entry|
+        template_candidates = template_by_parent.fetch(base_entry[:parent_scope], []).reject do |entry|
+          entry[:signature] == base_entry[:signature]
+        end
+        destination_candidates = destination_by_parent.fetch(base_entry[:parent_scope], []).reject do |entry|
+          entry[:signature] == base_entry[:signature]
+        end
+        next if template_candidates.empty? || destination_candidates.empty?
+
+        template_candidate = template_candidates.first
+        destination_candidate = destination_candidates.first
+        next if template_candidate[:signature] == destination_candidate[:signature]
+
+        {
+          base_address: base_entry[:address],
+          template_address: template_candidate[:address],
+          destination_address: destination_candidate[:address],
+          parent_scope: base_entry[:parent_scope],
+          conflict_kind: "rename_plus_edit",
+          fallback_scope: "owned_region",
+          confidence: "unresolved",
+          diagnostics: [
+            "both branches renamed the same Ruby owner differently",
+            "method body identity changed on at least one side"
+          ]
+        }
+      end
+
+      {
+        policy: ruby_rename_detection_policy_profile,
+        conflicts: conflicts,
+        diagnostics: conflicts.empty? ? [] : [
+          {
+            severity: "warning",
+            category: "ruby_rename_plus_edit_conflict",
+            message: "Ruby rename detection found incompatible rename-plus-edit changes."
+          }
+        ]
+      }
+    end
+
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
       lines = normalize_source(source).split("\n")
       operations_by_id = delegated_operations.to_h { |operation| [operation[:operation_id], operation] }

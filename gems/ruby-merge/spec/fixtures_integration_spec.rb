@@ -118,6 +118,19 @@ RSpec.describe "Ruby::Merge" do
       rename_detection_fixture[:destination]
     )
     expect(json_ready(rename_detection)).to eq(json_ready(rename_detection_fixture[:expected]))
+    rename_conflict_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-986-rename-plus-edit-conflict",
+        "rename-plus-edit-conflict.json"
+      )
+    )
+    rename_conflicts = RUBY_MERGE.ruby_rename_plus_edit_conflicts(
+      rename_conflict_fixture[:base],
+      rename_conflict_fixture[:template],
+      rename_conflict_fixture[:destination]
+    )
+    expect(json_ready(rename_conflicts)).to eq(json_ready(rename_conflict_fixture[:expected]))
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(
