@@ -416,6 +416,30 @@ module Ruby
       }
     end
 
+    def ruby_interstitial_merge_policy_profile
+      {
+        policy_id: "ruby-source-interstitial-merge",
+        separates_owner_merge: true,
+        region_kinds: %w[file_header file_footer container_header container_footer between],
+        owner_adjacency_fields: %w[previous_owner next_owner],
+        rules: [
+          {
+            region_kind: "require",
+            ordering: "destination_order_then_template_additions",
+            duplicate_key: "require_path"
+          },
+          {
+            region_kind: "blank_line",
+            ownership: "preserve_declared_region_owner"
+          },
+          {
+            region_kind: "comment",
+            attachment: "nearest_declared_owner_or_standalone"
+          }
+        ]
+      }
+    end
+
     def ruby_rename_detection_policy_profile
       {
         policy_id: "ruby-source-rename-detection",

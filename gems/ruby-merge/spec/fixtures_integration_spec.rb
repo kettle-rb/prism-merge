@@ -144,6 +144,25 @@ RSpec.describe "Ruby::Merge" do
     )
     expect(json_ready(cross_container_move)).to eq(json_ready(cross_container_move_fixture[:expected]))
 
+    interstitial_require_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-988-interstitial-require-merge",
+        "require-ordering-interstitial-merge.json"
+      )
+    )
+    interstitial_require_merge = RUBY_MERGE.merge_ruby(
+      interstitial_require_fixture[:template],
+      interstitial_require_fixture[:destination],
+      interstitial_require_fixture[:dialect],
+      merge_template_requires: true
+    )
+    expect(json_ready(RUBY_MERGE.ruby_interstitial_merge_policy_profile)).to eq(
+      json_ready(interstitial_require_fixture.dig(:expected, :policy))
+    )
+    expect(interstitial_require_merge[:ok]).to eq(interstitial_require_fixture.dig(:expected, :merge, :ok))
+    expect(interstitial_require_merge[:output]).to eq(interstitial_require_fixture.dig(:expected, :merge, :output))
+
     fallback_policy_fixture = read_json(
       fixtures_root.join(
         "ruby",
