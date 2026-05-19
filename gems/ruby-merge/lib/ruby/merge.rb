@@ -325,9 +325,44 @@ module Ruby
 
       matched_template_addresses = matches.to_h { |match| [match[:template_address], true] }
       {
+        confidence_profile: ruby_source_owner_match_confidence_profile,
         matches: matches,
         unmatched_template: template_identities.reject { |identity| matched_template_addresses[identity[:address]] }.map { |identity| identity[:address] },
-        unmatched_destination: destination_identities.reject { |identity| matched_destination_addresses[identity[:address]] }.map { |identity| identity[:address] }
+        unmatched_destination: destination_identities.reject { |identity| matched_destination_addresses[identity[:address]] }.map { |identity| identity[:address] },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "source_owner_identity_matching",
+            message: "Ruby source-owner matching reports confidence per match and uses ordered structural pairing for duplicate identities."
+          }
+        ]
+      }
+    end
+
+    def ruby_source_owner_match_confidence_profile
+      {
+        levels: [
+          {
+            name: "exact",
+            meaning: "same structural identity, occurrence index, and content identity"
+          },
+          {
+            name: "structural_ordered",
+            meaning: "same structural identity and occurrence index"
+          },
+          {
+            name: "content_hash",
+            meaning: "same content-derived identity when structural identity is ambiguous"
+          },
+          {
+            name: "token_similar",
+            meaning: "similar token content below exact content identity"
+          },
+          {
+            name: "unresolved",
+            meaning: "identity is ambiguous and must not be auto-matched"
+          }
+        ]
       }
     end
 
