@@ -28,8 +28,8 @@ Gem::Specification.new do |spec|
   spec.version = gem_version
   spec.authors = ["Peter H. Boling"]
   spec.email = ["info@structuredmerge.org"]
-  spec.summary = "Structured Merge RBS analysis and merge for Ruby"
-  spec.description = "RBS declaration, comment, freeze-block, and template merge behavior for Structured Merge."
+  spec.summary = "☯️ Structured Merge RBS analysis and merge for Ruby"
+  spec.description = "☯️ RBS declaration, comment, freeze-block, and template merge behavior for Structured Merge."
   spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"
   spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
   spec.required_ruby_version = ">= 4.0.0"

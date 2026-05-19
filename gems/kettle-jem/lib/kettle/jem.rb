@@ -4085,6 +4085,7 @@ module Kettle
       merged = replacements.reduce(template_content.dup) do |content, (field, source_line)|
         pattern = /^(\s*#{Regexp.escape(template_receiver)}\.#{Regexp.escape(field)}\s*=\s*).*$/
         replacement = normalize_gemspec_receiver(source_line.rstrip, from: destination_receiver, to: template_receiver)
+        replacement = normalize_gemspec_project_emoji(replacement, facts, receiver: template_receiver, field: field)
         content.match?(pattern) ? content.sub(pattern, replacement) : content
       end
       merged = preserve_gemspec_dependency_lines(
@@ -4120,6 +4121,18 @@ module Kettle
       return line if from.to_s.empty? || to.to_s.empty? || from == to
 
       line.sub(/^(\s*)#{Regexp.escape(from)}\./, "\\1#{to}.")
+    end
+
+    def normalize_gemspec_project_emoji(line, facts, receiver:, field:)
+      return line unless %w[summary description].include?(field.to_s)
+      return line unless facts&.dig(:project_runtime, :project_emoji_configured)
+
+      project_emoji = facts&.dig(:project_runtime, :project_emoji).to_s
+      return line if project_emoji.empty?
+
+      line.sub(/^(\s*#{Regexp.escape(receiver)}\.#{Regexp.escape(field)}\s*=\s*)(["'])([^"']*)(\2)$/) do
+        "#{Regexp.last_match(1)}#{Regexp.last_match(2)}#{project_emoji} #{strip_leading_decorative_graphemes(Regexp.last_match(3))}#{Regexp.last_match(4)}"
+      end
     end
 
     def gemspec_preserved_assignments(source, receiver:)
@@ -4488,6 +4501,17 @@ module Kettle
       return false if value.empty?
 
       !value.match?(/\A[[:alnum:][:space:]]\z/u)
+    end
+
+    def strip_leading_decorative_graphemes(text)
+      remaining = text.to_s.sub(/\A\s+/, "")
+      loop do
+        first = first_grapheme(remaining)
+        break unless decorative_grapheme?(first)
+
+        remaining = remaining[first.length..].to_s.sub(/\A\s+/, "")
+      end
+      remaining
     end
 
     def recipe_report_metadata(recipe)
@@ -5560,6 +5584,7 @@ module Kettle
 
     def project_runtime_facts(config, env, package_name:, source_url:, author_domain:, min_ruby:, version:)
       run_timestamp = Time.now
+      configured_project_emoji = preferred_template_token_value(nil, config["project_emoji"], env, "KJ_PROJECT_EMOJI")
       compact_hash(
         freeze_token: config.dig("defaults", "freeze_token").to_s.empty? ? "kettle-jem" : config.dig("defaults", "freeze_token").to_s,
         kettle_jem_version: VERSION,
@@ -5568,6 +5593,7 @@ module Kettle
         kettle_dev_gem: "kettle-dev",
         yard_host: "#{package_name.to_s.tr("_", "-")}.#{author_domain.to_s.empty? ? "example.com" : author_domain}",
         project_emoji: preferred_template_token_value("💎", config["project_emoji"], env, "KJ_PROJECT_EMOJI").to_s,
+        project_emoji_configured: !configured_project_emoji.to_s.empty?,
         min_divergence_threshold: preferred_template_token_value(nil, config["min_divergence_threshold"], env, "KJ_MIN_DIVERGENCE_THRESHOLD").to_s,
         min_dev_ruby: minimum_dev_ruby_token(min_ruby),
         version: version.to_s,

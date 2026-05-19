@@ -4155,11 +4155,13 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "#{package_name}"
             spec.summary = "Destination summary"
+            spec.description = "🧪 Destination description"
             spec.homepage = "https://github.com/acme/#{package_name}"
             spec.required_ruby_version = ">= 4.0"
           end
         RUBY
         ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "🧬"
           templates:
             root: template
             apply: true
@@ -4171,6 +4173,7 @@ RSpec.describe Kettle::Jem do
           Gem::Specification.new do |spec|
             spec.name = "{KJ|GEM_NAME}"
             spec.summary = "Template summary"
+            spec.description = "Template description"
             spec.homepage = "https://template.example"
             spec.required_ruby_version = ">= 3.2"
             spec.add_dependency("{KJ|GEM_NAME}", "~> 1.0")
@@ -4189,7 +4192,8 @@ RSpec.describe Kettle::Jem do
       gemspec_content = report.fetch(:final_content)
 
       expect(gemspec_content).to include(%(spec.name = "#{package_name}"))
-      expect(gemspec_content).to include('spec.summary = "Destination summary"')
+      expect(gemspec_content).to include('spec.summary = "🧬 Destination summary"')
+      expect(gemspec_content).to include('spec.description = "🧬 Destination description"')
       expect(gemspec_content).to include(%(spec.homepage = "https://github.com/acme/#{package_name}"))
       expect(gemspec_content).to include('spec.required_ruby_version = ">= 4.0"')
       expect(gemspec_content).to include(%(spec.add_dependency("#{contract_case.fetch(:preserved_dependency)}", ">= 2.8", "< 3")))
