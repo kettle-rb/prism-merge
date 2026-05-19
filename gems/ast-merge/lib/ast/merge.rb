@@ -935,6 +935,282 @@ module Ast
       }
     end
 
+    def ruby_downstream_merge_gem_feature_matrix
+      {
+        report_id: "ruby-downstream-merge-gem-feature-matrix",
+        reference_runtime: "ruby",
+        fields: %w[
+          owner_selector
+          match_key
+          attachment_strategy
+          comment_style
+          layout_awareness
+          logical_owner_behavior
+          render_source_shaper_family
+          fallback_repair_policy
+          validation_and_diagnostics
+        ],
+        gems: [
+          downstream_merge_gem_feature(
+            "bash-merge",
+            owner_selector: "shell_command_or_assignment",
+            match_key: "command_signature",
+            attachment_strategy: "hash_comment_before_owner",
+            comment_style: "hash",
+            layout_awareness: "line_and_comment_preserving",
+            logical_owner_behavior: "source_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "binary-merge",
+            owner_selector: "byte_member",
+            match_key: "byte_range_or_member_path",
+            attachment_strategy: "none",
+            comment_style: "none",
+            layout_awareness: "byte_exact",
+            logical_owner_behavior: "binary_member",
+            render_source_shaper_family: "byte_preserving"
+          ),
+          downstream_merge_gem_feature(
+            "json-merge",
+            owner_selector: "json_object_member",
+            match_key: "object_key",
+            attachment_strategy: "none",
+            comment_style: "none",
+            layout_awareness: "structural_json",
+            logical_owner_behavior: "keyed_member",
+            render_source_shaper_family: "canonical_or_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "jsonc-merge",
+            owner_selector: "jsonc_object_member",
+            match_key: "object_key",
+            attachment_strategy: "nearest_comment_or_member",
+            comment_style: "line_or_block",
+            layout_awareness: "comment_and_trivia_preserving",
+            logical_owner_behavior: "keyed_member",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "markdown-merge",
+            owner_selector: "markdown_section_or_child_surface",
+            match_key: "heading_path_or_surface_id",
+            attachment_strategy: "section_leading_trivia",
+            comment_style: "html_or_fenced_child",
+            layout_awareness: "block_spacing_and_link_refs",
+            logical_owner_behavior: "section_owner",
+            render_source_shaper_family: "block_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "commonmarker-merge",
+            owner_selector: "markdown_ast_node",
+            match_key: "commonmark_node_path",
+            attachment_strategy: "provider_local",
+            comment_style: "html",
+            layout_awareness: "backend_restricted",
+            logical_owner_behavior: "provider_node",
+            render_source_shaper_family: "provider_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "markly-merge",
+            owner_selector: "markdown_ast_node",
+            match_key: "markly_node_path",
+            attachment_strategy: "provider_local",
+            comment_style: "html",
+            layout_awareness: "backend_restricted",
+            logical_owner_behavior: "provider_node",
+            render_source_shaper_family: "provider_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "kramdown-merge",
+            owner_selector: "markdown_ast_node",
+            match_key: "kramdown_node_path",
+            attachment_strategy: "provider_local",
+            comment_style: "html",
+            layout_awareness: "backend_restricted",
+            logical_owner_behavior: "provider_node",
+            render_source_shaper_family: "provider_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "ruby-merge",
+            owner_selector: "ruby_declaration_owner",
+            match_key: "kind_name_scope_and_content_identity",
+            attachment_strategy: "nearest_declared_owner_or_standalone",
+            comment_style: "hash",
+            layout_awareness: "source_region_and_interstitial",
+            logical_owner_behavior: "class_module_method_owner",
+            render_source_shaper_family: "source_region_reconstruction"
+          ),
+          downstream_merge_gem_feature(
+            "prism-merge",
+            owner_selector: "ruby_prism_node",
+            match_key: "prism_node_path_or_signature",
+            attachment_strategy: "native_comment_attachment",
+            comment_style: "hash",
+            layout_awareness: "provider_restricted_source_locations",
+            logical_owner_behavior: "provider_node",
+            render_source_shaper_family: "prism_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "rbs-merge",
+            owner_selector: "rbs_declaration",
+            match_key: "declaration_name_and_scope",
+            attachment_strategy: "hash_comment_before_owner",
+            comment_style: "hash",
+            layout_awareness: "source_region",
+            logical_owner_behavior: "type_declaration_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "go-merge",
+            owner_selector: "go_declaration",
+            match_key: "declaration_name_and_scope",
+            attachment_strategy: "doc_comment_before_decl",
+            comment_style: "slash",
+            layout_awareness: "source_region",
+            logical_owner_behavior: "source_declaration_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "rust-merge",
+            owner_selector: "rust_item",
+            match_key: "item_kind_name_and_scope",
+            attachment_strategy: "doc_comment_before_item",
+            comment_style: "slash",
+            layout_awareness: "source_region",
+            logical_owner_behavior: "source_item_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "typescript-merge",
+            owner_selector: "typescript_declaration",
+            match_key: "declaration_name_and_scope",
+            attachment_strategy: "jsdoc_or_comment_before_decl",
+            comment_style: "slash_or_block",
+            layout_awareness: "source_region",
+            logical_owner_behavior: "source_declaration_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "toml-merge",
+            owner_selector: "toml_table_or_key",
+            match_key: "dotted_key_path",
+            attachment_strategy: "hash_comment_before_key",
+            comment_style: "hash",
+            layout_awareness: "key_order_and_comments",
+            logical_owner_behavior: "config_key_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "citrus-toml-merge",
+            owner_selector: "toml_table_or_key",
+            match_key: "dotted_key_path",
+            attachment_strategy: "provider_local",
+            comment_style: "hash",
+            layout_awareness: "backend_restricted",
+            logical_owner_behavior: "config_key_owner",
+            render_source_shaper_family: "provider_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "parslet-toml-merge",
+            owner_selector: "toml_table_or_key",
+            match_key: "dotted_key_path",
+            attachment_strategy: "provider_local",
+            comment_style: "hash",
+            layout_awareness: "backend_restricted",
+            logical_owner_behavior: "config_key_owner",
+            render_source_shaper_family: "provider_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "yaml-merge",
+            owner_selector: "yaml_mapping_entry",
+            match_key: "mapping_path",
+            attachment_strategy: "hash_comment_before_key",
+            comment_style: "hash",
+            layout_awareness: "key_order_and_comments",
+            logical_owner_behavior: "config_key_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "psych-merge",
+            owner_selector: "yaml_mapping_entry",
+            match_key: "mapping_path",
+            attachment_strategy: "provider_local",
+            comment_style: "hash_when_available",
+            layout_awareness: "backend_restricted",
+            logical_owner_behavior: "config_key_owner",
+            render_source_shaper_family: "provider_source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "dotenv-merge",
+            owner_selector: "dotenv_assignment",
+            match_key: "variable_name",
+            attachment_strategy: "hash_comment_before_assignment",
+            comment_style: "hash",
+            layout_awareness: "line_order_and_comments",
+            logical_owner_behavior: "config_key_owner",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "plain-merge",
+            owner_selector: "line_or_block",
+            match_key: "text_identity",
+            attachment_strategy: "none",
+            comment_style: "none",
+            layout_awareness: "line_order",
+            logical_owner_behavior: "plain_text_region",
+            render_source_shaper_family: "source_fragment"
+          ),
+          downstream_merge_gem_feature(
+            "zip-merge",
+            owner_selector: "archive_member",
+            match_key: "normalized_member_path",
+            attachment_strategy: "none",
+            comment_style: "none",
+            layout_awareness: "central_directory_and_member_bytes",
+            logical_owner_behavior: "archive_member_owner",
+            render_source_shaper_family: "archive_repack_or_byte_preserve"
+          )
+        ],
+        recommendations: {
+          shared_substrate: %w[
+            owner_selector
+            match_key
+            attachment_strategy
+            comment_style
+            layout_awareness
+            logical_owner_behavior
+            fallback_repair_policy
+            validation_and_diagnostics
+          ],
+          per_format_adapters: %w[render_source_shaper_family provider_local_attachment],
+          future_conformance_fixtures: %w[owner_selector_matrix comment_attachment_matrix layout_awareness_matrix]
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "downstream_merge_gem_audit",
+            message: "Ruby downstream merge gem behavior is classified by shared feature names before release."
+          }
+        ]
+      }
+    end
+
+    def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
+      {
+        gem: gem_name,
+        owner_selector: owner_selector,
+        match_key: match_key,
+        attachment_strategy: attachment_strategy,
+        comment_style: comment_style,
+        layout_awareness: layout_awareness,
+        logical_owner_behavior: logical_owner_behavior,
+        render_source_shaper_family: render_source_shaper_family,
+        fallback_repair_policy: fallback_repair_policy,
+        validation_and_diagnostics: validation_and_diagnostics
+      }
+    end
+
     def initial_profile_promotion_policy
       source_subprofile = lambda do |profile_id, family|
         ProfilePromotionPolicyEntry.new(

@@ -190,6 +190,20 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  it "conforms to the Ruby downstream merge gem feature matrix fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1006-ruby-downstream-merge-gem-feature-matrix",
+        "ruby-downstream-merge-gem-feature-matrix.json"
+      )
+    )
+
+    expect(json_ready(described_class.ruby_downstream_merge_gem_feature_matrix)).to eq(
+      json_ready(fixture[:expected])
+    )
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
