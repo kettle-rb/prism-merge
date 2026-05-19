@@ -457,6 +457,23 @@ module Ruby
       }
     end
 
+    def ruby_fallback_scope_guard_report(requested_scope:, declared_scope:)
+      widened = ruby_fallback_scope_rank(requested_scope) > ruby_fallback_scope_rank(declared_scope)
+      {
+        requested_scope: requested_scope,
+        declared_scope: declared_scope,
+        widened: widened,
+        activated: !widened,
+        diagnostics: [
+          {
+            severity: widened ? "error" : "info",
+            category: widened ? "fallback_scope_widening_rejected" : "fallback_scope_accepted",
+            message: widened ? "Ruby fallback cannot widen from #{declared_scope} to #{requested_scope} without an explicit policy." : "Ruby fallback scope is within the declared policy."
+          }
+        ]
+      }
+    end
+
     def ruby_interstitial_merge_policy_profile
       {
         policy_id: "ruby-source-interstitial-merge",
@@ -1006,6 +1023,10 @@ module Ruby
       return "" if content.empty?
 
       content.lines.any? { |line| !line.strip.empty? && !comment_line?(line) } ? "" : content
+    end
+
+    def ruby_fallback_scope_rank(scope)
+      ruby_fallback_policy_profile.fetch(:scopes).index(scope.to_s) || Float::INFINITY
     end
 
     def merge_ruby_requires(destination_requires, template_requires)
