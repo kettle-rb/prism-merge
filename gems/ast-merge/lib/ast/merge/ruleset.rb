@@ -10,6 +10,8 @@ module Ast
       autoload :Parser, "ast/merge/ruleset/parser"
       autoload :ProfileVocabulary, "ast/merge/ruleset/profile_vocabulary"
       autoload :RepairPolicy, "ast/merge/ruleset/repair_policy"
+      autoload :RuntimeDeclaration, "ast/merge/ruleset/runtime_declaration"
+      autoload :RuntimeTranslator, "ast/merge/ruleset/runtime_translator"
       autoload :SurfaceDeclaration, "ast/merge/ruleset/surface_declaration"
       autoload :SupportStyleResolver, "ast/merge/ruleset/support_style_resolver"
     end

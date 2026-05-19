@@ -1335,6 +1335,55 @@ module Ast
       }
     end
 
+    def ruleset_runtime_translation_report
+      {
+        report_id: "ruleset-runtime-translation",
+        reference_runtime: "ruby",
+        translator: "Ast::Merge::Ruleset::RuntimeTranslator",
+        normalized_input: "Ast::Merge::Ruleset::Config",
+        runtime_output: [
+          "Ast::Merge::Ruleset::RuntimeDeclaration",
+          "Ast::Merge::Ruleset::FeatureProfile",
+          "Ast::Merge::Comment::SupportStyle"
+        ],
+        first_class_directives: [
+          {
+            directive: "read",
+            runtime_field: "read_strategy",
+            translated_by: "RuntimeTranslator.declaration"
+          },
+          {
+            directive: "attach",
+            runtime_field: "attachment_strategy",
+            translated_by: "RuntimeTranslator.declaration"
+          },
+          {
+            directive: "capability",
+            runtime_field: "capabilities",
+            translated_by: "RuntimeTranslator.declaration"
+          },
+          {
+            directive: "logical_owner",
+            runtime_field: "logical_owners",
+            translated_by: "RuntimeTranslator.declaration"
+          }
+        ],
+        comment_free_support: {
+          supported: true,
+          condition: "comment_style omitted",
+          support_style: nil,
+          comment_aware: false
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "ruleset_runtime_translation",
+            message: "Ruleset directives are translated into merge-facing runtime objects through a single shared translator."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,

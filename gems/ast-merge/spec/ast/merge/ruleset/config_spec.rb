@@ -208,6 +208,19 @@ RSpec.describe Ast::Merge::Ruleset::Config do
       expect(support_style.details[:style]).to eq(:hash_comment)
     end
 
+    it "supports comment-free rulesets without creating a comment support style" do
+      ruleset = described_class.parse(<<~RULESET)
+        format json
+        owners mapping_entries
+        match key_name
+        read native_mutation
+        attach layout_only
+      RULESET
+
+      expect(ruleset.runtime_declaration).to be_comment_free
+      expect(ruleset.support_style(source: :json_native)).to be_nil
+      expect(ruleset.feature_profile.comment_aware?).to be(false)
+    end
   end
 
   describe "#feature_profile" do
@@ -224,6 +237,25 @@ RSpec.describe Ast::Merge::Ruleset::Config do
       expect(profile.delegation_policies.map(&:to_h)).to eq(
         [{surface_name: :fenced_code_block, strategy: :by_language, metadata: {}}],
       )
+    end
+
+    it "is built through the runtime declaration translator" do
+      ruleset = described_class.parse(valid_ruleset)
+      declaration = ruleset.runtime_declaration(source: :toml_native, capability: :full)
+      profile = ruleset.feature_profile(source: :toml_native, capability: :full)
+
+      expect(declaration).to be_a(Ast::Merge::Ruleset::RuntimeDeclaration)
+      expect(declaration.read_strategy).to eq(:native_read_portable_write)
+      expect(declaration.attachment_strategy).to eq(:normalize_tracked_layout_merge)
+      expect(declaration.capabilities).to eq(
+        inline_comments: true,
+        quoted_hash_inline_literals: false,
+      )
+      expect(declaration.logical_owners).to eq(link_definition: :preserve_if_referenced)
+      expect(profile.read_strategy).to eq(declaration.read_strategy)
+      expect(profile.attachment_strategy).to eq(declaration.attachment_strategy)
+      expect(profile.logical_owners).to eq(declaration.logical_owners)
+      expect(profile.support_style.to_h).to eq(declaration.support_style.to_h)
     end
   end
 end

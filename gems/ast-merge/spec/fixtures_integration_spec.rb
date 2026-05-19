@@ -228,6 +228,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.corruption_healing_boundary_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the ruleset runtime translation fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1009-ruleset-runtime-translation",
+        "ruleset-runtime-translation.json"
+      )
+    )
+
+    expect(json_ready(described_class.ruleset_runtime_translation_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
