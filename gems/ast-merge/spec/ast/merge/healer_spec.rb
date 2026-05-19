@@ -137,5 +137,40 @@ RSpec.describe Ast::Merge::Healer do
       expect(filtered).to eq(["keep"])
       expect(removed).to eq(%w[a b])
     end
+
+    it "leaves clean inputs unchanged under every handling mode" do
+      described_class::HANDLINGS.each do |mode|
+        filtered = described_class.filter_items(
+          items,
+          mode: mode,
+          prefix: prefix,
+          kind: :duplicate_block,
+          message: "clean input",
+          warner: ->(*) {},
+        ) { |_item| false }
+
+        expect(filtered).to equal(items)
+      end
+    end
+
+    it "diverges only at suspected corruption matches" do
+      healed = described_class.filter_items(
+        items,
+        mode: :heal,
+        prefix: prefix,
+        kind: :duplicate_block,
+        message: "policy divergence",
+      ) { |item| item != "keep" }
+      skipped = described_class.filter_items(
+        items,
+        mode: :skip,
+        prefix: prefix,
+        kind: :duplicate_block,
+        message: "policy divergence",
+      ) { |item| item != "keep" }
+
+      expect(healed).to eq(["keep"])
+      expect(skipped).to equal(items)
+    end
   end
 end

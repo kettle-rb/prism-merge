@@ -1236,6 +1236,105 @@ module Ast
       }
     end
 
+    def corruption_healing_boundary_report
+      {
+        report_id: "corruption-healing-boundary",
+        reference_runtime: "ruby",
+        layer: {
+          core_merge_semantics: "owner_matching_attachment_layout_and_render_planning",
+          healing_layer: "suspected_corruption_policy",
+          policy_surface: "Ast::Merge::Healer",
+          modes: Ast::Merge::Healer::HANDLINGS.map(&:to_s),
+          independent_of_analysis_contract: true,
+          clean_input_can_skip_healing: true
+        },
+        classifications: [
+          {
+            behavior: "duplicate_template_leading_prefix_recovery",
+            classification: "corruption_recovery",
+            policy: "duplicate_template_leading_prefix",
+            default_runtime_policy: "heal",
+            skip_contract: "preserve structural analysis and omit historical-output repair"
+          },
+          {
+            behavior: "removed_owner_orphan_rehoming_overlap_filter",
+            classification: "corruption_recovery",
+            policy: "removed_owner_orphan_overlap",
+            default_runtime_policy: "heal",
+            skip_contract: "preserve promoted orphan ownership without overlap filtering"
+          },
+          {
+            behavior: "comment_only_magic_prefix_dedup",
+            classification: "corruption_recovery",
+            policy: "duplicate_magic_comment_prefix",
+            default_runtime_policy: "heal",
+            skip_contract: "preserve comment-only analysis and omit duplicate prefix repair"
+          },
+          {
+            behavior: "comment_region_hash_deduplication",
+            classification: "normative_merge_behavior",
+            policy: "comment_attachment_identity",
+            default_runtime_policy: "always",
+            skip_contract: "deduplication is part of attachment identity, not healing"
+          },
+          {
+            behavior: "remove_plan_rehome_metadata",
+            classification: "normative_merge_behavior",
+            policy: "structural_edit_rehome",
+            default_runtime_policy: "always",
+            skip_contract: "rehome plans describe ownership transfer and do not mutate output by themselves"
+          },
+          {
+            behavior: "postlude_eof_preservation",
+            classification: "normative_merge_behavior",
+            policy: "gap_ownership",
+            default_runtime_policy: "always",
+            skip_contract: "EOF and postlude state are analysis metadata, not output repair"
+          },
+          {
+            behavior: "final_blank_line_normalization",
+            classification: "retired_output_repair",
+            policy: "none",
+            default_runtime_policy: "removed",
+            skip_contract: "no generic post-render whitespace cleanup is permitted"
+          },
+          {
+            behavior: "remaining_spacing_drift",
+            classification: "ambiguous_gap_ownership_case",
+            policy: "leading_trailing_orphan_gap_owner_trace",
+            default_runtime_policy: "diagnose",
+            skip_contract: "trace to gap ownership or add a named layout policy"
+          }
+        ],
+        no_generic_cleanup_boundary: {
+          preserve_owned_oddities: true,
+          examples: [
+            "trailing_spaces",
+            "whitespace_only_lines",
+            "destination_owned_blank_line_runs"
+          ],
+          allowed_mutation: "only a ruleset or format policy that defines equivalence or rendering may change owned oddities"
+        },
+        tests: [
+          {
+            test: "Healer.filter_items clean input policy invariance",
+            proves: "same clean input and structural analysis pass through heal/warn/error/skip unchanged"
+          },
+          {
+            test: "Healer.filter_items corruption policy divergence",
+            proves: "matched suspected-corruption items are handled only by the selected healing policy"
+          }
+        ],
+        diagnostics: [
+          {
+            severity: "info",
+            category: "corruption_healing_boundary",
+            message: "Healing is a policy layer above merge semantics; clean callers can skip it without changing structural analysis."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,

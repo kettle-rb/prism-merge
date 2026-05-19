@@ -216,6 +216,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.spec_terminology_glossary_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the corruption-healing boundary fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1008-corruption-healing-boundary",
+        "corruption-healing-boundary.json"
+      )
+    )
+
+    expect(json_ready(described_class.corruption_healing_boundary_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
