@@ -70,6 +70,11 @@ RSpec.describe "Ruby::Merge" do
     )
     source_regions = RUBY_MERGE.ruby_source_regions(source_region_fixture[:source])
     expect(json_ready(source_regions)).to eq(json_ready(source_region_fixture[:expected]))
+    file_edge_region_fixture = read_json(
+      fixtures_root.join("ruby", "slice-977-source-region-analysis", "file-header-footer-regions.json")
+    )
+    file_edge_regions = RUBY_MERGE.ruby_source_regions(file_edge_region_fixture[:source])
+    expect(json_ready(file_edge_regions)).to eq(json_ready(file_edge_region_fixture[:expected]))
 
     shadowing_fixture = read_json(
       fixtures_root.join(
