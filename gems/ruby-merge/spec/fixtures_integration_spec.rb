@@ -216,6 +216,24 @@ RSpec.describe "Ruby::Merge" do
     expect(top_level_owner_merge_result[:ok]).to eq(top_level_owner_merge_fixture.dig(:expected, :ok))
     expect(top_level_owner_merge_result[:output]).to eq(top_level_owner_merge_fixture.dig(:expected, :output))
 
+    intra_owner_merge_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-980-same-owner-intra-owner-merge",
+        "method-body-destination-wins.json"
+      )
+    )
+    intra_owner_merge_result = RUBY_MERGE.merge_ruby(
+      intra_owner_merge_fixture[:template],
+      intra_owner_merge_fixture[:destination],
+      intra_owner_merge_fixture[:dialect]
+    )
+    expect(intra_owner_merge_result[:ok]).to eq(intra_owner_merge_fixture.dig(:expected, :ok))
+    expect(intra_owner_merge_result[:output]).to eq(intra_owner_merge_fixture.dig(:expected, :output))
+    expect(json_ready(intra_owner_merge_result.dig(:merge_planning, :intra_owner_merges))).to eq(
+      json_ready(intra_owner_merge_fixture.dig(:expected, :merge_planning, :intra_owner_merges))
+    )
+
     advanced_leaf_fixture = read_json(
       fixtures_root.join("ruby", "slice-720-advanced-leaf-merge", "class-hash-leaf-merge.json")
     )

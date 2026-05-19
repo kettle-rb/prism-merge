@@ -200,6 +200,7 @@ module Ruby
       matching_reports = [ruby_method_move_detection(template_source, destination_source, dialect)]
       move_report = matching_reports.first
       moved_method_count = move_report.fetch(:matches).count { |entry| entry.fetch(:moved) }
+      intra_owner_merges = ruby_intra_owner_merge_plan(template_declaration_candidates, destination_declarations)
 
       {
         ok: true,
@@ -215,6 +216,11 @@ module Ruby
             preserves_destination_order: method_move_policy == DEFAULT_METHOD_MOVE_POLICY,
             suppresses_duplicate_moved_methods: method_move_policy == DEFAULT_METHOD_MOVE_POLICY,
             override_scope: "per_file_recipe"
+          },
+          intra_owner_merges: {
+            strategy: "destination_wins_scoped_owner_body",
+            merge_count: intra_owner_merges.length,
+            merges: intra_owner_merges
           }
         }
       }
@@ -641,6 +647,33 @@ module Ruby
       destination_entry.merge(
         text: merged_text
       )
+    end
+
+    def ruby_intra_owner_merge_plan(template_entries, destination_entries)
+      template_by_key = template_entries.to_h { |entry| [entry[:merge_key], entry] }
+      destination_entries.flat_map do |destination_entry|
+        template_entry = template_by_key[destination_entry[:merge_key]]
+        next [] unless template_entry
+        next [] unless %w[class module].include?(destination_entry[:kind])
+
+        template_methods = direct_body_method_entries(template_entry[:text]).to_h { |entry| [entry[:signature], entry] }
+        direct_body_method_entries(destination_entry[:text]).filter_map do |destination_method|
+          template_method = template_methods[destination_method[:signature]]
+          next unless template_method
+          next if template_method[:body_text] == destination_method[:body_text]
+
+          {
+            owner_path: destination_entry[:path],
+            owner_kind: destination_entry[:kind],
+            owner_name: destination_entry[:name],
+            child_group: "methods",
+            child_signature: destination_method[:signature],
+            child_path: "#{destination_entry[:path]}/methods/#{destination_method[:signature]}",
+            decision: "destination_wins",
+            scope: "owner_body"
+          }
+        end
+      end
     end
 
     def ruby_method_shadowing(source)
