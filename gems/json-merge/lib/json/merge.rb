@@ -105,18 +105,7 @@ module Json
     end
 
     def match_json_owners(template, destination)
-      destination_paths = destination[:owners].to_h { |owner| [owner[:path], true] }
-      template_paths = template[:owners].to_h { |owner| [owner[:path], true] }
-
-      {
-        matched: template[:owners].filter_map do |owner|
-          next unless destination_paths[owner[:path]]
-
-          { template_path: owner[:path], destination_path: owner[:path] }
-        end,
-        unmatched_template: template[:owners].map { |owner| owner[:path] }.reject { |path| destination_paths[path] },
-        unmatched_destination: destination[:owners].map { |owner| owner[:path] }.reject { |path| template_paths[path] }
-      }
+      Ast::Merge::OwnerSelection.match_by_path(template, destination)
     end
 
     def merge_json(template_source, destination_source, dialect)

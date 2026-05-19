@@ -79,6 +79,7 @@ module Ast
     autoload :Navigable, "ast/merge/navigable"
     autoload :NodeTyping, "ast/merge/node_typing"
     autoload :NodeWrapperBase, "ast/merge/node_wrapper_base"
+    autoload :OwnerSelection, "ast/merge/owner_selection"
     autoload :KeyPathPartialTemplateMergerBase, "ast/merge/key_path_partial_template_merger_base"
     autoload :PartialTemplateMergerBase, "ast/merge/partial_template_merger_base"
     autoload :SectionTyping, "ast/merge/section_typing"
@@ -1379,6 +1380,45 @@ module Ast
             severity: "info",
             category: "ruleset_runtime_translation",
             message: "Ruleset directives are translated into merge-facing runtime objects through a single shared translator."
+          }
+        ]
+      }
+    end
+
+    def owner_selection_substrate_report
+      {
+        report_id: "owner-selection-substrate",
+        reference_runtime: "ruby",
+        shared_surface: "Ast::Merge::OwnerSelection",
+        owner_selector_kinds: %w[
+          shared_default
+          explicit
+          logical_owner
+        ],
+        shared_helpers: [
+          {
+            helper: "match_by_path",
+            behavior: "path_identity_owner_matching",
+            downstream_adopters: %w[
+              go-merge
+              json-merge
+              ruby-merge
+              rust-merge
+              toml-merge
+              typescript-merge
+            ]
+          },
+          {
+            helper: "selector_kind",
+            behavior: "distinguish shared default, explicit, and logical-owner selectors",
+            downstream_adopters: %w[ast-merge ruleset feature profiles]
+          }
+        ],
+        diagnostics: [
+          {
+            severity: "info",
+            category: "owner_selection_substrate",
+            message: "Recurring path-identity owner matching now goes through a shared substrate instead of per-gem method folklore."
           }
         ]
       }

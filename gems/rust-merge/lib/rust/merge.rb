@@ -4,6 +4,7 @@ require "version_gem"
 require_relative "merge/version"
 
 require "tree_haver"
+require "ast/merge"
 
 module Rust
   module Merge
@@ -53,13 +54,7 @@ module Rust
     end
 
     def match_rust_owners(template, destination)
-      destination_paths = destination[:owners].to_h { |owner| [owner[:path], true] }
-      template_paths = template[:owners].to_h { |owner| [owner[:path], true] }
-      {
-        matched: template[:owners].filter { |owner| destination_paths[owner[:path]] }.map { |owner| { template_path: owner[:path], destination_path: owner[:path] } },
-        unmatched_template: template[:owners].map { |owner| owner[:path] }.reject { |path| destination_paths[path] },
-        unmatched_destination: destination[:owners].map { |owner| owner[:path] }.reject { |path| template_paths[path] }
-      }
+      Ast::Merge::OwnerSelection.match_by_path(template, destination)
     end
 
     def merge_rust(template_source, destination_source, dialect)

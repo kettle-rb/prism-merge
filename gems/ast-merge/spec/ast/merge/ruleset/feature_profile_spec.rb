@@ -29,6 +29,7 @@ RSpec.describe Ast::Merge::Ruleset::FeatureProfile do
         render_family: :toml_pairs_and_tables,
         capabilities: {layout_aware: true},
         owner_selector_family: :generic,
+        owner_selector_kind: :logical_owner,
         match_key_family: :structural_signature,
         attachment_strategy_family: :layout_merge,
         logical_owners: {link_definition: :preserve_if_referenced},
@@ -62,6 +63,7 @@ RSpec.describe Ast::Merge::Ruleset::FeatureProfile do
       expect(profile.surface_aware?).to be(false)
       expect(profile.delegated_surface_aware?).to be(false)
       expect(profile.owner_selector_family).to eq(:generic)
+      expect(profile.owner_selector_kind).to eq(:shared_default)
       expect(profile.match_key_family).to eq(:structural_signature)
       expect(profile.attachment_strategy_family).to be_nil
       expect(profile.tracked_attachment?).to be(false)
@@ -78,6 +80,7 @@ RSpec.describe Ast::Merge::Ruleset::FeatureProfile do
       )
 
       expect(profile.owner_selector_metadata).to include(family: :line_oriented)
+      expect(profile.owner_selector_kind).to eq(:explicit)
       expect(profile.match_key_metadata).to include(family: :named_key)
       expect(profile.attachment_strategy_metadata).to include(
         family: :layout_merge,

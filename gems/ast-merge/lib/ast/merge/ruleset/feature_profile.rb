@@ -85,6 +85,10 @@ module Ast
           attachment_strategy_metadata&.fetch(:family, nil)
         end
 
+        def owner_selector_kind
+          OwnerSelection.selector_kind(owner_selector, logical_owners: logical_owners)
+        end
+
         def logical_owner?
           capabilities.fetch(:logical_owner, logical_owners.any?)
         end
@@ -145,6 +149,7 @@ module Ast
             metadata: metadata,
             layout_aware: layout_aware?,
             owner_selector_family: owner_selector_family,
+            owner_selector_kind: owner_selector_kind,
             match_key_family: match_key_family,
             attachment_strategy_family: attachment_strategy_family,
             logical_owner: logical_owner?,
