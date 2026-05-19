@@ -176,6 +176,20 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  it "conforms to the Ruby-only surface disposition fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1005-ruby-only-surface-disposition",
+        "ruby-only-surface-disposition.json"
+      )
+    )
+
+    expect(json_ready(described_class.ruby_only_surface_disposition_report)).to eq(
+      json_ready(fixture[:expected])
+    )
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

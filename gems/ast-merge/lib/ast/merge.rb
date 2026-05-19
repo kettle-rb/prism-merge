@@ -869,6 +869,72 @@ module Ast
       }
     end
 
+    def ruby_only_surface_disposition_report
+      {
+        report_id: "ruby-only-surface-disposition",
+        reference_runtime: "ruby",
+        dispositions: [
+          {
+            surface_group: "ast_merge_reference_helpers",
+            examples: %w[
+              Ast::Merge::SmartMergerBase
+              Ast::Merge::ConflictResolverBase
+              Ast::Merge::MergeResultBase
+              Ast::Merge::FileAnalyzable
+              Ast::Merge::EmitterBase
+            ],
+            disposition: "fixture_role",
+            fixture_role: "ruby_ast_merge_reference_contract",
+            portability: "portable_contract_ruby_reference_helper"
+          },
+          {
+            surface_group: "tree_haver_provider_wrappers",
+            examples: %w[
+              TreeHaver::Backends::Prism
+              TreeHaver::Backends::Psych
+              TreeHaver::Backends::Citrus
+              TreeHaver::Backends::Parslet
+            ],
+            disposition: "backend_restricted_role",
+            fixture_role: "ruby_tree_haver_reference_contract",
+            portability: "backend_provider_specific"
+          },
+          {
+            surface_group: "rspec_shared_examples",
+            examples: %w[
+              Ast::Merge::RSpec
+              Ast::Merge::RSpec::MergeGemRegistry
+            ],
+            disposition: "explicit_non_portable_note",
+            note: "Ruby RSpec support is test/contributor convenience and does not define portable conformance.",
+            portability: "ruby_test_convenience"
+          },
+          {
+            surface_group: "provider_api_compatibility_aliases",
+            examples: %w[from_path kind merge_type nodes],
+            disposition: "explicit_non_portable_note",
+            note: "Provider-local aliases may exist only to normalize parser APIs inside Ruby adapters.",
+            portability: "provider_local_adapter_convenience"
+          },
+          {
+            surface_group: "legacy_crispr_reference_metadata",
+            examples: %w[legacy_crispr_reference],
+            disposition: "retirement_task",
+            note: "Legacy CRISPR metadata is evidence for migrated fixtures and should not become a public compatibility layer.",
+            portability: "retire_after_fixture_migration"
+          }
+        ],
+        release_status: "ruby_only_surfaces_quarantined",
+        diagnostics: [
+          {
+            severity: "info",
+            category: "ruby_only_surface_disposition",
+            message: "Ruby-only surfaces are classified as fixture roles, backend-restricted roles, non-portable notes, or retirement tasks."
+          }
+        ]
+      }
+    end
+
     def initial_profile_promotion_policy
       source_subprofile = lambda do |profile_id, family|
         ProfilePromotionPolicyEntry.new(
