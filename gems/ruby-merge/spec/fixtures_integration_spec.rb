@@ -86,6 +86,19 @@ RSpec.describe "Ruby::Merge" do
     owner_identities = RUBY_MERGE.ruby_source_owner_identity_profile(owner_identity_fixture[:source])
     expect(json_ready(owner_identities)).to eq(json_ready(owner_identity_fixture.dig(:expected, :identities)))
 
+    owner_matching_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-982-duplicate-owner-ordered-matching",
+        "duplicate-method-ordered-matching.json"
+      )
+    )
+    owner_matches = RUBY_MERGE.ruby_source_owner_identity_matches(
+      owner_matching_fixture[:template],
+      owner_matching_fixture[:destination]
+    )
+    expect(json_ready(owner_matches)).to eq(json_ready(owner_matching_fixture[:expected]))
+
     shadowing_fixture = read_json(
       fixtures_root.join(
         "ruby",

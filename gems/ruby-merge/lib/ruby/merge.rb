@@ -278,7 +278,7 @@ module Ruby
     end
 
     def ruby_source_owner_identity_profile(source)
-      collect_ruby_declaration_entries(source).flat_map do |entry|
+      identities = collect_ruby_declaration_entries(source).flat_map do |entry|
         declaration_identity = source_owner_identity_entry(
           kind: entry[:kind],
           name: entry[:name],
@@ -297,6 +297,38 @@ module Ruby
         end
         [declaration_identity, *method_identities]
       end
+      add_source_owner_occurrence_indexes(identities)
+    end
+
+    def ruby_source_owner_identity_matches(template_source, destination_source)
+      template_identities = ruby_source_owner_identity_profile(template_source)
+      destination_identities = ruby_source_owner_identity_profile(destination_source)
+      destination_groups = destination_identities.group_by { |identity| identity[:structural_identity] }
+      template_groups = template_identities.group_by { |identity| identity[:structural_identity] }
+      matched_destination_addresses = {}
+
+      matches = template_identities.filter_map do |template_identity|
+        destination_identity = destination_groups.fetch(template_identity[:structural_identity], []).find do |candidate|
+          candidate[:occurrence_index] == template_identity[:occurrence_index]
+        end
+        next unless destination_identity
+
+        matched_destination_addresses[destination_identity[:address]] = true
+        {
+          template_address: template_identity[:address],
+          destination_address: destination_identity[:address],
+          structural_identity: template_identity[:structural_identity],
+          occurrence_index: template_identity[:occurrence_index],
+          confidence: "structural_ordered"
+        }
+      end
+
+      matched_template_addresses = matches.to_h { |match| [match[:template_address], true] }
+      {
+        matches: matches,
+        unmatched_template: template_identities.reject { |identity| matched_template_addresses[identity[:address]] }.map { |identity| identity[:address] },
+        unmatched_destination: destination_identities.reject { |identity| matched_destination_addresses[identity[:address]] }.map { |identity| identity[:address] }
+      }
     end
 
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
@@ -711,6 +743,18 @@ module Ruby
         content_identity: "sha256:#{Digest::SHA256.hexdigest(content.to_s)}",
         identity_components: %w[owner_kind owner_name parent_scope content_identity]
       }
+    end
+
+    def add_source_owner_occurrence_indexes(identities)
+      counters = Hash.new(0)
+      identities.map do |identity|
+        occurrence_index = counters[identity[:structural_identity]]
+        counters[identity[:structural_identity]] += 1
+        identity.merge(
+          occurrence_index: occurrence_index,
+          address: occurrence_index.zero? ? identity[:address] : "#{identity[:address]}[#{occurrence_index}]"
+        )
+      end
     end
 
     def ruby_method_shadowing(source)
