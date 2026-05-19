@@ -316,6 +316,26 @@ RSpec.describe "Ruby::Merge" do
     expect(json_ready(risky_report)).to eq(
       json_ready(ast_node_merge_fixture.dig(:expected, :risky_reconstruction_report))
     )
+    vcs_tool_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-1001-vcs-tool-integration",
+        "ruby-vcs-tool-integration.json"
+      )
+    )
+    expect(json_ready(RUBY_MERGE.ruby_vcs_tool_integration_profile)).to eq(
+      json_ready(vcs_tool_fixture.dig(:expected, :profile))
+    )
+    invocation = vcs_tool_fixture[:sample_invocation]
+    invocation_report = RUBY_MERGE.ruby_vcs_tool_invocation_report(
+      host: invocation[:host],
+      event: invocation[:event],
+      path: invocation[:path],
+      timeout_ms: invocation[:timeout_ms]
+    )
+    expect(json_ready(invocation_report)).to eq(
+      json_ready(vcs_tool_fixture.dig(:expected, :invocation_report))
+    )
 
     shadowing_fixture = read_json(
       fixtures_root.join(

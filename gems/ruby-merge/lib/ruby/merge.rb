@@ -605,6 +605,76 @@ module Ruby
       }
     end
 
+    def ruby_vcs_tool_integration_profile
+      {
+        profile_id: "ruby-vcs-tool-integration",
+        hosts: {
+          git_merge_driver: {
+            contract: "git_merge_driver",
+            placeholders: %w[%O %A %B %P],
+            output_target: "%A",
+            standard_marker_modes: %w[diff3 zdiff3 merge],
+            marker_size: "host_provided"
+          },
+          jujutsu_merge_tool: {
+            contract: "jj_merge_tool",
+            roles: %w[base left right output path],
+            output_target: "output",
+            standard_marker_modes: %w[diff3 merge],
+            marker_size: "host_provided"
+          }
+        },
+        enhanced_markers: {
+          optional: true,
+          requires_host_tolerance: true,
+          default: "standard_markers"
+        },
+        audit_artifact: {
+          enabled: true,
+          formats: %w[json],
+          fields: %w[host operation path fallback_reason validation_warnings conflict_kind timeout_ms]
+        },
+        resource_budget: {
+          timeout_ms: 5000,
+          timeout_outcome: "fallback_or_driver_error",
+          cannot_hang_vcs_operation: true
+        },
+        diagnostics: %w[
+          structured_merge_skipped
+          fallback_activated
+          driver_invocation_error
+          tool_invocation_error
+          timeout_or_resource_budget
+        ]
+      }
+    end
+
+    def ruby_vcs_tool_invocation_report(host:, event:, path:, timeout_ms: 5000)
+      severity = event.to_s.end_with?("error") ? "error" : "warning"
+
+      {
+        host: host,
+        event: event,
+        path: path,
+        integration_profile: ruby_vcs_tool_integration_profile.fetch(:profile_id),
+        marker_mode: "standard_markers",
+        marker_size: "host_provided",
+        audit_artifact: {
+          format: "json",
+          required: true
+        },
+        timeout_ms: timeout_ms,
+        resource_budget_enforced: true,
+        diagnostics: [
+          {
+            severity: severity,
+            category: event,
+            message: "Ruby #{host} integration reported #{event} for #{path}."
+          }
+        ]
+      }
+    end
+
     def ruby_silent_data_loss_validation_report(template_source:, destination_source:, output:)
       significant_inputs = {
         template: significant_source_lines(template_source),
