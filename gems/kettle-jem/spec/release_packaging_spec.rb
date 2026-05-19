@@ -26,7 +26,7 @@ RSpec.describe "kettle-jem release packaging" do
     expect(gemspec_source).to include("Module.new.tap")
     expect(gemspec_source).to include("spec.metadata[\"news_uri\"]")
     expect(gemspec_source).to include("spec.rdoc_options +=")
-    expect(spec.summary).to eq("🍲 Gem templating engine using AST-based merging and configurable token resolution.")
+    expect(spec.summary).to eq("🔮 Gem templating engine using AST-based merging and configurable token resolution.")
     expect(spec.homepage).to eq("https://github.com/kettle-rb/kettle-jem")
     expect(spec.metadata["homepage_uri"]).to eq("https://kettle-jem.galtzo.com/")
     expect(spec.executables).to eq(["kettle-jem"])

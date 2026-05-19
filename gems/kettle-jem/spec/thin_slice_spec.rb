@@ -5157,6 +5157,7 @@ RSpec.describe Kettle::Jem do
       commit = IO.popen(commit_env, ["git", "-C", root, "commit-tree", tree, "-m", "initial"], &:read).strip
       expect(commit).to match(/\A[0-9a-f]{40}\z/)
       expect(system("git", "-C", root, "update-ref", "refs/heads/main", commit)).to be(true)
+      expect(system("git", "-C", root, "symbolic-ref", "HEAD", "refs/heads/main")).to be(true)
 
       plan = described_class.plan_project(root, env: {})
       license_report = plan[:recipe_reports].find { |report| report.fetch(:recipe_name) == "template_source_application_LICENSE_md" }
