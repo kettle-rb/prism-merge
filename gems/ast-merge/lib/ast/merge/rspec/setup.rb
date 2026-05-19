@@ -3,8 +3,8 @@
 # Ast::Merge RSpec Setup (Registry Only)
 #
 # This file loads ONLY the registry and helper classes without configuring RSpec.
-# It's used in the ast-merge test suite to allow registering known gems before
-# SimpleCov loads the library code.
+# It's used in registration-heavy suites to allow declaring merge-gem tags before
+# SimpleCov loads provider library code.
 #
 # DO NOT load this in merge gem test suites - they should use require "ast/merge/rspec"
 # which includes the full RSpec configuration.
@@ -12,8 +12,14 @@
 # @example Loading in ast-merge's spec_helper.rb (BEFORE requiring ast-merge)
 #   require "ast/merge/rspec/setup"
 #
-#   # Now you can register known gems:
-#   Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(:markly_merge, :prism_merge)
+#   Ast::Merge::RSpec::MergeGemRegistry.register_known_gem(
+#     :markly_merge,
+#     require_path: "markly/merge",
+#     merger_class: "Markly::Merge::SmartMerger",
+#     test_source: "# Test\n\nParagraph",
+#     category: :markdown,
+#   )
+#   Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(:markly_merge)
 #
 # @example For merge gem test suites (normal pattern)
 #   # Don't use this file! Use the full loader instead:

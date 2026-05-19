@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "bootstrap/tree_haver_backends"
+require_relative "bootstrap/merge_gems"
+
 require_relative "../gems/ast-merge/spec/spec_helper"
 require_relative "../gems/ast-merge-git/spec/spec_helper"
 require_relative "../gems/ast-crispr/spec/spec_helper"

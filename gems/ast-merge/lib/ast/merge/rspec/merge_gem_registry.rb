@@ -14,20 +14,9 @@ module Ast
       #
       # When running RSpec tests with dependency tags (e.g., `:markly_merge`),
       # ast-merge needs to know if each merge gem is available. The MergeGemRegistry
-      # provides a way for gems to register their availability checkers, and also
-      # pre-configures known merge gems so they can be checked before being loaded.
-      #
-      # == Pre-configured Gems
-      #
-      # The following merge gems are pre-configured so that their availability can
-      # be checked before they are loaded (e.g., during RSpec setup):
-      # - :markly_merge, :commonmarker_merge, :markdown_merge (markdown)
-      # - :prism_merge, :bash_merge, :rbs_merge (code)
-      # - :json_merge (data, including JSONC dialect support)
-      # - :toml_merge, :psych_merge, :dotenv_merge (config)
-      #
-      # External merge gems can also register themselves by calling {register}
-      # when loaded.
+      # provides a way for gems to register their availability checkers. Test
+      # bootstraps can also register known gem metadata before gems are loaded so
+      # RSpec filters are configured in time.
       #
       # == Registration
       #
@@ -69,89 +58,11 @@ module Ast
       module MergeGemRegistry
         @mutex = Mutex.new
         @registry = {} # rubocop:disable ThreadSafety/MutableClassInstanceVariable
+        @known_gems = {} # rubocop:disable ThreadSafety/MutableClassInstanceVariable
         @availability_cache = {} # rubocop:disable ThreadSafety/MutableClassInstanceVariable
 
         # Valid categories for merge gems
         CATEGORIES = %i[markdown data code config other].freeze
-
-        # Pre-configured known merge gems
-        # These can be checked before the gems are actually loaded
-        KNOWN_GEMS = {
-          # Markdown gems
-          markly_merge: {
-            require_path: "markly/merge",
-            merger_class: "Markly::Merge::SmartMerger",
-            test_source: "# Test\n\nParagraph",
-            category: :markdown,
-            skip_instantiation: false,
-          },
-          commonmarker_merge: {
-            require_path: "commonmarker/merge",
-            merger_class: "Commonmarker::Merge::SmartMerger",
-            test_source: "# Test\n\nParagraph",
-            category: :markdown,
-            skip_instantiation: false,
-          },
-          markdown_merge: {
-            require_path: "markdown/merge",
-            merger_class: "Markdown::Merge::SmartMerger",
-            test_source: "# Test\n\nParagraph",
-            category: :markdown,
-            skip_instantiation: true, # Requires backend
-          },
-          # Code gems
-          prism_merge: {
-            require_path: "prism/merge",
-            merger_class: "Prism::Merge::SmartMerger",
-            test_source: "def foo; end",
-            category: :code,
-            skip_instantiation: false,
-          },
-          bash_merge: {
-            require_path: "bash/merge",
-            merger_class: "Bash::Merge::SmartMerger",
-            test_source: "#!/bin/bash\necho hello",
-            category: :code,
-            skip_instantiation: false,
-          },
-          rbs_merge: {
-            require_path: "rbs/merge",
-            merger_class: "Rbs::Merge::SmartMerger",
-            test_source: "class Foo\nend",
-            category: :code,
-            skip_instantiation: false,
-          },
-          # Data gems
-          json_merge: {
-            require_path: "json/merge",
-            merger_class: "Json::Merge::SmartMerger",
-            test_source: '{"key": "value"}',
-            category: :data,
-            skip_instantiation: false,
-          },
-          # Config gems
-          toml_merge: {
-            require_path: "toml/merge",
-            merger_class: "Toml::Merge::SmartMerger",
-            test_source: "[section]\nkey = \"value\"",
-            category: :config,
-            skip_instantiation: false,
-          },
-          psych_merge: {
-            require_path: "psych/merge",
-            merger_class: "Psych::Merge::SmartMerger",
-            test_source: "key: value",
-            category: :config,
-            skip_instantiation: false,
-          },
-          dotenv_merge: {
-            require_path: "dotenv/merge",
-            merger_class: "Dotenv::Merge::SmartMerger",
-            test_source: "KEY=value",
-            category: :config,
-            skip_instantiation: false,
-          },
-        }.freeze
 
         module_function
 
@@ -199,11 +110,32 @@ module Ast
           nil
         end
 
+        # Register metadata for a merge gem that may not be loaded yet.
+        #
+        # This is intended for spec/bootstrap layers that need to declare the tag
+        # universe before RSpec filters examples. Runtime provider gems should
+        # still call {register} when loaded.
+        def register_known_gem(tag_name, require_path:, merger_class:, test_source:, category: :other, skip_instantiation: false)
+          raise ArgumentError, "Invalid category: #{category}" unless CATEGORIES.include?(category)
+
+          @mutex.synchronize do
+            @known_gems[tag_name.to_sym] = {
+              require_path: require_path,
+              merger_class: merger_class,
+              test_source: test_source,
+              category: category,
+              skip_instantiation: skip_instantiation,
+            }
+          end
+
+          define_availability_method(tag_name.to_sym)
+          nil
+        end
+
         # Check if a merge gem is available and functional
         #
-        # This method will try to load the gem if it's not yet registered but
-        # is known (in KNOWN_GEMS). This allows availability checking before
-        # the gem is explicitly loaded.
+        # This method will try to load the gem if it was registered directly or
+        # predeclared by a spec bootstrap before the gem was explicitly loaded.
         #
         # @param tag_name [Symbol] the tag name to check
         # @return [Boolean] true if the merge gem is available and works
@@ -215,9 +147,9 @@ module Ast
             return @availability_cache[tag_sym] if @availability_cache.key?(tag_sym)
           end
 
-          # Get registration info (from registry or known gems)
+          # Get registration info (from loaded registry or bootstrap metadata)
           info = @mutex.synchronize { @registry[tag_sym] }
-          info ||= KNOWN_GEMS[tag_sym]
+          info ||= @mutex.synchronize { @known_gems[tag_sym] }
 
           return false unless info
 
@@ -252,7 +184,7 @@ module Ast
         # This allows test suites to explicitly register only the merge gems they need
         # for their tests, avoiding the overhead of registering all known gems.
         #
-        # @param gem_names [Array<Symbol>] list of gem names from KNOWN_GEMS to register
+        # @param gem_names [Array<Symbol>] list of predeclared gem names to register
         # @return [void]
         #
         # @example In spec/config/tree_haver.rb
@@ -268,16 +200,15 @@ module Ast
           gem_names.each do |tag_name|
             tag_sym = tag_name.to_sym
 
-            # Skip if not in KNOWN_GEMS
-            unless KNOWN_GEMS.key?(tag_sym)
-              warn("Unknown gem: #{tag_name}. Available: #{KNOWN_GEMS.keys.join(", ")}")
+            unless known_gems.key?(tag_sym)
+              warn("Unknown gem: #{tag_name}. Available: #{known_gems.keys.join(", ")}")
               next
             end
 
             # Skip if already registered
             next if registered?(tag_sym)
 
-            metadata = KNOWN_GEMS[tag_sym]
+            metadata = known_gems.fetch(tag_sym)
             register(
               tag_sym,
               require_path: metadata[:require_path],
@@ -292,7 +223,7 @@ module Ast
         # Get all explicitly registered gem tag names
         #
         # This returns ONLY gems that were explicitly registered via register() or
-        # register_known_gems(), NOT all gems in KNOWN_GEMS. This prevents premature
+        # register_known_gems(), NOT every predeclared gem. This prevents premature
         # loading of gems during RSpec tag setup, which would happen before SimpleCov
         # and ruin coverage reporting.
         #
@@ -303,13 +234,19 @@ module Ast
           end
         end
 
+        def known_gems
+          @mutex.synchronize do
+            @known_gems.transform_values(&:dup)
+          end
+        end
+
         # Get gems filtered by category
         #
         # @param category [Symbol] one of :markdown, :data, :code, :config, :other
         # @return [Array<Symbol>] list of tag names in that category
         def gems_by_category(category)
           @mutex.synchronize do
-            known = KNOWN_GEMS.select { |_, info| info[:category] == category }.keys
+            known = @known_gems.select { |_, info| info[:category] == category }.keys
             registered = @registry.select { |_, info| info[:category] == category }.keys
             (known + registered).uniq
           end
@@ -347,7 +284,7 @@ module Ast
         def info(tag_name)
           tag_sym = tag_name.to_sym
           @mutex.synchronize do
-            @registry[tag_sym]&.dup || KNOWN_GEMS[tag_sym]&.dup
+            @registry[tag_sym]&.dup || @known_gems[tag_sym]&.dup
           end
         end
 
@@ -376,6 +313,7 @@ module Ast
         def clear!
           @mutex.synchronize do
             @registry.clear
+            @known_gems.clear
             @availability_cache.clear
           end
           nil

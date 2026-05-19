@@ -4,20 +4,8 @@ require "json"
 require "pathname"
 require "version_gem/rspec"
 require "rspec/stubbed_env"
-require "ast/merge/rspec/setup"
-
-Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(
-  :markly_merge,
-  :commonmarker_merge,
-  :markdown_merge,
-  :prism_merge,
-  :bash_merge,
-  :rbs_merge,
-  :json_merge,
-  :toml_merge,
-  :psych_merge,
-  :dotenv_merge,
-)
+require_relative "../../../spec/bootstrap/tree_haver_backends"
+require_relative "../../../spec/bootstrap/merge_gems"
 
 require "ast/merge"
 require "ast/merge/rspec/dependency_tags_config"

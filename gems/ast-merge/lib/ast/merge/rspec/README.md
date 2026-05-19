@@ -20,17 +20,22 @@ That loads:
 
 ### Split loading for `ast-merge` itself or registration-heavy suites
 
-If a suite needs to register known merge gems before RSpec config runs, use the split loading pattern:
+If a suite needs to declare merge-gem tags before RSpec config runs, use the split loading pattern:
 
 ```ruby
 require "ast/merge"
 require "ast/merge/rspec/setup"
 
+Ast::Merge::RSpec::MergeGemRegistry.register_known_gem(
+  :markly_merge,
+  require_path: "markly/merge",
+  merger_class: "Markly::Merge::SmartMerger",
+  test_source: "# Test\n\nParagraph",
+  category: :markdown,
+)
+
 Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(
   :markly_merge,
-  :commonmarker_merge,
-  :markdown_merge,
-  :prism_merge,
 )
 
 require "ast/merge/rspec/dependency_tags_config"
@@ -71,7 +76,7 @@ TreeHaver backend tags are loaded alongside these helpers; see the TreeHaver RSp
 
 ## MergeGemRegistry
 
-`Ast::Merge::RSpec::MergeGemRegistry` tracks known `*-merge` gems and exposes availability checks for dependency tags.
+`Ast::Merge::RSpec::MergeGemRegistry` tracks loaded and bootstrap-declared `*-merge` gems and exposes availability checks for dependency tags.
 
 ### Registering a gem
 
@@ -93,13 +98,19 @@ Supported categories are `:markdown`, `:data`, `:code`, `:config`, and `:other`.
 
 ### Registering known gems explicitly
 
-Suites that need deterministic registration order can call:
+Suites that need deterministic registration order should first predeclare the tag metadata, then activate the tags they need:
 
 ```ruby
+Ast::Merge::RSpec::MergeGemRegistry.register_known_gem(
+  :prism_merge,
+  require_path: "prism/merge",
+  merger_class: "Prism::Merge::SmartMerger",
+  test_source: "def foo; end",
+  category: :code,
+)
+
 Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(
   :prism_merge,
-  :json_merge,
-  :psych_merge,
 )
 ```
 

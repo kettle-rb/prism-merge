@@ -19,6 +19,13 @@
 #   # In spec/config/tree_haver.rb:
 #   require "ast-merge"
 #   require "ast/merge/rspec/setup"  # Load registry/helpers only
+#   Ast::Merge::RSpec::MergeGemRegistry.register_known_gem(
+#     :markly_merge,
+#     require_path: "markly/merge",
+#     merger_class: "Markly::Merge::SmartMerger",
+#     test_source: "# Test\n\nParagraph",
+#     category: :markdown,
+#   )
 #   Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(:markly_merge)
 #   require "ast/merge/rspec/dependency_tags_config"  # Load RSpec config
 #   require "ast/merge/rspec/shared_examples"

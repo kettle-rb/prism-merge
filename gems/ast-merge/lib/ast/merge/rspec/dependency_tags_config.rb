@@ -14,7 +14,13 @@ require_relative "dependency_tags_helpers"
 #   # In spec_helper.rb BEFORE requiring ast-merge:
 #   require "ast/merge/rspec/setup"
 #
-#   # Register known gems:
+#   Ast::Merge::RSpec::MergeGemRegistry.register_known_gem(
+#     :markly_merge,
+#     require_path: "markly/merge",
+#     merger_class: "Markly::Merge::SmartMerger",
+#     test_source: "# Test\n\nParagraph",
+#     category: :markdown,
+#   )
 #   Ast::Merge::RSpec::MergeGemRegistry.register_known_gems(:markly_merge)
 #
 #   # Then AFTER requiring ast-merge, load config:
