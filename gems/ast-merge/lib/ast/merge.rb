@@ -1196,6 +1196,46 @@ module Ast
       }
     end
 
+    def spec_terminology_glossary_report
+      {
+        report_id: "spec-terminology-glossary",
+        terms: [
+          {
+            term: "parser_capability",
+            meaning: "what a parser or backend can observe or return",
+            ruby_surface: "Ast::Merge::Comment::Capability and TreeHaver::BackendCapability"
+          },
+          {
+            term: "merge_capability",
+            meaning: "what the merge runtime can safely do with parser data",
+            ruby_surface: "Ast::Merge::Ruleset::FeatureProfile"
+          },
+          {
+            term: "support_style_write_model",
+            meaning: "how observed data is read, owned, and rendered",
+            ruby_surface: "Ast::Merge::Comment::SupportStyle"
+          },
+          {
+            term: "ruleset_capability_declaration",
+            meaning: "the user-facing feature request expressed in ruleset vocabulary",
+            ruby_surface: "Ast::Merge::Ruleset::Config"
+          }
+        ],
+        naming_decision: {
+          comment_capability: "keep",
+          comment_support_style: "keep_as_write_model_until_general_model_exists",
+          reason: "Capability describes parser support, while SupportStyle describes merge realization."
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "terminology_alignment",
+            message: "Parser capability, merge capability, support style/write model, and ruleset capability declarations are distinct runtime concepts."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,

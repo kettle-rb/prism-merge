@@ -5,6 +5,10 @@ module Ast
     module Ruleset
       # Shared value object describing a merge implementation or ruleset surface
       # using spec-aligned feature terminology.
+      #
+      # FeatureProfile is the bridge from ruleset capability declarations to
+      # merge-facing behavior. It may reference parser capabilities and support
+      # styles, but it is not itself a parser adapter or renderer.
       class FeatureProfile
         attr_reader :owner_selector,
           :match_key,

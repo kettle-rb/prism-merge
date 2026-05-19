@@ -204,6 +204,18 @@ RSpec.describe Ast::Merge do
     )
   end
 
+  it "conforms to the spec terminology glossary fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1007-spec-terminology-glossary",
+        "spec-terminology-glossary.json"
+      )
+    )
+
+    expect(json_ready(described_class.spec_terminology_glossary_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

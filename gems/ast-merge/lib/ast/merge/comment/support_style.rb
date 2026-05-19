@@ -11,6 +11,9 @@ module Ast
       # comment information while merge gems still converge on a portable write
       # contract, even when the real architecture uses a synthetic ownership or
       # output pipeline internally.
+      #
+      # This is the support-style/write-model axis. It is deliberately separate
+      # from parser capability and from ruleset capability declarations.
       class SupportStyle
         STYLES = %i[
           source_augmented_portable_write

@@ -3,8 +3,16 @@
 module Ast
   module Merge
     module Comment
-      # Describes the level of comment support available from a parser/backend
-      # or augmentation pipeline.
+      # Glossary:
+      # - Parser capability: what a parser/backend can observe or return.
+      # - Merge capability: what the merge runtime can safely do with that data.
+      # - Support style/write model: how observed data is read, owned, and rendered.
+      # - Ruleset capability declaration: the user-facing feature request.
+      #
+      # Comment::Capability is the parser-capability axis for comments. It must
+      # not imply that a merge strategy is enabled or that a write model is safe.
+      # Ruleset::FeatureProfile and Comment::SupportStyle connect this signal to
+      # merge-facing behavior.
       #
       # This is intentionally a passive value object. It provides shared
       # vocabulary for planning and incremental adoption without changing merge
