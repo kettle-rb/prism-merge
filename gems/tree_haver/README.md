@@ -7,9 +7,9 @@
 [🖼️structuredmerge-i]: https://logos.galtzo.com/assets/images/structuredmerge/avatar-192px.svg
 [🖼️structuredmerge]: https://github.com/structuredmerge
 
-# 🌴 Tree::Haver
+# 🌴 TreeHaver
 
-[![Version][👽versioni]][👽version] [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: AGPL-3.0-only OR PolyForm-Small-Business-1.0.0][📄license-img]][📄license] [![Downloads Rank][👽dl-ranki]][👽dl-rank] [![Open Source Helpers][👽oss-helpi]][👽oss-help] [![CI Heads][🚎3-hd-wfi]][🚎3-hd-wf] [![CI Runtime Dependencies @ HEAD][🚎12-crh-wfi]][🚎12-crh-wf] [![CI Current][🚎11-c-wfi]][🚎11-c-wf] [![CI Truffle Ruby][🚎9-t-wfi]][🚎9-t-wf] [![CI JRuby][🚎10-j-wfi]][🚎10-j-wf] [![Deps Locked][🚎13-🔒️-wfi]][🚎13-🔒️-wf] [![Deps Unlocked][🚎14-🔓️-wfi]][🚎14-🔓️-wf] [![CI Test Coverage][🚎2-cov-wfi]][🚎2-cov-wf] [![CI Style][🚎5-st-wfi]][🚎5-st-wf] [![Apache SkyWalking Eyes License Compatibility Check][🚎15-🪪-wfi]][🚎15-🪪-wf]
+[![Version][👽versioni]][👽version] [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: AGPL-3.0-only OR PolyForm-Small-Business-1.0.0][📄license-img]][📄license] [![Downloads Rank][👽dl-ranki]][👽dl-rank] [![CI Heads][🚎3-hd-wfi]][🚎3-hd-wf] [![CI Runtime Dependencies @ HEAD][🚎12-crh-wfi]][🚎12-crh-wf] [![CI Current][🚎11-c-wfi]][🚎11-c-wf] [![CI Truffle Ruby][🚎9-t-wfi]][🚎9-t-wf] [![CI JRuby][🚎10-j-wfi]][🚎10-j-wf] [![Deps Locked][🚎13-🔒️-wfi]][🚎13-🔒️-wf] [![Deps Unlocked][🚎14-🔓️-wfi]][🚎14-🔓️-wf] [![CI Test Coverage][🚎2-cov-wfi]][🚎2-cov-wf] [![CI Style][🚎5-st-wfi]][🚎5-st-wf]
 
 `if ci_badges.map(&:color).detect { it != "green"}` ☝️ [let me know][🖼️galtzo-discord], as I may have missed the [discord notification][🖼️galtzo-discord].
 
@@ -17,7 +17,7 @@
 
 `if ci_badges.map(&:color).all? { it == "green"}` 👇️ send money so I can do more of this. FLOSS maintenance is now my full-time job.
 
-[![OpenCollective Backers][🖇osc-backers-i]][🖇osc-backers] [![OpenCollective Sponsors][🖇osc-sponsors-i]][🖇osc-sponsors] [![Sponsor Me on Github][🖇sponsor-img]][🖇sponsor] [![Liberapay Goal Progress][⛳liberapay-img]][⛳liberapay] [![Donate on PayPal][🖇paypal-img]][🖇paypal] [![Buy me a coffee][🖇buyme-small-img]][🖇buyme] [![Donate on Polar][🖇polar-img]][🖇polar] [![Donate at ko-fi.com][🖇kofi-img]][🖇kofi]
+[![Sponsor Me on Github][🖇sponsor-img]][🖇sponsor] [![Liberapay Goal Progress][⛳liberapay-img]][⛳liberapay] [![Donate on PayPal][🖇paypal-img]][🖇paypal] [![Buy me a coffee][🖇buyme-small-img]][🖇buyme] [![Donate on Polar][🖇polar-img]][🖇polar] [![Donate at ko-fi.com][🖇kofi-img]][🖇kofi]
 
 <details>
  <summary>👣 How will this project approach the September 2025 hostile takeover of RubyGems? 🚑️</summary>
@@ -175,17 +175,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [⛳liberapay-img]: https://img.shields.io/liberapay/goal/pboling.svg?logo=liberapay&color=a51611&style=flat
 [⛳liberapay-bottom-img]: https://img.shields.io/liberapay/goal/pboling.svg?style=for-the-badge&logo=liberapay&color=a51611
 [⛳liberapay]: https://liberapay.com/pboling/donate
-[🖇osc-all-img]: https://img.shields.io/opencollective/all/structuredmerge
-[🖇osc-sponsors-img]: https://img.shields.io/opencollective/sponsors/structuredmerge
-[🖇osc-backers-img]: https://img.shields.io/opencollective/backers/structuredmerge
-[🖇osc-backers]: https://opencollective.com/structuredmerge#backer
-[🖇osc-backers-i]: https://opencollective.com/structuredmerge/backers/badge.svg?style=flat
-[🖇osc-sponsors]: https://opencollective.com/structuredmerge#sponsor
-[🖇osc-sponsors-i]: https://opencollective.com/structuredmerge/sponsors/badge.svg?style=flat
-[🖇osc-all-bottom-img]: https://img.shields.io/opencollective/all/structuredmerge?style=for-the-badge
-[🖇osc-sponsors-bottom-img]: https://img.shields.io/opencollective/sponsors/structuredmerge?style=for-the-badge
-[🖇osc-backers-bottom-img]: https://img.shields.io/opencollective/backers/structuredmerge?style=for-the-badge
-[🖇osc]: https://opencollective.com/structuredmerge
 [🖇sponsor-img]: https://img.shields.io/badge/Sponsor_Me!-pboling.svg?style=social&logo=github
 [🖇sponsor-bottom-img]: https://img.shields.io/badge/Sponsor_Me!-pboling-blue?style=for-the-badge&logo=github
 [🖇sponsor]: https://github.com/sponsors/pboling
@@ -209,7 +198,7 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [✉️ruby-friends]: https://app.daily.dev/squads/rubyfriends
 [✇bundle-group-pattern]: https://gist.github.com/pboling/4564780
 [⛳️gem-namespace]: https://github.com/structuredmerge/tree_haver
-[⛳️namespace-img]: https://img.shields.io/badge/namespace-Tree::Haver-3C2D2D.svg?style=square&logo=ruby&logoColor=white
+[⛳️namespace-img]: https://img.shields.io/badge/namespace-TreeHaver-3C2D2D.svg?style=square&logo=ruby&logoColor=white
 [⛳️gem-name]: https://bestgems.org/gems/tree_haver
 [⛳️name-img]: https://img.shields.io/badge/name-tree__haver-3C2D2D.svg?style=square&logo=rubygems&logoColor=red
 [⛳️tag-img]: https://img.shields.io/github/tag/structuredmerge/tree_haver.svg
@@ -257,12 +246,10 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [📜docs-head-rd-img]: https://img.shields.io/badge/YARD_on_Galtzo.com-HEAD-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
 [📜gl-wiki]: https://gitlab.com/structuredmerge/tree_haver/-/wikis/home
 [📜gh-wiki]: https://github.com/structuredmerge/tree_haver/wiki
-[📜gl-wiki-img]: https://img.shields.io/badge/wiki-examples-943CD2.svg?style=for-the-badge&logo=gitlab&logoColor=white
-[📜gh-wiki-img]: https://img.shields.io/badge/wiki-examples-943CD2.svg?style=for-the-badge&logo=github&logoColor=white
+[📜gl-wiki-img]: https://img.shields.io/badge/wiki-gitlab-943CD2.svg?style=for-the-badge&logo=gitlab&logoColor=white
+[📜gh-wiki-img]: https://img.shields.io/badge/wiki-github-943CD2.svg?style=for-the-badge&logo=github&logoColor=white
 [👽dl-rank]: https://bestgems.org/gems/tree_haver
 [👽dl-ranki]: https://img.shields.io/gem/rd/tree_haver.svg
-[👽oss-help]: https://www.codetriage.com/structuredmerge/tree_haver
-[👽oss-helpi]: https://www.codetriage.com/structuredmerge/tree_haver/badges/users.svg
 [👽version]: https://bestgems.org/gems/tree_haver
 [👽versioni]: https://img.shields.io/gem/v/tree_haver.svg
 [🏀qlty-mnt]: https://qlty.sh/gh/structuredmerge/projects/tree_haver
@@ -293,8 +280,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [🚎13-🔒️-wfi]: https://github.com/structuredmerge/tree_haver/actions/workflows/locked_deps.yml/badge.svg
 [🚎14-🔓️-wf]: https://github.com/structuredmerge/tree_haver/actions/workflows/unlocked_deps.yml
 [🚎14-🔓️-wfi]: https://github.com/structuredmerge/tree_haver/actions/workflows/unlocked_deps.yml/badge.svg
-[🚎15-🪪-wf]: https://github.com/structuredmerge/tree_haver/actions/workflows/license-eye.yml
-[🚎15-🪪-wfi]: https://github.com/structuredmerge/tree_haver/actions/workflows/license-eye.yml/badge.svg
 [💎ruby-4.0i]: https://img.shields.io/badge/Ruby-4.0-CC342D?style=for-the-badge&logo=ruby&logoColor=white
 [💎ruby-c-i]: https://img.shields.io/badge/Ruby-current-CC342D?style=for-the-badge&logo=ruby&logoColor=green
 [💎ruby-headi]: https://img.shields.io/badge/Ruby-HEAD-CC342D?style=for-the-badge&logo=ruby&logoColor=blue

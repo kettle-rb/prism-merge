@@ -162,6 +162,7 @@ module Kettle
       KJ|README:COPYRIGHT_NOTICE
       KJ|README:LICENSE_BADGE
       KJ|README:LICENSE_COMPAT_BADGE
+      KJ|README:LICENSE_EYE_WORKFLOW_BADGE
       KJ|README:LICENSE_INTRO
       KJ|README:LICENSE_REFS
       KJ|README:TOP_LOGO_REFS
@@ -710,6 +711,23 @@ module Kettle
     end
     README_DEFAULT_PRESERVE_SECTIONS = ["synopsis", "configuration", "basic usage"].freeze
     README_DEFAULT_PRESERVE_PATTERNS = ["note:*"].freeze
+    README_CODETRIAGE_BADGE = "[![Open Source Helpers][👽oss-helpi]][👽oss-help]"
+    README_CODETRIAGE_LINK_LABELS = ["👽oss-help", "👽oss-helpi"].freeze
+    README_LICENSE_EYE_WORKFLOW_BADGE = "[![Apache SkyWalking Eyes License Compatibility Check][🚎15-🪪-wfi]][🚎15-🪪-wf]"
+    README_LICENSE_EYE_WORKFLOW_LINK_LABELS = ["🚎15-🪪-wf", "🚎15-🪪-wfi"].freeze
+    README_OPEN_COLLECTIVE_FUNDING_BADGES = "[![OpenCollective Backers][🖇osc-backers-i]][🖇osc-backers] [![OpenCollective Sponsors][🖇osc-sponsors-i]][🖇osc-sponsors]"
+    README_OPEN_COLLECTIVE_LINK_LABELS = [
+      "🖇osc",
+      "🖇osc-all-bottom-img",
+      "🖇osc-backers",
+      "🖇osc-backers-i",
+      "🖇osc-backers-img",
+      "🖇osc-backers-bottom-img",
+      "🖇osc-sponsors",
+      "🖇osc-sponsors-i",
+      "🖇osc-sponsors-img",
+      "🖇osc-sponsors-bottom-img",
+    ].freeze
     README_INTEGRATIONS = %w[codecov coveralls qlty codeql].freeze
     README_INTEGRATION_BADGE_PATTERNS = {
       "codecov" => [
@@ -3271,6 +3289,7 @@ module Kettle
       )
       processed = normalize_readme_project_heading(processed, facts)
       processed = apply_readme_conditional_blocks(processed, facts)
+      processed = apply_readme_badge_policy(processed, facts)
       processed = apply_monorepo_subgem_thin_readme_projection(processed, facts)
       apply_monorepo_subgem_readme_recipe(processed, facts)
     end
@@ -3279,6 +3298,36 @@ module Kettle
       open_collective_enabled = !facts.dig(:funding, :open_collective_disabled)
       processed = apply_markdown_conditional_block(content, "OPEN_COLLECTIVE", keep: open_collective_enabled)
       apply_markdown_conditional_block(processed, "NO_OPEN_COLLECTIVE", keep: !open_collective_enabled)
+    end
+
+    def apply_readme_badge_policy(content, facts)
+      processed = remove_readme_badge_and_refs(content, README_CODETRIAGE_BADGE, README_CODETRIAGE_LINK_LABELS)
+      unless Array(facts.dig(:license, :spdx)).map(&:to_s).include?("MIT")
+        processed = remove_readme_badge_and_refs(
+          processed,
+          README_LICENSE_EYE_WORKFLOW_BADGE,
+          README_LICENSE_EYE_WORKFLOW_LINK_LABELS
+        )
+      end
+      if facts.dig(:funding, :open_collective_disabled)
+        processed = remove_readme_badge_and_refs(
+          processed,
+          README_OPEN_COLLECTIVE_FUNDING_BADGES,
+          README_OPEN_COLLECTIVE_LINK_LABELS
+        )
+      end
+      processed
+    end
+
+    def remove_readme_badge_and_refs(content, badge_source, link_labels)
+      processed = content.to_s.gsub(badge_source, "").lines.map(&:rstrip).join("\n")
+      processed = "#{processed}\n" if content.to_s.end_with?("\n")
+      Array(link_labels).reduce(processed) do |memo, label|
+        delete_markdown_with_ast_crispr(
+          memo,
+          Ast::Crispr::Markdown::Markly::Selectors.link_definition(label: label, limit: {at_least: 0})
+        )
+      end
     end
 
     def apply_markdown_conditional_block(content, name, keep:)
@@ -5079,6 +5128,10 @@ module Kettle
       env_falsey = opencollective_falsey_env(env)
       return { disabled: true, source: "env.#{env_falsey.fetch(:key)}", value: env_falsey.fetch(:value).to_s } if env_falsey
 
+      if config.dig("templates", "profile").to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+        return { disabled: true, source: "config.templates.profile", value: MONOREPO_SUBGEM_TEMPLATE_PROFILE }
+      end
+
       { disabled: false }
     end
 
@@ -5965,6 +6018,7 @@ module Kettle
         readme_license_intro: readme_license_intro(licenses, author_email: author_email),
         readme_license_badge: license_badge(licenses.join(" OR "), ref: :license),
         readme_license_compat_badge: license_compat_badge(compat_category),
+        readme_license_eye_workflow_badge: license_eye_workflow_badge(licenses),
         readme_license_refs: readme_license_refs(licenses.join(" OR "), compat_category),
         license_copyright_notice: license_copyright_notice(copyright_lines, copyright_prefix, author),
         readme_copyright_notice: readme_copyright_notice(copyright_lines, copyright_prefix, author),
@@ -5988,6 +6042,7 @@ module Kettle
         "KJ|LICENSE:PRIMARY_SPDX" => license[:primary_spdx].to_s,
         "KJ|README:LICENSE_BADGE" => license[:readme_license_badge].to_s,
         "KJ|README:LICENSE_COMPAT_BADGE" => license[:readme_license_compat_badge].to_s,
+        "KJ|README:LICENSE_EYE_WORKFLOW_BADGE" => license[:readme_license_eye_workflow_badge].to_s,
         "KJ|README:LICENSE_REFS" => license[:readme_license_refs].to_s,
         "KJ|LICENSE_COPYRIGHT_NOTICE" => license[:license_copyright_notice].to_s,
         "KJ|README:COPYRIGHT_NOTICE" => license[:readme_copyright_notice].to_s,
@@ -6111,6 +6166,10 @@ module Kettle
     def license_compat_badge(category)
       data = APACHE_LICENSE_COMPAT_BADGE_DATA.fetch(category)
       "[![#{data.fetch(:alt)}][#{paperclip_ref(:license_compat_img)}]][#{paperclip_ref(:license_compat)}]"
+    end
+
+    def license_eye_workflow_badge(licenses)
+      Array(licenses).map(&:to_s).include?("MIT") ? README_LICENSE_EYE_WORKFLOW_BADGE : ""
     end
 
     def license_compat_ref(category)

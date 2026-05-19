@@ -754,8 +754,54 @@ RSpec.describe Kettle::Jem do
       expect(readme).not_to include("opencollective")
       expect(readme).not_to include("Open Collective")
       expect(readme).not_to include("kettle-readme-backers")
+      expect(readme).not_to include("Open Source Helpers")
+      expect(readme).not_to include("codetriage")
+      expect(readme).to include("Apache SkyWalking Eyes License Compatibility Check")
       expect(readme).to include("[![Sponsor Me on Github][🖇sponsor-img]][🖇sponsor]")
       expect(File.read(File.join(root, "README.md"))).to eq(readme)
+    end
+  end
+
+  it "applies packaged monorepo subgem README badge policy" do
+    tmp_root = File.join(__dir__, "tmp")
+    FileUtils.mkdir_p(tmp_root)
+    Dir.mktmpdir("kettle-jem-monorepo-subgem-readme-badge-policy", tmp_root) do |root|
+      write_tree(root, {
+        "ast-merge.gemspec" => <<~RUBY,
+          Gem::Specification.new do |spec|
+            spec.name = "ast-merge"
+            spec.summary = "Example gem"
+            spec.homepage = "https://github.com/structuredmerge/structuredmerge-ruby"
+            spec.licenses = ["AGPL-3.0-only", "PolyForm-Small-Business-1.0.0"]
+            spec.required_ruby_version = ">= 4.0"
+          end
+        RUBY
+        ".kettle-jem.yml" => <<~YAML,
+          project_emoji: "☯️"
+          templates:
+            root: packaged
+            apply: true
+            profile: monorepo-subgem
+            entries:
+              - README.md
+          files:
+            README.md:
+              strategy: accept_template
+        YAML
+      })
+
+      apply = described_class.apply_project(root, env: {}, run_options: {skip_commit: true})
+      readme = apply.fetch(:recipe_reports).find { |candidate| candidate.fetch(:relative_path) == "README.md" }.fetch(:final_content)
+
+      expect(readme).not_to include("Open Source Helpers")
+      expect(readme).not_to include("codetriage")
+      expect(readme).not_to include("OpenCollective Backers")
+      expect(readme).not_to include("OpenCollective Sponsors")
+      expect(readme).not_to include("opencollective")
+      expect(readme).not_to include("Apache SkyWalking Eyes License Compatibility Check")
+      expect(readme).to include("https://img.shields.io/badge/wiki-gitlab-943CD2.svg")
+      expect(readme).to include("https://img.shields.io/badge/wiki-github-943CD2.svg")
+      expect(readme).not_to include("https://img.shields.io/badge/wiki-examples-943CD2.svg")
     end
   end
 
