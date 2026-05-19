@@ -178,6 +178,16 @@ RSpec.describe "Ruby::Merge" do
     )
     blank_line_ownership = RUBY_MERGE.ruby_blank_line_ownership_report(blank_line_fixture[:source])
     expect(json_ready(blank_line_ownership)).to eq(json_ready(blank_line_fixture[:expected]))
+    file_edge_fixture = read_json(
+      fixtures_root.join("ruby", "slice-991-file-edge-merge", "file-edge-merge.json")
+    )
+    file_edge_merge = RUBY_MERGE.merge_ruby(
+      file_edge_fixture[:template],
+      file_edge_fixture[:destination],
+      file_edge_fixture[:dialect]
+    )
+    expect(file_edge_merge[:ok]).to eq(file_edge_fixture.dig(:expected, :ok))
+    expect(file_edge_merge[:output]).to eq(file_edge_fixture.dig(:expected, :output))
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(

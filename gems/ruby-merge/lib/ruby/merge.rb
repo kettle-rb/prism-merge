@@ -195,6 +195,8 @@ module Ruby
           destination_paths[entry[:merge_key]] || namespace_wrapper_matched?(entry, template_declaration_candidates, matched_template_declarations)
         end.map { |entry| entry[:text] }
       )
+      destination_footer = ruby_file_footer_text(destination.dig(:analysis, :source))
+      sections << destination_footer unless destination_footer.empty?
 
       output = "#{sections.join("\n\n").strip}\n"
       output = normalize_nocov_require_blocks(output)
@@ -921,6 +923,15 @@ module Ruby
         end
       )
       result
+    end
+
+    def ruby_file_footer_text(source)
+      regions = ruby_source_regions(source).fetch(:regions)
+      footer = regions.reverse.find { |region| region[:region_kind] == "interstitial" && region[:position] == "file_footer" }
+      content = footer.to_h.fetch(:content, "").strip
+      return "" if content.empty?
+
+      content.lines.any? { |line| !line.strip.empty? && !comment_line?(line) } ? "" : content
     end
 
     def merge_ruby_requires(destination_requires, template_requires)
@@ -2295,9 +2306,10 @@ module Ruby
         end
 
         closing_index = next_code_line_index(lines, index + 1)
-        unless closing_index && lines[closing_index].strip == "# :nocov:"
+        if closing_index && lines[closing_index].strip == "# :nocov:"
+          lines.slice!(index + 1, closing_index - index - 1) if closing_index > index + 1
+        else
           lines.insert(index + 1, "# :nocov:")
-          index += 1
         end
         lines.slice!(index + 2) while lines[index + 2]&.strip == "# :nocov:"
 
