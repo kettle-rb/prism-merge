@@ -524,6 +524,52 @@ module Ruby
       }
     end
 
+    def ruby_cross_container_method_move_detection(template_source, destination_source)
+      template_methods = ruby_method_identity_entries(template_source)
+      destination_methods = ruby_method_identity_entries(destination_source)
+      destination_by_signature_and_body = destination_methods.group_by do |entry|
+        [entry[:signature], entry[:normalized_body_identity]]
+      end
+
+      moves = template_methods.filter_map do |template_entry|
+        destination_entry = destination_by_signature_and_body.fetch(
+          [template_entry[:signature], template_entry[:normalized_body_identity]],
+          []
+        ).find { |entry| entry[:parent_scope] != template_entry[:parent_scope] }
+        next unless destination_entry
+
+        {
+          from_address: template_entry[:address],
+          to_address: destination_entry[:address],
+          from_parent_scope: template_entry[:parent_scope],
+          to_parent_scope: destination_entry[:parent_scope],
+          signature: template_entry[:signature],
+          moved: true,
+          move_kind: "cross_container",
+          ordering_policy: DEFAULT_METHOD_MOVE_POLICY,
+          preserves_destination_order: true,
+          confidence: "content_hash"
+        }
+      end
+
+      {
+        capability: {
+          name: "move_detection",
+          enabled: true,
+          default_enabled: false,
+          requires_stable_node_identity: true
+        },
+        moves: moves,
+        diagnostics: moves.empty? ? [] : [
+          {
+            severity: "info",
+            category: "ruby_cross_container_method_move",
+            message: "Ruby detected same-signature method movement across containers while preserving destination order."
+          }
+        ]
+      }
+    end
+
     def apply_ruby_delegated_child_outputs(source, delegated_operations, apply_plan, applied_children)
       lines = normalize_source(source).split("\n")
       operations_by_id = delegated_operations.to_h { |operation| [operation[:operation_id], operation] }

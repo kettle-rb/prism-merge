@@ -131,6 +131,18 @@ RSpec.describe "Ruby::Merge" do
       rename_conflict_fixture[:destination]
     )
     expect(json_ready(rename_conflicts)).to eq(json_ready(rename_conflict_fixture[:expected]))
+    cross_container_move_fixture = read_json(
+      fixtures_root.join(
+        "ruby",
+        "slice-987-cross-container-method-move",
+        "cross-container-method-move.json"
+      )
+    )
+    cross_container_move = RUBY_MERGE.ruby_cross_container_method_move_detection(
+      cross_container_move_fixture[:template],
+      cross_container_move_fixture[:destination]
+    )
+    expect(json_ready(cross_container_move)).to eq(json_ready(cross_container_move_fixture[:expected]))
 
     fallback_policy_fixture = read_json(
       fixtures_root.join(
