@@ -312,6 +312,18 @@ RSpec.describe Ast::Merge do
     expect(json_ready(described_class.comment_model_contract_report)).to eq(json_ready(fixture[:expected]))
   end
 
+  it "conforms to the Ruby shared conformance contract fixture" do
+    fixture = read_json(
+      fixtures_root.join(
+        "diagnostics",
+        "slice-1016-ruby-shared-conformance-contract",
+        "ruby-shared-conformance-contract.json"
+      )
+    )
+
+    expect(json_ready(described_class.ruby_shared_conformance_contract_report)).to eq(json_ready(fixture[:expected]))
+  end
+
   it "conforms to the match refiner utility inventory fixture" do
     fixture = read_json(
       fixtures_root.join(

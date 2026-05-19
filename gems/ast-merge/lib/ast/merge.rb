@@ -1611,6 +1611,70 @@ module Ast
       }
     end
 
+    def ruby_shared_conformance_contract_report
+      {
+        report_id: "ruby-shared-conformance-contract",
+        reference_runtime: "ruby",
+        shared_examples: [
+          "Ast::Merge::Ruleset::FeatureProfile",
+          "Ast::Merge::FileAnalyzable",
+          "Ast::Merge::Layout::Attachment",
+          "Ast::Merge::Layout::Augmenter",
+          "Ast::Merge::RemovalModeCompliance"
+        ],
+        conformance_fixture_axes: %w[
+          owner_selection
+          match_keys
+          attachment_strategies
+          logical_owner_behavior
+          layout_aware_behavior
+          comment_free_formats
+        ],
+        downstream_proof_points: [
+          {
+            gem: "bash-merge",
+            features: %w[attachment_strategies layout_aware_behavior comment_behavior_matrix]
+          },
+          {
+            gem: "dotenv-merge",
+            features: %w[attachment_strategies layout_aware_behavior comment_behavior_matrix]
+          },
+          {
+            gem: "rbs-merge",
+            features: %w[attachment_strategies layout_aware_behavior comment_behavior_matrix]
+          },
+          {
+            gem: "markdown-merge",
+            features: %w[logical_owner_behavior source_region_surface render_family]
+          },
+          {
+            gem: "plain-merge",
+            features: %w[comment_free_formats layout_aware_behavior]
+          },
+          {
+            gem: "go-merge",
+            features: %w[owner_selection match_keys]
+          }
+        ],
+        terminology_migration: {
+          old_synthetic_terms: "rejected",
+          compatibility_aliases: false,
+          proving_specs: [
+            "Ruleset::Parser rejects old read strategies",
+            "FileAnalyzable rejects old support-style names",
+            "Comment::SupportStyle rejects old style names"
+          ]
+        },
+        diagnostics: [
+          {
+            severity: "info",
+            category: "ruby_shared_conformance_contract",
+            message: "Ruby shared examples, fixtures, and migration tests cover the named release surfaces."
+          }
+        ]
+      }
+    end
+
     def downstream_merge_gem_feature(gem_name, owner_selector:, match_key:, attachment_strategy:, comment_style:, layout_awareness:, logical_owner_behavior:, render_source_shaper_family:, fallback_repair_policy: "explicit_policy_required", validation_and_diagnostics: "structured_report_required")
       {
         gem: gem_name,
