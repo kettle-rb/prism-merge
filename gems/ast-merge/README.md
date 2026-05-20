@@ -39,7 +39,7 @@ The `*-merge` gem family is built on a two-layer architecture:
 [tree\_haver][tree_haver] provides cross-Ruby parsing capabilities:
 
 - **Universal Backend Support**: Automatically selects the best parsing backend for your Ruby implementation (MRI, JRuby, TruffleRuby)
-- **10 Backend Options**: MRI C extensions, Rust bindings, FFI, Java (JRuby), language-specific parsers (Prism, Psych, Commonmarker, Markly), and pure Ruby fallback (Citrus)
+- **Backend Registry**: Tracks tree-sitter adapters (`mri`, `rust`, `ffi`, `java`, `tslp`, `kreuzberg-language-pack`), native parsers (`prism`, `psych`, `commonmarker`, `markly`, `rbs`), PEG parsers (`citrus`, `parslet`), and binary schema support (`kaitai-struct`)
 - **Unified API**: Write parsing code once, run on any Ruby implementation
 - **Grammar Discovery**: Built-in `GrammarFinder` for platform-aware grammar library discovery
 - **Thread-Safe**: Language registry with thread-safe caching

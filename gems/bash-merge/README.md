@@ -28,7 +28,7 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-Bash::Merge is a standalone Ruby module that intelligently merges two versions of a Bash script using tree-sitter AST analysis. It's like a smart "git merge" specifically designed for shell scripts. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
+Bash::Merge intelligently merges two versions of a Bash script using the StructuredMerge Ruby stack. It is built on [ast-merge][ast-merge] and [tree_haver][tree_haver], with Bash parsing supplied through the current tree-sitter language-pack backend.
 
 ### Key Features
 
@@ -39,7 +39,7 @@ Bash::Merge is a standalone Ruby module that intelligently merges two versions o
 - **Shebang Handling**: Properly handles `#!/bin/bash` and similar shebangs
 - **Freeze Block Support**: Respects freeze markers (default: `bash-merge:freeze` / `bash-merge:unfreeze`) for merge control - customizable to match your project's conventions
 - **Full Provenance**: Tracks origin of every node
-- **Standalone**: Minimal dependencies - just `ast-merge` and `ruby_tree_sitter`
+- **StructuredMerge Native**: Depends on `ast-merge` and `tree_haver`; parser availability comes from the registered backend providers
 - **Customizable**:
     - `signature_generator` - callable custom signature generators
     - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
@@ -485,3 +485,4 @@ If none of the available licenses suit your use case, please [contact us](mailto
 
 [ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
 [prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
+[tree_haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver

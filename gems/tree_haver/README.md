@@ -39,13 +39,13 @@ If you've used [Faraday](https://github.com/lostisland/faraday), [multi\_json](h
 | **Faraday**     | HTTP requests   | Net::HTTP, Typhoeus, Patron, Excon                                        |
 | **multi\_json** | JSON parsing    | Oj, Yajl, JSON gem                                                        |
 | **multi\_xml**  | XML parsing     | Nokogiri, LibXML, Ox                                                      |
-| **TreeHaver**   | Code parsing    | MRI, Rust, FFI, Java, Prism, Psych, Commonmarker, Markly, Citrus, Parslet |
+| **TreeHaver**   | Code parsing    | TSLP, MRI, Rust, FFI, Java, Prism, Psych, Commonmarker, Markly, RBS, Citrus, Parslet, Kaitai |
 
 **Learn once, write anywhere.**
 
 **Write once, run anywhere.**
 
-Just as Faraday lets you swap HTTP adapters without changing your code, TreeHaver lets you swap tree-sitter backends. Your parsing code remains the same whether you're running on MRI with native C extensions, JRuby with FFI, or TruffleRuby.
+Just as Faraday lets you swap HTTP adapters without changing your code, TreeHaver lets merge providers report and select parsing backends through one registry. The high-level StructuredMerge providers default to the tree-sitter language-pack path when it supports the requested language, while the lower-level `TreeHaver::Parser` facade can still use native tree-sitter adapters and Ruby parser backends directly.
 
 ```ruby
 # Your code stays the same regardless of backend
@@ -53,20 +53,20 @@ parser = TreeHaver::Parser.new
 parser.language = TreeHaver::Language.from_library("/path/to/grammar.so")
 tree = parser.parse(source_code)
 
-# TreeHaver automatically picks the best available backend:
-# - MRI: ruby_tree_sitter, tree_stump, ffi, prism, psych, commonmarker, markly, citrus, parslet
-# - JRuby: ffi, java-tree-sitter (not a gem, but the jtreesitter maven package), prism, psych, commonmarker, markly, citrus, parslet
-# - TruffleRuby: prism, psych, commonmarker, markly, citrus, parslet
-#   (tree-sitter backends don't work on Truffleruby with ffi gem due to FFI STRUCT_BY_VALUE limitation)
+# TreeHaver::Parser automatically picks the best available parser facade backend:
+# - MRI: ruby_tree_sitter, tree_stump, ffi, prism, psych, citrus, parslet
+# - JRuby: java-tree-sitter / jtreesitter, ffi, prism, psych, citrus, parslet
+# - TruffleRuby: prism, psych, citrus, parslet
+#   (the FFI tree-sitter adapter is not used on TruffleRuby because of struct-by-value limits)
 ```
 
 ### Key Features
 
 - **Universal Ruby Support**: Works on MRI Ruby, JRuby, and TruffleRuby
-- **10 Parsing Backends** - Choose the right backend for your needs:
+- **Backend Registry** - Choose the right backend for your needs:
     - **Tree-sitter Backends** (high-performance, incremental parsing):
+        - **Tree-sitter Language Pack (TSLP)**: Default provider path for StructuredMerge language-family gems that use `tree-sitter-language-pack`
         - **MRI Backend**: Leverages [`ruby_tree_sitter`][ruby_tree_sitter] gem (C extension, fastest on MRI)
-            - **Note**: `ruby_tree_sitter` currently requires unreleased fixes in the `pboling` fork, `tree_haver` branch.
         - **Rust Backend**: Uses [`tree_stump`][tree_stump] gem (Rust with precompiled binaries)
             - **Note**: Use `tree_stump` v0.2.0 or newer (fixes are released).
         - **FFI Backend**: Pure Ruby FFI bindings to `libtree-sitter` (JRuby only; TruffleRuby's FFI doesn't support tree-sitter's struct-by-value returns)
@@ -76,9 +76,12 @@ tree = parser.parse(source_code)
         - **Psych Backend**: Ruby's YAML parser ([Psych][psych], stdlib)
         - **Commonmarker Backend**: Fast Markdown parser ([Commonmarker][commonmarker], comrak Rust)
         - **Markly Backend**: GitHub Flavored Markdown ([Markly][markly], cmark-gfm C)
+        - **RBS Backend**: Official RBS parser integration registered by `rbs-merge`
     - **Pure Ruby Fallback**:
         - **Citrus Backend**: Pure Ruby PEG parsing via [`citrus`][citrus] (no native dependencies)
         - **Parslet Backend**: Pure Ruby PEG parsing via [`parslet`][parslet] (no native dependencies)
+    - **Binary Schema Support**:
+        - **Kaitai Struct Backend**: Backend reference and capability profile for binary schema analysis
 - **Automatic Backend Selection**: Intelligently selects the best backend for your Ruby implementation
 - **Language Agnostic**: Parse any language - Ruby, Markdown, YAML, JSON, Bash, TOML, JavaScript, etc.
 - **Grammar Discovery**: Built-in `GrammarFinder` utility for registration-first tree-sitter grammar resolution
@@ -94,9 +97,9 @@ TreeHaver has minimal dependencies and automatically selects the best backend fo
 
 **Requires `ruby_tree_sitter` v2.0+**
 
-In ruby\_tree\_sitter v2.0, all TreeSitter exceptions were changed to inherit from `Exception` (not `StandardError`). This was an intentional breaking change made for thread-safety and signal handling reasons.
+TreeHaver normalizes backend failures behind `TreeHaver::Error` subclasses, which inherit from `StandardError`.
 
-**Exception Mapping**: TreeHaver catches `TreeSitter::TreeSitterError` and its subclasses, converting them to `TreeHaver::NotAvailable` while preserving the original error message. This provides a consistent exception API across all backends:
+**Exception Mapping**: TreeHaver catches `TreeSitter::TreeSitterError` and its subclasses where the MRI adapter exposes them, converting them to `TreeHaver::NotAvailable` while preserving the original error message. This provides a consistent exception API across backends:
 
 | ruby\_tree\_sitter Exception      | TreeHaver Exception       | When It Occurs                               |
 |-----------------------------------|---------------------------|----------------------------------------------|
@@ -107,11 +110,8 @@ In ruby\_tree\_sitter v2.0, all TreeSitter exceptions were changed to inherit fr
 | `TreeSitter::QueryCreationError`  | `TreeHaver::NotAvailable` | Query creation fails                         |
 
 ```ruby
-# MRI tree-sitter Backend
-gem "ruby_tree_sitter",
-  github: "pboling/ruby-tree-sitter",
-  branch: "tree_haver",
-  require: false # DO NOT LOAD, because conflicts with FFI
+# MRI tree-sitter backend
+gem "ruby_tree_sitter", "~> 2.0", require: false
 ```
 
 #### Rust Backend (tree\_stump)
@@ -452,30 +452,39 @@ gem install tree_haver
 
 ### Available Backends
 
-TreeHaver supports 10 parsing backends, each with different trade-offs. The `auto` backend automatically selects the best available option.
+TreeHaver exposes a backend registry for parser facades, language-family providers, and binary schema support. The high-level StructuredMerge providers default to `tslp` / `kreuzberg-language-pack` when the language pack supports the requested format; the low-level `TreeHaver::Parser` facade uses `auto` to select among parser modules that expose the Parser/Language/Tree API.
 
 #### Tree-sitter Backends (Universal Parsing)
 
-| Backend  | Description                           | Performance | Portability | Examples                                                                                                                        |
-|----------|---------------------------------------|-------------|-------------|---------------------------------------------------------------------------------------------------------------------------------|
-| **Auto** | Auto-selects best backend             | Varies      | ✅ Universal | [JSON](examples/auto_json.rb) · [JSONC](examples/auto_jsonc.rb) · [Bash](examples/auto_bash.rb) · [TOML](examples/auto_toml.rb) |
-| **MRI**  | C extension via ruby\_tree\_sitter    | ⚡ Fastest   | MRI only    | [JSON](examples/mri_json.rb) · [JSONC](examples/mri_jsonc.rb) · \~\~Bash\~\~\* · [TOML](examples/mri_toml.rb)                   |
-| **Rust** | Precompiled via tree\_stump           | ⚡ Very Fast | ✅ Good      | [JSON](examples/rust_json.rb) · [JSONC](examples/rust_jsonc.rb) · \~\~Bash\~\~\* · [TOML](examples/rust_toml.rb)                |
-| **FFI**  | Dynamic linking via FFI               | 🔵 Fast     | ✅ Universal | [JSON](examples/ffi_json.rb) · [JSONC](examples/ffi_jsonc.rb) · [Bash](examples/ffi_bash.rb) · [TOML](examples/ffi_toml.rb)     |
-| **Java** | JNI bindings (jtreesitter \>= 0.26.0) | ⚡ Very Fast | JRuby only  | [JSON](examples/java_json.rb) · [JSONC](examples/java_jsonc.rb) · [Bash](examples/java_bash.rb) · [TOML](examples/java_toml.rb) |
+| Backend | Description | Performance | Portability |
+|---------|-------------|-------------|-------------|
+| **TSLP** | `tree-sitter-language-pack`; default StructuredMerge provider path | Fast | Universal where the gem supports the language |
+| **Kreuzberg Language Pack** | Stable provider id alias used by StructuredMerge family gems | Fast | Universal where `tree-sitter-language-pack` is available |
+| **Auto** | Auto-selects the best `TreeHaver::Parser` facade backend | Varies | Universal |
+| **MRI** | C extension via ruby\_tree\_sitter | Fastest | MRI only |
+| **Rust** | Precompiled via tree\_stump | Very fast | MRI only |
+| **FFI** | Dynamic linking via FFI | Fast | MRI/JRuby where `libtree-sitter` is available |
+| **Java** | JNI bindings (jtreesitter \>= 0.26.0) | Very fast | JRuby only |
 
 #### Language-Specific Backends (Native Parser Integration)
 
-| Backend          | Description                 | Performance | Portability | Examples                                                                                                     |
-|------------------|-----------------------------|-------------|-------------|--------------------------------------------------------------------------------------------------------------|
-| **Prism**        | Ruby's official parser      | ⚡ Very Fast | ✅ Universal | [Ruby](examples/prism_ruby.rb)                                                                               |
-| **Psych**        | Ruby's YAML parser (stdlib) | ⚡ Very Fast | ✅ Universal | [YAML](examples/psych_yaml.rb)                                                                               |
-| **Commonmarker** | Markdown via comrak (Rust)  | ⚡ Very Fast | ✅ Good      | [Markdown](examples/commonmarker_markdown.rb) · [commonmarker-merge](examples/commonmarker_merge_example.rb) |
-| **Markly**       | GFM via cmark-gfm (C)       | ⚡ Very Fast | ✅ Good      | [Markdown](examples/markly_markdown.rb) · [Merge](examples/markly_merge_example.rb)                          |
-| **Citrus**       | Pure Ruby parsing           | 🟡 Slower   | ✅ Universal | [TOML](examples/citrus_toml.rb) · [Finitio](examples/citrus_finitio.rb) · [Dhall](examples/citrus_dhall.rb)  |
-| **Parslet**      | Pure Ruby parsing           | 🟡 Slower   | ✅ Universal | [TOML](examples/parslet_toml.rb)                                                                             |
+| Backend | Description | Performance | Portability |
+|---------|-------------|-------------|-------------|
+| **Prism** | Ruby's official parser | Very fast | Universal |
+| **Psych** | Ruby's YAML parser (stdlib) | Very fast | Universal |
+| **Commonmarker** | Markdown via comrak (Rust) | Very fast | MRI/JRuby/TruffleRuby where the gem is available |
+| **Markly** | GFM via cmark-gfm (C) | Very fast | MRI/JRuby/TruffleRuby where the gem is available |
+| **RBS** | Official RBS parser integration | Fast | Universal where the `rbs` gem is available |
+| **Citrus** | Pure Ruby parsing | Slower | Universal |
+| **Parslet** | Pure Ruby parsing | Slower | Universal |
 
-**Selection Priority (Auto mode):** MRI → Rust → FFI → Java → Prism → Psych → Commonmarker → Markly → Citrus → Parslet
+#### Binary Schema Support
+
+| Backend | Description | Performance | Portability |
+|---------|-------------|-------------|-------------|
+| **Kaitai Struct** | Backend reference and feature profile for binary schema analysis | Varies | Universal once a schema adapter is supplied |
+
+**`TreeHaver::Parser` Auto-selection priority:** MRI/Rust/FFI on MRI; Java/FFI on JRuby; then Prism → Psych → Citrus → Parslet.
 
 **Known Issues:**
 
@@ -485,6 +494,7 @@ TreeHaver supports 10 parsing backends, each with different trade-offs. The `aut
 
 ```ruby
 # Tree-sitter backends
+gem "tree-sitter-language-pack"      # TSLP / Kreuzberg language-pack provider
 gem "ruby_tree_sitter", "~> 2.0"  # MRI backend
 gem "tree_stump"                   # Rust backend
 gem "ffi", ">= 1.15", "< 2.0"     # FFI backend
@@ -495,6 +505,7 @@ gem "prism", "~> 1.0"              # Ruby parsing (stdlib in Ruby 3.4+)
 # Psych: no gem required (Ruby stdlib)
 gem "commonmarker", ">= 0.23"      # Markdown parsing (comrak)
 gem "markly", "~> 0.11"            # GFM parsing (cmark-gfm)
+gem "rbs"                           # RBS parsing
 
 # Pure Ruby fallbacks
 gem "citrus", "~> 3.0"             # Citrus backend
@@ -506,6 +517,7 @@ gem "parslet", "~> 2.0"            # Parslet backend
 
 ```ruby
 # Tree-sitter backends
+TreeHaver.backend = :tslp   # Force tree-sitter-language-pack where supported
 TreeHaver.backend = :mri    # Force MRI backend (ruby_tree_sitter)
 TreeHaver.backend = :rust   # Force Rust backend (tree_stump)
 TreeHaver.backend = :ffi    # Force FFI backend
@@ -516,6 +528,7 @@ TreeHaver.backend = :prism        # Force Prism (Ruby parsing)
 TreeHaver.backend = :psych        # Force Psych (YAML parsing)
 TreeHaver.backend = :commonmarker # Force Commonmarker (Markdown)
 TreeHaver.backend = :markly       # Force Markly (GFM Markdown)
+TreeHaver.backend = :rbs          # Force RBS parser integration
 TreeHaver.backend = :citrus       # Force Citrus (Pure Ruby PEG)
 TreeHaver.backend = :parslet      # Force Parslet (Pure Ruby PEG)
 
@@ -581,7 +594,7 @@ TreeHaver.backend_module       # => TreeHaver::Backends::FFI
 TreeHaver.capabilities         # => { backend: :ffi, parse: true, query: false, ... }
 ```
 
-See [examples/](examples/) directory for **26 complete working examples** demonstrating all 10 backends with multiple languages (JSON, JSONC, Bash, TOML, Ruby, YAML, Markdown) plus markdown-merge integration examples.
+For runnable scenario examples, see the implementation-level [examples directory](../../examples/). Those examples are user-level scripts rather than backend-count smoke tests.
 
 ### Security Considerations
 
@@ -1003,80 +1016,20 @@ TreeHaver.capabilities
 # => { backend: :parslet, parse: true, query: false, bytes_field: false }
 ```
 
-### Compatibility Mode
+### Error Handling Model
 
-For codebases migrating from `ruby_tree_sitter`, TreeHaver provides a compatibility shim:
-
-```ruby
-require "tree_haver/compat"
-
-# Now TreeSitter constants map to TreeHaver
-parser = TreeSitter::Parser.new  # Actually creates TreeHaver::Parser
-```
-
-This is safe and idempotent—if the real `TreeSitter` module is already loaded, the shim does nothing.
-
-#### ⚠️ Important: Exception Hierarchy
-
-**Both ruby\_tree\_sitter v2+ and TreeHaver exceptions inherit from `Exception` (not `StandardError`).**
-
-This design decision follows ruby\_tree\_sitter's lead for thread-safety and signal handling reasons. See [ruby\_tree\_sitter PR \#83](https://github.com/Faveod/ruby-tree-sitter/pull/83) for the rationale.
-
-**What this means for exception handling:**
-
-```ruby
-# ⚠️ This will NOT catch TreeHaver errors
-begin
-  TreeHaver::Language.from_library("/nonexistent.so")
-rescue => e
-  puts "Caught!"  # Never reached - TreeHaver::Error inherits Exception
-end
-
-# ✅ Explicit rescue is required
-begin
-  TreeHaver::Language.from_library("/nonexistent.so")
-rescue TreeHaver::Error => e
-  puts "Caught!"  # This works
-end
-
-# ✅ Or rescue specific exceptions
-begin
-  TreeHaver::Language.from_library("/nonexistent.so")
-rescue TreeHaver::NotAvailable => e
-  puts "Grammar not available: #{e.message}"
-end
-```
+TreeHaver does not ship a `TreeSitter::*` compatibility namespace. Use the `TreeHaver::*` API directly, and rescue `TreeHaver::Error` or a more specific subclass when parser setup can fail.
 
 **TreeHaver Exception Hierarchy:**
 
-    Exception
+    StandardError
     └── TreeHaver::Error              # Base error class
         ├── TreeHaver::NotAvailable   # Backend/grammar not available
         └── TreeHaver::BackendConflict # Backend incompatibility detected
 
-**Compatibility Mode Behavior:**
-
-The compat mode (`require "tree_haver/compat"`) creates aliases but **does not change the exception hierarchy**:
-
-```ruby
-require "tree_haver/compat"
-
-# TreeSitter constants are now aliases to TreeHaver
-TreeSitter::Error       # => TreeHaver::Error (still inherits Exception)
-TreeSitter::Parser      # => TreeHaver::Parser
-TreeSitter::Language    # => TreeHaver::Language
-
-# Exception handling remains the same
-begin
-  TreeSitter::Language.load("missing", "/nonexistent.so")
-rescue TreeSitter::Error => e  # Still requires explicit rescue
-  puts "Error: #{e.message}"
-end
-```
-
 **Best Practices:**
 
-1.  **Always use explicit rescue** for TreeHaver errors:
+1.  **Rescue TreeHaver errors explicitly when backend setup can fail:**
 
     ```ruby
     begin
@@ -1089,14 +1042,7 @@ end
     end
     ```
 
-2.  **Never rely on `rescue => e`** to catch TreeHaver errors (it won't work)
-    **Why inherit from Exception?**
-    Following ruby\_tree\_sitter's reasoning:
-
-- **Thread safety**: Prevents accidental catching in thread cleanup code
-- **Signal handling**: Ensures parsing errors don't interfere with SIGTERM/SIGINT
-- **Intentional handling**: Forces developers to explicitly handle parsing errors
-  See `lib/tree_haver/compat.rb` for compatibility layer documentation.
+2.  **Prefer specific handling** for `TreeHaver::NotAvailable` when a backend or grammar is optional.
 
 ## 🔧 Basic Usage
 
@@ -1143,7 +1089,7 @@ parser = TreeHaver.parser_for(
 
 For more control, you can create parsers manually:
 
-TreeHaver works with any language through its 10 backends. Here are examples for different parsing needs:
+TreeHaver works with many languages through its registry of tree-sitter adapters, language-pack providers, native parsers, PEG parsers, and binary schema support. Here are examples for different parsing needs:
 
 #### Parsing with Tree-sitter (Universal Languages)
 
@@ -1409,8 +1355,6 @@ new_tree = parser.parse_string(tree, "x = 42")
 
 **Note:** Incremental parsing requires the MRI (`ruby_tree_sitter`), Rust (`tree_stump`), or Java (`java-tree-sitter` / `jtreesitter`) backend. The FFI, Citrus, and Parslet backends do not currently support incremental parsing. You can check support with:
 
-**Note:** `tree_stump` currently requires unreleased fixes in the `main` branch.
-
 ```ruby
 tree.supports_editing?  # => true if edit() is available
 ```
@@ -1427,7 +1371,7 @@ end
 # Check if a backend is available
 if TreeHaver.backend_module.nil?
   puts "No TreeHaver backend is available!"
-  puts "Install ruby_tree_sitter (MRI), ffi gem with libtree-sitter, citrus gem, or parslet gem"
+  puts "Install tree-sitter-language-pack, ruby_tree_sitter, tree_stump, ffi with libtree-sitter, or a Ruby parser backend such as prism, psych, citrus, or parslet"
 end
 ```
 
@@ -1473,8 +1417,8 @@ parser = TreeHaver::Parser.new
 ```bash
 # 1. Download java-tree-sitter JAR from Maven Central
 mkdir -p vendor/jars
-curl -fSL -o vendor/jars/jtreesitter-0.23.2.jar \
-  "https://repo1.maven.org/maven2/io/github/tree-sitter/jtreesitter/0.23.2/jtreesitter-0.23.2.jar"
+curl -fSL -o vendor/jars/jtreesitter-0.26.0.jar \
+  "https://repo1.maven.org/maven2/io/github/tree-sitter/jtreesitter/0.26.0/jtreesitter-0.26.0.jar"
 
 # 2. Set environment variables
 export CLASSPATH="$(pwd)/vendor/jars:$CLASSPATH"
@@ -1570,16 +1514,16 @@ end
 
 #### TruffleRuby
 
-TruffleRuby can use the MRI, FFI, Citrus, or Parslet backend:
+TruffleRuby can use Ruby-native parser backends such as Prism, Psych, Citrus, or Parslet. The FFI tree-sitter backend is not selected on TruffleRuby because tree-sitter's struct-by-value API is incompatible with the current FFI path.
 
 ```ruby
-# Use FFI backend (recommended for tree-sitter grammars)
-TreeHaver.backend = :ffi
+# Use Prism for Ruby source
+TreeHaver.backend = :prism
 
-# Or try MRI backend if ruby_tree_sitter compiles on your TruffleRuby version
-TreeHaver.backend = :mri
+# Or use Psych for YAML
+TreeHaver.backend = :psych
 
-# Or use Citrus backend for zero native dependencies
+# Use Citrus backend for zero native dependencies
 TreeHaver.backend = :citrus
 
 # Or use Parslet backend for zero native dependencies
@@ -1775,7 +1719,7 @@ end
 
 Tags follow a naming convention:
 
-- `*_backend` = TreeHaver backends (mri, rust, ffi, java, prism, psych, commonmarker, markly, citrus, parslet, rbs)
+- `*_backend` = TreeHaver backend availability checks (tslp, mri, rust, ffi, java, prism, psych, commonmarker, markly, citrus, parslet, rbs)
 - `*_engine` = Ruby engines (mri, jruby, truffleruby)
 - `*_grammar` = tree-sitter grammar files (.so)
 - `*_parsing` = any parsing capability for a language (combines multiple backends/grammars)
@@ -1784,7 +1728,7 @@ Tags follow a naming convention:
 | Tag                     | Description                                                               |
 |-------------------------|---------------------------------------------------------------------------|
 | **Backend Tags**        |                                                                           |
-| `:ffi_backend`          | FFI backend available (dynamic check, legacy alias: `:ffi`)               |
+| `:ffi_backend`          | FFI backend available (dynamic check)                                     |
 | `:ffi_backend_only`     | FFI backend in isolation (won't trigger MRI check)                        |
 | `:mri_backend`          | ruby\_tree\_sitter gem available                                          |
 | `:mri_backend_only`     | MRI backend in isolation (won't trigger FFI check)                        |
@@ -1796,7 +1740,8 @@ Tags follow a naming convention:
 | `:markly_backend`       | markly gem available                                                      |
 | `:citrus_backend`       | Citrus gem available                                                      |
 | `:parslet_backend`      | Parslet gem available                                                     |
-| `:rbs_backend`          | RBS gem available (official RBS parser, MRI only)                         |
+| `:tslp_backend`         | tree-sitter-language-pack available                                       |
+| `:rbs_backend`          | RBS gem available (official RBS parser)                                   |
 | **Engine Tags**         |                                                                           |
 | `:mri_engine`           | Running on MRI (CRuby)                                                    |
 | `:jruby_engine`         | Running on JRuby                                                          |

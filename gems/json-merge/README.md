@@ -28,9 +28,9 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-Json::Merge is a standalone Ruby module that intelligently merges two versions of a JSON or JSONC file using tree-sitter AST analysis. It's like a smart "git merge" specifically designed for JSON configuration files. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
+Json::Merge intelligently merges two versions of a JSON or JSONC file using the StructuredMerge Ruby stack. It is built on [ast-merge][ast-merge] and [tree_haver][tree_haver], with parser capability reported through the shared backend registry.
 
-When the underlying tree-sitter JSON parser surfaces JSONC comments, `json-merge` now preserves them directly. The [jsonc-merge][jsonc-merge] gem remains available as a compatibility shim for older integrations that still depend on that gem name.
+JSONC support uses the same `Json::Merge` API as JSON; use `require "json/merge"` for both dialects.
 
 ### Key Features
 
@@ -40,7 +40,7 @@ When the underlying tree-sitter JSON parser surfaces JSONC comments, `json-merge
   - **Fuzzy Property Matching**: `ObjectMatchRefiner` matches similar property names
     (e.g., `databaseUrl` ↔ `database_url`) using Levenshtein distance for naming convention differences
   - **Full Provenance**: Tracks origin of every node
-  - **Standalone**: Minimal dependencies - just `ast-merge` and `ruby_tree_sitter`
+  - **StructuredMerge Native**: Depends on `ast-merge` and `tree_haver`; parser availability comes from registered backend providers
   - **Customizable**:
       - `signature_generator` - callable custom signature generators
       - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
@@ -362,21 +362,19 @@ merger = Json::Merge::SmartMerger.new(
 # Array elements with matching IDs or similar structure are paired
 ```
 
-## 📚 JSONC documentation from jsonc-merge
+## 📚 JSONC behavior
 
-The former `jsonc-merge` gem has been folded into `json-merge`. The README sections below preserve JSONC-specific behavior notes from that package.
+JSONC behavior now lives in `json-merge`. The sections below describe JSONC-specific usage through the `Json::Merge` API.
 
 ### JSONC Synopsis
 
-Jsonc::Merge is now a compatibility shim for [json-merge][json-merge]. The underlying tree-sitter JSON parser used by `json-merge` can now parse JSONC in this workspace, so JSONC-aware merging and comment preservation live in `json-merge` directly.
-
-Keep `jsonc-merge` only if you need the legacy gem name or `require "jsonc/merge"` entrypoint. For all new setups, prefer `json-merge`.
+The JSON merge provider supports both JSON and JSONC dialects through `Json::Merge`. Use `require "json/merge"` and pass JSONC content to the same merger API used for JSON.
 
 ### Key Features
 
-- **Compatibility Wrapper**: Preserves the `jsonc-merge` gem name and `Jsonc::Merge` namespace
-- **Delegates to `json-merge`**: JSONC parsing, comment preservation, and merge behavior now live in `json-merge`
-- **Migration Friendly**: Existing `require "jsonc/merge"` callers continue to work while you transition
+- **Single API**: JSON and JSONC both use `Json::Merge`
+- **Comment-Aware**: Preserves `//` and `/* */` comments when the parser exposes them
+- **Freeze Blocks**: Uses the `json-merge` freeze token by default, with a custom token available when needed
 
 ### Supported Node Types
 
@@ -408,10 +406,10 @@ File.write("merged.jsonc", result)
 
 ```jsonc
 {
-  // jsonc-merge:freeze Secret configuration
+  // json-merge:freeze Secret configuration
   "api_key": "my-secret-key",
   "api_secret": "my-secret-value",
-  // jsonc-merge:unfreeze
+  // json-merge:unfreeze
 
   "debug": false,
   "log_level": "info"
@@ -422,7 +420,7 @@ File.write("merged.jsonc", result)
 ### JSONC Configuration
 
 ```ruby
-merger = Jsonc::Merge::SmartMerger.new(
+merger = Json::Merge::SmartMerger.new(
   template_content,
   dest_content,
   # Which version to prefer when nodes match
@@ -436,9 +434,9 @@ merger = Jsonc::Merge::SmartMerger.new(
   add_template_only_nodes: false,
 
   # Token for freeze block markers
-  # Default: "jsonc-merge"
-  # Looks for: // jsonc-merge:freeze / // jsonc-merge:unfreeze
-  freeze_token: "jsonc-merge",
+  # Default: "json-merge"
+  # Looks for: // json-merge:freeze / // json-merge:unfreeze
+  freeze_token: "json-merge",
 
   # Custom signature generator (optional)
   # Receives a node, returns a signature array or nil
@@ -451,7 +449,7 @@ merger = Jsonc::Merge::SmartMerger.new(
 ### Simple Merge
 
 ```ruby
-require "jsonc/merge"
+require "json/merge"
 
 # Template defines the structure
 template = <<~JSONC
@@ -486,9 +484,9 @@ destination = <<~JSONC
   }
 JSONC
 
-merger = Jsonc::Merge::SmartMerger.new(template, destination)
+merger = Json::Merge::SmartMerger.new(template, destination)
 result = merger.merge
-puts result.to_jsonc
+puts result
 ```
 
 ### Using Freeze Blocks
@@ -499,21 +497,21 @@ Freeze blocks protect sections from being overwritten during merge:
 {
   "name": "my-app",
 
-  // jsonc-merge:freeze Secret configuration
+  // json-merge:freeze Secret configuration
   "api_key": "my_production_api_key",
   "api_secret": "super_secret_value",
-  // jsonc-merge:unfreeze
+  // json-merge:unfreeze
 
   "debug": false
 }
 ```
 
-Content between `// jsonc-merge:freeze` and `// jsonc-merge:unfreeze` markers is preserved from the destination file, regardless of what the template contains.
+Content between `// json-merge:freeze` and `// json-merge:unfreeze` markers is preserved from the destination file, regardless of what the template contains.
 
 ### Adding Template-Only Properties
 
 ```ruby
-merger = Jsonc::Merge::SmartMerger.new(
+merger = Json::Merge::SmartMerger.new(
   template,
   destination,
   add_template_only_nodes: true,
@@ -707,5 +705,5 @@ If none of the available licenses suit your use case, please [contact us](mailto
 
 [ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
 [prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
-[jsonc-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge
 [json-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge
+[tree_haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver

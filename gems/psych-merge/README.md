@@ -28,7 +28,7 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-Psych::Merge is a standalone Ruby module that intelligently merges two versions of a YAML file using Psych AST analysis. It's like a smart "git merge" specifically designed for YAML configuration files. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
+Psych::Merge intelligently merges two versions of a YAML file using Psych AST analysis. It is built on [ast-merge][ast-merge] and [tree_haver][tree_haver], and shares YAML-family behavior with [yaml-merge][yaml-merge].
 
 ### Key Features
 
@@ -40,7 +40,7 @@ Psych::Merge is a standalone Ruby module that intelligently merges two versions 
 - **Comment-Preserving**: Comments are preserved in their context
 - **Freeze Block Support**: Respects freeze markers (default: `psych-merge:freeze` / `psych-merge:unfreeze`) for merge control - customizable to match your project's conventions
 - **Full Provenance**: Tracks origin of every node
-- **Standalone**: Minimal dependencies - just `ast-merge` and Ruby's built-in `psych`
+- **StructuredMerge Native**: Depends on `ast-merge`, `tree_haver`, `yaml-merge`, and Ruby's built-in `psych`
 - **Customizable**:
     - `signature_generator` - callable custom signature generators
     - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
@@ -539,3 +539,5 @@ If none of the available licenses suit your use case, please [contact us](mailto
 
 [ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
 [prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
+[tree_haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver
+[yaml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/yaml-merge

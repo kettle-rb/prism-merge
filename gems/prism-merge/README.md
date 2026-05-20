@@ -28,7 +28,7 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-Prism::Merge is a standalone Ruby module that intelligently merges two versions of a Ruby file using Prism AST analysis. It's like a smart "git merge" specifically designed for Ruby code. I wrote this to aid in my comprehensive gem templating tool [kettle-dev][kettle-dev].
+Prism::Merge intelligently merges two versions of a Ruby file using Prism AST analysis. It is built on [ast-merge][ast-merge] and [tree_haver][tree_haver], and provides the Ruby-source provider for the StructuredMerge Ruby stack.
 
 ### Key Features
 
@@ -1326,3 +1326,4 @@ If none of the available licenses suit your use case, please [contact us](mailto
 
 [kettle-dev]: https://github.com/kettle-rb/kettle-dev
 [ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[tree_haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver

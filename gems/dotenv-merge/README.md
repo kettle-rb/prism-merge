@@ -28,7 +28,7 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-Dotenv::Merge is a standalone Ruby module that intelligently merges two versions of a dotenv (`.env`) file. It's like a smart "git merge" specifically designed for environment configuration files. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
+Dotenv::Merge intelligently merges two versions of a dotenv (`.env`) file. It is built on [ast-merge][ast-merge] and [tree_haver][tree_haver], and keeps dotenv-specific ownership rules separate from the parser/backend substrate.
 
 ### Key Features
 
@@ -37,7 +37,7 @@ Dotenv::Merge is a standalone Ruby module that intelligently merges two versions
 - **Comment-Preserving**: Comments and blank lines are preserved in their context
 - **Freeze Block Support**: Respects freeze markers (default: `dotenv-merge:freeze` / `dotenv-merge:unfreeze`) for merge control - customizable to match your project's conventions
 - **Full Provenance**: Tracks origin of every line
-- **Standalone**: Minimal dependencies - just `ast-merge`
+- **StructuredMerge Native**: Depends on `ast-merge` and `tree_haver`, matching the rest of the Ruby merge family
 - **Customizable**:
     - `signature_generator` - callable custom signature generators
     - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
@@ -447,3 +447,4 @@ If none of the available licenses suit your use case, please [contact us](mailto
 
 [ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
 [prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
+[tree_haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver
