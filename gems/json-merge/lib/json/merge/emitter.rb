@@ -160,6 +160,17 @@ module Json
         end
       end
 
+      def emit_raw_fragment(fragment, metadata: nil)
+        add_comma_if_needed
+        fragment.to_s.lines(chomp: true).each_with_index do |line, idx|
+          append_line(
+            "#{current_indent}#{line}",
+            expanded_line_metadata(metadata, idx),
+          )
+        end
+        @needs_comma = true
+      end
+
       # Get the output as a JSON string
       #
       # @return [String]

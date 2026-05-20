@@ -30,7 +30,7 @@ module Json
       # @param options [Hash] Additional options for forward compatibility
       # @param node_typing [Hash{Symbol,String => #call}, nil] Node typing configuration
       #   for per-node-type preferences
-      def initialize(template_analysis, dest_analysis, preference: :destination, add_template_only_nodes: false, remove_template_missing_nodes: false, resolution_mode: :eager, corruption_handling: :heal, match_refiner: nil, node_typing: nil, **options)
+      def initialize(template_analysis, dest_analysis, preference: :destination, add_template_only_nodes: false, remove_template_missing_nodes: false, resolution_mode: :eager, corruption_handling: :heal, match_refiner: nil, node_typing: nil, merge_arrays: true, preserve_atomic_formatting: false, **options)
         super(
           strategy: :batch,
           preference: preference,
@@ -44,6 +44,8 @@ module Json
         @resolution_mode = resolution_mode
         @corruption_handling = ::Ast::Merge::Healer.normalize_mode(corruption_handling)
         @node_typing = node_typing
+        @merge_arrays = merge_arrays
+        @preserve_atomic_formatting = preserve_atomic_formatting
         @emitter = Emitter.new
       end
 
@@ -135,7 +137,7 @@ module Json
         # Emit template-only nodes that precede the first matched template node.
         emit_prefix_trailing_group(trailing_groups, consumed_template_indices) do |info|
           next if freeze_node?(info[:node])
-          emit_node(info[:node], template_analysis)
+          emit_atomic_node(info[:node], template_analysis)
         end
 
         # First pass: Process destination nodes
@@ -173,7 +175,7 @@ module Json
               sig_cursor[dest_sig] = cursor + 1
             else
               # All template copies consumed — keep dest copy
-              emit_node(dest_node, dest_analysis)
+              emit_atomic_node(dest_node, dest_analysis)
             end
           elsif refined_dest_to_template.key?(dest_node)
             # Found refined match
@@ -196,7 +198,7 @@ module Json
             emit_removed_destination_node_comments(dest_node, dest_analysis)
           else
             # Destination-only node - always keep
-            emit_node(dest_node, dest_analysis)
+            emit_atomic_node(dest_node, dest_analysis)
           end
 
           # Flush interior trailing groups (between two matches) that are ready
@@ -206,7 +208,7 @@ module Json
             consumed_indices: consumed_template_indices,
           ) do |info|
             next if freeze_node?(info[:node])
-            emit_node(info[:node], template_analysis)
+            emit_atomic_node(info[:node], template_analysis)
           end
         end
 
@@ -216,7 +218,7 @@ module Json
           consumed_indices: consumed_template_indices,
         ) do |info|
           next if freeze_node?(info[:node])
-          emit_node(info[:node], template_analysis)
+          emit_atomic_node(info[:node], template_analysis)
         end
       end
 
@@ -239,9 +241,10 @@ module Json
           template_value = template_node.value_node
           dest_value = dest_node.value_node
 
-          # Only recursively merge if BOTH values are objects (not arrays)
-          # Arrays are replaced atomically based on preference
-          if template_value&.container? && dest_value&.container? && template_value.type == dest_value.type
+          # Only recursively merge if BOTH values are objects.
+          # Arrays are file-owned atoms unless a caller explicitly changes the
+          # preference; their element order and formatting must survive.
+          if recursively_merge_pair_values?(template_value, dest_value)
             key_name = dest_node.key_name || template_node.key_name
             comment_source_node, comment_source_analysis = preferred_comment_source(
               dest_node,
@@ -306,14 +309,14 @@ module Json
               dest_node: dest_node,
               match_kind: :pair_value,
             )
-            emit_node(dest_node, dest_analysis)
+            emit_atomic_node(dest_node, dest_analysis)
           else
             record_unresolved_choice(
               template_node: template_node,
               dest_node: dest_node,
               match_kind: :pair_value,
             )
-            emit_node(
+            emit_atomic_node(
               template_node,
               template_analysis,
               comment_source_node: dest_node,
@@ -327,14 +330,14 @@ module Json
             dest_node: dest_node,
             match_kind: :node_value,
           )
-          emit_node(dest_node, dest_analysis)
+          emit_atomic_node(dest_node, dest_analysis)
         else
           record_unresolved_choice(
             template_node: template_node,
             dest_node: dest_node,
             match_kind: :node_value,
           )
-          emit_node(
+          emit_atomic_node(
             template_node,
             template_analysis,
             comment_source_node: dest_node,
@@ -592,6 +595,55 @@ module Json
             @emitter.emit_raw_lines(lines, metadata: emitter_block_metadata(analysis, node.start_line))
           end
         end
+      end
+
+      def emit_atomic_node(node, analysis, comment_source_node: nil, comment_analysis: analysis)
+        return if freeze_node?(node)
+        return emit_node(node, analysis, comment_source_node: comment_source_node, comment_analysis: comment_analysis) unless @preserve_atomic_formatting
+        return emit_node(node, analysis, comment_source_node: comment_source_node, comment_analysis: comment_analysis) unless node.respond_to?(:text)
+
+        source_node = comment_source_node || node
+        source_analysis = comment_source_node ? comment_analysis : analysis
+        source_attachment = shared_line_comment_attachment_for(source_node, source_analysis)
+        inline_attachment = shared_inline_comment_attachment_for(source_node, source_analysis)
+
+        emit_preferred_leading_comments_for(source_node, source_analysis, shared_attachment: source_attachment)
+        emit_with_preferred_inline_comment(node, analysis, shared_attachment: inline_attachment) do |inline_text|
+          fragment = reindented_source_fragment(node, analysis)
+          fragment = "#{fragment} // #{inline_text}" if inline_text && !inline_text.empty?
+          @emitter.emit_raw_fragment(
+            fragment,
+            metadata: emitter_block_metadata(analysis, node.start_line),
+          )
+        end
+      end
+
+      def reindented_source_fragment(node, analysis)
+        fragment = node.text.to_s
+        source_line = node.respond_to?(:start_line) && node.start_line ? analysis.line_at(node.start_line).to_s : ""
+        source_indent = leading_indent(source_line)
+        return fragment if source_indent.empty?
+
+        fragment.lines(chomp: true).map do |line|
+          line.start_with?(source_indent) ? line.delete_prefix(source_indent) : line
+        end.join("\n")
+      end
+
+      def leading_indent(line)
+        indent = +""
+        line.each_char do |char|
+          break unless char == " " || char == "\t"
+
+          indent << char
+        end
+        indent
+      end
+
+      def recursively_merge_pair_values?(template_value, dest_value)
+        return true if template_value&.object? && dest_value&.object?
+        return true if @merge_arrays && template_value&.array? && dest_value&.array?
+
+        false
       end
 
       def preferred_comment_source(node, analysis, fallback_node: nil, fallback_analysis: nil)

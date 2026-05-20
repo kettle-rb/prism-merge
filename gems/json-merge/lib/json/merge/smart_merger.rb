@@ -55,10 +55,14 @@ module Json
         regions: nil,
         region_placeholder: nil,
         node_typing: nil,
+        merge_arrays: true,
+        preserve_atomic_formatting: false,
         **options
       )
         @remove_template_missing_nodes = remove_template_missing_nodes
         @corruption_handling = ::Ast::Merge::Healer.normalize_mode(corruption_handling)
+        @merge_arrays = merge_arrays
+        @preserve_atomic_formatting = preserve_atomic_formatting
 
         super(
           template_content,
@@ -72,6 +76,8 @@ module Json
           regions: regions,
           region_placeholder: region_placeholder,
           node_typing: node_typing,
+          merge_arrays: merge_arrays,
+          preserve_atomic_formatting: preserve_atomic_formatting,
           **options
         )
       end
@@ -191,6 +197,8 @@ module Json
           corruption_handling: @corruption_handling,
           match_refiner: @match_refiner,
           node_typing: @node_typing,
+          merge_arrays: @merge_arrays,
+          preserve_atomic_formatting: @preserve_atomic_formatting,
         )
       end
 

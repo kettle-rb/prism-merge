@@ -33,5 +33,4 @@ destination = JSON.pretty_generate(
 result = Json::Merge.merge_json(template, destination, "json")
 abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
 
-puts JSON.pretty_generate(JSON.parse(result.fetch(:output)))
-
+puts result.fetch(:output)

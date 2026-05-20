@@ -122,6 +122,38 @@ RSpec.describe Json::Merge do
     )
   end
 
+  it "preserves atomic subtree formatting while merging object children" do
+    template = <<~JSON
+      {
+        "array": ["template"],
+        "object": {"template": true},
+        "template_only": {"compact": true}
+      }
+    JSON
+    destination = <<~JSON
+      {
+        "array": ["destination"],
+        "object": {"destination": true},
+        "destination_only": {"compact": true}
+      }
+    JSON
+
+    result = described_class.merge_json(template, destination, "json")
+
+    expect(result[:ok]).to be(true)
+    expect(result[:output]).to eq(<<~JSON)
+      {
+        "array": ["destination"],
+        "object": {
+          "template": true,
+          "destination": true
+        },
+        "destination_only": {"compact": true},
+        "template_only": {"compact": true}
+      }
+    JSON
+  end
+
   it "conforms to the language-pack adapter fixture and shared family feature profile fixture" do
     adapter_fixture = json_fixture("tree_sitter_adapter")
     adapter_fixture[:cases].each do |test_case|
