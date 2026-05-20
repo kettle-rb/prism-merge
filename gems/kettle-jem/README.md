@@ -28,6 +28,16 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
+`kettle-jem` is the Ruby gem templating engine used by the StructuredMerge Ruby monorepo. It applies gem templates, resolves package facts, manages generated README blocks, supports monorepo-subgem projections, and runs post-apply sync steps.
+
+### Key Features
+
+- Package fact collection from gemspecs, `mise.toml`, and `.kettle-jem.yml`.
+- Template planning, application, convergence checks, and diagnostics.
+- Monorepo root and monorepo subgem modes for shared documentation and independent gem publication.
+- Markdown AST updates for README managed blocks and destination-owned sections.
+- Ruby AST helpers for gemspec and require-order edits.
+
 ## 💡 Info you can shake a stick at
 
 | Tokens to Remember | [![Gem name][⛳️name-img]][⛳️gem-name] [![Gem namespace][⛳️namespace-img]][⛳️gem-namespace] |
@@ -54,90 +64,67 @@ Compatible with MRI Ruby 4.0.0+, and concordant releases of JRuby, and TruffleRu
 <details markdown="1">
 <summary>StructuredMerge package family and backend compatibility</summary>
 
-StructuredMerge packages provide fixture-backed merge behavior for document, configuration, source, archive, and binary formats. Shared contracts live in fixtures, while Go, Ruby, Rust, and TypeScript packages expose language-native APIs over the same behavior.
+StructuredMerge packages provide fixture-backed merge behavior for document, configuration, source, archive, and binary formats. Shared contracts live in the [fixtures repository][sm-family-fixtures], while [Go][sm-family-go], [Ruby][sm-family-ruby], [Rust][sm-family-rust], and [TypeScript][sm-family-typescript] packages expose language-native APIs over the same behavior.
 
-| Package | Layer | Families | Status | README role |
-|---|---|---|---|---|
-| ast-template | workflow | template, readme | active | applies shared templates, package README sections, and package-directory sync workflows |
-| ast-merge | core | template, review, structured-edit | active | documents provider-neutral contracts, token resolution, review state, and execution reports |
-| tree-haver | backend substrate | parser, backend | active | documents backend selection, language-pack integration, position data, and capability reporting |
-| markdown-merge | family | markdown | active | documents Markdown heading, fenced-code, nested-family, and provider behavior |
-| json-merge | family | json, jsonc | active | documents JSON and JSONC merge behavior; old jsonc-merge is superseded |
-| toml-merge | family | toml | active | documents TOML table, value, parser, and backend behavior |
-| yaml-merge | family | yaml | active | documents YAML mapping, sequence, scalar, and backend behavior |
-| ruby-merge | family | ruby-source | active | documents Ruby source merge behavior; old prism-merge is backend/provider prior art |
-| zip-merge | family | zip, archive | active | documents ZIP member planning and raw-preservation behavior |
-| binary-merge | family | binary | active | documents binary preservation and diagnostics behavior |
-
-JSONC migration note: JSONC is handled by `json-merge` as the `jsonc` dialect. The old `jsonc-merge` package name is superseded in the cross-language toolset; only Ruby may grow a legacy `require "jsonc/merge"` wrapper if packaging compatibility requires it. Current fixture-backed JSONC claims are parse support and comment-neutral owner structure; comment-preserving merge output, freeze blocks, and JSONC emitter behavior need dedicated fixtures before they appear in package examples.
-
-YAML provider note: `yaml-merge` is the canonical YAML family package. Ruby's `psych-merge` package is the Psych provider for that family, not a separate YAML family; old `Psych::Merge::*` examples remain provider-specific until portable fixtures cover the behavior.
-
-Markdown provider note: `markdown-merge` is the canonical Markdown family package. Provider packages own parser-specific docs and backend defaults: Go `goldmarkmerge`, Ruby `commonmarker-merge`, `markly-merge`, and `kramdown-merge`, Rust `pulldown-cmark-merge`, and TypeScript `@structuredmerge/markdown-it-merge`.
-
-| Backend | Languages | Families | Note |
+| Package | Layer | Families | What it provides |
 |---|---|---|---|
-| tree-sitter-language-pack | Go, Ruby, Rust, TypeScript | markdown, toml, yaml, source | Preferred cross-language parser substrate where a family has language-pack support. |
-| native ecosystem parser | Ruby | ruby, yaml, markdown, toml | Backend-specific Ruby packages are provider prior art or adapters, not the source schema. |
-| plain structured text | Go, Ruby, Rust, TypeScript | plain, binary, zip | Families without parser requirements document preservation, byte ranges, archive members, and diagnostics. |
-| line-oriented config | Ruby | dotenv | Active Ruby provider for env-key matching, hash comments, freeze regions, and environment template files. |
+| [ast-template][sm-family-ast-template] | workflow | template, readme | Shared template application, package README section sync, and package-directory convergence workflows. |
+| [ast-merge][sm-family-ast-merge] | core | template, review, structured-edit | Provider-neutral contracts, token resolution, review state, and execution reports. |
+| [tree_haver][sm-family-tree-haver] | backend substrate | parser, backend | Backend selection, language-pack integration, position data, and capability reporting. |
+| [markdown-merge][sm-family-markdown-merge] | family | markdown | Markdown heading, fenced-code, nested-family, and provider-neutral Markdown behavior. |
+| [json-merge][sm-family-json-merge] | family | json, jsonc | JSON and JSONC object, array, scalar, and parser-backed owner behavior. |
+| [toml-merge][sm-family-toml-merge] | family | toml | TOML table, value, parser, and backend behavior. |
+| [yaml-merge][sm-family-yaml-merge] | family | yaml | YAML mapping, sequence, scalar, anchor, and backend behavior. |
+| [ruby-merge][sm-family-ruby-merge] | family | ruby-source | Ruby source entity matching, require ordering, constants, classes, modules, and methods. |
+| [bash-merge][sm-family-bash-merge] | family | shell-source | Bash assignment, function, heredoc, comment, and shell block behavior. |
+| [rbs-merge][sm-family-rbs-merge] | family | ruby-signature | RBS declarations, classes, modules, interfaces, methods, aliases, and comments. |
+| [dotenv-merge][sm-family-dotenv-merge] | family | env-config | Environment key matching, comments, freeze regions, and template env files. |
+| [plain-merge][sm-family-plain-merge] | family | plain-text | Plain text preservation, line ownership, diagnostics, and fallback behavior. |
+| [zip-merge][sm-family-zip-merge] | family | zip, archive | ZIP member planning, archive entry ownership, and raw member preservation. |
+| [binary-merge][sm-family-binary-merge] | family | binary | Binary preservation, byte-range ownership, and diagnostics behavior. |
 
-| Compatibility claim | Current disposition | Fixture source |
+| Backend package | Family | What it provides |
 |---|---|---|
-| Old Ruby runtime backend tables | Prior art only; not a cross-language support promise | slice-741 backend/platform reconciliation |
-| tree-sitter-language-pack | Current portable parser substrate for Go, Ruby, Rust, and TypeScript | slices 122, 135, 171, 195, 215 |
-| Native parser/adaptor backends | Implementation-specific providers documented through family fixtures | slices 122 and 183 |
-| bash-merge, rbs-merge | Excluded from generated support tables until explicit scope decisions exist | slice-741 unresolved package list |
+| [commonmarker-merge][sm-family-commonmarker-merge] | markdown | CommonMarker-backed Markdown parsing and merge behavior for Ruby. |
+| [markly-merge][sm-family-markly-merge] | markdown | Markly-backed Markdown parsing and merge behavior for Ruby. |
+| [kramdown-merge][sm-family-kramdown-merge] | markdown | Kramdown-backed Markdown parsing and merge behavior for Ruby. |
+| [psych-merge][sm-family-psych-merge] | yaml | Psych-backed YAML parsing and merge behavior for Ruby. |
+| [citrus-toml-merge][sm-family-citrus-toml-merge] | toml | Citrus-backed TOML parsing and merge behavior for Ruby. |
+| [parslet-toml-merge][sm-family-parslet-toml-merge] | toml | Parslet-backed TOML parsing and merge behavior for Ruby. |
+| [prism-merge][sm-family-prism-merge] | ruby-source | Prism-backed Ruby source parsing and merge behavior for Ruby. |
 
-| Reusable example | README role | Source fixture |
-|---|---|---|
-| Freeze tokens | Show how destination-owned regions are preserved without filling project-specific usage sections | slice-743 reusable README configuration examples |
-| Match preference | Summarize template-wins and destination-wins conflict choices through current policy vocabulary | slice-743 reusable README configuration examples |
-| Template-only behavior | Explain accept/skip handling for unmatched template entries | slice-743 reusable README configuration examples |
-| Debug report inspection | Point users to structured reports and diagnostics instead of ad hoc debug prose | slice-743 reusable README configuration examples |
-| Backend selection | Describe portable backend selection without old Ruby runtime support tables | slice-743 reusable README configuration examples |
-| Package-directory README command | Document plan/apply/convergence workflow for shared README updates | slice-743 reusable README configuration examples |
+Backend packages are implementation-specific providers for a canonical family package. The family package owns the user-facing behavior contract; provider packages document parser-specific defaults, capabilities, and diagnostics.
 
-</details>
-
-### Federated DVCS
-
-<details markdown="1">
- <summary>Find this repo on federated forges (Coming soon!)</summary>
-
-| Federated [DVCS][💎d-in-dvcs] Repository | Status | Issues | PRs | Wiki | CI | Discussions |
-|-------------------------------------------------|-----------------------------------------------------------------------|---------------------------|--------------------------|---------------------------|--------------------------|------------------------------|
-| 🧪 [kettle-rb/kettle-jem on GitLab][📜src-gl] | The Truth | [💚][🤝gl-issues] | [💚][🤝gl-pulls] | [💚][📜gl-wiki] | 🐭 Tiny Matrix | ➖ |
-| 🧊 [kettle-rb/kettle-jem on CodeBerg][📜src-cb] | An Ethical Mirror ([Donate][🤝cb-donate]) | [💚][🤝cb-issues] | [💚][🤝cb-pulls] | ➖ | ⭕️ No Matrix | ➖ |
-| 🐙 [kettle-rb/kettle-jem on GitHub][📜src-gh] | Another Mirror | [💚][🤝gh-issues] | [💚][🤝gh-pulls] | [💚][📜gh-wiki] | 💯 Full Matrix | [💚][gh-discussions] |
-| 🎮️ [Discord Server][✉️discord-invite] | [![Live Chat on Discord][✉️discord-invite-img-ftb]][✉️discord-invite] | [Let's][✉️discord-invite] | [talk][✉️discord-invite] | [about][✉️discord-invite] | [this][✉️discord-invite] | [library!][✉️discord-invite] |
-
-</details>
-
-[gh-discussions]: https://github.com/kettle-rb/kettle-jem/discussions
-
-### Enterprise Support [![Tidelift](https://tidelift.com/badges/package/rubygems/kettle-jem)](https://tidelift.com/subscription/pkg/rubygems-kettle-jem?utm_source=rubygems-kettle-jem&utm_medium=referral&utm_campaign=readme)
-
-Available as part of the Tidelift Subscription.
-
-<details markdown="1">
- <summary>Need enterprise-level guarantees?</summary>
-
-The maintainers of this and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source packages you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact packages you use.
-
-[![Get help from me on Tidelift][🏙️entsup-tidelift-img]][🏙️entsup-tidelift]
-
-- 💡Subscribe for support guarantees covering _all_ your FLOSS dependencies
-- 💡Tidelift is part of [Sonar][🏙️entsup-tidelift-sonar]
-- 💡Tidelift pays maintainers to maintain the software you depend on!<br/>📊`@`Pointy Haired Boss: An [enterprise support][🏙️entsup-tidelift] subscription is "[never gonna let you down][🧮kloc]", and *supports* open source maintainers
-
-Alternatively:
-
-- [![Live Chat on Discord][✉️discord-invite-img-ftb]][✉️discord-invite]
-- [![Get help from me on Upwork][👨🏼‍🏫expsup-upwork-img]][👨🏼‍🏫expsup-upwork]
-- [![Get help from me on Codementor][👨🏼‍🏫expsup-codementor-img]][👨🏼‍🏫expsup-codementor]
+[sm-family-fixtures]: https://github.com/structuredmerge/structuredmerge-fixtures
+[sm-family-go]: https://github.com/structuredmerge/structuredmerge-go
+[sm-family-ruby]: https://github.com/structuredmerge/structuredmerge-ruby
+[sm-family-rust]: https://github.com/structuredmerge/structuredmerge-rust
+[sm-family-typescript]: https://github.com/structuredmerge/structuredmerge-typescript
+[sm-family-ast-template]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-template
+[sm-family-ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[sm-family-tree-haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver
+[sm-family-markdown-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markdown-merge
+[sm-family-json-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge
+[sm-family-toml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/toml-merge
+[sm-family-yaml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/yaml-merge
+[sm-family-ruby-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ruby-merge
+[sm-family-bash-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/bash-merge
+[sm-family-rbs-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/rbs-merge
+[sm-family-dotenv-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/dotenv-merge
+[sm-family-plain-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/plain-merge
+[sm-family-zip-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/zip-merge
+[sm-family-binary-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/binary-merge
+[sm-family-commonmarker-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/commonmarker-merge
+[sm-family-markly-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markly-merge
+[sm-family-kramdown-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/kramdown-merge
+[sm-family-psych-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/psych-merge
+[sm-family-citrus-toml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/citrus-toml-merge
+[sm-family-parslet-toml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/parslet-toml-merge
+[sm-family-prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
 
 </details>
+
+
 
 ## ✨ Installation
 
@@ -155,7 +142,35 @@ gem install kettle-jem
 
 ## ⚙️ Configuration
 
+Configure a project with `.kettle-jem.yml`, template profile options, and package metadata. Monorepo subgems use the `monorepo-subgem` template profile so shared root documents are linked by published README files.
+
+```yaml
+template_profile: monorepo-subgem
+package:
+  namespace: Kettle::Jem
+  source_url: https://github.com/structuredmerge/kettle-jem
+```
+
+Workspace scripts can call `Kettle::Jem.plan_project`, `Kettle::Jem.apply_project`, or `Kettle::Jem.post_apply_steps` directly.
+
 ## 🔧 Basic Usage
+
+```ruby
+require "kettle-jem"
+
+result = Kettle::Jem.apply_project(
+  Dir.pwd,
+  env: ENV.to_h,
+  run_options: {
+    template_profile: "monorepo-subgem",
+    accept: true,
+    force: true,
+    skip_commit: true,
+  },
+)
+
+puts result.fetch(:changed_files)
+```
 
 ## 🔐 Security
 
@@ -171,48 +186,9 @@ We [![Keep A Changelog][📗keep-changelog-img]][📗keep-changelog] so if you m
 
 See [CONTRIBUTING.md][🤝contributing] for more detailed instructions.
 
-### 🚀 Release Instructions
 
-See [CONTRIBUTING.md][🤝contributing].
 
-### Code Coverage
 
-<details markdown="1">
-<summary>Coverage service badges</summary>
-
-[![Coverage Graph][🏀codecov-g]][🏀codecov]
-
-[![Coveralls Test Coverage][🏀coveralls-img]][🏀coveralls]
-
-[![QLTY Test Coverage][🏀qlty-covi]][🏀qlty-cov]
-
-</details>
-
-### 🪇 Code of Conduct
-
-Everyone interacting with this project's codebases, issue trackers,
-chat rooms and mailing lists agrees to follow the [![Contributor Covenant 2.1][🪇conduct-img]][🪇conduct].
-
-## 🌈 Contributors
-
-[![Contributors][🖐contributors-img]][🖐contributors]
-
-Made with [contributors-img][🖐contrib-rocks].
-
-Also see GitLab Contributors: [https://gitlab.com/kettle-rb/kettle-jem/-/graphs/main][🚎contributors-gl]
-
-<details>
- <summary>⭐️ Star History</summary>
-
-<a href="https://star-history.com/#kettle-rb/kettle-jem&Date">
- <picture>
- <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=kettle-rb/kettle-jem&type=Date&theme=dark" />
- <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=kettle-rb/kettle-jem&type=Date" />
- <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=kettle-rb/kettle-jem&type=Date" />
- </picture>
-</a>
-
-</details>
 
 ## 📌 Versioning
 
@@ -247,38 +223,7 @@ See [LICENSE.md][📄license] for details.
 
 If none of the available licenses suit your use case, please [contact us](mailto:floss@galtzo.com) to discuss a custom commercial license.
 
-### © Copyright
-
-See [LICENSE.md][📄license] for the official copyright notice.
-
-<details markdown="1">
-<summary>Copyright holders</summary>
-
-- Required Notice: Copyright (c) 2026 Peter H. Boling
-
-</details>
-
-## 🤑 A request for help
-
-Maintainers have teeth and need to pay their dentists.
-After getting laid off in an RIF in March, and encountering difficulty finding a new one,
-I began spending most of my time building open source tools.
-I'm hoping to be able to pay for my kids' health insurance this month,
-so if you value the work I am doing, I need your support.
-Please consider sponsoring me or the project.
-
-To join the community or get help 👇️ Join the Discord.
-
-[![Live Chat on Discord][✉️discord-invite-img-ftb]][✉️discord-invite]
-
-To say "thanks!" ☝️ Join the Discord or 👇️ send money.
-
-[![Sponsor kettle-rb/kettle-jem on Open Source Collective][🖇osc-all-bottom-img]][🖇osc] 💌 [![Sponsor me on GitHub Sponsors][🖇sponsor-bottom-img]][🖇sponsor] 💌 [![Sponsor me on Liberapay][⛳liberapay-bottom-img]][⛳liberapay] 💌 [![Donate on PayPal][🖇paypal-bottom-img]][🖇paypal]
-
-### Please give the project a star ⭐ ♥.
-
-Thanks for RTFM. ☺️
-
+[gh-discussions]: https://github.com/kettle-rb/kettle-jem/discussions
 [⛳liberapay-img]: https://img.shields.io/liberapay/goal/pboling.svg?logo=liberapay&color=a51611&style=flat
 [⛳liberapay-bottom-img]: https://img.shields.io/liberapay/goal/pboling.svg?style=for-the-badge&logo=liberapay&color=a51611
 [⛳liberapay]: https://liberapay.com/pboling/donate
@@ -314,7 +259,6 @@ Thanks for RTFM. ☺️
 [✉️discord-invite-img-ftb]: https://img.shields.io/discord/1373797679469170758?style=for-the-badge&logo=discord
 [✉️ruby-friends-img]: https://img.shields.io/badge/daily.dev-%F0%9F%92%8E_Ruby_Friends-0A0A0A?style=for-the-badge&logo=dailydotdev&logoColor=white
 [✉️ruby-friends]: https://app.daily.dev/squads/rubyfriends
-
 [✇bundle-group-pattern]: https://gist.github.com/pboling/4564780
 [⛳️gem-namespace]: https://github.com/kettle-rb/kettle-jem
 [⛳️namespace-img]: https://img.shields.io/badge/namespace-Kettle::Jem-3C2D2D.svg?style=square&logo=ruby&logoColor=white
@@ -412,27 +356,27 @@ Thanks for RTFM. ☺️
 [🤝cb-issues]: https://codeberg.org/kettle-rb/kettle-jem/issues
 [🤝cb-pulls]: https://codeberg.org/kettle-rb/kettle-jem/pulls
 [🤝cb-donate]: https://donate.codeberg.org/
-[🤝contributing]: CONTRIBUTING.md
+[🤝contributing]: https://github.com/kettle-rb/kettle-jem/blob/main/CONTRIBUTING.md
 [🏀codecov-g]: https://codecov.io/gh/kettle-rb/kettle-jem/graphs/tree.svg
 [🖐contrib-rocks]: https://contrib.rocks
 [🖐contributors]: https://github.com/kettle-rb/kettle-jem/graphs/contributors
 [🖐contributors-img]: https://contrib.rocks/image?repo=kettle-rb/kettle-jem
 [🚎contributors-gl]: https://gitlab.com/kettle-rb/kettle-jem/-/graphs/main
-[🪇conduct]: CODE_OF_CONDUCT.md
+[🪇conduct]: https://github.com/kettle-rb/kettle-jem/blob/main/CODE_OF_CONDUCT.md
 [🪇conduct-img]: https://img.shields.io/badge/Contributor_Covenant-2.1-259D6C.svg
 [📌pvc]: http://guides.rubygems.org/patterns/#pessimistic-version-constraint
 [📌semver]: https://semver.org/spec/v2.0.0.html
 [📌semver-img]: https://img.shields.io/badge/semver-2.0.0-259D6C.svg?style=flat
 [📌semver-breaking]: https://github.com/semver/semver/issues/716#issuecomment-869336139
 [📌major-versions-not-sacred]: https://tom.preston-werner.com/2022/05/23/major-version-numbers-are-not-sacred.html
-[📌changelog]: CHANGELOG.md
+[📌changelog]: https://github.com/kettle-rb/kettle-jem/blob/main/CHANGELOG.md
 [📗keep-changelog]: https://keepachangelog.com/en/1.0.0/
 [📗keep-changelog-img]: https://img.shields.io/badge/keep--a--changelog-1.0.0-34495e.svg?style=flat
 [📌gitmoji]: https://gitmoji.dev
 [📌gitmoji-img]: https://img.shields.io/badge/gitmoji_commits-%20%F0%9F%98%9C%20%F0%9F%98%8D-34495e.svg?style=flat-square
 [🧮kloc]: https://www.youtube.com/watch?v=dQw4w9WgXcQ
 [🧮kloc-img]: https://img.shields.io/badge/KLOC-5.053-FFDD67.svg?style=for-the-badge&logo=YouTube&logoColor=blue
-[🔐security]: SECURITY.md
+[🔐security]: https://github.com/kettle-rb/kettle-jem/blob/main/SECURITY.md
 [🔐security-img]: https://img.shields.io/badge/security-policy-259D6C.svg?style=flat
 [📄copyright-notice-explainer]: https://opensource.stackexchange.com/questions/5778/why-do-licenses-such-as-the-mit-license-specify-a-single-year
 [📄license]: LICENSE.md
@@ -451,14 +395,3 @@ Thanks for RTFM. ☺️
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
-
-<!-- kettle-jem:metadata:start -->
-| Field | Value |
-|---|---|
-| Package | kettle-jem |
-| Description | 🔮 Kettle::Jem provides gem scaffolding, templating, and setup automation using the *-merge gem family for AST-based file merging and token-resolver for template token resolution. Includes MergerConfig presets, YAML recipes, and a complete gem template scaffold. |
-| Homepage | https://github.com/kettle-rb/kettle-jem |
-| Source | https://github.com/kettle-rb/kettle-jem |
-| License | `AGPL-3.0-only` OR `PolyForm-Small-Business-1.0.0` |
-| Funding | https://github.com/sponsors/pboling, https://issuehunt.io/u/pboling, https://ko-fi.com/pboling, https://liberapay.com/pboling/donate, https://patreon.com/galtzo, https://polar.sh/pboling, https://thanks.dev/u/gh/pboling, https://tidelift.com/funding/github/rubygems/kettle-jem, https://www.buymeacoffee.com/pboling |
-<!-- kettle-jem:metadata:end -->

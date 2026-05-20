@@ -28,6 +28,15 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
+`smorg-rb` is the Ruby command/runtime layer for StructuredMerge workflows. It coordinates file arguments, family selection, merge-driver style inputs, diagnostics, and command output for Ruby-based tooling.
+
+### Key Features
+
+- CLI-oriented option parsing and request normalization.
+- Family-aware dispatch into Ruby merge gems.
+- Merge-driver input handling for base/current/incoming file triples.
+- Structured diagnostics suitable for CI and local command output.
+
 ## 💡 Info you can shake a stick at
 
 | Tokens to Remember | [![Gem name][⛳️name-img]][⛳️gem-name] [![Gem namespace][⛳️namespace-img]][⛳️gem-namespace] |
@@ -54,49 +63,63 @@ Compatible with MRI Ruby 4.0.0+, and concordant releases of JRuby, and TruffleRu
 <details markdown="1">
 <summary>StructuredMerge package family and backend compatibility</summary>
 
-StructuredMerge packages provide fixture-backed merge behavior for document, configuration, source, archive, and binary formats. Shared contracts live in fixtures, while Go, Ruby, Rust, and TypeScript packages expose language-native APIs over the same behavior.
+StructuredMerge packages provide fixture-backed merge behavior for document, configuration, source, archive, and binary formats. Shared contracts live in the [fixtures repository][sm-family-fixtures], while [Go][sm-family-go], [Ruby][sm-family-ruby], [Rust][sm-family-rust], and [TypeScript][sm-family-typescript] packages expose language-native APIs over the same behavior.
 
-| Package | Layer | Families | Status | README role |
-|---|---|---|---|---|
-| ast-template | workflow | template, readme | active | applies shared templates, package README sections, and package-directory sync workflows |
-| ast-merge | core | template, review, structured-edit | active | documents provider-neutral contracts, token resolution, review state, and execution reports |
-| tree-haver | backend substrate | parser, backend | active | documents backend selection, language-pack integration, position data, and capability reporting |
-| markdown-merge | family | markdown | active | documents Markdown heading, fenced-code, nested-family, and provider behavior |
-| json-merge | family | json, jsonc | active | documents JSON and JSONC merge behavior; old jsonc-merge is superseded |
-| toml-merge | family | toml | active | documents TOML table, value, parser, and backend behavior |
-| yaml-merge | family | yaml | active | documents YAML mapping, sequence, scalar, and backend behavior |
-| ruby-merge | family | ruby-source | active | documents Ruby source merge behavior; old prism-merge is backend/provider prior art |
-| zip-merge | family | zip, archive | active | documents ZIP member planning and raw-preservation behavior |
-| binary-merge | family | binary | active | documents binary preservation and diagnostics behavior |
-
-JSONC migration note: JSONC is handled by `json-merge` as the `jsonc` dialect. The old `jsonc-merge` package name is superseded in the cross-language toolset; only Ruby may grow a legacy `require "jsonc/merge"` wrapper if packaging compatibility requires it. Current fixture-backed JSONC claims are parse support and comment-neutral owner structure; comment-preserving merge output, freeze blocks, and JSONC emitter behavior need dedicated fixtures before they appear in package examples.
-
-YAML provider note: `yaml-merge` is the canonical YAML family package. Ruby's `psych-merge` package is the Psych provider for that family, not a separate YAML family; old `Psych::Merge::*` examples remain provider-specific until portable fixtures cover the behavior.
-
-Markdown provider note: `markdown-merge` is the canonical Markdown family package. Provider packages own parser-specific docs and backend defaults: Go `goldmarkmerge`, Ruby `commonmarker-merge`, `markly-merge`, and `kramdown-merge`, Rust `pulldown-cmark-merge`, and TypeScript `@structuredmerge/markdown-it-merge`.
-
-| Backend | Languages | Families | Note |
+| Package | Layer | Families | What it provides |
 |---|---|---|---|
-| tree-sitter-language-pack | Go, Ruby, Rust, TypeScript | markdown, toml, yaml, source | Preferred cross-language parser substrate where a family has language-pack support. |
-| native ecosystem parser | Ruby | ruby, yaml, markdown, toml | Backend-specific Ruby packages are provider prior art or adapters, not the source schema. |
-| plain structured text | Go, Ruby, Rust, TypeScript | plain, binary, zip | Families without parser requirements document preservation, byte ranges, archive members, and diagnostics. |
-| line-oriented config | Ruby | dotenv | Active Ruby provider for env-key matching, hash comments, freeze regions, and environment template files. |
+| [ast-template][sm-family-ast-template] | workflow | template, readme | Shared template application, package README section sync, and package-directory convergence workflows. |
+| [ast-merge][sm-family-ast-merge] | core | template, review, structured-edit | Provider-neutral contracts, token resolution, review state, and execution reports. |
+| [tree_haver][sm-family-tree-haver] | backend substrate | parser, backend | Backend selection, language-pack integration, position data, and capability reporting. |
+| [markdown-merge][sm-family-markdown-merge] | family | markdown | Markdown heading, fenced-code, nested-family, and provider-neutral Markdown behavior. |
+| [json-merge][sm-family-json-merge] | family | json, jsonc | JSON and JSONC object, array, scalar, and parser-backed owner behavior. |
+| [toml-merge][sm-family-toml-merge] | family | toml | TOML table, value, parser, and backend behavior. |
+| [yaml-merge][sm-family-yaml-merge] | family | yaml | YAML mapping, sequence, scalar, anchor, and backend behavior. |
+| [ruby-merge][sm-family-ruby-merge] | family | ruby-source | Ruby source entity matching, require ordering, constants, classes, modules, and methods. |
+| [bash-merge][sm-family-bash-merge] | family | shell-source | Bash assignment, function, heredoc, comment, and shell block behavior. |
+| [rbs-merge][sm-family-rbs-merge] | family | ruby-signature | RBS declarations, classes, modules, interfaces, methods, aliases, and comments. |
+| [dotenv-merge][sm-family-dotenv-merge] | family | env-config | Environment key matching, comments, freeze regions, and template env files. |
+| [plain-merge][sm-family-plain-merge] | family | plain-text | Plain text preservation, line ownership, diagnostics, and fallback behavior. |
+| [zip-merge][sm-family-zip-merge] | family | zip, archive | ZIP member planning, archive entry ownership, and raw member preservation. |
+| [binary-merge][sm-family-binary-merge] | family | binary | Binary preservation, byte-range ownership, and diagnostics behavior. |
 
-| Compatibility claim | Current disposition | Fixture source |
+| Backend package | Family | What it provides |
 |---|---|---|
-| Old Ruby runtime backend tables | Prior art only; not a cross-language support promise | slice-741 backend/platform reconciliation |
-| tree-sitter-language-pack | Current portable parser substrate for Go, Ruby, Rust, and TypeScript | slices 122, 135, 171, 195, 215 |
-| Native parser/adaptor backends | Implementation-specific providers documented through family fixtures | slices 122 and 183 |
-| bash-merge, rbs-merge | Excluded from generated support tables until explicit scope decisions exist | slice-741 unresolved package list |
+| [commonmarker-merge][sm-family-commonmarker-merge] | markdown | CommonMarker-backed Markdown parsing and merge behavior for Ruby. |
+| [markly-merge][sm-family-markly-merge] | markdown | Markly-backed Markdown parsing and merge behavior for Ruby. |
+| [kramdown-merge][sm-family-kramdown-merge] | markdown | Kramdown-backed Markdown parsing and merge behavior for Ruby. |
+| [psych-merge][sm-family-psych-merge] | yaml | Psych-backed YAML parsing and merge behavior for Ruby. |
+| [citrus-toml-merge][sm-family-citrus-toml-merge] | toml | Citrus-backed TOML parsing and merge behavior for Ruby. |
+| [parslet-toml-merge][sm-family-parslet-toml-merge] | toml | Parslet-backed TOML parsing and merge behavior for Ruby. |
+| [prism-merge][sm-family-prism-merge] | ruby-source | Prism-backed Ruby source parsing and merge behavior for Ruby. |
 
-| Reusable example | README role | Source fixture |
-|---|---|---|
-| Freeze tokens | Show how destination-owned regions are preserved without filling project-specific usage sections | slice-743 reusable README configuration examples |
-| Match preference | Summarize template-wins and destination-wins conflict choices through current policy vocabulary | slice-743 reusable README configuration examples |
-| Template-only behavior | Explain accept/skip handling for unmatched template entries | slice-743 reusable README configuration examples |
-| Debug report inspection | Point users to structured reports and diagnostics instead of ad hoc debug prose | slice-743 reusable README configuration examples |
-| Backend selection | Describe portable backend selection without old Ruby runtime support tables | slice-743 reusable README configuration examples |
-| Package-directory README command | Document plan/apply/convergence workflow for shared README updates | slice-743 reusable README configuration examples |
+Backend packages are implementation-specific providers for a canonical family package. The family package owns the user-facing behavior contract; provider packages document parser-specific defaults, capabilities, and diagnostics.
+
+[sm-family-fixtures]: https://github.com/structuredmerge/structuredmerge-fixtures
+[sm-family-go]: https://github.com/structuredmerge/structuredmerge-go
+[sm-family-ruby]: https://github.com/structuredmerge/structuredmerge-ruby
+[sm-family-rust]: https://github.com/structuredmerge/structuredmerge-rust
+[sm-family-typescript]: https://github.com/structuredmerge/structuredmerge-typescript
+[sm-family-ast-template]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-template
+[sm-family-ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[sm-family-tree-haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver
+[sm-family-markdown-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markdown-merge
+[sm-family-json-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge
+[sm-family-toml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/toml-merge
+[sm-family-yaml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/yaml-merge
+[sm-family-ruby-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ruby-merge
+[sm-family-bash-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/bash-merge
+[sm-family-rbs-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/rbs-merge
+[sm-family-dotenv-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/dotenv-merge
+[sm-family-plain-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/plain-merge
+[sm-family-zip-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/zip-merge
+[sm-family-binary-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/binary-merge
+[sm-family-commonmarker-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/commonmarker-merge
+[sm-family-markly-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markly-merge
+[sm-family-kramdown-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/kramdown-merge
+[sm-family-psych-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/psych-merge
+[sm-family-citrus-toml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/citrus-toml-merge
+[sm-family-parslet-toml-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/parslet-toml-merge
+[sm-family-prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
 
 </details>
 
@@ -118,7 +141,19 @@ gem install smorg-rb
 
 ## ⚙️ Configuration
 
+Configure `smorg-rb` with command-line options and the merge gems present in the active bundle. Use the Ruby gem READMEs for family-specific backend and parser settings.
+
+In monorepo development, local sibling gems should be wired through `nomono` and the workspace environment rather than manual load-path changes.
+
 ## 🔧 Basic Usage
+
+```ruby
+require "smorg/rb"
+
+argv = ["merge", "--family", "json", "base.json", "ours.json", "theirs.json"]
+exit_code = Smorg::Rb.run(argv)
+exit exit_code unless exit_code.zero?
+```
 
 ## 🔐 Security
 
