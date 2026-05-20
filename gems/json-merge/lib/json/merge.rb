@@ -114,16 +114,13 @@ module Json
 
       destination_result = parse_json(destination_source, dialect)
       if destination_result[:ok]
-        output = JSON.generate(
-          merge_json_values(
-            JSON.parse(template_result.dig(:analysis, :normalized_source)),
-            JSON.parse(destination_result.dig(:analysis, :normalized_source))
-          )
-        )
         return {
           ok: true,
           diagnostics: [],
-          output: output,
+          output: generate_merged_json(
+            JSON.parse(template_result.dig(:analysis, :normalized_source)),
+            JSON.parse(destination_result.dig(:analysis, :normalized_source)),
+          ),
           policies: [DESTINATION_WINS_ARRAY_POLICY]
         }
       end
@@ -132,18 +129,15 @@ module Json
       if fallback_source
         retried = parse_json(fallback_source, dialect)
         if retried[:ok]
-          output = JSON.generate(
-            merge_json_values(
-              JSON.parse(template_result.dig(:analysis, :normalized_source)),
-              JSON.parse(retried.dig(:analysis, :normalized_source))
-            )
-          )
           return {
             ok: true,
             diagnostics: [
               fallback_applied("stripped trailing commas from destination before retrying json merge.")
             ],
-            output: output,
+            output: generate_merged_json(
+              JSON.parse(template_result.dig(:analysis, :normalized_source)),
+              JSON.parse(retried.dig(:analysis, :normalized_source)),
+            ),
             policies: [DESTINATION_WINS_ARRAY_POLICY, TRAILING_COMMA_FALLBACK_POLICY]
           }
         end
@@ -156,6 +150,11 @@ module Json
         end
       }
     end
+
+    def generate_merged_json(template, destination)
+      "#{JSON.pretty_generate(merge_json_values(template, destination))}\n"
+    end
+    private_class_method :generate_merged_json
 
     def parse_failure(message)
       {
