@@ -4,19 +4,30 @@ require "json"
 require "tree_sitter_language_pack"
 
 module TreeHaver
+  TSLP_BACKEND = BackendReference.new(
+    id: "tslp",
+    family: "tree-sitter"
+  ).freeze
   KREUZBERG_LANGUAGE_PACK_BACKEND = BackendReference.new(
     id: "kreuzberg-language-pack",
     family: "tree-sitter"
   ).freeze
 
+  BackendRegistry.register(TSLP_BACKEND)
   BackendRegistry.register(KREUZBERG_LANGUAGE_PACK_BACKEND)
+  BackendRegistry.register_availability_checker(:tslp) do
+    defined?(TreeSitterLanguagePack) && TreeSitterLanguagePack.respond_to?(:process)
+  end
+  BackendRegistry.register_availability_checker(:"kreuzberg-language-pack") do
+    BackendRegistry.available?(:tslp)
+  end
 
   module_function
 
   def language_pack_adapter_info
     AdapterInfo.new(
-      backend: KREUZBERG_LANGUAGE_PACK_BACKEND.id,
-      backend_ref: KREUZBERG_LANGUAGE_PACK_BACKEND,
+      backend: TSLP_BACKEND.id,
+      backend_ref: TSLP_BACKEND,
       supports_dialects: false,
       supported_policies: []
     )
@@ -24,8 +35,8 @@ module TreeHaver
 
   def language_pack_feature_profile
     FeatureProfile.new(
-      backend: KREUZBERG_LANGUAGE_PACK_BACKEND.id,
-      backend_ref: KREUZBERG_LANGUAGE_PACK_BACKEND,
+      backend: TSLP_BACKEND.id,
+      backend_ref: TSLP_BACKEND,
       supports_dialects: false,
       supported_policies: []
     )
@@ -47,7 +58,7 @@ module TreeHaver
       dialect: request.dialect,
       root_type: inferred_root_type(request),
       has_error: false,
-      backend_ref: KREUZBERG_LANGUAGE_PACK_BACKEND
+      backend_ref: TSLP_BACKEND
     )
     parse_result(ok: true, analysis: analysis, diagnostics: [])
   rescue StandardError => e
@@ -81,7 +92,7 @@ module TreeHaver
           severity: item.fetch("severity")
         )
       end,
-      backend_ref: KREUZBERG_LANGUAGE_PACK_BACKEND
+      backend_ref: TSLP_BACKEND
     )
     parse_result(ok: true, analysis: analysis, diagnostics: [])
   rescue StandardError => e
@@ -136,7 +147,7 @@ module TreeHaver
       dialect: request.dialect,
       root_type: inferred_root_type(request),
       has_error: false,
-      backend_ref: KREUZBERG_LANGUAGE_PACK_BACKEND
+      backend_ref: TSLP_BACKEND
     )
     parse_result(ok: true, analysis: analysis, diagnostics: [])
   end
@@ -148,7 +159,7 @@ module TreeHaver
       structure: fallback_structure_items(request.language, request.source),
       imports: fallback_import_items(request.language, request.source),
       diagnostics: [],
-      backend_ref: KREUZBERG_LANGUAGE_PACK_BACKEND
+      backend_ref: TSLP_BACKEND
     )
     parse_result(ok: true, analysis: analysis, diagnostics: [])
   end

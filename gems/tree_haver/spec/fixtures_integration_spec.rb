@@ -110,7 +110,7 @@ RSpec.describe TreeHaver do
     expect(fixture.fetch(:decision)).to include("Port the old position and capability ideas")
   end
 
-  it "conforms to the tree_haver old backend implementation inventory fixture" do
+  it "conforms to the tree_haver backend implementation inventory fixture" do
     fixture = read_json(
       fixtures_root.join(
         "diagnostics",
@@ -122,20 +122,27 @@ RSpec.describe TreeHaver do
       [entry.fetch(:old_surface), entry]
     end
 
-    expect(classifications.fetch("Backends::MRI").fetch(:classification)).to eq("retired_shared_backend")
-    expect(classifications.fetch("Backends::FFI").fetch(:replacement)).to eq("tree-sitter-language-pack")
+    expect(classifications.fetch("Backends::MRI").fetch(:classification)).to eq("restored_native_backend")
+    expect(classifications.fetch("Backends::FFI").fetch(:replacement)).to eq("TreeHaver::Backends::FFI")
+    expect(classifications.fetch("Backends::Rust").fetch(:classification)).to eq("restored_native_backend")
+    expect(classifications.fetch("Backends::Java").fetch(:classification)).to eq("restored_native_backend")
     expect(classifications.fetch("Backends::Prism").fetch(:classification)).to eq("provider_local")
     expect(classifications.fetch("Backends::Psych").fetch(:classification)).to eq("provider_local")
     expect(classifications.fetch("Backends::Citrus").fetch(:classification)).to eq("survives_as_peg_primitive")
     expect(classifications.fetch("Backends::Parslet").fetch(:classification)).to eq("survives_as_peg_primitive")
-    expect(classifications.fetch("PathValidator").fetch(:classification)).to eq("defer_to_security_slice")
+    expect(classifications.fetch("PathValidator").fetch(:classification)).to eq("restored_security_primitive")
     expect(fixture.fetch(:active_backend_requirements)).to include(
       "backend_reference",
       "capability_or_feature_profile_fixture",
       "conformance_path_using_backend"
     )
     expect(fixture.fetch(:current_active_backends).map { |backend| backend.fetch(:backend) }).to include(
+      "tslp",
       "kreuzberg-language-pack",
+      "mri",
+      "rust",
+      "ffi",
+      "java",
       "citrus",
       "parslet",
       "kaitai-struct"

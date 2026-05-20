@@ -3,6 +3,22 @@
 require_relative "spec_helper"
 
 RSpec.describe TreeHaver::BackendRegistry do
+  it "registers the generic language-pack and restored native tree-sitter backends" do
+    expect(described_class.fetch("tslp")&.family).to eq("tree-sitter")
+    expect(described_class.fetch("kreuzberg-language-pack")&.family).to eq("tree-sitter")
+
+    %w[mri rust ffi java].each do |backend_id|
+      expect(described_class.fetch(backend_id)&.family).to eq("tree-sitter")
+    end
+  end
+
+  it "exposes graceful availability checks for restored native backends" do
+    %i[mri rust ffi java tslp].each do |backend_name|
+      expect { described_class.available?(backend_name) }.not_to raise_error
+      expect(described_class.available?(backend_name)).to satisfy { |value| value == true || value == false }
+    end
+  end
+
   describe ".register_tag" do
     let(:tag_name) { :example_backend }
     let(:backend_name) { :example }
