@@ -1,0 +1,26 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+EXAMPLES = {
+  "json" => "examples/json_merge/package_manifest_merge.rb",
+  "markdown" => "examples/markdown_merge/readme_template_merge.rb",
+  "ruby" => "examples/ruby_merge/plugin_class_merge.rb",
+  "toml" => "examples/toml_merge/tool_config_merge.rb",
+  "backends" => "examples/tree_haver/backend_report.rb"
+}.freeze
+
+selected = ARGV.empty? || ARGV == ["all"] ? EXAMPLES.keys : ARGV
+unknown = selected - EXAMPLES.keys
+
+unless unknown.empty?
+  warn "Unknown example(s): #{unknown.join(", ")}"
+  warn "Known examples: #{EXAMPLES.keys.join(", ")}"
+  exit 1
+end
+
+selected.each do |name|
+  path = EXAMPLES.fetch(name)
+  puts "\n== #{name}: #{path} =="
+  system({"BUNDLE_GEMFILE" => File.expand_path("../../Gemfile", __dir__)}, RbConfig.ruby, path, exception: true)
+end
+

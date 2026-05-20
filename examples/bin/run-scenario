@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "optparse"
+require "yaml"
+
+options = { check: false }
+OptionParser.new do |parser|
+  parser.banner = "Usage: examples/bin/run-scenario --scenario PATH [--check]"
+  parser.on("--scenario PATH", "Scenario directory") { |value| options[:scenario] = value }
+  parser.on("--check", "Compare output to expected.*") { options[:check] = true }
+end.parse!
+
+unless options[:scenario]
+  warn "Missing --scenario PATH"
+  exit 2
+end
+
+scenario_dir = File.expand_path(options.fetch(:scenario))
+manifest = YAML.load_file(File.join(scenario_dir, "manifest.yml"))
+family = manifest.fetch("family")
+dialect = manifest.fetch("dialect")
+template = File.read(File.join(scenario_dir, manifest.fetch("template")))
+destination = File.read(File.join(scenario_dir, manifest.fetch("destination")))
+expected_path = File.join(scenario_dir, manifest.fetch("expected", "expected.out"))
+
+result =
+  case family
+  when "json"
+    require "json/merge"
+    Json::Merge.merge_json(template, destination, dialect)
+  when "markdown"
+    require "markdown/merge"
+    Markdown::Merge.merge_markdown(template, destination, dialect)
+  when "ruby"
+    require "ruby/merge"
+    Ruby::Merge.merge_ruby(template, destination, dialect, merge_template_requires: true)
+  when "toml"
+    require "toml/merge"
+    Toml::Merge.merge_toml(template, destination, dialect)
+  else
+    warn "Unsupported Ruby scenario family: #{family}"
+    exit 2
+  end
+
+unless result.fetch(:ok)
+  warn JSON.pretty_generate(result.fetch(:diagnostics))
+  exit 1
+end
+
+output = result.fetch(:output)
+puts output
+
+if options[:check]
+  expected = File.read(expected_path)
+  unless output == expected || "#{output}\n" == expected
+    warn "\nScenario output did not match #{expected_path}"
+    exit 1
+  end
+end
