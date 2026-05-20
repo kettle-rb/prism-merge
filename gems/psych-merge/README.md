@@ -28,15 +28,50 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Psych::Merge` is a Ruby provider package for the YAML merge family. YAML provider backed by Ruby's Psych parser. It registers its backend with `tree_haver` and exposes provider-specific defaults while preserving the canonical family contract.
+Psych::Merge is a standalone Ruby module that intelligently merges two versions of a YAML file using Psych AST analysis. It's like a smart "git merge" specifically designed for YAML configuration files. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
 
 ### Key Features
 
-- Backend registration for `Psych`.
-- Provider-specific parser capability reporting.
-- Family-compatible parse and merge methods.
-- Structured diagnostics for unsupported backends and parser failures.
-- A provider `SmartMerger` wrapper when the underlying family exposes one.
+- **Psych-Powered**: Uses Ruby's built-in Psych parser for YAML AST analysis
+- **YAML-Aware**: Understands YAML structure including mappings, sequences, and scalars
+- **Intelligent**: Matches nodes by structural signatures
+- **Fuzzy Key Matching**: `MappingMatchRefiner` matches similar keys (e.g., `database_url` ↔ `db_url`)
+  using Levenshtein distance for typos and naming convention differences
+- **Comment-Preserving**: Comments are preserved in their context
+- **Freeze Block Support**: Respects freeze markers (default: `psych-merge:freeze` / `psych-merge:unfreeze`) for merge control - customizable to match your project's conventions
+- **Full Provenance**: Tracks origin of every node
+- **Standalone**: Minimal dependencies - just `ast-merge` and Ruby's built-in `psych`
+- **Customizable**:
+    - `signature_generator` - callable custom signature generators
+    - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+    - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge][ast-merge] docs)
+    - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
+    - `freeze_token` - customize freeze block markers (default: `"psych-merge"`)
+    - `match_refiners` - array of refiners for fuzzy matching (e.g., `MappingMatchRefiner`)
+
+### Supported Node Types
+
+| Node Type | Signature Format | Matching Behavior |
+|-----------|------------------|-------------------|
+| Mapping | `[:mapping, key_signatures...]` | Mappings match by their key structure |
+| Sequence | `[:sequence, element_count]` | Sequences match by position and type |
+| Scalar | `[:scalar, value]` | Scalars match by value |
+| Alias | `[:alias, anchor]` | Aliases match by anchor name |
+
+### Example
+
+```ruby
+require "psych/merge"
+
+template = File.read("template.yml")
+destination = File.read("destination.yml")
+
+merger = Psych::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.yml", result.to_yaml)
+```
+
 
 ## 💡 Info you can shake a stick at
 
@@ -140,29 +175,184 @@ gem install psych-merge
 
 ## ⚙️ Configuration
 
-```ruby
-require "psych/merge"
+### Signature Match Preference
 
-profile = Psych::Merge.yaml_backend_feature_profile(backend: :psych)
-context = Psych::Merge.yaml_plan_context(backend: :psych)
+Control which version to use when nodes have matching signatures but different content:
+
+```ruby
+# Use template version (for config updates)
+merger = Psych::Merge::SmartMerger.new(
+  template,
+  destination,
+  preference: :template,
+)
+
+# Use destination version (default - preserve customizations)
+merger = Psych::Merge::SmartMerger.new(
+  template,
+  destination,
+  preference: :destination,
+)
 ```
 
-Use this package when you want a hard dependency on the `Psych` backend. Use the canonical family package when backend auto-selection is preferred.
+### Template-Only Nodes
+
+Control whether to add nodes that only exist in the template:
+
+```ruby
+# Add template-only nodes
+merger = Psych::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+```
+
+### Custom Freeze Token
+
+Use a custom freeze token to avoid conflicts with other tools:
+
+```ruby
+merger = Psych::Merge::SmartMerger.new(
+  template,
+  destination,
+  freeze_token: "my-project",
+)
+# Now looks for: # my-project:freeze and # my-project:unfreeze
+```
+
+### Mapping Match Refiner
+
+When YAML mapping entries (key-value pairs) don't match by exact key name, the
+`MappingMatchRefiner` uses fuzzy matching to pair entries with:
+
+- Similar key names (e.g., `database_url` vs `db_url`)
+- Keys with typos or naming convention differences
+- Renamed keys that contain similar values
+
+```ruby
+# Enable mapping fuzzy matching
+merger = Psych::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Psych::Merge::MappingMatchRefiner.new(threshold: 0.5),
+  ],
+)
+```
+
+#### MappingMatchRefiner Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `threshold` | 0.5 | Minimum similarity score (0.0-1.0) to accept a match |
+| `key_weight` | 0.7 | Weight for key name similarity |
+| `value_weight` | 0.3 | Weight for value similarity |
+
+```ruby
+# Custom weights for key-centric matching
+refiner = Psych::Merge::MappingMatchRefiner.new(
+  threshold: 0.6,
+  key_weight: 0.8,   # Focus more on key names
+  value_weight: 0.2,  # Less focus on values
+)
+```
+
+### Debug Logging
+
+Enable debug logging to see merge decisions:
+
+```bash
+export PSYCH_MERGE_DEBUG=1
+```
 
 ## 🔧 Basic Usage
 
+### Merging Two YAML Files
+
 ```ruby
 require "psych/merge"
 
-result = Psych::Merge.merge_yaml(
-  File.read("template.yml"),
-  File.read("destination.yml"),
-  "yaml",
-  backend: :psych,
-)
+template_content = File.read("template.yml")
+dest_content = File.read("destination.yml")
 
-abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
-File.write("destination.yml", result.fetch(:output))
+merger = Psych::Merge::SmartMerger.new(template_content, dest_content)
+result = merger.merge
+
+File.write("merged.yml", result.to_yaml)
+```
+
+### Analyzing a YAML File
+
+```ruby
+require "psych/merge"
+
+source = File.read("config.yml")
+analysis = Psych::Merge::FileAnalysis.new(source)
+
+# Iterate over all top-level nodes
+analysis.statements.each do |node|
+  sig = analysis.generate_signature(node)
+  puts "#{node.class}: #{sig.inspect}"
+end
+
+# Get freeze blocks
+analysis.freeze_blocks.each do |freeze_node|
+  puts "Protected: lines #{freeze_node.start_line}-#{freeze_node.end_line}"
+end
+```
+
+### Fuzzy Key Matching
+
+When keys are renamed between template and destination, use the `MappingMatchRefiner`:
+
+```ruby
+require "psych/merge"
+
+template = <<~YAML
+  database_url: postgres://localhost/app
+  cache_ttl: 3600
+  api_endpoint: https://api.example.com
+YAML
+
+destination = <<~YAML
+  db_url: postgres://localhost/custom
+  cache_timeout: 7200
+  service_endpoint: https://custom.example.com
+YAML
+
+# Default merge won't match keys (names differ)
+# Use MappingMatchRefiner for fuzzy matching
+merger = Psych::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Psych::Merge::MappingMatchRefiner.new(threshold: 0.5),
+  ],
+)
+result = merger.merge
+
+# Keys are matched despite name differences:
+# - database_url ↔ db_url (similar: "database" ~ "db")
+# - cache_ttl ↔ cache_timeout (similar: "ttl" ~ "timeout")
+# - api_endpoint ↔ service_endpoint (similar: "endpoint")
+```
+
+### Freeze Block Example
+
+```yaml
+# Application configuration
+app_name: MyApp
+
+# psych-merge:freeze Secret configuration
+database:
+  host: production-db.example.com
+  password: super-secret-password
+# psych-merge:unfreeze
+
+logging:
+  level: info
+  format: json
 ```
 
 ## 🔐 Security
@@ -346,3 +536,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge

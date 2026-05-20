@@ -28,15 +28,52 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Json::Merge` merges JSON and JSONC documents by object path and value structure. It keeps destination values by default, adds template-only object members when configured, and reports parser diagnostics in the same shape as the other StructuredMerge families.
+Json::Merge is a standalone Ruby module that intelligently merges two versions of a JSON or JSONC file using tree-sitter AST analysis. It's like a smart "git merge" specifically designed for JSON configuration files. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
+
+When the underlying tree-sitter JSON parser surfaces JSONC comments, `json-merge` now preserves them directly. The [jsonc-merge][jsonc-merge] gem remains available as a compatibility shim for older integrations that still depend on that gem name.
 
 ### Key Features
 
-- JSON and JSONC dialect support through a single package.
-- Object-member matching by path and structural owner identity.
-- Destination-wins array policy for safe array preservation.
-- Trailing-comma fallback diagnostics.
-- `SmartMerger`, `FileAnalysis`, `ObjectMatchRefiner`, and module-level `merge_json` APIs.
+  - **Tree-Sitter Powered**: Uses tree-sitter-json for accurate AST parsing
+  - **JSONC-Aware**: Preserves `//` and `/* */` comments when the parser exposes them
+  - **Intelligent**: Matches objects and arrays by structural signatures
+  - **Fuzzy Property Matching**: `ObjectMatchRefiner` matches similar property names
+    (e.g., `databaseUrl` ↔ `database_url`) using Levenshtein distance for naming convention differences
+  - **Full Provenance**: Tracks origin of every node
+  - **Standalone**: Minimal dependencies - just `ast-merge` and `ruby_tree_sitter`
+  - **Customizable**:
+      - `signature_generator` - callable custom signature generators
+      - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+      - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge][ast-merge] docs)
+      - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
+      - `match_refiners` - array of refiners for fuzzy matching (e.g., `ObjectMatchRefiner`)
+
+### Supported Node Types
+
+| Node Type | Signature Format | Matching Behavior |
+| --- | --- | --- |
+| Object | `[:object, key_signatures...]` | Objects match by their key structure |
+| Array | `[:array, element_count]` | Arrays match by position and type |
+| Pair | `[:pair, key_name]` | Key-value pairs match by key name |
+| String | `[:string, value]` | Strings match by value |
+| Number | `[:number, value]` | Numbers match by value |
+| Boolean | `[:boolean, value]` | Booleans match by value |
+| Null | `[:null]` | Null values always match |
+
+### Example
+
+```ruby
+require "json/merge"
+
+template = File.read("template.json")
+destination = File.read("destination.json")
+
+merger = Json::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.json", result.to_json)
+```
+
 
 ## 💡 Info you can shake a stick at
 
@@ -140,38 +177,351 @@ gem install json-merge
 
 ## ⚙️ Configuration
 
+### Signature Match Preference
+
+Control which version to use when nodes have matching signatures but different content:
+
 ```ruby
+# Use template version (for config updates)
 merger = Json::Merge::SmartMerger.new(
-  template_content,
-  destination_content,
+  template,
+  destination,
+  preference: :template,
+)
+
+# Use destination version (default - preserve customizations)
+merger = Json::Merge::SmartMerger.new(
+  template,
+  destination,
   preference: :destination,
-  add_template_only_nodes: true,
-  match_refiners: [Json::Merge::ObjectMatchRefiner.new(threshold: 0.5)],
 )
 ```
 
-| Option | Default | Purpose |
-|---|---|---|
-| `preference` | `:destination` | Chooses which side wins when matching owners differ. |
-| `add_template_only_nodes` | `false` | Adds owners that exist only in the template. |
-| `signature_generator` | `nil` | Supplies custom owner signatures for project-specific matching. |
-| `match_refiner` / `match_refiners` | `nil` | Enables fuzzy matching for owners that do not match by signature. |
+### Template-Only Nodes
 
-Use `Json::Merge.json_feature_profile` to inspect supported dialects and policies. Use `Json::Merge.merge_json(template, destination, "json")` when a Hash result is more useful than a `SmartMerger` object.
+Control whether to add nodes that only exist in the template:
+
+```ruby
+# Add template-only nodes
+merger = Json::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+```
+
+### Object Match Refiner
+
+When JSON object properties (key-value pairs) don't match by exact key name, the
+`ObjectMatchRefiner` uses fuzzy matching to pair entries with:
+
+  - Similar key names (e.g., `databaseUrl` vs `database_url`)
+  - Keys with typos or different naming conventions (camelCase vs snake\_case)
+  - Array elements with similar structure or content
+
+<!-- end list -->
+
+```ruby
+# Enable object fuzzy matching
+merger = Json::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Json::Merge::ObjectMatchRefiner.new(threshold: 0.5),
+  ],
+)
+```
+
+#### ObjectMatchRefiner Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `threshold` | 0.5 | Minimum similarity score (0.0-1.0) to accept a match |
+| `key_weight` | 0.7 | Weight for key name similarity |
+| `value_weight` | 0.3 | Weight for value similarity |
+
+```ruby
+# Custom weights for key-centric matching
+refiner = Json::Merge::ObjectMatchRefiner.new(
+  threshold: 0.6,
+  key_weight: 0.8,   # Focus more on key names
+  value_weight: 0.2,  # Less focus on values
+)
+```
+
+### Debug Logging
+
+Enable debug logging to see merge decisions:
+
+```bash
+export JSON_MERGE_DEBUG=1
+```
 
 ## 🔧 Basic Usage
+
+### Merging Two JSON Files
 
 ```ruby
 require "json/merge"
 
-template = File.read("config.template.json")
-destination = File.read("config.json")
+template_content = File.read("template.json")
+dest_content = File.read("destination.json")
 
-result = Json::Merge.merge_json(template, destination, "json")
-abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
+merger = Json::Merge::SmartMerger.new(template_content, dest_content)
+result = merger.merge
 
-File.write("config.json", result.fetch(:output))
+File.write("merged.json", result.to_json)
 ```
+
+### Analyzing a JSON File
+
+```ruby
+require "json/merge"
+
+source = File.read("config.json")
+analysis = Json::Merge::FileAnalysis.new(source)
+
+# Iterate over all top-level nodes
+analysis.statements.each do |node|
+  sig = analysis.generate_signature(node)
+  puts "#{node.class}: #{sig.inspect}"
+end
+```
+
+### Fuzzy Property Matching
+
+When property names differ between template and destination (e.g., naming convention changes),
+use the `ObjectMatchRefiner`:
+
+```ruby
+require "json/merge"
+
+template = <<~JSON
+  {
+    "databaseUrl": "postgres://localhost/app",
+    "cacheTimeout": 3600,
+    "apiEndpoint": "https://api.example.com"
+  }
+JSON
+
+destination = <<~JSON
+  {
+    "database_url": "postgres://localhost/custom",
+    "cache_ttl": 7200,
+    "api_endpoint": "https://custom.example.com"
+  }
+JSON
+
+# Default merge won't match keys (names differ - camelCase vs snake_case)
+# Use ObjectMatchRefiner for fuzzy matching
+merger = Json::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Json::Merge::ObjectMatchRefiner.new(threshold: 0.5),
+  ],
+)
+result = merger.merge
+
+# Properties are matched despite naming convention differences:
+# - databaseUrl ↔ database_url (similar when normalized)
+# - cacheTimeout ↔ cache_ttl (similar: "cache")
+# - apiEndpoint ↔ api_endpoint (similar when normalized)
+```
+
+### Array Element Matching
+
+The `ObjectMatchRefiner` also handles array elements with similar structure:
+
+```ruby
+template = <<~JSON
+  {
+    "users": [
+      { "id": 1, "userName": "alice" },
+      { "id": 2, "userName": "bob" }
+    ]
+  }
+JSON
+
+destination = <<~JSON
+  {
+    "users": [
+      { "id": 1, "user_name": "alice_custom" },
+      { "id": 3, "user_name": "charlie" }
+    ]
+  }
+JSON
+
+merger = Json::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Json::Merge::ObjectMatchRefiner.new(threshold: 0.5),
+  ],
+)
+# Array elements with matching IDs or similar structure are paired
+```
+
+## 📚 JSONC documentation from jsonc-merge
+
+The former `jsonc-merge` gem has been folded into `json-merge`. The README sections below preserve JSONC-specific behavior notes from that package.
+
+### JSONC Synopsis
+
+Jsonc::Merge is now a compatibility shim for [json-merge][json-merge]. The underlying tree-sitter JSON parser used by `json-merge` can now parse JSONC in this workspace, so JSONC-aware merging and comment preservation live in `json-merge` directly.
+
+Keep `jsonc-merge` only if you need the legacy gem name or `require "jsonc/merge"` entrypoint. For all new setups, prefer `json-merge`.
+
+### Key Features
+
+- **Compatibility Wrapper**: Preserves the `jsonc-merge` gem name and `Jsonc::Merge` namespace
+- **Delegates to `json-merge`**: JSONC parsing, comment preservation, and merge behavior now live in `json-merge`
+- **Migration Friendly**: Existing `require "jsonc/merge"` callers continue to work while you transition
+
+### Supported Node Types
+
+| Node Type | Signature Format               | Matching Behavior                    |
+|-----------|--------------------------------|--------------------------------------|
+| Object    | `[:object, key_signatures...]` | Objects match by their key structure |
+| Array     | `[:array, element_count]`      | Arrays match by position and type    |
+| Pair      | `[:pair, key_name]`            | Key-value pairs match by key name    |
+| String    | `[:string, value]`             | Strings match by value               |
+| Number    | `[:number, value]`             | Numbers match by value               |
+| Boolean   | `[:boolean, value]`            | Booleans match by value              |
+| Null      | `[:null]`                      | Null values always match             |
+
+### Example
+
+```ruby
+require "json/merge"
+
+template = File.read("template.jsonc")
+destination = File.read("destination.jsonc")
+
+merger = Json::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.jsonc", result)
+```
+
+### JSONC Example with Freeze Blocks
+
+```jsonc
+{
+  // jsonc-merge:freeze Secret configuration
+  "api_key": "my-secret-key",
+  "api_secret": "my-secret-value",
+  // jsonc-merge:unfreeze
+
+  "debug": false,
+  "log_level": "info"
+}
+```
+
+
+### JSONC Configuration
+
+```ruby
+merger = Jsonc::Merge::SmartMerger.new(
+  template_content,
+  dest_content,
+  # Which version to prefer when nodes match
+  # :destination (default) - keep destination values
+  # :template - use template values
+  preference: :destination,
+
+  # Whether to add template-only nodes to the result
+  # false (default) - only include properties that exist in destination
+  # true - include all template properties
+  add_template_only_nodes: false,
+
+  # Token for freeze block markers
+  # Default: "jsonc-merge"
+  # Looks for: // jsonc-merge:freeze / // jsonc-merge:unfreeze
+  freeze_token: "jsonc-merge",
+
+  # Custom signature generator (optional)
+  # Receives a node, returns a signature array or nil
+  signature_generator: ->(node) { [:pair, node.key] if node.type == :pair },
+)
+```
+
+### JSONC Basic Usage
+
+### Simple Merge
+
+```ruby
+require "jsonc/merge"
+
+# Template defines the structure
+template = <<~JSONC
+  {
+    // Application settings
+    "name": "my-app",
+    "version": "1.0.0",
+    "debug": false,
+
+    /* Database configuration */
+    "database": {
+      "host": "localhost",
+      "port": 5432
+    }
+  }
+JSONC
+
+# Destination has customizations
+destination = <<~JSONC
+  {
+    // Application settings
+    "name": "my-app",
+    "version": "2.0.0",
+    "custom_setting": true,
+
+    /* Database configuration */
+    "database": {
+      "host": "production.example.com",
+      "port": 5432,
+      "pool_size": 25
+    }
+  }
+JSONC
+
+merger = Jsonc::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+puts result.to_jsonc
+```
+
+### Using Freeze Blocks
+
+Freeze blocks protect sections from being overwritten during merge:
+
+```jsonc
+{
+  "name": "my-app",
+
+  // jsonc-merge:freeze Secret configuration
+  "api_key": "my_production_api_key",
+  "api_secret": "super_secret_value",
+  // jsonc-merge:unfreeze
+
+  "debug": false
+}
+```
+
+Content between `// jsonc-merge:freeze` and `// jsonc-merge:unfreeze` markers is preserved from the destination file, regardless of what the template contains.
+
+### Adding Template-Only Properties
+
+```ruby
+merger = Jsonc::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+result = merger.merge
+# Result includes properties from template that don't exist in destination
+```
+
 
 ## 🔐 Security
 
@@ -354,3 +704,8 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge
+[jsonc-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge
+[json-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/json-merge

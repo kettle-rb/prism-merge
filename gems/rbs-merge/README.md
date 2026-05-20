@@ -28,15 +28,60 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Rbs::Merge` merges Ruby signature files by declaration identity. It keeps destination-owned hand-written signatures while allowing generated or template signatures to add new declarations, methods, interfaces, aliases, constants, and comments.
+Rbs::Merge is a standalone Ruby module that intelligently merges two versions of an RBS (Ruby Signature) file using the official RBS parser. It's like a smart "git merge" specifically designed for RBS type definitions. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
 
 ### Key Features
 
-- Declaration matching for classes, modules, interfaces, methods, aliases, constants, globals, and type aliases.
-- RBS gem backend registration through `tree_haver` plus tree-sitter grammar registration when available.
-- Freeze blocks with `# rbs-merge:freeze` and `# rbs-merge:unfreeze`.
-- Comment-aware output for generated signature files.
-- `SmartMerger` API compatible with the other source merge families.
+- **RBS-Aware**: Uses the official RBS parser to understand type signature structure
+- **Intelligent**: Matches declarations by structural signatures (class names, method names, type aliases)
+- **Recursive Merge**: Automatically merges class and module bodies recursively, intelligently combining nested method definitions and members
+- **Comment-Preserving**: Comments are properly attached to relevant declarations
+- **Freeze Block Support**: Respects freeze markers (default: `rbs-merge:freeze` / `rbs-merge:unfreeze`) for merge control - customizable to match your project's conventions
+- **Full Provenance**: Tracks origin of every declaration
+- **Standalone**: Minimal dependencies - just `rbs` and `ast-merge`
+- **Customizable**:
+    - `signature_generator` - callable custom signature generators
+    - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+    - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge][ast-merge] docs)
+    - `add_template_only_nodes` - setting to retain declarations that do not exist in destination
+    - `freeze_token` - customize freeze block markers (default: `"rbs-merge"`)
+
+### Supported RBS Declarations
+
+| Declaration Type | Signature Format | Matching Behavior |
+| --- | --- | --- |
+| `Class` | `[:class, name]` | Classes match by name |
+| `Module` | `[:module, name]` | Modules match by name |
+| `Interface` | `[:interface, name]` | Interfaces match by name |
+| `TypeAlias` | `[:type_alias, name]` | Type aliases match by name |
+| `Constant` | `[:constant, name]` | Constants match by name |
+| `Global` | `[:global, name]` | Global variables match by name |
+| `MethodDefinition` | `[:method, name, kind]` | Methods match by name and kind (instance/singleton) |
+| `Alias` | `[:alias, new_name, old_name]` | Method aliases match by both names |
+| `AttrReader` | `[:attr_reader, name]` | Attr readers match by name |
+| `AttrWriter` | `[:attr_writer, name]` | Attr writers match by name |
+| `AttrAccessor` | `[:attr_accessor, name]` | Attr accessors match by name |
+| `Include` | `[:include, name]` | Include directives match by module name |
+| `Extend` | `[:extend, name]` | Extend directives match by module name |
+| `Prepend` | `[:prepend, name]` | Prepend directives match by module name |
+| `InstanceVariable` | `[:ivar, name]` | Instance variables match by name |
+| `ClassInstanceVariable` | `[:civar, name]` | Class instance variables match by name |
+| `ClassVariable` | `[:cvar, name]` | Class variables match by name |
+
+### Example
+
+```ruby
+require "rbs/merge"
+
+template = File.read("template.rbs")
+destination = File.read("destination.rbs")
+
+merger = Rbs::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.rbs", result.to_s)
+```
+
 
 ## 💡 Info you can shake a stick at
 
@@ -140,40 +185,304 @@ gem install rbs-merge
 
 ## ⚙️ Configuration
 
+Rbs::Merge works out of the box with zero configuration, but offers customization options for advanced use cases.
+
+### Signature Match Preference
+
+Control which version to use when declarations have matching signatures but different content:
+
 ```ruby
+# Use template version (for updating type definitions from a canonical source)
 merger = Rbs::Merge::SmartMerger.new(
-  template_content,
-  destination_content,
-  preference: :destination,
-  add_template_only_nodes: true,
-  freeze_token: "rbs-merge",
+  template,
+  destination,
+  preference: :template,
+)
+
+# Use destination version (for preserving local type customizations)
+merger = Rbs::Merge::SmartMerger.new(
+  template,
+  destination,
+  preference: :destination,  # This is the default
 )
 ```
 
-| Option | Default | Purpose |
-|---|---|---|
-| `preference` | `:destination` | Chooses which side wins when matching owners differ. |
-| `add_template_only_nodes` | `false` | Adds owners that exist only in the template. |
-| `signature_generator` | `nil` | Supplies custom owner signatures for project-specific matching. |
-| `match_refiner` / `match_refiners` | `nil` | Enables fuzzy matching for owners that do not match by signature. |
+**When to use each:**
 
-Use destination preference for hand-maintained signatures and template preference for generated signature output that should replace local declarations.
+- **`:template`** - Template contains canonical/updated type definitions
+
+    - Generated RBS files from `rbs prototype` that should replace older versions
+    - Type definition updates from upstream libraries
+    - Standardized type signatures that should be enforced
+
+- **`:destination`** (default) - Destination contains customizations
+
+    - Hand-tuned type definitions with more specific types
+    - Local overrides for library types
+    - Project-specific type annotations
+
+### Template-Only Declarations
+
+Control whether to add declarations that only exist in the template:
+
+```ruby
+# Add template-only declarations (for merging new type definitions)
+merger = Rbs::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+
+# Skip template-only declarations (for templates with placeholder types)
+merger = Rbs::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: false,  # This is the default
+)
+```
+
+**When to use each:**
+
+- **`true`** - Template has new type definitions to add
+
+    - New classes/modules from updated code
+    - New method signatures that need type annotations
+    - Required type aliases or constants
+
+- **`false`** (default) - Template has placeholder/example types
+
+    - Example type definitions that shouldn't be added
+    - Generated types that may not apply to destination
+
+### Combined Configuration
+
+For different merge scenarios:
+
+```ruby
+# Scenario 1: Update types from generated RBS (template wins, add new types)
+merger = Rbs::Merge::SmartMerger.new(
+  generated_rbs,
+  existing_rbs,
+  preference: :template,
+  add_template_only_nodes: true,
+)
+# Result: All type definitions updated to match generated, new types added
+
+# Scenario 2: Preserve custom types (destination wins, skip template-only)
+merger = Rbs::Merge::SmartMerger.new(
+  library_types,
+  custom_types,
+  preference: :destination,  # default
+  add_template_only_nodes: false,             # default
+)
+# Result: Custom type refinements preserved, template-only types skipped
+
+# Scenario 3: Merge new types but keep customizations
+merger = Rbs::Merge::SmartMerger.new(
+  template_types,
+  project_types,
+  preference: :destination,  # Keep custom type refinements
+  add_template_only_nodes: true,              # But add new type definitions
+)
+# Result: Existing types keep destination definitions, new types added from template
+```
+
+### Custom Signature Generator
+
+You can provide a custom signature generator to control how declarations are matched between template and destination files:
+
+```ruby
+signature_generator = lambda do |node|
+  case node
+  when RBS::AST::Declarations::Class
+    # Match classes by name only
+    [:class, node.name.to_s]
+  when RBS::AST::Declarations::TypeAlias
+    # Match type aliases by name
+    [:type_alias, node.name.to_s]
+  when RBS::AST::Members::MethodDefinition
+    # Match methods by name and kind
+    [:method, node.name.to_s, node.kind]
+  else
+    # Return node to fall through to default signature computation
+    node
+  end
+end
+
+merger = Rbs::Merge::SmartMerger.new(
+  template,
+  destination,
+  signature_generator: signature_generator,
+)
+```
+
+### Freeze Blocks
+
+Protect sections in the destination file from being overwritten by the template using freeze markers.
+
+By default, Rbs::Merge uses `rbs-merge` as the freeze token:
+
+```ruby
+# In your destination.rbs file
+# rbs-merge:freeze
+type custom_config = { api_key: String, timeout: Integer }
+# rbs-merge:unfreeze
+```
+
+You can customize the freeze token to match your project's conventions:
+
+```ruby
+# Use a custom freeze token
+merger = Rbs::Merge::SmartMerger.new(
+  template,
+  destination,
+  freeze_token: "my-project",  # Now uses # my-project:freeze / # my-project:unfreeze
+)
+```
+
+Freeze blocks are **always preserved** from the destination file during merge, regardless of template content. They can be placed around:
+
+- Type alias definitions
+- Class/module declarations
+- Interface definitions
+- Method signatures within classes
+  This allows you to protect custom type definitions that should never be overwritten by template updates.
 
 ## 🔧 Basic Usage
+
+### Simple Merge
+
+The most basic usage merges two RBS files:
 
 ```ruby
 require "rbs/merge"
 
-generated = File.read("sig/generated/example.rbs")
-current = File.read("sig/example.rbs")
+template = File.read("template.rbs")
+destination = File.read("destination.rbs")
 
-merged = Rbs::Merge::SmartMerger.new(
+merger = Rbs::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.rbs", result.to_s)
+```
+
+### Understanding the Merge
+
+Rbs::Merge intelligently combines files by:
+
+1.  **Parsing RBS**: Uses the official RBS parser to understand type structure
+2.  **Finding Matches**: Identifies matching declarations between files by signature
+3.  **Resolving Conflicts**: Uses configurable preference to choose between versions
+4.  **Preserving Context**: Maintains comments and freeze blocks
+    Example:
+
+<!-- end list -->
+
+```ruby
+# template.rbs
+class Foo
+  def bar: (String) -> Integer
+  def new_method: () -> void
+end
+
+type my_type = String
+
+# destination.rbs
+class Foo
+  def bar: (Integer) -> String  # Custom signature
+  def custom_method: () -> void
+end
+
+type my_type = Integer | String  # Expanded type
+
+# After merge with default settings (destination preference):
+# - Foo#bar keeps destination signature: (Integer) -> String
+# - Foo#custom_method preserved (destination-only)
+# - Foo#new_method NOT added (add_template_only_nodes: false)
+# - my_type keeps destination definition: Integer | String
+```
+
+### Working with Generated RBS
+
+When merging RBS files generated by `rbs prototype`:
+
+```ruby
+require "rbs/merge"
+
+# Generate new type signatures
+generated = `rbs prototype rb lib/my_class.rb`
+existing = File.read("sig/my_class.rbs")
+
+merger = Rbs::Merge::SmartMerger.new(
   generated,
-  current,
-  add_template_only_nodes: true,
-).merge
+  existing,
+  preference: :template,  # Use generated signatures
+  add_template_only_nodes: true,          # Add new methods
+)
+result = merger.merge
 
-File.write("sig/example.rbs", merged)
+File.write("sig/my_class.rbs", result.to_s)
+```
+
+### Protecting Custom Types
+
+Use freeze blocks to protect hand-crafted type definitions:
+
+```ruby
+# destination.rbs
+class MyAPI
+  # rbs-merge:freeze
+  # These types are carefully tuned and should not be overwritten
+  def fetch: [T] (String path, Class[T] type) -> T
+  def post: [T, U] (String path, T body, Class[U] response_type) -> U
+  # rbs-merge:unfreeze
+
+  def version: () -> String
+end
+```
+
+The generic method signatures in the freeze block will be preserved even if the template has simpler signatures.
+
+### Merge Result Information
+
+The merge result provides detailed information about decisions made:
+
+```ruby
+merger = Rbs::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+# Get the merged content
+puts result.to_s
+
+# Check if anything was merged
+puts "Empty result" if result.empty?
+
+# Get summary of decisions
+summary = result.summary
+puts "Total decisions: #{summary[:total_decisions]}"
+puts "Total lines: #{summary[:total_lines]}"
+puts "By decision type: #{summary[:by_decision]}"
+```
+
+### Error Handling
+
+Rbs::Merge provides specific error types for different failure modes:
+
+```ruby
+require "rbs/merge"
+
+begin
+  merger = Rbs::Merge::SmartMerger.new(template, destination)
+  result = merger.merge
+rescue Rbs::Merge::TemplateParseError => e
+  puts "Template has syntax errors: #{e.message}"
+rescue Rbs::Merge::DestinationParseError => e
+  puts "Destination has syntax errors: #{e.message}"
+rescue Rbs::Merge::FreezeNode::InvalidStructureError => e
+  puts "Invalid freeze block structure: #{e.message}"
+  puts "  Start line: #{e.start_line}"
+  puts "  End line: #{e.end_line}"
+end
 ```
 
 ## 🔐 Security
@@ -357,3 +666,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge

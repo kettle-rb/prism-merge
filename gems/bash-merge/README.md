@@ -28,15 +28,52 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Bash::Merge` intelligently merges shell scripts by matching Bash structure instead of raw line ranges. It understands shebangs, comments, assignments, functions, conditionals, loops, heredocs, and command blocks through `tree_haver` and the shared `ast-merge` runtime.
+Bash::Merge is a standalone Ruby module that intelligently merges two versions of a Bash script using tree-sitter AST analysis. It's like a smart "git merge" specifically designed for shell scripts. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
 
 ### Key Features
 
-- Function and assignment matching by structural identity.
-- Comment and shebang preservation.
-- Freeze blocks with `# bash-merge:freeze` and `# bash-merge:unfreeze`.
-- Tree-sitter-backed parsing with availability diagnostics.
-- `SmartMerger` API compatible with the other Ruby merge families.
+- **Tree-Sitter Powered**: Uses tree-sitter-bash for accurate AST parsing
+- **Script-Aware**: Understands Bash syntax including functions, variables, and commands
+- **Intelligent**: Matches functions and variable assignments by name
+- **Comment-Preserving**: Comments are preserved in their context
+- **Shebang Handling**: Properly handles `#!/bin/bash` and similar shebangs
+- **Freeze Block Support**: Respects freeze markers (default: `bash-merge:freeze` / `bash-merge:unfreeze`) for merge control - customizable to match your project's conventions
+- **Full Provenance**: Tracks origin of every node
+- **Standalone**: Minimal dependencies - just `ast-merge` and `ruby_tree_sitter`
+- **Customizable**:
+    - `signature_generator` - callable custom signature generators
+    - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+    - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge][ast-merge] docs)
+    - `add_template_only_nodes` - setting to retain nodes that do not exist in destination
+    - `freeze_token` - customize freeze block markers (default: `"bash-merge"`)
+
+### Supported Node Types
+
+| Node Type           | Signature Format            | Matching Behavior                         |
+|---------------------|-----------------------------|-------------------------------------------|
+| Function Definition | `[:function, name]`         | Functions match by name                   |
+| Variable Assignment | `[:assignment, name]`       | Variables match by name                   |
+| Command             | `[:command, name, args...]` | Commands match by name and arguments      |
+| Comment             | `[:comment, text]`          | Comments preserved in context             |
+| Pipeline            | `[:pipeline, commands...]`  | Pipelines match by command sequence       |
+| If Statement        | `[:if, condition_sig]`      | Conditionals match by condition signature |
+| For Loop            | `[:for, variable]`          | For loops match by loop variable          |
+| While Loop          | `[:while, condition_sig]`   | While loops match by condition signature  |
+
+### Example
+
+```ruby
+require "bash/merge"
+
+template = File.read("template.sh")
+destination = File.read("destination.sh")
+
+merger = Bash::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.sh", result.to_bash)
+```
+
 
 ## 💡 Info you can shake a stick at
 
@@ -143,34 +180,125 @@ gem install bash-merge
 ```ruby
 merger = Bash::Merge::SmartMerger.new(
   template_content,
-  destination_content,
+  dest_content,
+  # Which version to prefer when nodes match
+  # :destination (default) - keep destination code
+  # :template - use template code
   preference: :destination,
+
+  # Whether to add template-only nodes to the result
+  # false (default) - only include nodes that exist in destination
+  # true - include all template nodes (functions, variables, etc.)
   add_template_only_nodes: false,
+
+  # Token for freeze block markers
+  # Default: "bash-merge"
+  # Looks for: # bash-merge:freeze / # bash-merge:unfreeze
   freeze_token: "bash-merge",
-  signature_generator: nil,
+
+  # Custom signature generator (optional)
+  # Receives a node, returns a signature array or nil
+  signature_generator: ->(node) { [:function, node.name] if node.type == :function_definition },
 )
 ```
 
-| Option | Default | Purpose |
-|---|---|---|
-| `preference` | `:destination` | Chooses which side wins when matching owners differ. |
-| `add_template_only_nodes` | `false` | Adds owners that exist only in the template. |
-| `signature_generator` | `nil` | Supplies custom owner signatures for project-specific matching. |
-| `match_refiner` / `match_refiners` | `nil` | Enables fuzzy matching for owners that do not match by signature. |
-
-Use `Bash::Merge.available?` or `Bash::Merge.availability` to check whether the parser backend can load in the current Ruby process before enabling shell-script merges in CI.
-
 ## 🔧 Basic Usage
+
+### Simple Merge
 
 ```ruby
 require "bash/merge"
 
-template = File.read("template.sh")
-destination = File.read("script.sh")
+# Template defines the structure
+template = <<~BASH
+  #!/bin/bash
 
-merged = Bash::Merge::SmartMerger.new(template, destination).merge
+  # Configuration
+  APP_NAME="myapp"
+  DEBUG=false
 
-File.write("script.sh", merged)
+  # Main function
+  main() {
+    echo "Starting $APP_NAME"
+    setup
+    run
+  }
+
+  setup() {
+    echo "Setting up..."
+  }
+
+  run() {
+    echo "Running..."
+  }
+
+  main "$@"
+BASH
+
+# Destination has customizations
+destination = <<~BASH
+  #!/bin/bash
+
+  # Configuration
+  APP_NAME="myapp-custom"
+  DEBUG=true
+  LOG_FILE="/var/log/myapp.log"
+
+  # Main function with custom logging
+  main() {
+    echo "Starting $APP_NAME" | tee -a "$LOG_FILE"
+    setup
+    run
+  }
+
+  setup() {
+    echo "Custom setup..."
+  }
+
+  main "$@"
+BASH
+
+merger = Bash::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+puts result.to_bash
+```
+
+### Using Freeze Blocks
+
+Freeze blocks protect sections from being overwritten during merge:
+
+```bash
+#!/bin/bash
+
+# Configuration
+APP_NAME="myapp"
+
+# bash-merge:freeze Custom credentials
+DB_USER="production_user"
+DB_PASS="super_secret_password"
+API_KEY="my_production_api_key"
+# bash-merge:unfreeze
+
+# Standard functions
+main() {
+  echo "Starting $APP_NAME"
+}
+
+main "$@"
+```
+
+Content between `# bash-merge:freeze` and `# bash-merge:unfreeze` markers is preserved from the destination file, regardless of what the template contains.
+
+### Adding Template-Only Nodes
+
+```ruby
+merger = Bash::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+result = merger.merge
+# Result includes functions/variables from template that don't exist in destination
 ```
 
 ## 🔐 Security
@@ -354,3 +482,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge

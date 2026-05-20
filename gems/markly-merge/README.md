@@ -28,15 +28,70 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Markly::Merge` is a Ruby provider package for the Markdown merge family. Markdown provider backed by Markly/libcmark-gfm. It registers its backend with `tree_haver` and exposes provider-specific defaults while preserving the canonical family contract.
+`markly-merge` is a thin wrapper around [markdown-merge][markdown-merge] that provides:
 
-### Key Features
+  - **Hard dependency on Markly** - Ensures the libcmark-gfm (C) parser is installed
+  - **Markly-specific defaults** - Freeze token: `"markly-merge"`, `inner_merge_code_blocks: true`
+  - **Markly parse options** - Pass `flags:` and `extensions:` parameters
+    For an alternative using Comrak (Rust), see [commonmarker-merge][commonmarker-merge].
 
-- Backend registration for `Markly`.
-- Provider-specific parser capability reporting.
-- Family-compatible parse and merge methods.
-- Structured diagnostics for unsupported backends and parser failures.
-- A provider `SmartMerger` wrapper when the underlying family exposes one.
+### Features (via markdown-merge)
+
+  - **Markly-Powered**: Uses libcmark-gfm for accurate CommonMark + GFM parsing
+  - **Structure-Aware**: Understands headings, lists, code blocks, tables, and more
+  - **Intelligent**: Matches sections by heading structure and content signatures
+  - **Comment-Preserving**: HTML comments are preserved in context
+  - **Freeze Block Support**: Respects freeze markers (default: `markly-merge:freeze` / `markly-merge:unfreeze`) for merge control - customizable to match your project's conventions
+  - **Type Normalization**: Canonical node types work across all markdown backends
+  - **Full Provenance**: Tracks origin of every node
+  - **Inner-Merge Code Blocks**: Enabled by default - merges fenced code blocks using language-specific mergers
+  - **Customizable**:
+      - `signature_generator` - callable custom signature generators
+      - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+      - `add_template_only_nodes` - setting to retain sections that do not exist in destination
+      - `freeze_token` - customize freeze block markers (default: `"markly-merge"`)
+      - `flags` - Markly parse flags (e.g., `Markly::FOOTNOTES`, `Markly::SMART`)
+      - `extensions` - GFM extensions (`:table`, `:strikethrough`, `:autolink`, `:tagfilter`, `:tasklist`)
+
+### Removal Mode Scope
+
+`remove_template_missing_nodes: true` in `markly-merge` currently follows the shared `markdown-merge` full-document contract:
+
+- removes **top-level destination-only structural blocks**
+- preserves **standalone HTML comment-only fragments**, **link reference definitions**, and **freeze blocks**
+- preserves **one separator blank line** when removed structural content collapses around a kept standalone HTML comment fragment
+- does **not** yet define generic inline-comment promotion or recursive/nested section-removal semantics
+
+Section-local `replace_mode` / partial-template behavior still follows its own conservative Markdown rules and should not be assumed to inherit the same recursive removal contract as full-document smart merge.
+
+### Supported Node Types
+
+| Node Type      | Signature Format                | Matching Behavior                                  |
+|----------------|---------------------------------|----------------------------------------------------|
+| Heading        | `[:heading, level, text]`       | Headings match by level and text content           |
+| Paragraph      | `[:paragraph, text_hash]`       | Paragraphs match by content hash                   |
+| List           | `[:list, type, item_count]`     | Lists match by type (bullet/ordered) and structure |
+| List Item      | `[:list_item, content_sig]`     | Items match by content signature                   |
+| Code Block     | `[:code_block, language, info]` | Code blocks match by language and info string      |
+| Block Quote    | `[:block_quote, content_sig]`   | Block quotes match by content signature            |
+| Table          | `[:table, header_sig]`          | Tables match by header structure                   |
+| HTML Block     | `[:html_block, content]`        | HTML blocks match by content                       |
+| Thematic Break | `[:thematic_break]`             | Horizontal rules always match                      |
+
+### Example
+
+```ruby
+require "markly/merge"
+
+template = File.read("template.md")
+destination = File.read("destination.md")
+
+merger = Markly::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.md", result.to_markdown)
+```
+
 
 ## 💡 Info you can shake a stick at
 
@@ -141,28 +196,120 @@ gem install markly-merge
 ## ⚙️ Configuration
 
 ```ruby
-require "markly/merge"
+merger = Markly::Merge::SmartMerger.new(
+  template_content,
+  dest_content,
+  # Which version to prefer when nodes match
+  # :destination (default) - keep destination content
+  # :template - use template content
+  preference: :destination,
 
-profile = Markly::Merge.markdown_backend_feature_profile(backend: :markly)
-context = Markly::Merge.markdown_plan_context(backend: :markly)
+  # Whether to add template-only nodes to the result
+  # false (default) - only include sections that exist in destination
+  # true - include all template sections
+  add_template_only_nodes: false,
+
+  # Token for freeze block markers
+  # Default: "markly-merge"
+  # Looks for: <!-- markly-merge:freeze --> / <!-- markly-merge:unfreeze -->
+  freeze_token: "markly-merge",
+
+  # Custom signature generator (optional)
+  # Receives a node, returns a signature array or nil
+  signature_generator: ->(node) { [:heading, node.header_level, node.string_content] if node.type == :heading },
+)
 ```
-
-Use this package when you want a hard dependency on the `Markly` backend. Use the canonical family package when backend auto-selection is preferred.
 
 ## 🔧 Basic Usage
 
-```ruby
+### Simple Merge
+
+````ruby
 require "markly/merge"
 
-result = Markly::Merge.merge_markdown(
-  File.read("template.md"),
-  File.read("destination.md"),
-  "markdown",
-  backend: :markly,
-)
+# Template defines the structure
+template = <<~MD
+  # My Project
 
-abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
-File.write("destination.md", result.fetch(:output))
+  ## How to Install
+
+  Run `gem install my-project`.
+
+  ## How to Use
+
+  Instructions here.
+
+  ## Contributing
+
+  Please read CONTRIBUTING.md.
+MD
+
+# Destination has customizations
+destination = <<~MD
+  # My Project
+
+  ## How to Install
+
+  Use bundler for better dependency management:
+
+  ```bash
+  bundle add my-project
+  ```
+
+  ## Custom Section
+
+  This section only exists in destination.
+MD
+
+merger = Markly::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+puts result.to_markdown
+````
+
+### Using Freeze Blocks
+
+Freeze blocks protect sections from being overwritten during merge:
+
+````markdown
+# My Project
+
+## How to Install
+
+<!-- markly-merge:freeze Custom install instructions -->
+This installation section has been customized and will be preserved
+during template merges, regardless of what the template contains.
+<!-- markly-merge:unfreeze -->
+
+## How to Use
+
+Standard usage section from template.
+````
+
+Content between `<!-- markly-merge:freeze -->` and `<!-- markly-merge:unfreeze -->` markers is preserved from the destination file.
+
+### Adding Template-Only Sections
+
+```ruby
+merger = Markly::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+result = merger.merge
+# Result includes sections from template that don't exist in destination
+```
+
+### Freeze Blocks
+
+Freeze blocks protect sections from being modified during merges. They are marked
+with HTML comments that are invisible when the Markdown is rendered:
+
+```markdown
+<!-- markdown-merge:freeze -->
+
+# Some Markdown in here!
+
+<!-- markdown-merge:unfreeze -->
 ```
 
 ## 🔐 Security
@@ -346,3 +493,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[markdown-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markdown-merge
+[commonmarker-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/commonmarker-merge

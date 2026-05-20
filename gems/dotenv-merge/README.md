@@ -28,15 +28,49 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Dotenv::Merge` merges `.env` and `.env.example` style files by environment key while preserving destination-owned secrets, comments, blank lines, and freeze regions. It is designed for template env files where new keys should be introduced without overwriting local values.
+Dotenv::Merge is a standalone Ruby module that intelligently merges two versions of a dotenv (`.env`) file. It's like a smart "git merge" specifically designed for environment configuration files. Built on top of [ast-merge][ast-merge], it shares the same architecture as [prism-merge][prism-merge] for Ruby source files.
 
 ### Key Features
 
-- Key-based matching for `NAME=value` assignments.
-- Preservation of destination values by default.
-- Comment and blank-line retention around matched entries.
-- Freeze blocks with `# dotenv-merge:freeze` and `# dotenv-merge:unfreeze`.
-- `SmartMerger` API with structured parse errors and corruption checks.
+- **Dotenv-Aware**: Understands dotenv file format (KEY=value, comments, exports)
+- **Intelligent**: Matches environment variables by key name
+- **Comment-Preserving**: Comments and blank lines are preserved in their context
+- **Freeze Block Support**: Respects freeze markers (default: `dotenv-merge:freeze` / `dotenv-merge:unfreeze`) for merge control - customizable to match your project's conventions
+- **Full Provenance**: Tracks origin of every line
+- **Standalone**: Minimal dependencies - just `ast-merge`
+- **Customizable**:
+    - `signature_generator` - callable custom signature generators
+    - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+    - `node_splitter` - Hash mapping node types to callables for per-node-type merge customization (see [ast-merge][ast-merge] docs)
+    - `add_template_only_nodes` - setting to retain variables that do not exist in destination
+    - `freeze_token` - customize freeze block markers (default: `"dotenv-merge"`)
+
+### Supported Line Types
+
+| Line Type | Format | Matching Behavior |
+| --- | --- | --- |
+| Assignment | `KEY=value` | Variables match by key name |
+| Export | `export KEY=value` | Treated as assignment with export flag |
+| Comment | `# comment text` | Preserved in context |
+| Blank | (empty line) | Preserved for readability |
+| Double-quoted | `KEY="value with\nescapes"` | Escape sequences processed |
+| Single-quoted | `KEY='literal value'` | No escape processing |
+| Inline comment | `KEY=value # comment` | Comment stripped from value |
+
+### Example
+
+```ruby
+require "dotenv/merge"
+
+template = File.read("template.env")
+destination = File.read("destination.env")
+
+merger = Dotenv::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.env", result.to_s)
+```
+
 
 ## 💡 Info you can shake a stick at
 
@@ -142,38 +176,91 @@ gem install dotenv-merge
 
 ```ruby
 merger = Dotenv::Merge::SmartMerger.new(
-  template_content,
-  destination_content,
-  preference: :destination,
-  add_template_only_nodes: true,
-  freeze_token: "dotenv-merge",
+  template,
+  destination,
+  # When conflicts occur, prefer template or destination values
+  preference: :template,            # or :destination (default)
+  # Add entries that only exist in template
+  add_template_only_nodes: true,    # default: false
 )
 ```
 
-| Option | Default | Purpose |
-|---|---|---|
-| `preference` | `:destination` | Chooses which side wins when matching owners differ. |
-| `add_template_only_nodes` | `false` | Adds owners that exist only in the template. |
-| `signature_generator` | `nil` | Supplies custom owner signatures for project-specific matching. |
-| `match_refiner` / `match_refiners` | `nil` | Enables fuzzy matching for owners that do not match by signature. |
+### Signature Match Preference
 
-For template env files, `add_template_only_nodes: true` is usually the useful setting because it adds new keys while destination values continue to win for existing keys.
+Control which source wins when both files have the same key:
+
+- **`:template`** - Template values replace destination values
+
+    - Version files (`VERSION=2.0.0` should replace `VERSION=1.0.0`)
+    - API endpoint updates (`API_URL=https://new-api.example.com`)
+
+- **`:destination`** (default) - Destination values are preserved
+
+    - Local development settings
+    - Project-specific customizations
+
+### Template-Only Nodes
+
+Control whether to add entries that only exist in the template:
+
+- **`true`** - Add new entries from template
+
+    - New required environment variables
+    - New configuration options
+
+- **`false`** (default) - Skip template-only entries
+
+    - Template has placeholder values
+    - Destination is authoritative
 
 ## 🔧 Basic Usage
+
+### Simple Merge
 
 ```ruby
 require "dotenv/merge"
 
-template = File.read(".env.example")
-destination = File.exist?(".env") ? File.read(".env") : ""
+template = File.read("template.env")
+destination = File.read("destination.env")
 
-merged = Dotenv::Merge::SmartMerger.new(
+merger = Dotenv::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.env", result)
+```
+
+### Working with Freeze Blocks
+
+Freeze blocks protect sections of your `.env` file from being modified during merges:
+
+    # << FREEZE: project_secrets
+    DATABASE_URL=postgresql://localhost/myapp_dev
+    SECRET_KEY_BASE=my_local_secret_key_value
+    # >> FREEZE: project_secrets
+
+    # These entries can be updated by template
+    API_VERSION=v2
+
+### Adding Template-Only Entries
+
+```ruby
+# Template introduces a new required variable
+template = <<~ENV
+  DATABASE_URL=postgresql://localhost/template_db
+  NEW_FEATURE_FLAG=enabled
+ENV
+
+destination = <<~ENV
+  DATABASE_URL=postgresql://localhost/myapp_dev
+ENV
+
+merger = Dotenv::Merge::SmartMerger.new(
   template,
   destination,
   add_template_only_nodes: true,
-).merge
-
-File.write(".env", merged)
+)
+result = merger.merge
+# Result includes DATABASE_URL from destination + NEW_FEATURE_FLAG from template
 ```
 
 ## 🔐 Security
@@ -357,3 +444,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
+[prism-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/prism-merge

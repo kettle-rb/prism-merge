@@ -28,15 +28,57 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Toml::Merge` merges TOML documents by table and key path. It is the canonical TOML family package, with provider gems available for parser-specific behavior.
+`toml-merge` provides intelligent merging of TOML files by parsing them into
+tree-sitter AST nodes and comparing structural elements. It supports:
 
-### Key Features
+- **Smart key matching** - Keys and tables are matched by their structural signatures
+- **Table matching** - Tables are matched using a multi-factor scoring algorithm that considers
+  key similarity, value overlap, and position
+- **Freeze blocks** - Mark sections with comments to preserve them during merges
+- **Configurable merge strategies** - Choose whether template or destination wins for conflicts,
+  or use a Hash for per-node-type preferences with `node_splitter` (see [ast-merge][ast-merge] docs)
+- **Full TOML support** - Works with all TOML 1.0 features including inline tables, arrays of tables, and dotted keys
 
-- Table, array-of-table, dotted-key, scalar, and comment-aware analysis.
-- Backend selection through `tree_haver` and provider packages.
-- Destination-wins array policy for safe list preservation.
-- `SmartMerger`, `FileAnalysis`, `TableMatchRefiner`, and module-level `merge_toml` APIs.
-- Parser diagnostic normalization for fixture and CI output.
+### Configuration
+
+The tree-sitter TOML parser requires a shared library. Set the `TREE_SITTER_TOML_PATH` environment variable to point to your compiled `libtree-sitter-toml.so` (or `.dylib` on macOS):
+
+```bash
+export TREE_SITTER_TOML_PATH=/path/to/libtree-sitter-toml.so
+```
+
+### Basic Usage
+
+```ruby
+require "toml/merge"
+
+template = <<~TOML
+  [package]
+  name = "my-app"
+  version = "1.0.0"
+
+  [dependencies]
+  serde = "1.0"
+TOML
+
+destination = <<~TOML
+  [package]
+  name = "my-app"
+  version = "2.0.0"
+  authors = ["Custom Author"]
+
+  [dev-dependencies]
+  tokio = "1.0"
+TOML
+
+merger = Toml::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+puts result.content if result.success?
+# The [package] section is merged with destination's version and authors preserved,
+# [dependencies] from template is included,
+# [dev-dependencies] from destination is kept
+```
 
 ## 💡 Info you can shake a stick at
 
@@ -140,39 +182,43 @@ gem install toml-merge
 
 ## ⚙️ Configuration
 
-```ruby
-merger = Toml::Merge::SmartMerger.new(
-  template_content,
-  destination_content,
-  preference: :destination,
-  add_template_only_nodes: true,
-  backend: nil,
-  match_refiner: Toml::Merge::TableMatchRefiner.new,
-)
+The tree-sitter TOML parser requires a shared library. Set the `TREE_SITTER_TOML_PATH` environment variable to point to your compiled `libtree-sitter-toml.so` (or `.dylib` on macOS):
+
+```bash
+export TREE_SITTER_TOML_PATH=/path/to/libtree-sitter-toml.so
 ```
-
-| Option | Default | Purpose |
-|---|---|---|
-| `preference` | `:destination` | Chooses which side wins when matching owners differ. |
-| `add_template_only_nodes` | `false` | Adds owners that exist only in the template. |
-| `signature_generator` | `nil` | Supplies custom owner signatures for project-specific matching. |
-| `match_refiner` / `match_refiners` | `nil` | Enables fuzzy matching for owners that do not match by signature. |
-
-Use `Toml::Merge.available_toml_backends`, `Toml::Merge.toml_backend_feature_profile`, and `Toml::Merge.toml_plan_context` to choose or report parser capabilities.
 
 ## 🔧 Basic Usage
 
 ```ruby
 require "toml/merge"
 
-result = Toml::Merge.merge_toml(
-  File.read("template.toml"),
-  File.read("config.toml"),
-  "toml",
-)
+template = <<~TOML
+  [package]
+  name = "my-app"
+  version = "1.0.0"
 
-abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
-File.write("config.toml", result.fetch(:output))
+  [dependencies]
+  serde = "1.0"
+TOML
+
+destination = <<~TOML
+  [package]
+  name = "my-app"
+  version = "2.0.0"
+  authors = ["Custom Author"]
+
+  [dev-dependencies]
+  tokio = "1.0"
+TOML
+
+merger = Toml::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+puts result.content if result.success?
+# The [package] section is merged with destination's version and authors preserved,
+# [dependencies] from template is included,
+# [dev-dependencies] from destination is kept
 ```
 
 ## 🔐 Security
@@ -356,3 +402,5 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge

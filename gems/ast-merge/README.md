@@ -28,15 +28,252 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`ast-merge` is the shared Ruby substrate for StructuredMerge. It provides the common contracts used by the format-specific merge gems: owner selection, ruleset parsing, review state, nested merge dispatch, diagnostics, conformance suite runners, and template execution planning.
+Ast::Merge is **not typically used directly** - instead, use one of the format-specific gems built on top of it.
 
-### Key Features
+### Architecture: tree\_haver + ast-merge
 
-- Provider-neutral merge contracts for JSON-like results, diagnostics, policies, and owner matches.
-- Ruleset parsing for compact merge recipes and package-level template behavior.
-- Review and replay primitives for merges that need human decisions before nested output is applied.
-- Conformance helpers used by the shared fixture suite across Ruby merge gems.
-- Text utilities for line and section based fallbacks when a parser-backed family cannot safely own the whole file.
+The `*-merge` gem family is built on a two-layer architecture:
+
+#### Layer 1: tree\_haver (Parsing Foundation)
+
+[tree\_haver][tree_haver] provides cross-Ruby parsing capabilities:
+
+- **Universal Backend Support**: Automatically selects the best parsing backend for your Ruby implementation (MRI, JRuby, TruffleRuby)
+- **10 Backend Options**: MRI C extensions, Rust bindings, FFI, Java (JRuby), language-specific parsers (Prism, Psych, Commonmarker, Markly), and pure Ruby fallback (Citrus)
+- **Unified API**: Write parsing code once, run on any Ruby implementation
+- **Grammar Discovery**: Built-in `GrammarFinder` for platform-aware grammar library discovery
+- **Thread-Safe**: Language registry with thread-safe caching
+
+#### Layer 2: ast-merge (Merge Infrastructure)
+
+Ast::Merge builds on tree\_haver to provide:
+
+- **Base Classes**: `FreezeNode`, `MergeResult` base classes with unified constructors
+- **Shared Modules**: `FileAnalysisBase`, `FileAnalyzable`, `MergerConfig`, `DebugLogger`
+- **Freeze Block Support**: Configurable marker patterns for multiple comment syntaxes (preserve sections during merge)
+- **Node Typing System**: `NodeTyping` for canonical node type identification across different parsers
+- **Conflict Resolution**: `ConflictResolverBase` with pluggable strategies
+- **Error Classes**: `ParseError`, `TemplateParseError`, `DestinationParseError`
+- **Region Detection**: `RegionDetectorBase`, `FencedCodeBlockDetector` for text-based analysis
+- **RSpec Shared Examples**: Test helpers for implementing new merge gems
+
+### Creating a New Merge Gem
+
+```ruby
+require "ast/merge"
+
+module MyFormat
+  module Merge
+    # Inherit from base classes and pass **options for forward compatibility
+
+    class SmartMerger < Ast::Merge::SmartMergerBase
+      DEFAULT_FREEZE_TOKEN = "myformat-merge"
+
+      def initialize(template, dest, my_custom_option: nil, **options)
+        @my_custom_option = my_custom_option
+        super(template, dest, **options)
+      end
+
+      protected
+
+      def analysis_class
+        FileAnalysis
+      end
+
+      def default_freeze_token
+        DEFAULT_FREEZE_TOKEN
+      end
+
+      def perform_merge
+        # Implement format-specific merge logic
+        # Returns a MergeResult
+      end
+    end
+
+    class FileAnalysis
+      include Ast::Merge::FileAnalyzable
+
+      def initialize(source, freeze_token: nil, signature_generator: nil, **options)
+        @source = source
+        @freeze_token = freeze_token
+        @signature_generator = signature_generator
+        # Process source...
+      end
+
+      def compute_node_signature(node)
+        # Return signature array for node matching
+      end
+    end
+
+    class ConflictResolver < Ast::Merge::ConflictResolverBase
+      def initialize(template_analysis, dest_analysis, preference: :destination,
+        add_template_only_nodes: false, match_refiner: nil, **options)
+        super(
+          strategy: :batch,  # or :node, :boundary
+          preference: preference,
+          template_analysis: template_analysis,
+          dest_analysis: dest_analysis,
+          add_template_only_nodes: add_template_only_nodes,
+          match_refiner: match_refiner,
+          **options
+        )
+      end
+
+      protected
+
+      def resolve_batch(result)
+        # Implement batch resolution logic
+      end
+    end
+
+    class MergeResult < Ast::Merge::MergeResultBase
+      def initialize(**options)
+        super(**options)
+        @statistics = {merged_count: 0}
+      end
+
+      def to_my_format
+        to_s
+      end
+    end
+
+    class MatchRefiner < Ast::Merge::MatchRefinerBase
+      def initialize(threshold: 0.7, node_types: nil, **options)
+        super(threshold: threshold, node_types: node_types, **options)
+      end
+
+      def similarity(template_node, dest_node)
+        # Return similarity score between 0.0 and 1.0
+      end
+    end
+  end
+end
+```
+
+### Base Classes Reference
+
+| Base Class             | Purpose                     | Key Methods to Implement               |
+|------------------------|-----------------------------|----------------------------------------|
+| `SmartMergerBase`      | Main merge orchestration    | `analysis_class`, `perform_merge`      |
+| `ConflictResolverBase` | Resolve node conflicts      | `resolve_batch` or `resolve_node_pair` |
+| `MergeResultBase`      | Track merge results         | `to_s`, format-specific output         |
+| `MatchRefinerBase`     | Fuzzy node matching         | `similarity`                           |
+| `ContentMatchRefiner`  | Text content fuzzy matching | Ready to use                           |
+| `FileAnalyzable`       | File parsing/analysis       | `compute_node_signature`               |
+
+### ContentMatchRefiner
+
+`Ast::Merge::ContentMatchRefiner` is a built-in match refiner for fuzzy text content matching using Levenshtein distance. Unlike signature-based matching which requires exact content hashes, this refiner allows matching nodes with similar (but not identical) content.
+
+```ruby
+# Basic usage - match nodes with 70% similarity
+refiner = Ast::Merge::ContentMatchRefiner.new(threshold: 0.7)
+
+# Only match specific node types
+refiner = Ast::Merge::ContentMatchRefiner.new(
+  threshold: 0.6,
+  node_types: [:paragraph, :heading],
+)
+
+# Custom weights for scoring
+refiner = Ast::Merge::ContentMatchRefiner.new(
+  threshold: 0.7,
+  weights: {
+    content: 0.8,   # Levenshtein similarity (default: 0.7)
+    length: 0.1,    # Length similarity (default: 0.15)
+    position: 0.1,   # Position in document (default: 0.15)
+  },
+)
+
+# Custom content extraction
+refiner = Ast::Merge::ContentMatchRefiner.new(
+  threshold: 0.7,
+  content_extractor: ->(node) { node.text_content.downcase.strip },
+)
+
+# Use with a merger
+merger = MyFormat::SmartMerger.new(
+  template,
+  destination,
+  preference: :template,
+  match_refiner: refiner,
+)
+```
+
+This is particularly useful for:
+
+- Paragraphs with minor edits (typos, rewording)
+- Headings with slight changes
+- Comments with updated text
+- Any text-based node that may have been slightly modified
+
+### JaccardSimilarity
+
+`Ast::Merge::JaccardSimilarity` provides set-based fuzzy matching of text blocks using Jaccard index with bigram and token overlap metrics. This is the foundation for detecting renamed or refactored nodes that share similar content.
+
+```ruby
+# Calculate similarity between two text strings
+Ast::Merge::JaccardSimilarity.jaccard("def process_users(data)", "def handle_users(data)")
+# => 0.75 (high overlap due to shared tokens)
+
+# Extract tokens from text for comparison
+tokens = Ast::Merge::JaccardSimilarity.extract_tokens("data.each { |u| validate(u) }")
+# => ["data", "each", "validate"]
+```
+
+### TokenMatchRefiner
+
+`Ast::Merge::TokenMatchRefiner` extends `MatchRefinerBase` for Jaccard-based fuzzy refinement of unmatched node pairs during alignment. It uses greedy best-first matching to pair orphan nodes that have similar body text.
+
+```ruby
+refiner = Ast::Merge::TokenMatchRefiner.new(
+  threshold: 0.6,                  # Minimum Jaccard similarity (default: 0.6)
+  node_types: [:def, :class],       # Only match these node types
+)
+
+merger = MyFormat::SmartMerger.new(
+  template,
+  destination,
+  match_refiner: refiner,
+)
+```
+
+### CompositeMatchRefiner
+
+`Ast::Merge::CompositeMatchRefiner` chains multiple refiners sequentially, enabling multi-strategy matching in a single alignment pass. Each refiner operates on the residual unmatched nodes from the previous refiner.
+
+```ruby
+composite = Ast::Merge::CompositeMatchRefiner.new(refiners: [
+  Ast::Merge::ContentMatchRefiner.new(threshold: 0.8),  # strict text match first
+  Ast::Merge::TokenMatchRefiner.new(threshold: 0.5),    # then looser token match
+])
+
+merger = MyFormat::SmartMerger.new(
+  template,
+  destination,
+  match_refiner: composite,
+)
+```
+
+### Namespace Reference
+
+The `Ast::Merge` module is organized into several namespaces, each with detailed documentation:
+
+| Namespace              | Purpose                            | Documentation                                                        |
+|------------------------|------------------------------------|----------------------------------------------------------------------|
+| `Ast::Merge::Detector` | Region detection and merging       | [lib/ast/merge/detector/README.md](lib/ast/merge/detector/README.md) |
+| `Ast::Merge::Recipe`   | YAML-based merge recipes           | [lib/ast/merge/recipe/README.md](lib/ast/merge/recipe/README.md)     |
+| `Ast::Merge::Comment`  | Comment parsing and representation | [lib/ast/merge/comment/README.md](lib/ast/merge/comment/README.md)   |
+| `Ast::Merge::Text`     | Plain text AST parsing             | [lib/ast/merge/text/README.md](lib/ast/merge/text/README.md)         |
+| `Ast::Merge::RSpec`    | Shared RSpec examples              | [lib/ast/merge/rspec/README.md](lib/ast/merge/rspec/README.md)       |
+
+**Key Classes by Namespace:**
+
+- **Detector**: `Region`, `Base`, `Mergeable`, `FencedCodeBlock`, `YamlFrontmatter`, `TomlFrontmatter`
+- **Recipe**: `Config`, `Runner`, `ScriptLoader`
+- **Comment**: `Line`, `Block`, `Empty`, `Parser`, `Style`
+- **Text**: `SmartMerger`, `FileAnalysis`, `LineNode`, `WordNode`, `Section`
+- **RSpec**: Shared examples and dependency tags for testing `*-merge` implementations
 
 ## 💡 Info you can shake a stick at
 
@@ -140,36 +377,104 @@ gem install ast-merge
 
 ## ⚙️ Configuration
 
-`ast-merge` is usually configured by the family gem that calls it. Direct callers normally choose a merge engine, a ruleset, or a conformance context.
+`ast-merge` provides base classes and shared interfaces for building format-specific merge tools.
+Each implementation (like `prism-merge`, `psych-merge`, etc.) has its own SmartMerger with format-specific configuration.
+
+### Common Configuration Options
+
+All SmartMerger implementations share these configuration options:
 
 ```ruby
-require "ast/merge"
-
-ruleset = Ast::Merge.parse_compact_ruleset("json.destination_wins_array")
-profile = Ast::Merge.compact_ruleset_feature_profile(ruleset)
+merger = SomeFormat::Merge::SmartMerger.new(
+  template,
+  destination,
+  # When conflicts occur, prefer template or destination values
+  preference: :template,            # or :destination (default), or a Hash for per-node-type
+  # Add nodes that only exist in template (Boolean or callable filter)
+  add_template_only_nodes: true,    # default: false, or ->(node, entry) { ... }
+  # Custom node type handling
+  node_typing: {},                # optional, for per-node-type preference
+)
 ```
 
-Template execution accepts template paths, destination contents, default strategies, and per-entry overrides. Conformance execution accepts a manifest, family profile, feature profile, and a block that runs the implementation under test.
+### Signature Match Preference
+
+Control which source wins when both files have the same structural element:
+
+- **`:template`** - Template values replace destination values
+- **`:destination`** (default) - Destination values are preserved
+- **Hash** - Per-node-type preference (see Advanced Configuration)
+
+### Template-Only Nodes
+
+Control whether to add nodes that only exist in the template:
+
+- **`true`** - Add all template-only nodes
+- **`false`** (default) - Skip template-only nodes
+- **Callable** - Filter which template-only nodes to add
+
+#### Callable Filter
+
+When you need fine-grained control over which template-only nodes are added, pass a callable (Proc/Lambda) that receives `(node, entry)` and returns truthy to add or falsey to skip:
+
+```ruby
+# Only add nodes with gem_family signatures
+merger = SomeFormat::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: ->(node, entry) {
+    sig = entry[:signature]
+    sig.is_a?(Array) && sig.first == :gem_family
+  },
+)
+
+# Only add link definitions that match a pattern
+merger = Markly::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: ->(node, entry) {
+    entry[:template_node].type == :link_definition &&
+      entry[:signature]&.last&.include?("gem")
+  },
+)
+```
+
+The `entry` hash contains:
+
+- `:template_node` - The node being considered for addition
+- `:signature` - The node's signature (Array or other value)
+- `:template_index` - Index in the template statements
+- `:dest_index` - Always `nil` for template-only nodes
 
 ## 🔧 Basic Usage
 
-Use `ast-merge` directly when building a new merge family or running shared fixture contracts.
+### Using Shared Examples in Tests
 
 ```ruby
-require "ast/merge"
+# spec/spec_helper.rb
+require "ast/merge/rspec/shared_examples"
 
-entries = Ast::Merge.plan_template_entries(
-  ["README.md", "lib/example.rb"],
-  { package: "example" },
-  "merge",
-)
-
-plan = Ast::Merge.plan_template_execution(entries, {
-  "README.md" => File.read("README.md"),
-})
-
-puts plan.fetch(:entries).map { |entry| entry.fetch(:path) }
+# spec/my_format/merge/freeze_node_spec.rb
+RSpec.describe(MyFormat::Merge::FreezeNode) do
+  it_behaves_like "Ast::Merge::FreezeNode" do
+    let(:freeze_node_class) { described_class }
+    let(:default_pattern_type) { :hash_comment }
+    let(:build_freeze_node) do
+      lambda { |start_line:, end_line:, **opts|
+        # Build a freeze node for your format
+      }
+    end
+  end
+end
 ```
+
+### Available Shared Examples
+
+- `"Ast::Merge::FreezeNode"` - Tests for FreezeNode implementations
+- `"Ast::Merge::MergeResult"` - Tests for MergeResult implementations
+- `"Ast::Merge::DebugLogger"` - Tests for DebugLogger implementations
+- `"Ast::Merge::FileAnalysisBase"` - Tests for FileAnalysis implementations
+- `"Ast::Merge::MergerConfig"` - Tests for SmartMerger implementations
 
 ## 🔐 Security
 
@@ -352,3 +657,5 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[tree_haver]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/tree_haver

@@ -28,15 +28,61 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Markdown::Merge` is the canonical Markdown family package. It merges Markdown by headings, block structure, fenced code blocks, comments, and nested family outputs while allowing parser-specific provider gems to supply concrete backends.
+Markdown::Merge provides **intelligent Markdown file merging** using tree\_haver backends. It can be used standalone or through parser-specific wrappers.
+
+**Direct usage** (with auto-detected or specified backend):
+
+```ruby
+require "markdown/merge"
+
+# Auto-detect available backend (commonmarker or markly)
+merger = Markdown::Merge::SmartMerger.new(template_content, dest_content)
+result = merger.merge
+
+# Or specify a backend explicitly
+merger = Markdown::Merge::SmartMerger.new(template_content, dest_content, backend: :markly)
+```
+
+**Via parser-specific wrappers** (for hard dependencies and backend-specific defaults):
+
+- [commonmarker-merge][commonmarker-merge] - Uses Comrak (Rust) via Commonmarker
+- [markly-merge][markly-merge] - Uses libcmark-gfm (C) via Markly
 
 ### Key Features
 
-- Heading-section ownership for destination-owned README sections.
-- Common block matching for paragraphs, lists, tables, code blocks, quotes, HTML, and thematic breaks.
-- Freeze blocks with HTML comments.
-- Nested merge dispatch for fenced code blocks and reviewed nested outputs.
-- Backend profiles for Commonmarker, Markly, Kramdown, and other registered providers.
+- **Multiple Backends**: Supports Commonmarker and Markly through tree\_haver's unified API
+- **Type Normalization**: Canonical node types (`:heading`, `:paragraph`, etc.) work across all backends
+- **Extensible**: Register custom backends via `NodeTypeNormalizer.register_backend`
+- **Structure-Aware**: Understands headings, paragraphs, lists, code blocks, tables, and other block elements
+- **Freeze Block Support**: Respects freeze markers (default: `markdown-merge:freeze` / `markdown-merge:unfreeze`) for template merge control - customizable to match your project's conventions
+- **Inner-Merge Code Blocks**: Optionally merge fenced code blocks using language-specific mergers (Ruby → prism-merge, YAML → psych-merge, JSON → json-merge, TOML → toml-merge)
+- **Table Match Refiner**: Fuzzy matching algorithm for tables with similar but not identical headers
+- **Full Provenance**: Tracks origin of every node
+- **Customizable**:
+    - `backend` - select `:commonmarker`, `:markly`, or `:auto`
+    - `signature_generator` - callable custom signature generators
+    - `preference` - setting of `:template`, `:destination`, or a Hash for per-node-type preferences
+    - `add_template_only_nodes` - setting to retain sections that do not exist in destination
+    - `freeze_token` - customize freeze block markers (default: `"markdown-merge"`)
+    - `inner_merge_code_blocks` - enable language-aware code block merging
+    - `match_refiner` - fuzzy matching for unmatched nodes (e.g., `TableMatchRefiner`)
+
+### Supported Node Types
+
+Signatures computed by default for common Markdown block elements:
+
+| Node Type           | Signature Format                        | Matching Behavior                                   |
+|---------------------|-----------------------------------------|-----------------------------------------------------|
+| Heading             | `[:heading, level, text]`               | Headings match by level and text content            |
+| Paragraph           | `[:paragraph, content_hash]`            | Paragraphs match by content hash                    |
+| List                | `[:list, type, item_count]`             | Lists match by type (bullet/ordered) and item count |
+| Code Block          | `[:code_block, language, content_hash]` | Code blocks match by language and content           |
+| Block Quote         | `[:blockquote, content_hash]`           | Block quotes match by content hash                  |
+| Table               | `[:table, row_count, header_hash]`      | Tables match by structure and header content        |
+| HTML Block          | `[:html, content_hash]`                 | HTML blocks match by content hash                   |
+| Thematic Break      | `[:hrule]`                              | Horizontal rules always match                       |
+| Footnote Definition | `[:footnote_definition, label]`         | Footnotes match by label/name                       |
+
 
 ## 💡 Info you can shake a stick at
 
@@ -140,44 +186,368 @@ gem install markdown-merge
 
 ## ⚙️ Configuration
 
-```ruby
-merger = Markdown::Merge::SmartMerger.new(
-  template_content,
-  destination_content,
-  backend: :auto,
-  preference: :destination,
-  add_template_only_nodes: false,
-  freeze_token: "markdown-merge",
-  inner_merge_code_blocks: false,
-  match_refiner: nil,
-)
-```
+### SmartMerger Configuration
 
-| Option | Default | Purpose |
-|---|---|---|
-| `preference` | `:destination` | Chooses which side wins when matching owners differ. |
-| `add_template_only_nodes` | `false` | Adds owners that exist only in the template. |
-| `signature_generator` | `nil` | Supplies custom owner signatures for project-specific matching. |
-| `match_refiner` / `match_refiners` | `nil` | Enables fuzzy matching for owners that do not match by signature. |
-
-Set `backend:` to a provider id when reproducible parser behavior matters. Use `inner_merge_code_blocks: true` only when the language-specific nested merge gems are available in the same bundle.
-
-## 🔧 Basic Usage
+The `SmartMerger` class is the main entry point for merging Markdown files:
 
 ```ruby
 require "markdown/merge"
-require "commonmarker/merge"
 
-result = Markdown::Merge.merge_markdown(
-  File.read("README.template.md"),
-  File.read("README.md"),
-  "markdown",
-  backend: :commonmarker,
+merger = Markdown::Merge::SmartMerger.new(
+  template_content,
+  dest_content,
+
+  # Backend selection (default: :auto)
+  # :auto - auto-detect available backend (tries commonmarker first, then markly)
+  # :commonmarker - use Commonmarker (comrak Rust parser)
+  # :markly - use Markly (cmark-gfm C library)
+  backend: :auto,
+
+  # Which version to prefer when nodes match but differ
+  # :destination (default) - keep destination content (preserves customizations)
+  # :template - use template content (applies updates)
+  preference: :destination,
+
+  # Whether to add template-only nodes to the result
+  # false (default) - only include sections that exist in destination
+  # true - include all template sections
+  add_template_only_nodes: false,
+
+  # Token for freeze block markers
+  # Default: "markdown-merge"
+  # Looks for: <!-- markdown-merge:freeze --> / <!-- markdown-merge:unfreeze -->
+  freeze_token: "markdown-merge",
+
+  # Enable inner-merge for fenced code blocks
+  # false (default) - use standard conflict resolution for code blocks
+  # true - merge code block contents using language-specific mergers
+  # CodeBlockMerger instance - use custom CodeBlockMerger
+  inner_merge_code_blocks: false,
+
+  # Match refiner for fuzzy matching of unmatched nodes
+  # nil (default) - exact matching only
+  # TableMatchRefiner.new - enable fuzzy table matching
+  match_refiner: nil,
+
+  # Custom signature generator (optional)
+  # Receives a node (wrapped with canonical merge_type), returns a signature array or nil
+  # Return the node itself to fall through to default signature
+  signature_generator: nil,
+
+  # Backend-specific options (passed through to parser)
+  # For commonmarker: options: {}
+  # For markly: flags: Markly::DEFAULT, extensions: [:table]
+)
+```
+
+### Text Matching Behavior
+
+**Important**: When matching nodes by text content (such as for anchor patterns in
+`PartialTemplateMerger`), the `.text` method returns **plain text without markdown formatting**.
+
+This means:
+
+- Markdown: `` ### The `*-merge` Gem Family ``
+- `.text` returns: `"The *-merge Gem Family\n"`
+
+The backticks around `*-merge` are stripped because they are inline formatting, not content.
+This is true for both Commonmarker and Markly backends.
+
+**Anchor pattern examples**:
+
+```ruby
+# ❌ WRONG - backticks are stripped, so this won't match
+anchor: { type: :heading, text: /`\*-merge` Gem Family/ }
+
+# ✅ CORRECT - match the plain text content
+anchor: { type: :heading, text: /\*-merge.*Gem Family/ }
+
+# ✅ CORRECT - use beginning anchor for exact heading match
+anchor: { type: :heading, text: /^The \*-merge Gem Family/ }
+```
+
+**Other markdown formatting that is stripped from `.text`**:
+
+- Bold: `**text**` → `text`
+- Italic: `*text*` or `_text_` → `text`
+- Code: `` `code` `` → `code`
+- Links: `[text](url)` → `text`
+- Images: `![alt](src)` → `alt`
+
+**Note**: Different parsers may have other idiosyncrasies. For example:
+
+- Trailing newlines may or may not be present
+- Whitespace normalization may differ
+- Entity encoding may vary
+
+Always test your patterns against actual parsed content when building merge recipes.
+
+### Node Type Normalization
+
+markdown-merge normalizes node types across backends so merge rules are portable:
+
+```ruby
+# These are equivalent regardless of backend
+# Markly's :header becomes :heading
+# Markly's :hrule becomes :thematic_break
+# etc.
+
+# Register a custom backend's type mappings
+Markdown::Merge::NodeTypeNormalizer.register_backend(:my_parser, {
+  h1: :heading,
+  h2: :heading,
+  para: :paragraph,
+  # ...
+})
+```
+
+### Parser-Specific Wrappers
+
+For convenience, parser-specific wrappers provide backend-specific defaults:
+
+```ruby
+# commonmarker-merge (freeze_token: "commonmarker-merge", inner_merge_code_blocks: false)
+require "commonmarker/merge"
+merger = Commonmarker::Merge::SmartMerger.new(template, dest, options: {})
+
+# markly-merge (freeze_token: "markly-merge", inner_merge_code_blocks: true)
+require "markly/merge"
+merger = Markly::Merge::SmartMerger.new(template, dest, flags: Markly::DEFAULT, extensions: [:table])
+```
+
+### Freeze Blocks
+
+Freeze blocks protect sections from being modified during merges. They are marked
+with HTML comments that are invisible when the Markdown is rendered:
+
+```markdown
+<!-- markdown-merge:freeze -->
+
+## This Section Is Protected
+
+Any content here will be preserved exactly as-is during merges.
+The merge tool will not modify, replace, or remove this content.
+
+<!-- markdown-merge:unfreeze -->
+```
+
+Add an optional frozen reason to document why:
+
+```markdown
+<!-- markdown-merge:freeze Custom table - manually maintained -->
+| Feature | Status |
+|---------|--------|
+| Custom  | ✅     |
+<!-- markdown-merge:unfreeze -->
+```
+
+### Inner-Merge Code Blocks
+
+When enabled, fenced code blocks are merged using language-specific `*-merge` gems:
+
+```ruby
+merger = SomeParser::Merge::SmartMerger.new(
+  template,
+  destination,
+  inner_merge_code_blocks: true,
+)
+```
+
+Supported languages and their mergers:
+
+| Language | Fence Info | Merger |
+| --- | --- | --- |
+| Ruby | `ruby`, `rb` | prism-merge |
+| YAML | `yaml`, `yml` | psych-merge |
+| JSON | `json` | json-merge |
+| TOML | `toml` | toml-merge |
+
+Example with a Ruby code block:
+
+````markdown
+```ruby
+
+# Template
+
+class MyClass
+  def new_method
+    puts "from template"
+  end
+end
+```
+````
+
+When merged(with:
+
+````markdown
+```ruby
+
+# Destination
+
+class MyClass
+  def existing_method
+    puts "custom"
+  end
+end)
+```
+````
+
+Result (with `inner_merge_code_blocks: true`):
+
+````markdown
+```ruby
+class MyClass
+  def existing_method
+    puts "custom"
+  end
+
+  def new_method
+    puts "from template"
+  end
+end
+```
+````
+
+### Table Match Refiner
+
+When tables don't match by exact signature, the `TableMatchRefiner` uses
+fuzzy matching to pair tables with similar structure:
+
+```ruby
+refiner = Markdown::Merge::TableMatchRefiner.new(
+  threshold: 0.5,  # Minimum similarity (0.0-1.0)
+  algorithm_options: {
+    weights: {
+      header_match: 0.25,  # Header cell similarity
+      first_column: 0.20,  # Row label similarity
+      row_content: 0.25,   # Row content overlap
+      total_cells: 0.15,   # Overall cell matching
+      position: 0.15,      # Position distance
+    },
+  },
 )
 
-abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
-File.write("README.md", result.fetch(:output))
+merger = SomeParser::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiner: refiner,
+)
 ```
+
+### Debug Logging
+
+Enable debug logging to see merge decisions:
+
+```bash
+export MARKDOWN_MERGE_DEBUG=1
+```
+
+## 🔧 Basic Usage
+
+**Note:** This gem provides base classes for implementers. End users should use
+[commonmarker-merge][commonmarker-merge] or
+[markly-merge][markly-merge] instead.
+
+### For End Users
+
+Use a parser-specific implementation:
+
+#### Option 1: Using commonmarker-merge (Comrak/Rust)
+
+```ruby
+require "commonmarker/merge"
+
+template = File.read("template.md")
+destination = File.read("destination.md")
+
+merger = Commonmarker::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.md", result.content)
+```
+
+#### Option 2: Using markly-merge (libcmark-gfm/C)
+
+```ruby
+require "markly/merge"
+
+template = File.read("template.md")
+destination = File.read("destination.md")
+
+merger = Markly::Merge::SmartMerger.new(template, destination)
+result = merger.merge
+
+File.write("merged.md", result.to_markdown)
+```
+
+### For Implementers
+
+Creating a new parser-specific implementation:
+
+```ruby
+require "markdown/merge"
+
+module MyParser
+  module Merge
+    class FileAnalysis < Markdown::Merge::FileAnalysisBase
+      def parse_document(source)
+        # Parse source and return root document node
+        MyParser.parse(source)
+      end
+
+      def next_sibling(node)
+        # Return the next sibling of a node
+        node.next_sibling
+      end
+
+      def compute_parser_signature(node)
+        # Compute signature for parser-specific nodes
+        # Or call super for default implementation
+        super
+      end
+    end
+
+    class SmartMerger < Markdown::Merge::SmartMergerBase
+      def create_file_analysis(content, **options)
+        FileAnalysis.new(content, **options)
+      end
+
+      def node_to_source(node, analysis)
+        case node
+        when Markdown::Merge::FreezeNode
+          node.full_text
+        else
+          # Convert node back to source text
+          node.to_markdown
+        end
+      end
+    end
+  end
+end
+```
+
+### Freeze Block Protection
+
+Both implementations support freeze blocks for protecting customized sections:
+
+```markdown
+
+# My Project
+
+## Installation
+
+<!-- markdown-merge:freeze Custom install instructions -->
+This installation section has been customized and will be preserved
+during template merges, regardless of what the template contains.
+<!-- markdown-merge:unfreeze -->
+
+## Usage
+
+Standard usage section - can be updated from template.
+```
+
+Content between freeze markers is always preserved from the destination file,
+even when the template has different content for that section.
 
 ## 🔐 Security
 
@@ -360,3 +730,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[commonmarker-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/commonmarker-merge
+[markly-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markly-merge

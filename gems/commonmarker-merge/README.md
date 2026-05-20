@@ -28,15 +28,36 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 ## 🌻 Synopsis
 
-`Commonmarker::Merge` is a Ruby provider package for the Markdown merge family. Markdown provider backed by Commonmarker/comrak. It registers its backend with `tree_haver` and exposes provider-specific defaults while preserving the canonical family contract.
+`commonmarker-merge` is a thin wrapper around [markdown-merge][markdown-merge] that provides:
 
-### Key Features
+- **Hard dependency on Commonmarker** - Ensures the Comrak (Rust) parser is installed
+- **Commonmarker-specific defaults** - Freeze token: `"commonmarker-merge"`, `inner_merge_code_blocks: false`
+- **CommonMarker parse options** - Pass options via the `options:` parameter
 
-- Backend registration for `Commonmarker`.
-- Provider-specific parser capability reporting.
-- Family-compatible parse and merge methods.
-- Structured diagnostics for unsupported backends and parser failures.
-- A provider `SmartMerger` wrapper when the underlying family exposes one.
+### Features (via markdown-merge)
+
+- **Smart element matching** - Headings, paragraphs, lists, code blocks, and other block elements
+  are matched by their structural signatures
+- **Fuzzy table matching** - Tables are matched using a multi-factor scoring algorithm that considers
+  header similarity, first column (row labels), content overlap, and position
+- **Freeze blocks** - Mark sections with HTML comments to preserve them during merges
+- **Configurable merge strategies** - Choose whether template or destination wins for conflicts,
+  or use a Hash for per-node-type preferences with `node_splitter` (see [ast-merge][ast-merge] docs)
+- **Conservative removal mode** - `remove_template_missing_nodes: true` removes top-level destination-only structural blocks while preserving standalone HTML comment-only fragments, link reference definitions, freeze blocks, and stable separator blank lines around preserved standalone fragments
+- **Type normalization** - Canonical node types work across all markdown backends
+- **Full CommonMarker support** - Works with all CommonMark and GitHub Flavored Markdown extensions
+
+### Removal Mode Scope
+
+`remove_template_missing_nodes: true` in `commonmarker-merge` currently follows the shared `markdown-merge` full-document contract:
+
+- removes **top-level destination-only structural blocks**
+- preserves **standalone HTML comment-only fragments**, **link reference definitions**, and **freeze blocks**
+- preserves **one separator blank line** when removed structural content collapses around a kept standalone HTML comment fragment
+- does **not** yet define generic inline-comment promotion or recursive/nested section-removal semantics
+
+Section-local `replace_mode` / partial-template behavior still follows its own conservative Markdown rules and should not be assumed to inherit the same recursive removal contract as full-document smart merge.
+
 
 ## 💡 Info you can shake a stick at
 
@@ -140,29 +161,242 @@ gem install commonmarker-merge
 
 ## ⚙️ Configuration
 
-```ruby
-require "commonmarker/merge"
+### Freeze Blocks
 
-profile = Commonmarker::Merge.markdown_backend_feature_profile(backend: :commonmarker)
-context = Commonmarker::Merge.markdown_plan_context(backend: :commonmarker)
+Freeze blocks prevent sections from being modified during merges. They are marked
+with HTML comments that are invisible when the Markdown is rendered:
+
+```markdown
+<!-- commonmarker-merge:freeze -->
+## This Section Is Protected
+
+Any content here will be preserved exactly as-is during merges.
+The merge tool will not modify, replace, or remove this content.
+
+<!-- commonmarker-merge:unfreeze -->
 ```
 
-Use this package when you want a hard dependency on the `Commonmarker` backend. Use the canonical family package when backend auto-selection is preferred.
+You can add an optional reason to document why a section is frozen:
+
+```markdown
+<!-- commonmarker-merge:freeze Manual TOC - do not auto-generate -->
+## Table of Contents
+- [Installation](#installation)
+- [Usage](#usage)
+<!-- commonmarker-merge:unfreeze -->
+```
+
+### Custom Freeze Token
+
+Use a custom freeze token if you need to avoid conflicts with other tools:
+
+```ruby
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  freeze_token: "my-project",
+)
+# Now looks for: <!-- my-project:freeze --> and <!-- my-project:unfreeze -->
+```
+
+### Merge Preferences
+
+Control how conflicts between template and destination are resolved:
+
+```ruby
+# Preserve destination customizations (default)
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  preference: :destination,
+)
+
+# Apply template updates (overwrite destination)
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  preference: :template,
+)
+
+# Add new sections from template that don't exist in destination
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  add_template_only_nodes: true,
+)
+```
+
+### Debug Logging
+
+Enable debug logging to see merge decisions:
+
+```bash
+export COMMONMARKER_MERGE_DEBUG=1
+```
+
+### Table Match Refiner
+
+When tables don't match by exact signature (identical headers), the `TableMatchRefiner`
+uses fuzzy matching to pair tables that have:
+
+- Similar headers (e.g., "Value" vs "Values")
+- Similar first column content (row labels)
+- Similar overall structure and content
+
+<!-- end list -->
+
+```ruby
+# Enable table fuzzy matching with custom threshold
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Commonmarker::Merge::TableMatchRefiner.new(threshold: 0.6),
+  ],
+)
+```
+
+#### TableMatchAlgorithm Weights
+
+The `TableMatchAlgorithm` uses a multi-factor scoring system with configurable weights:
+
+| Factor         | Default Weight | Description                                                  |
+|----------------|----------------|--------------------------------------------------------------|
+| `header_match` | 0.25           | Percentage of matching header cells (Levenshtein similarity) |
+| `first_column` | 0.20           | Percentage of matching first column cells                    |
+| `row_content`  | 0.25           | Average match percentage for rows with matching first column |
+| `total_cells`  | 0.15           | Overall cell matching percentage                             |
+| `position`     | 0.15           | Position distance (closer tables score higher)               |
+
+```ruby
+# Custom weights for specific use cases
+refiner = Commonmarker::Merge::TableMatchRefiner.new(
+  threshold: 0.5,
+  algorithm_options: {
+    weights: {
+      header_match: 0.4,  # Prioritize header matching
+      first_column: 0.2,
+      row_content: 0.2,
+      total_cells: 0.1,
+      position: 0.1,
+    },
+  },
+)
+```
 
 ## 🔧 Basic Usage
 
+### Merging Two Markdown Files
+
 ```ruby
 require "commonmarker/merge"
 
-result = Commonmarker::Merge.merge_markdown(
-  File.read("template.md"),
-  File.read("destination.md"),
-  "markdown",
-  backend: :commonmarker,
-)
+template_content = File.read("template.md")
+dest_content = File.read("destination.md")
 
-abort result.fetch(:diagnostics).inspect unless result.fetch(:ok)
-File.write("destination.md", result.fetch(:output))
+merger = Commonmarker::Merge::SmartMerger.new(template_content, dest_content)
+result = merger.merge
+
+if result.success?
+  File.write("destination.md", result.content)
+  puts "Merged successfully!"
+  puts "  - Nodes added: #{result.nodes_added}"
+  puts "  - Nodes modified: #{result.nodes_modified}"
+  puts "  - Frozen blocks preserved: #{result.frozen_count}"
+else
+  puts "Merge had conflicts:"
+  result.conflicts.each do |conflict|
+    puts "  - #{conflict[:location]}: #{conflict[:reason]}"
+  end
+end
+```
+
+### Analyzing a Markdown File
+
+```ruby
+require "commonmarker/merge"
+
+source = File.read("README.md")
+analysis = Commonmarker::Merge::FileAnalysis.new(source)
+
+# Iterate over all block elements
+analysis.statements.each do |node|
+  case node
+  when Commonmarker::Merge::FreezeNode
+    puts "Freeze block: lines #{node.start_line}-#{node.end_line}"
+    puts "  Reason: #{node.reason}" if node.reason
+  else
+    sig = analysis.generate_signature(node)
+    puts "#{node.type}: #{sig.inspect}"
+  end
+end
+
+# Get just the freeze blocks
+analysis.freeze_blocks.each do |freeze_node|
+  puts "Protected: #{freeze_node.content[0..50]}..."
+end
+```
+
+### Custom Signature Generator
+
+Override how elements are matched between files:
+
+```ruby
+# Match headings only by level, ignoring content
+custom_sig = ->(node) {
+  if node.respond_to?(:type) && node.type == :heading
+    [:heading, node.header_level]  # Match any h1 to any h1, etc.
+  else
+    node  # Fall through to default signature
+  end
+}
+
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  signature_generator: custom_sig,
+)
+```
+
+### Fuzzy Table Matching
+
+When merging documents with tables that have been renamed or restructured,
+use the `TableMatchRefiner` to find the best matches:
+
+```ruby
+require "commonmarker/merge"
+
+template = <<~MD
+  # API Reference
+
+  | Endpoint | Method | Description |
+  |----------|--------|-------------|
+  | /users   | GET    | List users  |
+  | /users   | POST   | Create user |
+MD
+
+destination = <<~MD
+  # API Reference
+
+  | API Endpoint | HTTP Method | Descriptions |
+  |--------------|-------------|--------------|
+  | /users       | GET         | List users   |
+  | /posts       | GET         | List posts   |
+MD
+
+# Default merge won't match the tables (headers differ)
+# Use TableMatchRefiner to enable fuzzy matching
+merger = Commonmarker::Merge::SmartMerger.new(
+  template,
+  destination,
+  match_refiners: [
+    Commonmarker::Merge::TableMatchRefiner.new(threshold: 0.5),
+  ],
+)
+result = merger.merge
+
+# Tables are now matched despite header differences
+# ("Endpoint" ~ "API Endpoint", "Method" ~ "HTTP Method", etc.)
 ```
 
 ## 🔐 Security
@@ -346,3 +580,6 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2
 [💎appraisal2-img]: https://img.shields.io/badge/appraised_by-appraisal2-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎d-in-dvcs]: https://railsbling.com/posts/dvcs/put_the_d_in_dvcs/
+
+[markdown-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/markdown-merge
+[ast-merge]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge
