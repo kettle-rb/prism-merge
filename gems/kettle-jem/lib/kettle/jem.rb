@@ -507,7 +507,7 @@ module Kettle
 
       def remove_workflow_badge_occurrences(content, workflow_label)
         label_re = Regexp.escape(workflow_label)
-        content.gsub(/\s*\[!\[[^\]]*?\]\s*\[[^\]]+\]\]\s*\[#{label_re}\]\s*/, " ")
+        content.gsub(/[ \t]*\[!\[[^\]]*?\]\s*\[[^\]]+\]\]\s*\[#{label_re}\][ \t]*/, " ")
       end
 
       def remove_incompatible_compatibility_badges(content, min_ruby)
@@ -744,6 +744,12 @@ module Kettle
       "codeql" => [
         /\s*\[!\[CodeQL\]\[[^\]]+\]\]\[[^\]]+\]/,
       ],
+    }.freeze
+    README_INTEGRATION_LINK_LABELS = {
+      "codecov" => %w[🏀codecov 🏀codecovi 🏀codecov-g],
+      "coveralls" => %w[🏀coveralls 🏀coveralls-img],
+      "qlty" => %w[🏀qlty-mnt 🏀qlty-mnti 🏀qlty-cov 🏀qlty-covi],
+      "codeql" => %w[🖐codeQL 🖐codeQL-img],
     }.freeze
     README_SECTION_ALIASES = {
       "summary" => "synopsis",
@@ -2245,6 +2251,8 @@ module Kettle
           engines: ruby_engines_config(kettle_config),
         ),
       }
+      repository = repository_facts(project_root, source_url, package_name: name, template_profile: template_selection[:template_profile])
+      facts[:repository] = repository unless repository.empty?
       generated_blocks = generated_blocks_facts(gemspec, facts, run_options)
       facts[:generated_blocks] = generated_blocks unless generated_blocks.empty?
       bootstrap = kettle_config_bootstrap_facts(project_root, env, template_selection: template_selection)
@@ -2322,7 +2330,8 @@ module Kettle
           project_root,
           kettle_config,
           license,
-          template_profile: template_selection[:template_profile]
+          template_profile: template_selection[:template_profile],
+          repository: facts[:repository]
         )
         facts[:readme_style] = readme_style unless readme_style.empty?
         template_tokens = template_tokens(facts, funding)
@@ -3485,6 +3494,12 @@ module Kettle
     def prepare_readme_template(content, readme_style)
       style = readme_style || {}
       prepared = prune_readme_integration_badges(content, style)
+      prepared = ReadmePostProcessor.process(
+        content: prepared,
+        min_ruby: "0",
+        workflow_paths: style[:workflow_paths]
+      ) if style[:workflow_paths]
+      prepared = prune_missing_workflow_link_definitions(prepared, style[:workflow_paths]) if style[:workflow_paths]
       omitted_sections = Array(style[:omitted_sections]).map(&:to_s)
       omitted_sections << "security" if style.key?(:security_enabled) && !style[:security_enabled]
       omitted_sections << "floss_funding" if style.key?(:floss_funding_enabled) && !style[:floss_funding_enabled]
@@ -3494,10 +3509,43 @@ module Kettle
     def prune_readme_integration_badges(content, readme_style)
       integrations = Array(readme_style[:missing_integrations]) + Array(readme_style[:disabled_integrations])
       integrations.uniq.reduce(content.to_s) do |result, integration|
-        README_INTEGRATION_BADGE_PATTERNS.fetch(integration.to_s, []).reduce(result) do |memo, pattern|
+        pruned_badges = README_INTEGRATION_BADGE_PATTERNS.fetch(integration.to_s, []).reduce(result) do |memo, pattern|
           memo.gsub(pattern, "")
         end
+        README_INTEGRATION_LINK_LABELS.fetch(integration.to_s, []).reduce(pruned_badges) do |memo, label|
+          delete_markdown_with_ast_crispr(
+            memo,
+            Ast::Crispr::Markdown::Markly::Selectors.link_definition(label: label, limit: {at_least: 0})
+          )
+        end
       end.gsub(/[ \t]{2,}/, " ")
+    end
+
+    def prune_missing_workflow_link_definitions(content, workflow_paths)
+      existing = Array(workflow_paths).map { |path| path.to_s.delete_prefix("./") }.to_set
+      Ast::Crispr::Markdown::Markly.document_context(content: content.to_s, source_label: "README.md")
+        .structural_owners(owner_scope: :link_definitions)
+        .reduce(content.to_s) do |processed, owner|
+          workflow_path = readme_workflow_path_from_url(owner.url)
+          next processed if workflow_path.empty? || existing.include?(workflow_path)
+
+          delete_markdown_with_ast_crispr(
+            processed,
+            Ast::Crispr::Markdown::Markly::Selectors.link_definition(label: owner.label, limit: {at_least: 0})
+          )
+        end
+    end
+
+    def readme_workflow_path_from_url(url)
+      marker = "/actions/workflows/"
+      path = URI.parse(url.to_s).path.to_s
+      marker_index = path.index(marker)
+      return "" unless marker_index
+
+      workflow = path[(marker_index + marker.length)..].to_s.split("/").first.to_s
+      workflow.empty? ? "" : ".github/workflows/#{workflow}"
+    rescue URI::InvalidURIError
+      ""
     end
 
     def remove_readme_sections(content, section_bases)
@@ -5237,6 +5285,8 @@ module Kettle
       ).merge(
         project_runtime_template_tokens(facts.fetch(:project_runtime, {}))
       ).merge(
+        readme_url_template_tokens(facts.fetch(:repository, {}), package.fetch(:name).to_s, facts.fetch(:project_runtime, {})[:github_org].to_s)
+      ).merge(
         readme_logo_template_tokens(facts.fetch(:readme_logo, {}))
       )
       org = funding[:open_collective_org].to_s
@@ -5245,6 +5295,61 @@ module Kettle
       tokens.merge!(version_gem_template_tokens(facts))
 
       tokens.reject { |key, value| value.empty? && !EMPTY_TEMPLATE_TOKENS.include?(key) }
+    end
+
+    def readme_url_template_tokens(repository, package_name, github_org)
+      repo_url = repository[:url].to_s
+      repo_name = repository[:name].to_s
+      repo_slug = repository[:slug].to_s
+      package_path = repository[:package_path].to_s
+      package_source_url = repository[:package_source_url].to_s
+      package_source_url = repo_url if package_source_url.empty?
+      repo_url = "https://github.com/#{github_org}/#{package_name}" if repo_url.empty?
+      repo_name = package_name if repo_name.empty?
+      repo_slug = "#{github_org}/#{repo_name}" if repo_slug.empty?
+
+      gitlab_source = repository[:gitlab_package_source_url].to_s
+      codeberg_source = repository[:codeberg_package_source_url].to_s
+      gitlab_source = "https://gitlab.com/#{repo_slug}/" if gitlab_source.empty?
+      codeberg_source = "https://codeberg.org/#{repo_slug}" if codeberg_source.empty?
+      checksums_url = repository[:checksums_url].to_s
+      checksums_url = "https://gitlab.com/#{repo_slug}/-/tree/main/checksums" if checksums_url.empty?
+
+      {
+        "KJ|README:REPO_SLUG" => repo_slug,
+        "KJ|README:REPO_NAME" => repo_name,
+        "KJ|README:PACKAGE_PATH" => package_path,
+        "KJ|README:GH_REPOSITORY_URL" => repo_url,
+        "KJ|README:GH_PACKAGE_SOURCE_URL" => package_source_url,
+        "KJ|README:GH_RELEASES_URL" => "#{repo_url}/releases",
+        "KJ|README:GH_TAG_BADGE_REPO" => repo_slug,
+        "KJ|README:GH_DISCUSSIONS_URL" => "#{repo_url}/discussions",
+        "KJ|README:GH_ISSUES_URL" => "#{repo_url}/issues",
+        "KJ|README:GH_PULLS_URL" => "#{repo_url}/pulls",
+        "KJ|README:GH_WIKI_URL" => "#{repo_url}/wiki",
+        "KJ|README:GH_CODEQL_URL" => "#{repo_url}/security/code-scanning",
+        "KJ|README:GH_CONTRIBUTORS_URL" => "#{repo_url}/graphs/contributors",
+        "KJ|README:GL_PACKAGE_SOURCE_URL" => gitlab_source,
+        "KJ|README:GL_ISSUES_URL" => gitlab_repo_url(repository, repo_slug, "issues"),
+        "KJ|README:GL_PULLS_URL" => gitlab_repo_url(repository, repo_slug, "merge_requests"),
+        "KJ|README:GL_WIKI_URL" => gitlab_repo_url(repository, repo_slug, "wikis/home"),
+        "KJ|README:GL_CONTRIBUTORS_URL" => gitlab_repo_url(repository, repo_slug, "graphs/main"),
+        "KJ|README:CB_PACKAGE_SOURCE_URL" => codeberg_source,
+        "KJ|README:CB_ISSUES_URL" => codeberg_repo_url(repository, repo_slug, "issues"),
+        "KJ|README:CB_PULLS_URL" => codeberg_repo_url(repository, repo_slug, "pulls"),
+        "KJ|README:CODECOV_URL" => "https://codecov.io/gh/#{repo_slug}",
+        "KJ|README:CODECOV_BADGE_URL" => "https://codecov.io/gh/#{repo_slug}/graph/badge.svg",
+        "KJ|README:CODECOV_GRAPH_URL" => "https://codecov.io/gh/#{repo_slug}/graphs/tree.svg",
+        "KJ|README:COVERALLS_URL" => "https://coveralls.io/github/#{repo_slug}?branch=main",
+        "KJ|README:COVERALLS_BADGE_URL" => "https://coveralls.io/repos/github/#{repo_slug}/badge.svg?branch=main",
+        "KJ|README:QLTY_PROJECT_URL" => "https://qlty.sh/gh/#{github_org}/projects/#{repo_name}",
+        "KJ|README:QLTY_MAINTAINABILITY_URL" => "https://qlty.sh/gh/#{github_org}/projects/#{repo_name}/maintainability.svg",
+        "KJ|README:QLTY_COVERAGE_URL" => "https://qlty.sh/gh/#{github_org}/projects/#{repo_name}/metrics/code?sort=coverageRating",
+        "KJ|README:QLTY_COVERAGE_BADGE_URL" => "https://qlty.sh/gh/#{github_org}/projects/#{repo_name}/coverage.svg",
+        "KJ|README:CONTRIBUTORS_IMAGE_REPO" => repo_slug,
+        "KJ|README:STAR_HISTORY_REPO" => repo_slug,
+        "KJ|README:SHA_CHECKSUMS_URL" => checksums_url,
+      }
     end
 
     def version_gem_template_tokens(facts)
@@ -5853,6 +5958,83 @@ module Kettle
       name.end_with?(".git") ? name[0...-4] : name
     end
 
+    def repository_facts(project_root, source_url, package_name:, template_profile:)
+      local_root = template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE ? git_worktree_root(project_root) : nil
+      repo_url = if template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+        repository_root_url(git_remote_source_url(local_root || project_root) || source_url)
+      else
+        repository_root_url(source_url)
+      end
+      repo_name = repository_name_from_source_url(repo_url)
+      org = github_org_from_url(repo_url).to_s
+      slug = [org, repo_name].reject(&:empty?).join("/")
+      facts = compact_hash(
+        mode: template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE ? "monorepo_subgem" : "standalone",
+        url: repo_url,
+        name: repo_name,
+        slug: slug
+      )
+      return facts unless template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+
+      package_path = git_worktree_prefix(project_root)
+      package_path = "gems/#{package_name}" if package_path.empty?
+      package_path = package_path[0...-1] while package_path.end_with?("/")
+      facts.merge(
+        local_root: local_root,
+        package_path: package_path,
+        package_source_url: source_tree_url(repo_url, package_path),
+        gitlab_package_source_url: source_tree_url("https://gitlab.com/#{slug}", package_path),
+        codeberg_package_source_url: source_tree_url("https://codeberg.org/#{slug}", package_path),
+        checksums_url: source_tree_url("https://gitlab.com/#{slug}", "checksums")
+      )
+    end
+
+    def repository_root_url(source_url)
+      uri = URI.parse(source_url.to_s)
+      return source_url.to_s unless uri.host == "github.com"
+
+      segments = uri.path.to_s.split("/").reject(&:empty?)
+      return source_url.to_s if segments.length < 2
+
+      "#{uri.scheme}://#{uri.host}/#{segments[0]}/#{segments[1].delete_suffix(".git")}"
+    rescue URI::InvalidURIError
+      source_url.to_s
+    end
+
+    def source_tree_url(source_url, path)
+      base = source_url.to_s.dup
+      base = base[0...-1] while base.end_with?("/")
+      escaped_path = path.to_s.split("/").map { |segment| segment.split(" ").join("%20") }.join("/")
+      if base.start_with?("https://gitlab.com/", "http://gitlab.com/")
+        "#{base}/-/tree/main/#{escaped_path}"
+      elsif base.start_with?("https://codeberg.org/", "http://codeberg.org/")
+        "#{base}/src/branch/main/#{escaped_path}"
+      else
+        "#{base}/tree/main/#{escaped_path}"
+      end
+    end
+
+    def git_worktree_root(project_root)
+      root = git_capture(project_root, "rev-parse", "--show-toplevel").strip
+      root.empty? ? project_root.to_s : root
+    end
+
+    def git_worktree_prefix(project_root)
+      git_capture(project_root, "rev-parse", "--show-prefix").strip
+    end
+
+    def gitlab_repo_url(repository, repo_slug, suffix)
+      base = repository[:gitlab_url].to_s
+      base = "https://gitlab.com/#{repo_slug}" if base.empty?
+      "#{base}/-/#{suffix}"
+    end
+
+    def codeberg_repo_url(repository, repo_slug, suffix)
+      base = repository[:codeberg_url].to_s
+      base = "https://codeberg.org/#{repo_slug}" if base.empty?
+      "#{base}/#{suffix}"
+    end
+
     def git_remote_source_url(project_root)
       normalize_git_source_url(git_capture(project_root, "config", "--get", "remote.origin.url").strip)
     rescue ArgumentError
@@ -6314,13 +6496,15 @@ module Kettle
       raise ArgumentError, "unresolved kettle-jem template tokens: #{unresolved.map { |token| "{#{token}}" }.join(", ")}"
     end
 
-    def readme_style_facts(project_root, config, license, template_profile: nil)
+    def readme_style_facts(project_root, config, license, template_profile: nil, repository: nil)
       readme = config["readme"].is_a?(Hash) ? config["readme"] : {}
       conditional = readme["conditional_sections"].is_a?(Hash) ? readme["conditional_sections"] : {}
       disabled_integrations = readme_disabled_integrations(readme)
+      integration_root = readme_integration_project_root(project_root, template_profile, repository)
       missing_integrations = README_INTEGRATIONS.reject do |integration|
-        disabled_integrations.include?(integration) || readme_integration_configured?(project_root, integration)
+        disabled_integrations.include?(integration) || readme_integration_configured?(integration_root, integration)
       end
+      workflow_paths = readme_workflow_paths(integration_root)
       omitted_sections = []
       security_enabled = template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE ||
         File.exist?(File.join(project_root, "SECURITY.md"))
@@ -6335,8 +6519,21 @@ module Kettle
         omitted_sections: omitted_sections,
         disabled_integrations: disabled_integrations,
         missing_integrations: missing_integrations,
+        workflow_paths: workflow_paths,
         section_partials: section_partials,
       )
+    end
+
+    def readme_integration_project_root(project_root, template_profile, repository)
+      return project_root unless template_profile.to_s == MONOREPO_SUBGEM_TEMPLATE_PROFILE
+
+      Array(repository && repository[:local_root]).find { |path| !path.to_s.empty? } || project_root
+    end
+
+    def readme_workflow_paths(project_root)
+      Dir.glob(File.join(project_root.to_s, ".github/workflows/*.{yml,yaml}")).map do |path|
+        ".github/workflows/#{File.basename(path)}"
+      end.sort
     end
 
     def readme_section_partials(project_root, config, readme)

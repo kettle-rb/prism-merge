@@ -25,6 +25,12 @@
         "source_url": "https://github.com/example/example",
         "license_expression": "MIT"
       },
+      "repository": {
+        "mode": "standalone",
+        "url": "https://github.com/example/example",
+        "name": "example",
+        "slug": "example/example"
+      },
       "rubygems": {
         "gemspec_path": "example.gemspec",
         "namespace": "Example",

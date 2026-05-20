@@ -9,7 +9,7 @@
 
 # 🧬 Ast::Crispr
 
-[![Version][👽versioni]][👽version] [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: AGPL-3.0-only OR PolyForm-Small-Business-1.0.0][📄license-img]][📄license] [![Downloads Rank][👽dl-ranki]][👽dl-rank] [![CI Heads][🚎3-hd-wfi]][🚎3-hd-wf] [![CI Runtime Dependencies @ HEAD][🚎12-crh-wfi]][🚎12-crh-wf] [![CI Current][🚎11-c-wfi]][🚎11-c-wf] [![CI Truffle Ruby][🚎9-t-wfi]][🚎9-t-wf] [![CI JRuby][🚎10-j-wfi]][🚎10-j-wf] [![Deps Locked][🚎13-🔒️-wfi]][🚎13-🔒️-wf] [![Deps Unlocked][🚎14-🔓️-wfi]][🚎14-🔓️-wf] [![CI Test Coverage][🚎2-cov-wfi]][🚎2-cov-wf] [![CI Style][🚎5-st-wfi]][🚎5-st-wf]
+[![Version][👽versioni]][👽version] [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: AGPL-3.0-only OR PolyForm-Small-Business-1.0.0][📄license-img]][📄license] [![Downloads Rank][👽dl-ranki]][👽dl-rank] [![CI Current][🚎11-c-wfi]][🚎11-c-wf]
 
 `if ci_badges.map(&:color).detect { it != "green"}` ☝️ [let me know][🖼️galtzo-discord], as I may have missed the [discord notification][🖼️galtzo-discord].
 
@@ -42,9 +42,7 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 
 | Tokens to Remember | [![Gem name][⛳️name-img]][⛳️gem-name] [![Gem namespace][⛳️namespace-img]][⛳️gem-namespace] |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Works with JRuby | [![JRuby current Compat][💎jruby-c-i]][🚎10-j-wf] [![JRuby HEAD Compat][💎jruby-headi]][🚎3-hd-wf]|
-| Works with Truffle Ruby | [![Truffle Ruby current Compat][💎truby-c-i]][🚎9-t-wf]|
-| Works with MRI Ruby 4 | [![Ruby 4.0 Compat][💎ruby-4.0i]][🚎11-c-wf] [![Ruby current Compat][💎ruby-c-i]][🚎11-c-wf] [![Ruby HEAD Compat][💎ruby-headi]][🚎3-hd-wf]|
+| Works with MRI Ruby 4 | [![Ruby 4.0 Compat][💎ruby-4.0i]][🚎11-c-wf] [![Ruby current Compat][💎ruby-c-i]][🚎11-c-wf]|
 | Support & Community | [![Join Me on Daily.dev's RubyFriends][✉️ruby-friends-img]][✉️ruby-friends] [![Live Chat on Discord][✉️discord-invite-img-ftb]][✉️discord-invite] [![Get help from me on Upwork][👨🏼‍🏫expsup-upwork-img]][👨🏼‍🏫expsup-upwork] [![Get help from me on Codementor][👨🏼‍🏫expsup-codementor-img]][👨🏼‍🏫expsup-codementor] |
 | Source | [![Source on GitLab.com][📜src-gl-img]][📜src-gl] [![Source on CodeBerg.org][📜src-cb-img]][📜src-cb] [![Source on Github.com][📜src-gh-img]][📜src-gh] [![The best SHA: dQw4w9WgXcQ!][🧮kloc-img]][🧮kloc] |
 | Documentation | [![Current release on RubyDoc.info][📜docs-cr-rd-img]][🚎yard-current] [![YARD on Galtzo.com][📜docs-head-rd-img]][🚎yard-head] [![Maintainer Blog][🚂maint-blog-img]][🚂maint-blog] [![GitLab Wiki][📜gl-wiki-img]][📜gl-wiki] [![GitHub Wiki][📜gh-wiki-img]][📜gh-wiki] |
@@ -233,7 +231,7 @@ See [LICENSE.md][📄license] for details.
 
 If none of the available licenses suit your use case, please [contact us](mailto:floss@galtzo.com) to discuss a custom commercial license.
 
-[gh-discussions]: https://github.com/structuredmerge/ast-crispr/discussions
+[gh-discussions]: https://github.com/structuredmerge/structuredmerge-ruby/discussions
 [⛳liberapay-img]: https://img.shields.io/liberapay/goal/pboling.svg?logo=liberapay&color=a51611&style=flat
 [⛳liberapay-bottom-img]: https://img.shields.io/liberapay/goal/pboling.svg?style=for-the-badge&logo=liberapay&color=a51611
 [⛳liberapay]: https://liberapay.com/pboling/donate
@@ -259,12 +257,12 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [✉️ruby-friends-img]: https://img.shields.io/badge/daily.dev-%F0%9F%92%8E_Ruby_Friends-0A0A0A?style=for-the-badge&logo=dailydotdev&logoColor=white
 [✉️ruby-friends]: https://app.daily.dev/squads/rubyfriends
 [✇bundle-group-pattern]: https://gist.github.com/pboling/4564780
-[⛳️gem-namespace]: https://github.com/structuredmerge/ast-crispr
+[⛳️gem-namespace]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-crispr
 [⛳️namespace-img]: https://img.shields.io/badge/namespace-Ast::Crispr-3C2D2D.svg?style=square&logo=ruby&logoColor=white
 [⛳️gem-name]: https://bestgems.org/gems/ast-crispr
 [⛳️name-img]: https://img.shields.io/badge/name-ast--crispr-3C2D2D.svg?style=square&logo=rubygems&logoColor=red
-[⛳️tag-img]: https://img.shields.io/github/tag/structuredmerge/ast-crispr.svg
-[⛳️tag]: http://github.com/structuredmerge/ast-crispr/releases
+[⛳️tag-img]: https://img.shields.io/github/tag/structuredmerge/structuredmerge-ruby.svg
+[⛳️tag]: https://github.com/structuredmerge/structuredmerge-ruby/releases
 [🚂maint-blog]: http://www.railsbling.com/tags/ast-crispr
 [🚂maint-blog-img]: https://img.shields.io/badge/blog-railsbling-0093D0.svg?style=for-the-badge&logo=rubyonrails&logoColor=orange
 [🚂maint-contact]: http://www.railsbling.com/contact
@@ -299,68 +297,37 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [💁🏼‍♂️peterboling]: http://www.peterboling.com
 [🚂railsbling]: http://www.railsbling.com
 [📜src-gl-img]: https://img.shields.io/badge/GitLab-FBA326?style=for-the-badge&logo=Gitlab&logoColor=orange
-[📜src-gl]: https://gitlab.com/structuredmerge/ast-crispr/
+[📜src-gl]: https://gitlab.com/structuredmerge/structuredmerge-ruby/-/tree/main/gems/ast-crispr
 [📜src-cb-img]: https://img.shields.io/badge/CodeBerg-4893CC?style=for-the-badge&logo=CodeBerg&logoColor=blue
-[📜src-cb]: https://codeberg.org/structuredmerge/ast-crispr
+[📜src-cb]: https://codeberg.org/structuredmerge/structuredmerge-ruby/src/branch/main/gems/ast-crispr
 [📜src-gh-img]: https://img.shields.io/badge/GitHub-238636?style=for-the-badge&logo=Github&logoColor=green
-[📜src-gh]: https://github.com/structuredmerge/ast-crispr
+[📜src-gh]: https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-crispr
 [📜docs-cr-rd-img]: https://img.shields.io/badge/RubyDoc-Current_Release-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
 [📜docs-head-rd-img]: https://img.shields.io/badge/YARD_on_Galtzo.com-HEAD-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
-[📜gl-wiki]: https://gitlab.com/structuredmerge/ast-crispr/-/wikis/home
-[📜gh-wiki]: https://github.com/structuredmerge/ast-crispr/wiki
+[📜gl-wiki]: https://gitlab.com/structuredmerge/structuredmerge-ruby/-/wikis/home
+[📜gh-wiki]: https://github.com/structuredmerge/structuredmerge-ruby/wiki
 [📜gl-wiki-img]: https://img.shields.io/badge/wiki-gitlab-943CD2.svg?style=for-the-badge&logo=gitlab&logoColor=white
 [📜gh-wiki-img]: https://img.shields.io/badge/wiki-github-943CD2.svg?style=for-the-badge&logo=github&logoColor=white
 [👽dl-rank]: https://bestgems.org/gems/ast-crispr
 [👽dl-ranki]: https://img.shields.io/gem/rd/ast-crispr.svg
 [👽version]: https://bestgems.org/gems/ast-crispr
 [👽versioni]: https://img.shields.io/gem/v/ast-crispr.svg
-[🏀qlty-mnt]: https://qlty.sh/gh/structuredmerge/projects/ast-crispr
-[🏀qlty-mnti]: https://qlty.sh/gh/structuredmerge/projects/ast-crispr/maintainability.svg
-[🏀qlty-cov]: https://qlty.sh/gh/structuredmerge/projects/ast-crispr/metrics/code?sort=coverageRating
-[🏀qlty-covi]: https://qlty.sh/gh/structuredmerge/projects/ast-crispr/coverage.svg
-[🏀codecov]: https://codecov.io/gh/structuredmerge/ast-crispr
-[🏀codecovi]: https://codecov.io/gh/structuredmerge/ast-crispr/graph/badge.svg
-[🏀coveralls]: https://coveralls.io/github/structuredmerge/ast-crispr?branch=main
-[🏀coveralls-img]: https://coveralls.io/repos/github/structuredmerge/ast-crispr/badge.svg?branch=main
-[🖐codeQL]: https://github.com/structuredmerge/ast-crispr/security/code-scanning
-[🖐codeQL-img]: https://github.com/structuredmerge/ast-crispr/actions/workflows/codeql-analysis.yml/badge.svg
-[🚎2-cov-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/coverage.yml
-[🚎2-cov-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/coverage.yml/badge.svg
-[🚎3-hd-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/heads.yml
-[🚎3-hd-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/heads.yml/badge.svg
-[🚎5-st-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/style.yml
-[🚎5-st-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/style.yml/badge.svg
-[🚎9-t-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/truffle.yml
-[🚎9-t-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/truffle.yml/badge.svg
-[🚎10-j-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/jruby.yml
-[🚎10-j-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/jruby.yml/badge.svg
-[🚎11-c-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/current.yml
-[🚎11-c-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/current.yml/badge.svg
-[🚎12-crh-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/dep-heads.yml
-[🚎12-crh-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/dep-heads.yml/badge.svg
-[🚎13-🔒️-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/locked_deps.yml
-[🚎13-🔒️-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/locked_deps.yml/badge.svg
-[🚎14-🔓️-wf]: https://github.com/structuredmerge/ast-crispr/actions/workflows/unlocked_deps.yml
-[🚎14-🔓️-wfi]: https://github.com/structuredmerge/ast-crispr/actions/workflows/unlocked_deps.yml/badge.svg
+[🚎11-c-wf]: https://github.com/structuredmerge/structuredmerge-ruby/actions/workflows/current.yml
+[🚎11-c-wfi]: https://github.com/structuredmerge/structuredmerge-ruby/actions/workflows/current.yml/badge.svg
 [💎ruby-4.0i]: https://img.shields.io/badge/Ruby-4.0-CC342D?style=for-the-badge&logo=ruby&logoColor=white
 [💎ruby-c-i]: https://img.shields.io/badge/Ruby-current-CC342D?style=for-the-badge&logo=ruby&logoColor=green
-[💎ruby-headi]: https://img.shields.io/badge/Ruby-HEAD-CC342D?style=for-the-badge&logo=ruby&logoColor=blue
-[💎truby-c-i]: https://img.shields.io/badge/Truffle_Ruby-current-34BCB1?style=for-the-badge&logo=ruby&logoColor=green
-[💎jruby-c-i]: https://img.shields.io/badge/JRuby-current-FBE742?style=for-the-badge&logo=ruby&logoColor=green
-[💎jruby-headi]: https://img.shields.io/badge/JRuby-HEAD-FBE742?style=for-the-badge&logo=ruby&logoColor=blue
-[🤝gh-issues]: https://github.com/structuredmerge/ast-crispr/issues
-[🤝gh-pulls]: https://github.com/structuredmerge/ast-crispr/pulls
-[🤝gl-issues]: https://gitlab.com/structuredmerge/ast-crispr/-/issues
-[🤝gl-pulls]: https://gitlab.com/structuredmerge/ast-crispr/-/merge_requests
-[🤝cb-issues]: https://codeberg.org/structuredmerge/ast-crispr/issues
-[🤝cb-pulls]: https://codeberg.org/structuredmerge/ast-crispr/pulls
+[🤝gh-issues]: https://github.com/structuredmerge/structuredmerge-ruby/issues
+[🤝gh-pulls]: https://github.com/structuredmerge/structuredmerge-ruby/pulls
+[🤝gl-issues]: https://gitlab.com/structuredmerge/structuredmerge-ruby/-/issues
+[🤝gl-pulls]: https://gitlab.com/structuredmerge/structuredmerge-ruby/-/merge_requests
+[🤝cb-issues]: https://codeberg.org/structuredmerge/structuredmerge-ruby/issues
+[🤝cb-pulls]: https://codeberg.org/structuredmerge/structuredmerge-ruby/pulls
 [🤝cb-donate]: https://donate.codeberg.org/
 [🤝contributing]: https://github.com/structuredmerge/structuredmerge-ruby/blob/main/CONTRIBUTING.md
-[🏀codecov-g]: https://codecov.io/gh/structuredmerge/ast-crispr/graphs/tree.svg
 [🖐contrib-rocks]: https://contrib.rocks
-[🖐contributors]: https://github.com/structuredmerge/ast-crispr/graphs/contributors
-[🖐contributors-img]: https://contrib.rocks/image?repo=structuredmerge/ast-crispr
-[🚎contributors-gl]: https://gitlab.com/structuredmerge/ast-crispr/-/graphs/main
+[🖐contributors]: https://github.com/structuredmerge/structuredmerge-ruby/graphs/contributors
+[🖐contributors-img]: https://contrib.rocks/image?repo=structuredmerge/structuredmerge-ruby
+[🚎contributors-gl]: https://gitlab.com/structuredmerge/structuredmerge-ruby/-/graphs/main
 [🪇conduct]: https://github.com/structuredmerge/structuredmerge-ruby/blob/main/CODE_OF_CONDUCT.md
 [🪇conduct-img]: https://img.shields.io/badge/Contributor_Covenant-2.1-259D6C.svg
 [📌pvc]: http://guides.rubygems.org/patterns/#pessimistic-version-constraint
@@ -388,7 +355,7 @@ If none of the available licenses suit your use case, please [contact us](mailto
 [🚎yard-current]: http://rubydoc.info/gems/ast-crispr
 [🚎yard-head]: https://ast-crispr.galtzo.com
 [💎stone_checksums]: https://github.com/galtzo-floss/stone_checksums
-[💎SHA_checksums]: https://gitlab.com/structuredmerge/ast-crispr/-/tree/main/checksums
+[💎SHA_checksums]: https://gitlab.com/structuredmerge/structuredmerge-ruby/-/tree/main/checksums
 [💎rlts]: https://github.com/rubocop-lts/rubocop-lts
 [💎rlts-img]: https://img.shields.io/badge/code_style_&_linting-rubocop--lts-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2

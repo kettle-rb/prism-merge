@@ -64,14 +64,14 @@ Compatible with MRI Ruby {KJ|MIN_RUBY}+, and concordant releases of JRuby, and T
 
 | Federated [DVCS][💎d-in-dvcs] Repository        | Status                                                                | Issues                    | PRs                      | Wiki                      | CI                       | Discussions                  |
 |-------------------------------------------------|-----------------------------------------------------------------------|---------------------------|--------------------------|---------------------------|--------------------------|------------------------------|
-| 🧪 [{KJ|GH_ORG}/{KJ|GEM_NAME} on GitLab][📜src-gl]   | The Truth                                                             | [💚][🤝gl-issues]         | [💚][🤝gl-pulls]         | [💚][📜gl-wiki]           | 🐭 Tiny Matrix           | ➖                            |
-| 🧊 [{KJ|GH_ORG}/{KJ|GEM_NAME} on CodeBerg][📜src-cb] | An Ethical Mirror ([Donate][🤝cb-donate])                             | [💚][🤝cb-issues]         | [💚][🤝cb-pulls]         | ➖                         | ⭕️ No Matrix             | ➖                            |
-| 🐙 [{KJ|GH_ORG}/{KJ|GEM_NAME} on GitHub][📜src-gh]   | Another Mirror                                                        | [💚][🤝gh-issues]         | [💚][🤝gh-pulls]         | [💚][📜gh-wiki]           | 💯 Full Matrix           | [💚][gh-discussions]         |
+| 🧪 [{KJ|README:REPO_SLUG} on GitLab][📜src-gl]   | The Truth                                                             | [💚][🤝gl-issues]         | [💚][🤝gl-pulls]         | [💚][📜gl-wiki]           | 🐭 Tiny Matrix           | ➖                            |
+| 🧊 [{KJ|README:REPO_SLUG} on CodeBerg][📜src-cb] | An Ethical Mirror ([Donate][🤝cb-donate])                             | [💚][🤝cb-issues]         | [💚][🤝cb-pulls]         | ➖                         | ⭕️ No Matrix             | ➖                            |
+| 🐙 [{KJ|README:REPO_SLUG} on GitHub][📜src-gh]   | Another Mirror                                                        | [💚][🤝gh-issues]         | [💚][🤝gh-pulls]         | [💚][📜gh-wiki]           | 💯 Full Matrix           | [💚][gh-discussions]         |
 | 🎮️ [Discord Server][✉️discord-invite]          | [![Live Chat on Discord][✉️discord-invite-img-ftb]][✉️discord-invite] | [Let's][✉️discord-invite] | [talk][✉️discord-invite] | [about][✉️discord-invite] | [this][✉️discord-invite] | [library!][✉️discord-invite] |
 
 </details>
 
-[gh-discussions]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/discussions
+[gh-discussions]: {KJ|README:GH_DISCUSSIONS_URL}
 
 ### Enterprise Support [![Tidelift](https://tidelift.com/badges/package/rubygems/{KJ|GEM_NAME})](https://tidelift.com/subscription/pkg/rubygems-{KJ|GEM_NAME}?utm_source=rubygems-{KJ|GEM_NAME}&utm_medium=referral&utm_campaign=readme)
 
@@ -167,7 +167,7 @@ NOTE: [kettle-readme-backers][kettle-readme-backers] updates this list every day
 No sponsors yet. Be the first!
 <!-- OPENCOLLECTIVE-ORGANIZATIONS:END -->
 
-[kettle-readme-backers]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/blob/main/exe/kettle-readme-backers
+[kettle-readme-backers]: {KJ|README:GH_REPOSITORY_URL}/blob/main/exe/kettle-readme-backers
 <!-- KJ:OPEN_COLLECTIVE:END -->
 
 ### Another way to support open-source
@@ -224,16 +224,16 @@ chat rooms and mailing lists agrees to follow the [![Contributor Covenant 2.1][�
 
 Made with [contributors-img][🖐contrib-rocks].
 
-Also see GitLab Contributors: [https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/-/graphs/main][🚎contributors-gl]
+Also see GitLab Contributors: [{KJ|README:GL_CONTRIBUTORS_URL}][🚎contributors-gl]
 
 <details>
     <summary>⭐️ Star History</summary>
 
-<a href="https://star-history.com/#{KJ|GH_ORG}/{KJ|GEM_NAME}&Date">
+<a href="https://star-history.com/{KJ|README:STAR_HISTORY_REPO}&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos={KJ|GH_ORG}/{KJ|GEM_NAME}&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos={KJ|GH_ORG}/{KJ|GEM_NAME}&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos={KJ|GH_ORG}/{KJ|GEM_NAME}&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos={KJ|README:STAR_HISTORY_REPO}&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos={KJ|README:STAR_HISTORY_REPO}&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos={KJ|README:STAR_HISTORY_REPO}&type=Date" />
  </picture>
 </a>
 
@@ -338,12 +338,12 @@ Thanks for RTFM. ☺️
 [✉️ruby-friends]: https://app.daily.dev/squads/rubyfriends
 
 [✇bundle-group-pattern]: https://gist.github.com/pboling/4564780
-[⛳️gem-namespace]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}
+[⛳️gem-namespace]: {KJ|README:GH_PACKAGE_SOURCE_URL}
 [⛳️namespace-img]: https://img.shields.io/badge/namespace-{KJ|NAMESPACE}-3C2D2D.svg?style=square&logo=ruby&logoColor=white
 [⛳️gem-name]: https://bestgems.org/gems/{KJ|GEM_NAME}
 [⛳️name-img]: https://img.shields.io/badge/name-{KJ|GEM_SHIELD}-3C2D2D.svg?style=square&logo=rubygems&logoColor=red
-[⛳️tag-img]: https://img.shields.io/github/tag/{KJ|GH_ORG}/{KJ|GEM_NAME}.svg
-[⛳️tag]: http://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/releases
+[⛳️tag-img]: https://img.shields.io/github/tag/{KJ|README:GH_TAG_BADGE_REPO}.svg
+[⛳️tag]: {KJ|README:GH_RELEASES_URL}
 [🚂maint-blog]: http://www.railsbling.com/tags/{KJ|GEM_NAME}
 [🚂maint-blog-img]: https://img.shields.io/badge/blog-railsbling-0093D0.svg?style=for-the-badge&logo=rubyonrails&logoColor=orange
 [🚂maint-contact]: http://www.railsbling.com/contact
@@ -378,89 +378,89 @@ Thanks for RTFM. ☺️
 [💁🏼‍♂️peterboling]: http://www.peterboling.com
 [🚂railsbling]: http://www.railsbling.com
 [📜src-gl-img]: https://img.shields.io/badge/GitLab-FBA326?style=for-the-badge&logo=Gitlab&logoColor=orange
-[📜src-gl]: https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/
+[📜src-gl]: {KJ|README:GL_PACKAGE_SOURCE_URL}
 [📜src-cb-img]: https://img.shields.io/badge/CodeBerg-4893CC?style=for-the-badge&logo=CodeBerg&logoColor=blue
-[📜src-cb]: https://codeberg.org/{KJ|GH_ORG}/{KJ|GEM_NAME}
+[📜src-cb]: {KJ|README:CB_PACKAGE_SOURCE_URL}
 [📜src-gh-img]: https://img.shields.io/badge/GitHub-238636?style=for-the-badge&logo=Github&logoColor=green
-[📜src-gh]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}
+[📜src-gh]: {KJ|README:GH_PACKAGE_SOURCE_URL}
 [📜docs-cr-rd-img]: https://img.shields.io/badge/RubyDoc-Current_Release-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
 [📜docs-head-rd-img]: https://img.shields.io/badge/YARD_on_Galtzo.com-HEAD-943CD2?style=for-the-badge&logo=readthedocs&logoColor=white
-[📜gl-wiki]: https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/-/wikis/home
-[📜gh-wiki]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/wiki
+[📜gl-wiki]: {KJ|README:GL_WIKI_URL}
+[📜gh-wiki]: {KJ|README:GH_WIKI_URL}
 [📜gl-wiki-img]: https://img.shields.io/badge/wiki-gitlab-943CD2.svg?style=for-the-badge&logo=gitlab&logoColor=white
 [📜gh-wiki-img]: https://img.shields.io/badge/wiki-github-943CD2.svg?style=for-the-badge&logo=github&logoColor=white
 [👽dl-rank]: https://bestgems.org/gems/{KJ|GEM_NAME}
 [👽dl-ranki]: https://img.shields.io/gem/rd/{KJ|GEM_NAME}.svg
 [👽version]: https://bestgems.org/gems/{KJ|GEM_NAME}
 [👽versioni]: https://img.shields.io/gem/v/{KJ|GEM_NAME}.svg
-[🏀qlty-mnt]: https://qlty.sh/gh/{KJ|GH_ORG}/projects/{KJ|GEM_NAME}
-[🏀qlty-mnti]: https://qlty.sh/gh/{KJ|GH_ORG}/projects/{KJ|GEM_NAME}/maintainability.svg
-[🏀qlty-cov]: https://qlty.sh/gh/{KJ|GH_ORG}/projects/{KJ|GEM_NAME}/metrics/code?sort=coverageRating
-[🏀qlty-covi]: https://qlty.sh/gh/{KJ|GH_ORG}/projects/{KJ|GEM_NAME}/coverage.svg
-[🏀codecov]: https://codecov.io/gh/{KJ|GH_ORG}/{KJ|GEM_NAME}
-[🏀codecovi]: https://codecov.io/gh/{KJ|GH_ORG}/{KJ|GEM_NAME}/graph/badge.svg
-[🏀coveralls]: https://coveralls.io/github/{KJ|GH_ORG}/{KJ|GEM_NAME}?branch=main
-[🏀coveralls-img]: https://coveralls.io/repos/github/{KJ|GH_ORG}/{KJ|GEM_NAME}/badge.svg?branch=main
-[🖐codeQL]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/security/code-scanning
-[🖐codeQL-img]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/codeql-analysis.yml/badge.svg
-[🚎ruby-2.3-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.3.yml
-[🚎ruby-2.3-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.3.yml/badge.svg
-[🚎ruby-2.4-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.4.yml
-[🚎ruby-2.4-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.4.yml/badge.svg
-[🚎ruby-2.5-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.5.yml
-[🚎ruby-2.5-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.5.yml/badge.svg
-[🚎ruby-2.6-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.6.yml
-[🚎ruby-2.6-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.6.yml/badge.svg
-[🚎ruby-2.7-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.7.yml
-[🚎ruby-2.7-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-2.7.yml/badge.svg
-[🚎ruby-3.0-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.0.yml
-[🚎ruby-3.0-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.0.yml/badge.svg
-[🚎ruby-3.1-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.1.yml
-[🚎ruby-3.1-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.1.yml/badge.svg
-[🚎ruby-3.2-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.2.yml
-[🚎ruby-3.2-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.2.yml/badge.svg
-[🚎ruby-3.3-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.3.yml
-[🚎ruby-3.3-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.3.yml/badge.svg
-[🚎ruby-3.4-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.4.yml
-[🚎ruby-3.4-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/ruby-3.4.yml/badge.svg
-[🚎jruby-9.1-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.1.yml
-[🚎jruby-9.1-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.1.yml/badge.svg
-[🚎jruby-9.2-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.2.yml
-[🚎jruby-9.2-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.2.yml/badge.svg
-[🚎jruby-9.3-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.3.yml
-[🚎jruby-9.3-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.3.yml/badge.svg
-[🚎jruby-9.4-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.4.yml
-[🚎jruby-9.4-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby-9.4.yml/badge.svg
-[🚎truby-22.3-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-22.3.yml
-[🚎truby-22.3-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-22.3.yml/badge.svg
-[🚎truby-23.0-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-23.0.yml
-[🚎truby-23.0-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-23.0.yml/badge.svg
-[🚎truby-23.1-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-23.1.yml
-[🚎truby-23.1-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-23.1.yml/badge.svg
-[🚎truby-24.2-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-24.2.yml
-[🚎truby-24.2-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-24.2.yml/badge.svg
-[🚎truby-25.0-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-25.0.yml
-[🚎truby-25.0-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffleruby-25.0.yml/badge.svg
-[🚎2-cov-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/coverage.yml
-[🚎2-cov-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/coverage.yml/badge.svg
-[🚎3-hd-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/heads.yml
-[🚎3-hd-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/heads.yml/badge.svg
-[🚎5-st-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/style.yml
-[🚎5-st-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/style.yml/badge.svg
-[🚎9-t-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffle.yml
-[🚎9-t-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/truffle.yml/badge.svg
-[🚎10-j-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby.yml
-[🚎10-j-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/jruby.yml/badge.svg
-[🚎11-c-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/current.yml
-[🚎11-c-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/current.yml/badge.svg
-[🚎12-crh-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/dep-heads.yml
-[🚎12-crh-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/dep-heads.yml/badge.svg
-[🚎13-🔒️-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/locked_deps.yml
-[🚎13-🔒️-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/locked_deps.yml/badge.svg
-[🚎14-🔓️-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/unlocked_deps.yml
-[🚎14-🔓️-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/unlocked_deps.yml/badge.svg
-[🚎15-🪪-wf]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/license-eye.yml
-[🚎15-🪪-wfi]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/actions/workflows/license-eye.yml/badge.svg
+[🏀qlty-mnt]: {KJ|README:QLTY_PROJECT_URL}
+[🏀qlty-mnti]: {KJ|README:QLTY_MAINTAINABILITY_URL}
+[🏀qlty-cov]: {KJ|README:QLTY_COVERAGE_URL}
+[🏀qlty-covi]: {KJ|README:QLTY_COVERAGE_BADGE_URL}
+[🏀codecov]: {KJ|README:CODECOV_URL}
+[🏀codecovi]: {KJ|README:CODECOV_BADGE_URL}
+[🏀coveralls]: {KJ|README:COVERALLS_URL}
+[🏀coveralls-img]: {KJ|README:COVERALLS_BADGE_URL}
+[🖐codeQL]: {KJ|README:GH_CODEQL_URL}
+[🖐codeQL-img]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/codeql-analysis.yml/badge.svg
+[🚎ruby-2.3-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.3.yml
+[🚎ruby-2.3-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.3.yml/badge.svg
+[🚎ruby-2.4-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.4.yml
+[🚎ruby-2.4-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.4.yml/badge.svg
+[🚎ruby-2.5-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.5.yml
+[🚎ruby-2.5-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.5.yml/badge.svg
+[🚎ruby-2.6-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.6.yml
+[🚎ruby-2.6-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.6.yml/badge.svg
+[🚎ruby-2.7-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.7.yml
+[🚎ruby-2.7-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-2.7.yml/badge.svg
+[🚎ruby-3.0-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.0.yml
+[🚎ruby-3.0-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.0.yml/badge.svg
+[🚎ruby-3.1-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.1.yml
+[🚎ruby-3.1-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.1.yml/badge.svg
+[🚎ruby-3.2-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.2.yml
+[🚎ruby-3.2-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.2.yml/badge.svg
+[🚎ruby-3.3-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.3.yml
+[🚎ruby-3.3-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.3.yml/badge.svg
+[🚎ruby-3.4-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.4.yml
+[🚎ruby-3.4-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/ruby-3.4.yml/badge.svg
+[🚎jruby-9.1-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.1.yml
+[🚎jruby-9.1-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.1.yml/badge.svg
+[🚎jruby-9.2-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.2.yml
+[🚎jruby-9.2-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.2.yml/badge.svg
+[🚎jruby-9.3-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.3.yml
+[🚎jruby-9.3-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.3.yml/badge.svg
+[🚎jruby-9.4-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.4.yml
+[🚎jruby-9.4-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby-9.4.yml/badge.svg
+[🚎truby-22.3-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-22.3.yml
+[🚎truby-22.3-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-22.3.yml/badge.svg
+[🚎truby-23.0-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-23.0.yml
+[🚎truby-23.0-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-23.0.yml/badge.svg
+[🚎truby-23.1-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-23.1.yml
+[🚎truby-23.1-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-23.1.yml/badge.svg
+[🚎truby-24.2-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-24.2.yml
+[🚎truby-24.2-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-24.2.yml/badge.svg
+[🚎truby-25.0-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-25.0.yml
+[🚎truby-25.0-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffleruby-25.0.yml/badge.svg
+[🚎2-cov-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/coverage.yml
+[🚎2-cov-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/coverage.yml/badge.svg
+[🚎3-hd-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/heads.yml
+[🚎3-hd-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/heads.yml/badge.svg
+[🚎5-st-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/style.yml
+[🚎5-st-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/style.yml/badge.svg
+[🚎9-t-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffle.yml
+[🚎9-t-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/truffle.yml/badge.svg
+[🚎10-j-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby.yml
+[🚎10-j-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/jruby.yml/badge.svg
+[🚎11-c-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/current.yml
+[🚎11-c-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/current.yml/badge.svg
+[🚎12-crh-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/dep-heads.yml
+[🚎12-crh-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/dep-heads.yml/badge.svg
+[🚎13-🔒️-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/locked_deps.yml
+[🚎13-🔒️-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/locked_deps.yml/badge.svg
+[🚎14-🔓️-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/unlocked_deps.yml
+[🚎14-🔓️-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/unlocked_deps.yml/badge.svg
+[🚎15-🪪-wf]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/license-eye.yml
+[🚎15-🪪-wfi]: {KJ|README:GH_REPOSITORY_URL}/actions/workflows/license-eye.yml/badge.svg
 [💎ruby-1.8i]: https://img.shields.io/badge/Ruby-1.8_(%F0%9F%9A%ABCI)-AABBCC?style=for-the-badge&logo=ruby&logoColor=white
 [💎ruby-1.9i]: https://img.shields.io/badge/Ruby-1.9_(%F0%9F%9A%ABCI)-AABBCC?style=for-the-badge&logo=ruby&logoColor=white
 [💎ruby-2.0i]: https://img.shields.io/badge/Ruby-2.0_(%F0%9F%9A%ABCI)-AABBCC?style=for-the-badge&logo=ruby&logoColor=white
@@ -492,19 +492,19 @@ Thanks for RTFM. ☺️
 [💎jruby-9.4i]: https://img.shields.io/badge/JRuby-9.4-FBE742?style=for-the-badge&logo=ruby&logoColor=red
 [💎jruby-c-i]: https://img.shields.io/badge/JRuby-current-FBE742?style=for-the-badge&logo=ruby&logoColor=green
 [💎jruby-headi]: https://img.shields.io/badge/JRuby-HEAD-FBE742?style=for-the-badge&logo=ruby&logoColor=blue
-[🤝gh-issues]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/issues
-[🤝gh-pulls]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/pulls
-[🤝gl-issues]: https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/-/issues
-[🤝gl-pulls]: https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/-/merge_requests
-[🤝cb-issues]: https://codeberg.org/{KJ|GH_ORG}/{KJ|GEM_NAME}/issues
-[🤝cb-pulls]: https://codeberg.org/{KJ|GH_ORG}/{KJ|GEM_NAME}/pulls
+[🤝gh-issues]: {KJ|README:GH_ISSUES_URL}
+[🤝gh-pulls]: {KJ|README:GH_PULLS_URL}
+[🤝gl-issues]: {KJ|README:GL_ISSUES_URL}
+[🤝gl-pulls]: {KJ|README:GL_PULLS_URL}
+[🤝cb-issues]: {KJ|README:CB_ISSUES_URL}
+[🤝cb-pulls]: {KJ|README:CB_PULLS_URL}
 [🤝cb-donate]: https://donate.codeberg.org/
 [🤝contributing]: CONTRIBUTING.md
-[🏀codecov-g]: https://codecov.io/gh/{KJ|GH_ORG}/{KJ|GEM_NAME}/graphs/tree.svg
+[🏀codecov-g]: {KJ|README:CODECOV_GRAPH_URL}
 [🖐contrib-rocks]: https://contrib.rocks
-[🖐contributors]: https://github.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/graphs/contributors
-[🖐contributors-img]: https://contrib.rocks/image?repo={KJ|GH_ORG}/{KJ|GEM_NAME}
-[🚎contributors-gl]: https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/-/graphs/main
+[🖐contributors]: {KJ|README:GH_CONTRIBUTORS_URL}
+[🖐contributors-img]: https://contrib.rocks/image?repo={KJ|README:CONTRIBUTORS_IMAGE_REPO}
+[🚎contributors-gl]: {KJ|README:GL_CONTRIBUTORS_URL}
 [🪇conduct]: CODE_OF_CONDUCT.md
 [🪇conduct-img]: https://img.shields.io/badge/Contributor_Covenant-2.1-259D6C.svg
 [📌pvc]: http://guides.rubygems.org/patterns/#pessimistic-version-constraint
@@ -527,7 +527,7 @@ Thanks for RTFM. ☺️
 [🚎yard-current]: http://rubydoc.info/gems/{KJ|GEM_NAME}
 [🚎yard-head]: https://{KJ|YARD_HOST}
 [💎stone_checksums]: https://github.com/galtzo-floss/stone_checksums
-[💎SHA_checksums]: https://gitlab.com/{KJ|GH_ORG}/{KJ|GEM_NAME}/-/tree/main/checksums
+[💎SHA_checksums]: {KJ|README:SHA_CHECKSUMS_URL}
 [💎rlts]: https://github.com/rubocop-lts/rubocop-lts
 [💎rlts-img]: https://img.shields.io/badge/code_style_&_linting-rubocop--lts-34495e.svg?plastic&logo=ruby&logoColor=white
 [💎appraisal2]: https://github.com/appraisal-rb/appraisal2

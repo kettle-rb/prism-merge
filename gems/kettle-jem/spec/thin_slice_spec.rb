@@ -788,6 +788,7 @@ RSpec.describe Kettle::Jem do
             README.md:
               strategy: accept_template
         YAML
+        ".github/workflows/current.yml" => "name: Current\n",
       })
 
       apply = described_class.apply_project(root, env: {}, run_options: {skip_commit: true})
@@ -799,6 +800,10 @@ RSpec.describe Kettle::Jem do
       expect(readme).not_to include("OpenCollective Sponsors")
       expect(readme).not_to include("opencollective")
       expect(readme).not_to include("Apache SkyWalking Eyes License Compatibility Check")
+      expect(readme).to include("https://github.com/structuredmerge/structuredmerge-ruby/tree/main/gems/ast-merge")
+      expect(readme).to include("https://github.com/structuredmerge/structuredmerge-ruby/actions/workflows/current.yml")
+      expect(readme).not_to include("https://github.com/structuredmerge/ast-merge/actions/workflows/current.yml")
+      expect(readme).not_to include("actions/workflows/heads.yml")
       expect(readme).to include("https://img.shields.io/badge/wiki-gitlab-943CD2.svg")
       expect(readme).to include("https://img.shields.io/badge/wiki-github-943CD2.svg")
       expect(readme).not_to include("https://img.shields.io/badge/wiki-examples-943CD2.svg")
@@ -4903,16 +4908,16 @@ RSpec.describe Kettle::Jem do
         "License-AGPL--3.0--only_OR_PolyForm--Small--Business--1.0.0_OR_LicenseRef--Big--Time--Public--License"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
-        "tree-sitter-language-pack"
+        "tree_haver"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
-        "bash-merge, rbs-merge"
+        "bash-merge"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
-        "line-oriented config"
+        "ruby-signature"
       )
       expect(template_report.dig(:metadata, :template_tokens, "KJ|README:FAMILY_INTRO_BACKEND_MATRIX")).to include(
-        "Freeze tokens"
+        "template application"
       )
     end
   end
